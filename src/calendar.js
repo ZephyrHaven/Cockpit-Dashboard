@@ -1,17 +1,24 @@
 // calendar.js — 日历看板模块
 
 function buildCalendar(root, todos, opts) {
-  const { language, t, openTodoEditor, onTodoToggle } = opts;
+  const { language, t, openTodoEditor, onTodoToggle, rss, openRss } = opts;
   let calYear = window.moment().year();
   let calMonth = window.moment().month();
   let selDay = window.moment().date();
   let calRoot = null;
   let gridEl = null;
   let subtitleEl = null;
-  const now = window.moment();
+  let rssButtonEl = null;
+  let followsToday = true;
   const getSelectedDate = () => window.moment([calYear, calMonth, selDay]);
   const updateCalendarSubtitle = () => {
     if (subtitleEl) subtitleEl.setText(formatCalendarDetailHeading(getSelectedDate(), language));
+    if (rssButtonEl && rss?.config.enabled) {
+      const count = rss.unreadCountForDate(getSelectedDate());
+      rssButtonEl.setText('RSS');
+      if (count) rssButtonEl.createSpan({ cls:PLUGIN_ID + '-cal-rss-count', text:count > 99 ? '99+' : String(count) });
+      rssButtonEl.setAttribute('aria-label', (language === 'en' ? 'Unread RSS entries: ' : '未读 RSS 订阅：') + count);
+    }
   };
   const buildTodoMap = () => {
     const map = {};
@@ -38,6 +45,7 @@ function buildCalendar(root, todos, opts) {
     if (!calRoot?.parentNode) return;
     const date = getSelectedDate();
     const items = todoMap[date.format('YYYY-MM-DD')] || [];
+    const rssItems = rss?.config.enabled ? rss.itemsForDate(date) : [];
     const detail = document.createElement('div');
     detail.className = PLUGIN_ID + '-cal-detail';
     calRoot.parentNode.insertBefore(detail, calRoot.nextSibling);
@@ -45,9 +53,10 @@ function buildCalendar(root, todos, opts) {
     const title = head.createDiv({ cls: PLUGIN_ID + '-cal-detail-title-wrap' });
     title.createDiv({ cls: PLUGIN_ID + '-cal-detail-title', text: formatCalendarDetailHeading(date, language) });
     title.createDiv({ cls: PLUGIN_ID + '-cal-detail-count', text: String(items.length) });
-    const add = head.createEl('button', { cls: PLUGIN_ID + '-cal-detail-add', text: '+ ' + t('calendar.addTodo'), attr: { type: 'button' } });
+    const actions = head.createDiv({ cls: PLUGIN_ID + '-cal-detail-actions' });
+    const add = actions.createEl('button', { cls: PLUGIN_ID + '-cal-detail-add', text: '+ ' + t('calendar.addTodo'), attr: { type: 'button' } });
     add.onclick = () => openTodoEditor({ dueDate: date });
-    if (!items.length) {
+    if (!items.length && !rssItems.length) {
       const empty = detail.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty' });
       empty.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty-icon', text: '✦' });
       empty.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty-text', text: t('calendar.emptyDay') });
@@ -70,6 +79,12 @@ function buildCalendar(root, todos, opts) {
     });
   };
   const renderAll = () => {
+    const now = window.moment();
+    if (followsToday) {
+      calYear = now.year();
+      calMonth = now.month();
+      selDay = now.date();
+    }
     const todoMap = buildTodoMap();
     ensureRoot();
     const surface = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-surface' });
@@ -78,10 +93,18 @@ function buildCalendar(root, todos, opts) {
     title.createDiv({ cls: PLUGIN_ID + '-cal-title', text: formatMonthTitle(calYear, calMonth, language) });
     subtitleEl = title.createDiv({ cls: PLUGIN_ID + '-cal-subtitle', text: '' });
     updateCalendarSubtitle();
-    const nav = header.createDiv({ cls: PLUGIN_ID + '-cal-nav' });
+    const controls = header.createDiv({ cls: PLUGIN_ID + '-cal-controls' });
+    const nav = controls.createDiv({ cls: PLUGIN_ID + '-cal-nav' });
     const prev = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '‹' });
     const today = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '●', attr: { title: t('calendar.backToToday') } });
     const next = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '›' });
+    if (rss?.config.enabled) {
+      const selectedRss = rss.itemsForDate(getSelectedDate());
+      rssButtonEl = controls.createEl('button', { cls:PLUGIN_ID + '-cal-rss-btn', text:'RSS', attr:{ type:'button', title:language === 'en' ? 'Subscription entries for selected date' : '当前所选日期的订阅内容' } });
+      const unreadRss = rss.unreadCountForDate(getSelectedDate());
+      if (unreadRss) rssButtonEl.createSpan({ cls:PLUGIN_ID + '-cal-rss-count', text:unreadRss > 99 ? '99+' : String(unreadRss) });
+      rssButtonEl.onclick = () => openRss?.(getSelectedDate());
+    }
     const stage = surface.createDiv({ cls: PLUGIN_ID + '-cal-stage' });
     gridEl = stage.createDiv({ cls: PLUGIN_ID + '-cal-grid' });
     getWeekdayLabels(language, 'header').forEach((day) => gridEl.createDiv({ cls: PLUGIN_ID + '-cal-dow', text: day }));
@@ -93,7 +116,8 @@ function buildCalendar(root, todos, opts) {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = window.moment([calYear, calMonth, day]);
       const dayTodos = todoMap[date.format('YYYY-MM-DD')] || [];
-      const cell = gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell' + (date.isSame(now, 'day') ? ' today' : '') + (dayTodos.length ? ' has-todos' : '') + (day === selDay ? ' selected' : '') });
+      const dayRss = rss?.config.enabled ? rss.itemsForDate(date) : [];
+      const cell = gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell' + (date.isSame(now, 'day') ? ' today' : '') + (dayTodos.length ? ' has-todos' : '') + (dayRss.length ? ' has-rss' : '') + (day === selDay ? ' selected' : '') });
       const inner = cell.createDiv({ cls: PLUGIN_ID + '-cal-cell-inner' });
       inner.createSpan({ cls: PLUGIN_ID + '-cal-num', text: String(day) });
       if (date.isSame(now, 'day')) inner.createDiv({ cls: PLUGIN_ID + '-cal-today-mark' });
@@ -103,7 +127,8 @@ function buildCalendar(root, todos, opts) {
         const colors = { high: '#ef4444', mid: '#f59e0b', low: '#22c55e' };
         dayTodos.slice(0, 3).forEach((todo) => dots.createDiv({ cls: PLUGIN_ID + '-cal-dot', attr: { style: 'background:' + (todo.done ? '#22c55e' : (colors[todo.priority] || '#818cf8')) } }));
       }
-      cell.onclick = () => { selDay = day; renderDayDetailOnly(todoMap); };
+      if (dayRss.length) cell.createSpan({ cls:PLUGIN_ID + '-cal-rss-badge', text:'RSS ' + (dayRss.length > 99 ? '99+' : dayRss.length) });
+      cell.onclick = () => { selDay = day; followsToday = date.isSame(window.moment(), 'day'); renderDayDetailOnly(todoMap); };
     }
     const total = offset + daysInMonth;
     const fill = Math.max(0, 42 - total - ((7 - total % 7) % 7)) + ((7 - total % 7) % 7);
@@ -115,6 +140,7 @@ function buildCalendar(root, todos, opts) {
         calMonth += direction;
         if (calMonth < 0) { calMonth = 11; calYear--; }
         if (calMonth > 11) { calMonth = 0; calYear++; }
+        followsToday = false;
         selDay = Math.min(selDay, window.moment([calYear, calMonth, 1]).daysInMonth());
         renderAll();
         requestAnimationFrame(() => calRoot.querySelector('.' + PLUGIN_ID + '-cal-grid')?.classList.add('slide-in'));
@@ -122,7 +148,7 @@ function buildCalendar(root, todos, opts) {
     };
     prev.onclick = () => goMonth(-1);
     next.onclick = () => goMonth(1);
-    today.onclick = () => { calYear = now.year(); calMonth = now.month(); selDay = now.date(); renderAll(); };
+    today.onclick = () => { followsToday = true; renderAll(); };
     renderDetail(todoMap);
   };
   const createDimCell = (day) => {

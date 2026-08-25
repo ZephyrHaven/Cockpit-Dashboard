@@ -34,7 +34,8 @@ Cockpit Dashboard is a local-first Obsidian dashboard for tasks, calendar, searc
 | 🔍 全局搜索 | Spotlight 风格悬浮搜索，支持文件名、路径和笔记正文，带输入防抖、键盘选择和可拖动窗口；也可通过 Obsidian 命令快捷呼出 |
 | 🧩 编辑模式 | 所有仪表盘模块统一支持上下拖动排序、显示/隐藏、折叠状态持久化与情景布局；也可单独隐藏 Toolbar 按钮 |
 | 🖱️ 右键菜单 | 在首页空白区域弹出快捷菜单，支持刷新页面、新建笔记、搜索、命令面板、图谱、番茄钟、最近更新记录、进入编辑模式 |
-| 📅 日历看板 | 紧凑月视图、月份切换动画、日期选中、待办点位提示、日详情面板、快捷新增/编辑和勾选同步 |
+| 📅 日历看板 | 紧凑月视图、月份切换动画、日期选中、待办点位提示、日详情面板、快捷新增/编辑和勾选同步；支持多源 RSS、日期总数、未读角标与已读/未读文章状态 |
+| 📰 RSS 阅读器 | 可在日常模式打开的双栏订阅阅读器，支持来源筛选、文章卡片、结构化正文、链接/图片、全局朗读播放器、右键快捷操作，以及公共/单源正文过滤词 |
 | ✅ 待办管理 | 下拉状态筛选、动态标签页签、优先处理（高优先级或明天到期）、优先级、截止日期、一键延期、编辑和删除 |
 | 📊 统计卡片 | 笔记总数、待办总数、已完成、完成率、今日专注时长 |
 | 🍅 专注趋势 | 默认隐藏、可在编辑模式启用；从 `_data/focus.md` 汇总近 7 / 30 天专注时长，并支持平滑折线与柱状图切换 |
@@ -90,7 +91,8 @@ Cockpit Dashboard 已上架 Obsidian 社区插件市场：
 | 文件 | 作用 |
 |---|---|
 | `_data/todos.md` | 待办数据 |
-| 插件 `data.json` | Storage V2 设置、自定义按钮、收藏、排序与 Toolbar 命令配置 |
+| 插件 `data.json` | Storage V2 设置、自定义按钮、收藏、排序、Toolbar 命令与 RSS 订阅/过滤配置（不含正文缓存） |
+| 浏览器 IndexedDB | 当前设备的 RSS 正文摘要、已读状态和受限缓存；不参与 Obsidian Sync，可随时在 RSS 菜单清除 |
 | `_data/bookmarks.md` | 未完成数据迁移时的收藏存储；迁移后停止写入，可由用户主动清理 |
 | `_data/focus.md` | 按日期累计的专注历史记录 |
 | `_data/toolbar.md` | 未完成数据迁移时的 Toolbar 命令配置；迁移后停止读取和写入 |
@@ -153,17 +155,19 @@ bash deploy.sh --min
 
 ### 当前版本
 
-- Manifest version: `1.1.1`
-- Latest update date: `2026-07-21`
+- Manifest version: `1.1.2`
+- Latest update date: `2026-07-27`
+
+### 1.1.2 最近更新
+
+- 新增日历 RSS 订阅：支持多源筛选、日期总数、已读状态、正文过滤、仅本机缓存、顶部全局播放器与跨日静默更新。
 
 ### 1.1.1 最近更新
 
-- 新增情景布局，可保存不同工作场景的模块与 Toolbar 状态。
-- “每日一语”支持当前语言编辑、拖拽排序与轮询方式选择。
-- 编辑模式下 Toolbar 局部更新，完成编辑时统一应用布局。
-- 新增默认隐藏的“专注趋势”模块，支持近 7 / 30 天、平滑折线和柱状图切换。
-- 模块统一接入排序、显示/隐藏、折叠、编辑模式和情景布局；折叠状态会持久化保存。
-- 番茄钟可关闭自动显示；正在专注或暂停的计时会自己找路回来，并会跟随 Obsidian 自动切换深浅主题。
+- 新增情景布局，让模块和 Toolbar 可按不同工作场景独立保存、排序、显示和折叠。
+- 每日一语与 Toolbar 编辑支持按当前语言维护、拖拽调整和局部保存。
+- 新增默认隐藏的专注趋势，可查看近 7 / 30 天记录并切换折线或柱状图。
+- 番茄钟支持自动显示控制，并会随 Obsidian 切换深浅主题。
 
 ### 赞助作者
 
@@ -202,7 +206,8 @@ Cockpit Dashboard is designed to be more than a visual landing page. It centrali
 | 🔍 Global Search | Draggable Spotlight-style search across note names, paths, and content, with input debouncing, keyboard navigation, and an Obsidian command entry point |
 | 🧩 Edit Mode | All dashboard modules share drag reordering, visibility controls, persistent collapsed state, and layout-scene support; individual toolbar buttons can also be hidden |
 | 🖱️ Context Menu | Right-click in blank dashboard space for refresh, new note, search, command palette, graph, Pomodoro, recent updates, and Edit Mode |
-| 📅 Calendar Board | Compact monthly view, month-switch animation, date selection, todo markers, detail panel, quick create/edit, and task-state sync |
+| 📅 Calendar Board | Compact monthly view, month-switch animation, date selection, todo markers, detail panel, quick create/edit, and task-state sync; supports multi-source RSS, daily totals, unread badges, and read/unread articles |
+| 📰 RSS Reader | Daily-access two-pane subscription reader with source filters, article cards, structured text, links/images, a global text-to-speech player, context-menu actions, and shared/per-source content filters |
 | ✅ Todo Manager | Compact status dropdown, dynamic tag tabs, Next filtering for high-priority or tomorrow-due tasks, priority, due dates, one-click deferral, edit/delete, and completion sync |
 | 📊 Stats Cards | Note count, todo count, completed count, completion rate, and today’s focus minutes |
 | 🍅 Focus Trend | Hidden by default and enabled from Edit Mode; summarizes 7/30-day focus history from `_data/focus.md` with smooth line and bar chart views |
@@ -256,7 +261,8 @@ Your data stays yours: the plugin does not collect or upload Vault data and incl
 | File | Purpose |
 |---|---|
 | `_data/todos.md` | Todo storage |
-| Plugin `data.json` | Storage V2 settings, custom buttons, bookmarks, ordering, and Toolbar command configuration |
+| Plugin `data.json` | Storage V2 settings, custom buttons, bookmarks, ordering, Toolbar commands, and RSS subscription/filter configuration (not article cache) |
+| Browser IndexedDB | Device-local RSS summaries, read states, and bounded cache; excluded from Obsidian Sync and removable from the RSS menu |
 | `_data/bookmarks.md` | Bookmark storage before migration; no longer written after migration and removable by the user |
 | `_data/focus.md` | Focus history accumulated by date |
 | `_data/toolbar.md` | Toolbar command configuration before migration; no longer read or written after migration |
@@ -317,17 +323,19 @@ Build notes:
 
 ### Current Version
 
-- Manifest version: `1.1.1`
-- Latest update date: `2026-07-21`
+- Manifest version: `1.1.2`
+- Latest update date: `2026-07-27`
+
+### What’s New in 1.1.2
+
+- Added calendar RSS subscriptions with multi-source filtering, daily totals, read state, content filters, device-local cache, a top-level player for reading the current article aloud, and silent date-change updates.
 
 ### What’s New in 1.1.1
 
-- Added layout scenes that preserve module and Toolbar state for different workflows.
-- Daily Note supports per-language editing, drag sorting, and selectable rotation modes.
-- Toolbar changes update locally in Edit Mode; leaving Edit Mode applies the final layout.
-- Added a hidden-by-default Focus Trend module with 7/30-day views and smooth line or bar charts.
-- Modules now share sorting, visibility, persistent collapse, Edit Mode, and layout-scene integration.
-- Pomodoro auto-show can be disabled; active or paused sessions return after refresh and follow Obsidian’s automatic light/dark theme changes.
+- Added layout scenes for independently saving, ordering, showing, and collapsing modules and Toolbar items by workflow.
+- Daily Note and Toolbar editing now support language-aware maintenance, drag adjustment, and local saves.
+- Added a hidden-by-default Focus Trend with 7/30-day history and line or bar views.
+- Pomodoro supports auto-show control and follows Obsidian’s light/dark theme.
 
 ### Sponsor
 

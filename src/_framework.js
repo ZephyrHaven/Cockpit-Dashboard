@@ -1,5 +1,5 @@
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroSession = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart']); this._hiddenToolbarActions = new Set(); this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroSession = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart']); this._hiddenToolbarActions = new Set(); this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -358,9 +358,15 @@ class CockpitView extends obsidian.ItemView {
       document.removeEventListener('visibilitychange', this._visibilityRefreshHandler);
     }
     this._refreshHeroSection();
+    this._lastCalendarDateKey = window.moment().format('YYYY-MM-DD');
     this._minuteRefreshTimer = window.setInterval(() => {
       try {
         this._refreshHeroSection();
+        const dateKey = window.moment().format('YYYY-MM-DD');
+        if (dateKey !== this._lastCalendarDateKey) {
+          this._lastCalendarDateKey = dateKey;
+          if (!document.hidden && !this._isSilentRefreshBlocked(true)) this._refreshCalendarRef?.();
+        }
       } catch (e) {
         console.warn('Cockpit hero refresh failed', e);
       }
@@ -616,6 +622,8 @@ class CockpitView extends obsidian.ItemView {
     try {
       const pluginData = await this._plugin.loadData() || {};
       this._language = normalizeLang(pluginData?.language || DEFAULT_LANG);
+      await this._rss.initialize();
+      if (this._rss.config.enabled) this._rss.refresh().then(() => this._refreshCalendarRef?.()).catch((e) => console.warn('Cockpit RSS refresh failed', e));
       this._pomodoroAutoShow = pluginData?.pomodoroAutoShow !== false;
       this._pomodoroSession = pluginData?.pomodoroSession?.active ? pluginData.pomodoroSession : null;
       this._focusChartSettings = { range:pluginData?.focusChartSettings?.range === 'month' ? 'month' : 'week', type:pluginData?.focusChartSettings?.type === 'bar' ? 'bar' : 'line' };
@@ -713,6 +721,21 @@ class CockpitView extends obsidian.ItemView {
     return [
       ...this._blankContextMenuItems,
       {
+        title: this._lang() === 'en' ? 'Manage RSS subscriptions' : '管理 RSS 订阅源',
+        icon: 'settings-2',
+        onClick: () => new CockpitRssSettingsModal(this.app, this).open()
+      },
+      {
+        title: this._lang() === 'en' ? 'Refresh RSS subscriptions' : '刷新 RSS 订阅',
+        icon: 'rss',
+        onClick: async () => { await this._refreshRssSubscriptions(true); }
+      },
+      {
+        title: this._lang() === 'en' ? 'Clear local RSS cache' : '清除本机 RSS 缓存',
+        icon: 'trash-2',
+        onClick: async () => { await this._rss.clearCache(); this._refreshCalendarRef?.(); new obsidian.Notice(this._lang() === 'en' ? 'Local RSS cache cleared.' : '本机 RSS 缓存已清除。'); }
+      },
+      {
         title: this._t('contextMenu.releaseNotes'),
         icon: 'history',
         onClick: () => {
@@ -737,6 +760,15 @@ class CockpitView extends obsidian.ItemView {
         onClick: async () => { await this._renderDashboard(true); }
       }
     ];
+  }
+  async _refreshRssSubscriptions(force) {
+    const result = await this._rss.refresh(force);
+    const en = this._lang() === 'en';
+    let message = (en ? 'Updated ' : '已更新 ') + result.refreshed + (en ? ' sources' : ' 个订阅源');
+    if (result.failed) message += (en ? '; failed: ' : '；更新失败：') + result.failedFeeds.join('、');
+    new obsidian.Notice(message);
+    this._refreshCalendarRef?.();
+    return result;
   }
   _openDashboardMenu(anchorEl, sourceEvent) {
     const menu = new obsidian.Menu();
@@ -1196,7 +1228,9 @@ class CockpitView extends obsidian.ItemView {
       onTodoToggle: async () => {
         await saveTodos(this.app.vault, this._todos);
         if (refreshTodosRef) await refreshTodosRef({ persist: false });
-      }
+      },
+      rss:this._rss,
+      openRss:(date) => new CockpitRssModal(this.app, this, date).open()
     });
     refreshCalendarRef = refreshCalendar;
     this._refreshCalendarRef = refreshCalendar;

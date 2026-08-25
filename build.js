@@ -19,6 +19,7 @@ const MODULES = [
   'serverchan.js',
   'bookmarks.js',
   'storage.js',
+  'rss.js',
   'calendar.js',
   'search.js',
   'toolbar-config.js',
@@ -52,6 +53,15 @@ function loadModuleCode(mod) {
       code = code.replace('__DAILY_TIPS_DEFAULTS__', JSON.stringify(JSON.parse(defaults)));
     } catch (e) {
       console.error('❌ daily-tips.default.json 格式无效:', e.message);
+      process.exit(1);
+    }
+  }
+  if (mod === 'rss.js') {
+    const defaults = readFileOrExit(path.join(SRC_DIR, 'data', 'rss-filter-defaults.json'), 'RSS filter defaults');
+    try {
+      code = code.replace('__RSS_FILTER_DEFAULTS__', JSON.stringify(JSON.parse(defaults)));
+    } catch (e) {
+      console.error('❌ rss-filter-defaults.json 格式无效:', e.message);
       process.exit(1);
     }
   }

@@ -15,6 +15,22 @@ const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f9
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
 const RELEASE_HISTORY = [
   {
+    version: '1.1.2',
+    date: '2026-07-24',
+    title: {
+      'zh-CN': '日历 RSS 订阅',
+      en: 'Calendar RSS Subscriptions'
+    },
+    highlights: {
+      'zh-CN': [
+        '新增日历 RSS 订阅：支持多源按日期查看、已读未读提醒、正文过滤、顶部全局朗读播放器与跨日静默更新。'
+      ],
+      en: [
+        'Added calendar RSS subscriptions with multi-source date-based entries, read/unread reminders, content filters, a top-level text-to-speech player, and silent date-change updates.'
+      ]
+    }
+  },
+  {
     version: '1.1.1',
     date: '2026-07-21',
     title: {
@@ -23,20 +39,16 @@ const RELEASE_HISTORY = [
     },
     highlights: {
       'zh-CN': [
-        '新增情景布局：可复制当前布局并分别保存模块与 Toolbar 状态。',
-        '“每日一语”支持按当前语言维护提示、拖拽排序与选择轮询方式。',
-        '编辑模式下 Toolbar 改为局部更新；完成编辑时统一应用最终布局。',
-        '新增默认隐藏的“专注趋势”模块，可查看近 7 / 30 天专注记录，并切换平滑折线或柱状图。',
-        '专注趋势和其他区块一样，支持折叠并记住展开状态。',
-        '番茄钟会跟随 Obsidian 自动切换深浅主题。'
+        '新增情景布局，让模块与 Toolbar 可按不同工作场景独立保存、排序、显示和折叠。',
+        '每日一语与 Toolbar 编辑支持按当前语言维护、拖拽调整和局部保存。',
+        '新增默认隐藏的专注趋势，可查看近 7 / 30 天记录并切换折线或柱状图。',
+        '番茄钟支持自动显示控制，并会随 Obsidian 切换深浅主题。'
       ],
       en: [
-        'Added layout scenes that copy the current layout and save module and Toolbar state independently.',
-        'Daily Note now supports per-language editing, drag sorting, and selectable rotation modes.',
-        'Toolbar changes in Edit Mode update locally; leaving Edit Mode applies the final layout.',
-        'Added a hidden-by-default Focus Trend module with 7/30-day history and smooth line or bar charts.',
-        'Focus Trend can collapse like other dashboard sections and remembers its state.',
-        'Pomodoro follows Obsidian’s automatic light/dark theme changes.'
+        'Added layout scenes for independently saving, ordering, showing, and collapsing modules and Toolbar items by workflow.',
+        'Daily Note and Toolbar editing now support language-aware maintenance, drag adjustment, and local saves.',
+        'Added a hidden-by-default Focus Trend with 7/30-day history and line or bar views.',
+        'Pomodoro supports auto-show control and follows Obsidian’s light/dark theme.'
       ]
     }
   },
