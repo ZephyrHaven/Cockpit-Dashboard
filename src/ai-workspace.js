@@ -707,7 +707,7 @@ class CockpitWorkspaceToolsRegistry {
 
   _runCommand(args) {
     const deps = this._resolveDeps();
-    if (!deps.execFile) throw new Error('Running commands requires the Obsidian desktop app.');
+    if (!deps.execFile) throw new Error('Running commands requires the desktop app.');
     const rawCommand = String(args.command ?? '').replace(/[\r\n\0]+/g, ' ').trim();
     if (!rawCommand) throw new Error('A command is required.');
     if (rawCommand.length > AI_WORKSPACE_LIMITS.maxCommandChars) throw new Error('The command is too long.');

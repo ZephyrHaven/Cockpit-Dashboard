@@ -1,6 +1,6 @@
 // release-notes.js — 从 GitHub Releases 在线加载并展示最近更新。
 
-class CockpitReleaseNotesModal extends obsidian.Modal {
+class CockpitReleaseNotesModal extends obs.Modal {
   constructor(app, plugin, language) {
     super(app);
     this._plugin = plugin;
@@ -19,7 +19,7 @@ class CockpitReleaseNotesModal extends obsidian.Modal {
       else require('electron').shell.openExternal(GITHUB_RELEASES_URL);
     } catch (e) {
       try { window.open(GITHUB_RELEASES_URL, '_blank', 'noopener'); }
-      catch (ignored) { new obsidian.Notice(this._t('releases.githubError')); }
+      catch (ignored) { new obs.Notice(this._t('releases.githubError')); }
     }
   }
 
@@ -27,7 +27,7 @@ class CockpitReleaseNotesModal extends obsidian.Modal {
     this._controlsEl.empty();
     this._releasePanel.empty();
     const loading = this._releasePanel.createDiv({ cls:PLUGIN_ID + '-release-loading' });
-    obsidian.setIcon(loading.createSpan({ cls:PLUGIN_ID + '-release-loading-icon' }), 'loader-circle');
+    obs.setIcon(loading.createSpan({ cls:PLUGIN_ID + '-release-loading-icon' }), 'loader-circle');
     loading.createSpan({ text:this._t('releases.loading') });
   }
 
@@ -35,7 +35,7 @@ class CockpitReleaseNotesModal extends obsidian.Modal {
     this._controlsEl.empty();
     this._releasePanel.empty();
     const error = this._releasePanel.createDiv({ cls:PLUGIN_ID + '-release-error' });
-    obsidian.setIcon(error.createSpan({ cls:PLUGIN_ID + '-release-error-icon' }), 'cloud-off');
+    obs.setIcon(error.createSpan({ cls:PLUGIN_ID + '-release-error-icon' }), 'cloud-off');
     const copy = error.createDiv({ cls:PLUGIN_ID + '-release-error-copy' });
     copy.createDiv({ cls:PLUGIN_ID + '-release-error-title', text:this._t('releases.errorTitle') });
     copy.createDiv({ cls:PLUGIN_ID + '-release-error-hint', text:this._t('releases.errorHint') });
@@ -63,7 +63,7 @@ class CockpitReleaseNotesModal extends obsidian.Modal {
       body.createDiv({ cls:PLUGIN_ID + '-release-body-empty', text:this._t('releases.bodyEmpty') });
       return;
     }
-    Promise.resolve(obsidian.MarkdownRenderer.render(this.app, release.body, body, '', this))
+    Promise.resolve(obs.MarkdownRenderer.render(this.app, release.body, body, '', this))
       .catch((e) => {
         console.warn('Cockpit: render GitHub release notes failed', e);
         body.empty();
@@ -105,7 +105,7 @@ class CockpitReleaseNotesModal extends obsidian.Modal {
     }
     this._renderLoading();
     try {
-      const model = await loadGitHubReleaseNotes(obsidian.requestUrl);
+      const model = await loadGitHubReleaseNotes(obs.requestUrl);
       if (this._closed || generation !== this._requestGeneration) return;
       this._plugin._releaseNotesCache = createReleaseNotesCache(model);
       this._renderModel(model);
@@ -135,7 +135,7 @@ class CockpitReleaseNotesModal extends obsidian.Modal {
     const footer = contentEl.createDiv({ cls:PLUGIN_ID + '-release-footer' });
     footer.createDiv({ cls:PLUGIN_ID + '-release-github-note', text:this._t('releases.githubHint') });
     const githubButton = footer.createEl('button', { cls:PLUGIN_ID + '-release-github', attr:{type:'button'} });
-    obsidian.setIcon(githubButton.createSpan(), 'external-link');
+    obs.setIcon(githubButton.createSpan(), 'external-link');
     githubButton.createSpan({ text:this._t('releases.github') });
     githubButton.onclick = () => this._openCompleteHistory();
 

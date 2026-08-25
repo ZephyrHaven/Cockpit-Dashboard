@@ -81,7 +81,7 @@ assert.deepEqual(getOnlineReleaseNotesModel(null), { releases:[], selected:null 
   const constants = fs.readFileSync(path.join(__dirname, '../src/constants.js'), 'utf8');
   const readme = fs.readFileSync(path.join(__dirname, '../README.md'), 'utf8');
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../manifest.json'), 'utf8'));
-  assert.match(releaseUi, /obsidian\.requestUrl/, 'The modal uses Obsidian requestUrl for cross-platform, CORS-free GitHub requests.');
+  assert.match(releaseUi, /obs\.requestUrl/, 'The modal uses requestUrl for cross-platform, CORS-free GitHub requests.');;
   assert.match(releaseUi, /_plugin\._releaseNotesCache/, 'Fetched releases are cached on the plugin instance across modal openings.');
   assert.match(releaseUi, /versionSelect\.onchange[\s\S]*selectOnlineReleaseNotes/, 'Version changes only select from the in-memory cache.');
   assert.doesNotMatch(releaseUi, /versionSelect\.onchange\s*=\s*\(\)\s*=>\s*\{[^}]*_loadReleases/, 'Changing a version never performs another network request.');

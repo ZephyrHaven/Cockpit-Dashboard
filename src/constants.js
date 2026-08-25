@@ -128,7 +128,8 @@ const I18N = {
       workLogMissing: '📝 工作日志未配置',
       workLogFailed: ({ message }) => '📝 工作日志执行失败: ' + message,
       workLogDone: '📝 工作日志已执行完毕',
-      legacyDefaultConfig: '⚙️ 这条命令是旧版插件的默认配置，在当前电脑上无法运行；请在弹出的窗口中改成你自己的命令。'
+      hermesMissing: '🤖 Hermes 未配置命令，请在工具栏设置中填写',
+      commandNotAvailable: '⚙️ 命令不可用或未安装，请在弹出的工具栏设置中修改'
     },
     calendar: {
       emptyDay: '这一天没有待办 🎉',
@@ -269,7 +270,7 @@ const I18N = {
       deferTask: '移到明天',
       taskNextAction: '本轮专注后的任务操作',
       fullscreenReminder: '专注结束全屏提醒',
-      fullscreenHint: '25 分钟专注结束时覆盖当前 Obsidian 窗口',
+      fullscreenHint: '25 分钟专注结束时覆盖当前应用窗口',
       breakReminder: '休息结束也提醒',
       breakReminderHint: '开启全屏提醒后，5 分钟休息结束时提醒开始工作',
       focusFinishedTitle: '专注完成',
@@ -278,7 +279,7 @@ const I18N = {
       breakFinishedSubtitle: '准备好后，开始下一轮专注。'
     },
     alarm: {
-      runningNote: 'Obsidian 运行时会准点响铃，休眠唤醒后 10 分钟内可补响。'
+      runningNote: '应用运行时会准点响铃，休眠唤醒后 10 分钟内可补响。'
     },
     onboarding: {
       stepName: '✏️ 这里可以切换界面语言，也可以点击昵称直接修改名字',
@@ -408,7 +409,8 @@ const I18N = {
       workLogMissing: '📝 Work log command is not configured',
       workLogFailed: ({ message }) => '📝 Work log failed: ' + message,
       workLogDone: '📝 Work log finished',
-      legacyDefaultConfig: '⚙️ This command is a legacy default from an older version and cannot run on this computer. Replace it with your own command in the window that just opened.'
+      hermesMissing: '🤖 Hermes command is not configured. Set it in the toolbar settings.',
+      commandNotAvailable: '⚙️ Command unavailable or not installed. Update it in the toolbar settings that just opened.'
     },
     calendar: {
       emptyDay: 'No tasks on this day 🎉',
@@ -546,7 +548,7 @@ const I18N = {
       deferTask: 'Move to tomorrow',
       taskNextAction: 'Task actions after this focus session',
       fullscreenReminder: 'Full-screen focus reminder',
-      fullscreenHint: 'Cover the current Obsidian window when a 25-minute focus session ends',
+      fullscreenHint: 'Cover the current app window when a 25-minute focus session ends',
       breakReminder: 'Also remind after break',
       breakReminderHint: 'When full-screen reminders are enabled, prompt to resume work after the five-minute break',
       focusFinishedTitle: 'Focus complete',
@@ -555,7 +557,7 @@ const I18N = {
       breakFinishedSubtitle: 'Start the next focus session when you are ready.'
     },
     alarm: {
-      runningNote: 'Alarms ring while Obsidian is running and recover within 10 minutes after wake.'
+      runningNote: 'Alarms ring while the app is running and recover within 10 minutes after wake.'
     },
     onboarding: {
       stepName: '✏️ Use this area to switch interface language and rename yourself quickly.',

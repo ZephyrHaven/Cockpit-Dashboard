@@ -10,7 +10,7 @@ async function buildHabitsModule(view, root) {
   const title = root.createDiv({ cls: PLUGIN_ID + '-section-title ' + PLUGIN_ID + '-habits-title', text: t('sections.habits') });
   title.dataset.section = 'habits-title';
   const addBtn = title.createEl('button', { cls: PLUGIN_ID + '-alarm-add', attr: { type:'button', title:en?'New habit':'新建习惯', 'aria-label':en?'New habit':'新建习惯' } });
-  obsidian.setIcon(addBtn, 'plus');
+  obs.setIcon(addBtn, 'plus');
 
   const body = root.createDiv({ cls: PLUGIN_ID + '-habits' });
   body.dataset.section = 'habits-body';
@@ -22,7 +22,7 @@ async function buildHabitsModule(view, root) {
   })();
   const todayKey = weekKeys[weekKeys.length - 1];
 
-  const notifyFail = () => new obsidian.Notice(en ? 'Could not save habits. Nothing was changed.' : '习惯保存失败，内容未发生变化。');
+  const notifyFail = () => new obs.Notice(en ? 'Could not save habits. Nothing was changed.' : '习惯保存失败，内容未发生变化。');
 
   const render = async () => {
     let habits = [];
@@ -44,7 +44,7 @@ async function buildHabitsModule(view, root) {
 
     if (!habits.length) {
       const empty = body.createDiv({ cls: PLUGIN_ID + '-habit-empty' });
-      obsidian.setIcon(empty.createSpan(), 'flame');
+      obs.setIcon(empty.createSpan(), 'flame');
       empty.createDiv({ text: en ? 'No habits yet. Track a small daily win here.' : '还没有习惯。在这里记录每天的小胜利。' });
     }
 
@@ -93,7 +93,7 @@ async function buildHabitsModule(view, root) {
 
       const actions = row.createDiv({ cls: PLUGIN_ID + '-habit-actions' });
       const edit = actions.createEl('button', { attr:{ type:'button', title:en?'Rename / icon':'改名 / 图标', 'aria-label':en?'Edit habit':'编辑习惯' } });
-      obsidian.setIcon(edit, 'pencil');
+      obs.setIcon(edit, 'pencil');
       edit.onclick = () => {
         const nextName = normalizeHabitName(window.prompt(en ? 'Habit name' : '习惯名称', habit.name) || '');
         if (!nextName) return;
@@ -109,7 +109,7 @@ async function buildHabitsModule(view, root) {
           .catch((e) => console.warn('Cockpit habit edit failed', e));
       };
       const remove = actions.createEl('button', { attr:{ type:'button', title:en?'Delete':'删除', 'aria-label':en?'Delete habit':'删除习惯' } });
-      obsidian.setIcon(remove, 'trash-2');
+      obs.setIcon(remove, 'trash-2');
       remove.onclick = async () => {
         if (!window.confirm(en ? ('Delete "' + habit.name + '"? Check-in history will be removed too.') : ('删除「' + habit.name + '」？打卡记录会一并删除。'))) return;
         const outcome = await mutateHabits(vault, (list) => {
@@ -159,7 +159,7 @@ async function buildHabitsModule(view, root) {
         return true;
       });
       if (!outcome.saved) {
-        if (outcome.habits && outcome.habits.some((item) => item.name === name)) new obsidian.Notice(en ? 'This habit already exists.' : '已经存在同名习惯。');
+        if (outcome.habits && outcome.habits.some((item) => item.name === name)) new obs.Notice(en ? 'This habit already exists.' : '已经存在同名习惯。');
         else notifyFail();
         return;
       }

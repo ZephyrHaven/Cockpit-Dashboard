@@ -69,7 +69,7 @@ function createToolbarTool(parent, icon, title, extraClass) {
   const button = parent.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-tool' + (extraClass ? ' ' + extraClass : ''), attr:{type:'button',title} });
   button.draggable = false;
   button.addEventListener('dragstart', (evt) => evt.preventDefault());
-  obsidian.setIcon(button, icon);
+  obs.setIcon(button, icon);
   return button;
 }
 
@@ -152,10 +152,10 @@ function buildToolbar(view, root, allFiles, t) {
   });
 
   const add = toolbar.createEl('button', { cls:PLUGIN_ID+'-custom-toolbar-add', attr:{type:'button'} });
-  obsidian.setIcon(add.createSpan(), 'plus'); add.createSpan({ text:view._lang()==='en'?'Custom button':'自定义按钮' });
+  obs.setIcon(add.createSpan(), 'plus'); add.createSpan({ text:view._lang()==='en'?'Custom button':'自定义按钮' });
   add.onclick = () => openCustomToolbarButtonEditor(view, root);
   const logs = toolbar.createEl('button', { cls:PLUGIN_ID+'-custom-toolbar-logs', attr:{type:'button'} });
-  obsidian.setIcon(logs.createSpan(), 'scroll-text'); logs.createSpan({ text:view._lang()==='en'?'Run logs':'运行日志' });
+  obs.setIcon(logs.createSpan(), 'scroll-text'); logs.createSpan({ text:view._lang()==='en'?'Run logs':'运行日志' });
   logs.onclick = () => openCustomToolbarLogs(view);
 
   view._applyToolbarButtonEditState(root);

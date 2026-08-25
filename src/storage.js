@@ -231,7 +231,7 @@ function openStorageMigration(view) {
   const head = panel.createDiv({ cls: PID + '-storage-head' });
   head.createDiv({ cls: PID + '-storage-title', text: en ? 'Data migration' : '数据迁移' });
   const close = head.createEl('button', { cls: PID + '-storage-close', attr:{type:'button'} });
-  obsidian.setIcon(close, 'x'); close.onclick = () => overlay.remove();
+  obs.setIcon(close, 'x'); close.onclick = () => overlay.remove();
   makeCockpitDialogDraggable(panel, head, { label:en ? 'Drag data migration window' : '拖动数据迁移窗口' });
   const hero = panel.createDiv({ cls:PID + '-storage-guide' });
   const badge = hero.createDiv({ cls:PID + '-storage-badge', text:en?'Checking…':'正在检查…' });

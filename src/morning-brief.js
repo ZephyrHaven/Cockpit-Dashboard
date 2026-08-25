@@ -185,7 +185,7 @@ async function polishBriefingWithAi(plugin, lang, facts) {
     const config = await plugin.ai.getConfig();
     const profile = typeof getActiveAiProfile === 'function' ? getActiveAiProfile(config) : null;
     if (!profile?.model) return null;
-    if (profile.apiKeySecret) { try { if (!plugin.ai.getSecret(profile.apiKeySecret)) return null; } catch (e) { return null; } }
+    if (profile.apiKey || profile.apiKeySecret) { try { if (!plugin.ai.getProfileApiKey(profile)) return null; } catch (e) { return null; } }
     const payload = {
       dueToday:facts.dueToday.map((item) => item.text),
       overdueCount:facts.overdue.length,
@@ -331,7 +331,7 @@ function getMorningBriefSettingsCopy(language) {
     heading:en ? 'Morning brief' : '晨间简报',
     intro:en ? 'A daily digest of tasks, habits and focus time, pushed to your phone at a set time. Delivery channels are shared with message notifications.' : '每天定时把「今日待办 / 逾期 / 习惯 / 专注」汇总推送到手机。推送渠道与消息推送共用配置。',
     enabled:en ? 'Enable morning brief' : '启用晨间简报',
-    enabledDesc:en ? 'Sends automatically while Obsidian is running; each channel receives one brief per day.' : 'Obsidian 运行期间自动检查；每个已启用渠道每天最多收到一条简报。',
+    enabledDesc:en ? 'Sends automatically while the app is running; each channel receives one brief per day.' : '应用运行期间自动检查；每个已启用渠道每天最多收到一条简报。',
     time:en ? 'Send time' : '发送时间',
     noChannel:en ? 'No delivery channel is enabled yet. Configure one in the Channels tab first.' : '还没有启用任何推送渠道，请先在「推送渠道」里配置。',
     sections:en ? 'Brief contents' : '简报内容',
@@ -362,18 +362,18 @@ async function renderMorningBriefSettings(panel, plugin, language) {
 
   const save = () => plugin.morningBrief.saveConfig(config);
 
-  new obsidian.Setting(panel).setName(copy.enabled).setDesc(copy.enabledDesc)
+  new obs.Setting(panel).setName(copy.enabled).setDesc(copy.enabledDesc)
     .addToggle((toggle) => toggle.setValue(config.enabled).onChange(async (value) => { config.enabled = value; await save(); }));
 
-  new obsidian.Setting(panel).setName(copy.time)
+  new obs.Setting(panel).setName(copy.time)
     .addText((text) => { text.inputEl.type = 'time'; text.setValue(config.time).onChange(async (value) => { config.time = normalizeMorningBriefTime(value); await save(); }); });
 
   panel.createDiv({ cls:PLUGIN_ID + '-settings-panel-header' }).createEl('h3', { text:copy.sections });
-  new obsidian.Setting(panel).setName(copy.todayTodos).addToggle((toggle) => toggle.setValue(config.includeTodayTodos).onChange(async (value) => { config.includeTodayTodos = value; await save(); }));
-  new obsidian.Setting(panel).setName(copy.overdue).addToggle((toggle) => toggle.setValue(config.includeOverdue).onChange(async (value) => { config.includeOverdue = value; await save(); }));
-  new obsidian.Setting(panel).setName(copy.habits).addToggle((toggle) => toggle.setValue(config.includeHabits).onChange(async (value) => { config.includeHabits = value; await save(); }));
-  new obsidian.Setting(panel).setName(copy.focus).addToggle((toggle) => toggle.setValue(config.includeFocus).onChange(async (value) => { config.includeFocus = value; await save(); }));
-  new obsidian.Setting(panel).setName(copy.aiPolish).setDesc(copy.aiPolishDesc)
+  new obs.Setting(panel).setName(copy.todayTodos).addToggle((toggle) => toggle.setValue(config.includeTodayTodos).onChange(async (value) => { config.includeTodayTodos = value; await save(); }));
+  new obs.Setting(panel).setName(copy.overdue).addToggle((toggle) => toggle.setValue(config.includeOverdue).onChange(async (value) => { config.includeOverdue = value; await save(); }));
+  new obs.Setting(panel).setName(copy.habits).addToggle((toggle) => toggle.setValue(config.includeHabits).onChange(async (value) => { config.includeHabits = value; await save(); }));
+  new obs.Setting(panel).setName(copy.focus).addToggle((toggle) => toggle.setValue(config.includeFocus).onChange(async (value) => { config.includeFocus = value; await save(); }));
+  new obs.Setting(panel).setName(copy.aiPolish).setDesc(copy.aiPolishDesc)
     .addToggle((toggle) => toggle.setValue(config.aiPolish).onChange(async (value) => { config.aiPolish = value; await save(); }));
 
   const status = panel.createDiv({ cls:PLUGIN_ID + '-brief-status' });
@@ -394,14 +394,14 @@ async function renderMorningBriefSettings(panel, plugin, language) {
     status.createSpan({ text });
   };
 
-  const actions = new obsidian.Setting(panel).setName(copy.test).setDesc(copy.testDesc);
+  const actions = new obs.Setting(panel).setName(copy.test).setDesc(copy.testDesc);
   actions.addButton((button) => button.setButtonText(copy.test).onClick(async () => {
     button.setDisabled(true); button.setButtonText(copy.sending);
     try {
       const ok = await plugin.morningBrief.sendNow();
-      new obsidian.Notice(ok ? copy.sentOk : (copy.sentFail + (en ? 'no enabled channel' : '没有可用渠道')));
+      new obs.Notice(ok ? copy.sentOk : (copy.sentFail + (en ? 'no enabled channel' : '没有可用渠道')));
     } catch (e) {
-      new obsidian.Notice(copy.sentFail + (e?.message || 'unknown error'));
+      new obs.Notice(copy.sentFail + (e?.message || 'unknown error'));
     } finally {
       button.setDisabled(false); button.setButtonText(copy.test);
       renderStatus().catch(() => {});

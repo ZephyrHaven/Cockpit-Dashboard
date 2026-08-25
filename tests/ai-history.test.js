@@ -30,7 +30,7 @@ const normalized = normalizeAiHistory({
 });
 assert.equal(normalized.sessions[0].messages.length, 2, 'Only user and assistant messages survive history normalization.');
 assert.deepEqual(Object.keys(normalized.sessions[0].messages[0]).sort(), ['content','createdAt','role'], 'Tool arguments and reasoning are never persisted.');
-assert.deepEqual(normalized.sessions[0].contextPaths, ['Projects/A.md'], 'Protected Obsidian paths are excluded from session metadata.');
+assert.deepEqual(normalized.sessions[0].contextPaths, ['Projects/A.md'], 'Protected config paths are excluded from session metadata.');
 assert.ok(!JSON.stringify(normalized).includes('secret.txt'));
 assert.ok(!JSON.stringify(normalized).includes('hidden chain'));
 
@@ -112,7 +112,7 @@ assert.equal(readonlyAgentModeSession.sessions[0].agentMode, 'readonly', 'The re
   const view = fs.readFileSync(path.join(root, 'src/ai-view.js'), 'utf8');
   const styles = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
   assert.match(build, /'ai-history\.js'[\s\S]*'ai-view\.js'/, 'Conversation storage is bundled before the view.');
-  assert.match(view, /ai-session-drawer/, 'A ChatGPT-style conversation drawer is available without permanently narrowing the Obsidian sidebar.');
+  assert.match(view, /ai-session-drawer/, 'A ChatGPT-style conversation drawer is available without permanently narrowing the app sidebar.');
   assert.match(view, /ai-composer-tools/, 'Model and context controls move into the bottom composer.');
   assert.match(view, /ai-activity-track/, 'Agent progress renders as a left segmented activity track.');
   assert.match(styles, /cockpit-dashboard-ai-session-drawer/);

@@ -3053,7 +3053,7 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   .cockpit-dashboard-root.cockpit-dashboard-phone.cockpit-dashboard-layout-editing .cockpit-dashboard-module-tools { transform:scale(.84); transform-origin:top right; }
 }
 
-/* Obsidian mobile may expose a wide CSS viewport in landscape. Device class,
+/* Mobile may expose a wide CSS viewport in landscape. Device class,
    not media width, remains authoritative so the first paint never uses the
    sparse desktop toolbar layout shown before measurement. */
 .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbar {

@@ -38,8 +38,7 @@ Modules share scope through top-level function declarations, so each module can 
 |---|---|
 | `_data/todos.md` | Todos (inline `id:`/`due:`/`p:` metadata maintained by the plugin) |
 | `_data/focus.md` | Focus history accumulated per day |
-| Plugin `data.json` | Storage V2 settings, layout scenes, toolbar, RSS config, AI model config (**no API keys**) |
-| Obsidian SecretStorage | AI provider API keys |
+| Plugin `data.json` | Storage V2 settings, layout scenes, toolbar, RSS config, AI model config (**API keys are stored here in plain text**) |
 | Plugin-private `ai-history.json` | Up to 30 AI sessions (no attachment bodies / RAG excerpts / reasoning) |
 | Plugin-private `ai-index.json` | Inverted-index snapshot |
 | IndexedDB | Device-local RSS article cache and read state |

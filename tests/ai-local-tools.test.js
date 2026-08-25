@@ -74,9 +74,9 @@ function makeRegistry(dependencies = {}, commands = []) {
         openPath:async (target) => { openedPaths.push(target); return ''; }
       }
     });
-    await registry.execute('sys_open_target', { target:'https://obsidian.md' }, { autoApprove:true });
+    await registry.execute('sys_open_target', { target:'https://example.com/page' }, { autoApprove:true });
     await registry.execute('sys_open_target', { target:'/Users/demo/Documents' }, { autoApprove:true });
-    assert.deepEqual(openedExternal, ['https://obsidian.md'], 'Web URLs go through the OS handler.');
+    assert.deepEqual(openedExternal, ['https://example.com/page'], 'Web URLs go through the OS handler.');
     assert.deepEqual(openedPaths, ['/Users/demo/Documents'], 'Absolute paths open locally.');
     await assert.rejects(
       () => registry.execute('sys_open_target', { target:'javascript:alert(1)' }, { autoApprove:true }),

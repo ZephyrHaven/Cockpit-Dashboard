@@ -53,7 +53,7 @@ function formatFlashDigestMarkdown(plan, items, nowStamp, lang) {
   return lines.join('\n');
 }
 
-class CockpitFlashOrganizeModal extends obsidian.Modal {
+class CockpitFlashOrganizeModal extends obs.Modal {
   // options: { lang, plan|null, rawAnswer, items, addTodo(text)->Promise<bool>,
   //            saveNote(markdown)->Promise<void>, clearInbox()->Promise<void> }
   constructor(app, options) {
@@ -87,7 +87,7 @@ class CockpitFlashOrganizeModal extends obsidian.Modal {
             : cluster.theme;
           try {
             const ok = await o.addTodo(text);
-            new obsidian.Notice(ok ? (en ? '✅ Task added' : '✅ 已添加待办') : (en ? 'Could not save the task.' : '待办保存失败。'));
+            new obs.Notice(ok ? (en ? '✅ Task added' : '✅ 已添加待办') : (en ? 'Could not save the task.' : '待办保存失败。'));
           } finally { add.disabled = false; }
         };
         if (cluster.summary) card.createDiv({ cls:PLUGIN_ID + '-flash-digest-summary', text:cluster.summary });
@@ -113,10 +113,10 @@ class CockpitFlashOrganizeModal extends obsidian.Modal {
           ? formatFlashDigestMarkdown(o.plan, o.items, window.moment().format('YYYY-MM-DD HH:mm'), o.lang)
           : '# ' + (en ? 'Flash Digest ' : '闪念整理 ') + window.moment().format('YYYY-MM-DD HH:mm') + '\n\n' + String(o.rawAnswer || '');
         await o.saveNote(markdown);
-        new obsidian.Notice(en ? '✅ Digest note saved and opened' : '✅ 整理笔记已保存并打开');
+        new obs.Notice(en ? '✅ Digest note saved and opened' : '✅ 整理笔记已保存并打开');
       } catch (e) {
         console.warn('Cockpit flash digest save failed', e);
-        new obsidian.Notice(en ? 'Could not save the digest note.' : '整理笔记保存失败。');
+        new obs.Notice(en ? 'Could not save the digest note.' : '整理笔记保存失败。');
       } finally { save.disabled = false; }
     };
     const clear = actions.createEl('button', { cls:'mod-warning', attr:{ type:'button' }, text:en ? 'Clear inbox when done' : '完成后清空整理箱' });
@@ -135,7 +135,7 @@ class CockpitFlashOrganizeModal extends obsidian.Modal {
 async function organizeFlashInboxWithAi(view, hooks) {
   const en = hooks.lang === 'en';
   const items = (view._flashInbox || []).map((entry) => ({ id:entry?.id, text:String(entry?.text || '') })).filter((item) => item.text);
-  if (!items.length) { new obsidian.Notice(en ? 'Nothing to organize yet.' : '整理箱是空的。'); return; }
+  if (!items.length) { new obs.Notice(en ? 'Nothing to organize yet.' : '整理箱是空的。'); return; }
   const listing = items.map((item, index) => (index + 1) + '. ' + item.text.replace(/\s+/g, ' ').slice(0, 120)).join('\n');
   const question = (en
     ? 'Group these flash notes into 2-6 themes. Reply ONLY with a JSON array, no extra text:\n'
@@ -154,7 +154,7 @@ async function organizeFlashInboxWithAi(view, hooks) {
     rawAnswer = '';
   }
   if (!plan && !rawAnswer) {
-    new obsidian.Notice(en ? 'AI organizing failed. Check the AI model settings.' : 'AI 整理失败，请检查「AI 模型」配置。');
+    new obs.Notice(en ? 'AI organizing failed. Check the AI model settings.' : 'AI 整理失败，请检查「AI 模型」配置。');
     return;
   }
   new CockpitFlashOrganizeModal(view.app, {

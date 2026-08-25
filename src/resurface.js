@@ -66,7 +66,7 @@ async function buildResurfaceModule(view, root) {
     }
 
     const shuffle = body.createEl('button', { cls: PLUGIN_ID + '-resurface-shuffle', attr:{ type:'button', title:en ? 'Show others' : '换一批', 'aria-label':en ? 'Show other notes' : '换一批笔记' } });
-    obsidian.setIcon(shuffle, 'dices');
+    obs.setIcon(shuffle, 'dices');
     shuffle.createSpan({ text: en ? 'Shuffle' : '换一批' });
     shuffle.onclick = (event) => {
       event.preventDefault();

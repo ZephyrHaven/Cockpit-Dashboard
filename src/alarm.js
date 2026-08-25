@@ -36,7 +36,7 @@ class AlarmOverlayRuntime {
     ambientA.setAttribute('aria-hidden', 'true'); ambientB.setAttribute('aria-hidden', 'true');
     const content = overlay.createDiv({ cls:PLUGIN_ID + '-alarm-ringing' });
     const glyph = content.createDiv({ cls:PLUGIN_ID + '-alarm-glyph' });
-    obsidian.setIcon(glyph, next.kind === 'pomodoro' ? 'timer' : 'alarm-clock');
+    obs.setIcon(glyph, next.kind === 'pomodoro' ? 'timer' : 'alarm-clock');
     const clock = content.createDiv({ cls:PLUGIN_ID + '-alarm-clock' });
     const date = content.createDiv({ cls:PLUGIN_ID + '-alarm-date' });
     content.createDiv({ cls:PLUGIN_ID + '-alarm-name', text:next.title || (en ? 'Alarm' : '闹钟') });
@@ -44,12 +44,12 @@ class AlarmOverlayRuntime {
     const actions = content.createDiv({ cls:PLUGIN_ID + '-alarm-actions' });
     if (next.allowSnooze !== false) {
       const snooze = actions.createEl('button', { cls:PLUGIN_ID + '-alarm-action secondary', attr:{type:'button'} });
-      obsidian.setIcon(snooze.createSpan(), 'bed-double');
+      obs.setIcon(snooze.createSpan(), 'bed-double');
       snooze.createSpan({ text:en ? 'Remind me in 10 minutes' : '稍后提醒 10 分钟' });
       snooze.onclick = () => this.dismiss('snooze');
     }
     const stop = actions.createEl('button', { cls:PLUGIN_ID + '-alarm-action primary', attr:{type:'button'} });
-    obsidian.setIcon(stop.createSpan(), 'square');
+    obs.setIcon(stop.createSpan(), 'square');
     stop.createSpan({ text:next.stopLabel || (en ? 'Stop' : '停止') });
     stop.onclick = () => this.dismiss('stop');
     content.createDiv({ cls:PLUGIN_ID + '-alarm-shortcuts', text:next.allowSnooze === false
@@ -92,7 +92,7 @@ class AlarmOverlayRuntime {
     }
   }
 
-  // 尝试把 Obsidian 窗口拉到前台；Electron remote 不可用时安静放弃。
+  // 尝试把应用窗口拉到前台；Electron remote 不可用时安静放弃。
   _raiseWindow() {
     try {
       const remote = require('electron')?.remote;
@@ -349,8 +349,8 @@ function openAlarmEditor(view, alarm, onSaved, linkedTodo) {
     button.onclick = () => { if (selected.has(day)) selected.delete(day); else selected.add(day); button.classList.toggle('active', selected.has(day)); button.setAttribute('aria-pressed', String(selected.has(day))); };
   });
   const note = body.createDiv({ cls:PLUGIN_ID + '-alarm-editor-note', text:en
-    ? (linkedTodo ? 'Linked to this task. Completing or deleting the task disables the alarm automatically.' : 'Alarms ring while Obsidian is running. A 10-minute recovery window handles sleep and background timer throttling.')
-    : (linkedTodo ? '已关联此待办；完成或删除待办后，闹钟会自动停用。' : '闹钟会在 Obsidian 运行时响铃；电脑休眠或后台计时延迟后，会在 10 分钟内补响。') });
+    ? (linkedTodo ? 'Linked to this task. Completing or deleting the task disables the alarm automatically.' : 'Alarms ring while the app is running. A 10-minute recovery window handles sleep and background timer throttling.')
+    : (linkedTodo ? '已关联此待办；完成或删除待办后，闹钟会自动停用。' : '闹钟会在应用运行时响铃；电脑休眠或后台计时延迟后，会在 10 分钟内补响。') });
   const error = body.createDiv({ cls:PLUGIN_ID + '-alarm-editor-error' });
   const footer = sheet.createDiv({ cls:PLUGIN_ID + '-alarm-editor-footer' });
   const preview = footer.createEl('button', { text:en ? 'Preview' : '预览', attr:{type:'button'} });
@@ -408,7 +408,7 @@ async function buildAlarmModule(view, root) {
   title.dataset.section = 'alarms-title';
   title.createSpan({ text:view._t('sections.alarms') });
   const add = title.createEl('button', { cls:PLUGIN_ID + '-alarm-add', attr:{type:'button', title:en ? 'New alarm' : '新建闹钟', 'aria-label':en ? 'New alarm' : '新建闹钟'} });
-  obsidian.setIcon(add, 'plus');
+  obs.setIcon(add, 'plus');
   const content = root.createDiv({ cls:PLUGIN_ID + '-alarms' });
   content.dataset.section = 'alarms-body';
   const render = async () => {
@@ -416,7 +416,7 @@ async function buildAlarmModule(view, root) {
     content.empty();
     if (!alarms.length) {
       const empty = content.createDiv({ cls:PLUGIN_ID + '-alarm-empty' });
-      obsidian.setIcon(empty.createSpan(), 'alarm-clock');
+      obs.setIcon(empty.createSpan(), 'alarm-clock');
       empty.createDiv({ text:en ? 'No alarms yet' : '还没有闹钟' });
       empty.createEl('button', { text:en ? 'Create alarm' : '创建闹钟', attr:{type:'button'} }).onclick = () => openAlarmEditor(view, null, render);
       return;
@@ -431,17 +431,17 @@ async function buildAlarmModule(view, root) {
       meta.createDiv({ cls:PLUGIN_ID + '-alarm-card-schedule', text:formatAlarmSchedule(alarm, view._lang()) });
       if (alarm.linkedTodoText) {
         const link = meta.createDiv({ cls:PLUGIN_ID + '-alarm-card-link' });
-        obsidian.setIcon(link.createSpan(), 'list-checks');
+        obs.setIcon(link.createSpan(), 'list-checks');
         link.createSpan({ text:alarm.linkedTodoText });
       }
       const actions = card.createDiv({ cls:PLUGIN_ID + '-alarm-card-actions' });
       const toggle = actions.createEl('input', { attr:{type:'checkbox', title:en ? 'Enable alarm' : '启用闹钟', 'aria-label':en ? 'Enable alarm' : '启用闹钟'} });
       toggle.checked = alarm.enabled; toggle.onchange = async () => { await service.toggle(alarm.id, toggle.checked); render(); };
-      const edit = actions.createEl('button', { attr:{type:'button', title:en ? 'Edit' : '编辑', 'aria-label':en ? 'Edit' : '编辑'} }); obsidian.setIcon(edit, 'pencil');
+      const edit = actions.createEl('button', { attr:{type:'button', title:en ? 'Edit' : '编辑', 'aria-label':en ? 'Edit' : '编辑'} }); obs.setIcon(edit, 'pencil');
       edit.onclick = () => openAlarmEditor(view, alarm, render);
-      const preview = actions.createEl('button', { attr:{type:'button', title:en ? 'Preview' : '预览', 'aria-label':en ? 'Preview' : '预览'} }); obsidian.setIcon(preview, 'play');
+      const preview = actions.createEl('button', { attr:{type:'button', title:en ? 'Preview' : '预览', 'aria-label':en ? 'Preview' : '预览'} }); obs.setIcon(preview, 'play');
       preview.onclick = () => service.ring(alarm, true);
-      const remove = actions.createEl('button', { attr:{type:'button', title:en ? 'Delete' : '删除', 'aria-label':en ? 'Delete' : '删除'} }); obsidian.setIcon(remove, 'trash-2');
+      const remove = actions.createEl('button', { attr:{type:'button', title:en ? 'Delete' : '删除', 'aria-label':en ? 'Delete' : '删除'} }); obs.setIcon(remove, 'trash-2');
       remove.onclick = async () => { if (window.confirm(en ? 'Delete this alarm?' : '删除这个闹钟？')) { await service.remove(alarm.id); render(); } };
     });
   };

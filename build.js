@@ -102,7 +102,7 @@ function buildBundle(css, moduleBodies, mode) {
   if (mode === 'pretty') {
     const parts = moduleBodies.map(({ name, code }) => `// ===== ${name} =====\n${code}`);
     return `'use strict';
-var obsidian = require('obsidian');
+var obs = require('obsidian');
 
 // ===== styles.css =====
 const CSS = ${JSON.stringify(css)};
@@ -125,7 +125,7 @@ ${parts.join('\n\n')}
       .filter((line) => line.trim() && !line.trim().startsWith('//'))
       .join('\n'))
     .join('\n');
-  return `'use strict';var obsidian=require('obsidian');const CSS=${JSON.stringify(compactCss)};\n${compactModules}\n`;
+  return `'use strict';var obs=require('obsidian');const CSS=${JSON.stringify(compactCss)};\n${compactModules}\n`;
 }
 
 async function tryMinifyWithTool(code) {

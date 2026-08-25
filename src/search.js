@@ -43,7 +43,7 @@ function rankSearchFiles(files, rawQuery) {
     .map((item) => item.file);
 }
 
-class CockpitGlobalSearchModal extends obsidian.Modal {
+class CockpitGlobalSearchModal extends obs.Modal {
   constructor(app, language, view) {
     super(app);
     this.language = language || DEFAULT_LANG;
@@ -63,10 +63,10 @@ class CockpitGlobalSearchModal extends obsidian.Modal {
     this.contentEl.empty();
     const box = this.contentEl.createDiv({ cls: PLUGIN_ID + '-spotlight' });
     const dragBar = box.createDiv({ cls: PLUGIN_ID + '-spotlight-dragbar', attr: { title: this._text('拖动搜索窗口', 'Drag search window') } });
-    obsidian.setIcon(dragBar.createSpan(), 'grip-horizontal');
+    obs.setIcon(dragBar.createSpan(), 'grip-horizontal');
     this._bindDrag(dragBar);
     const searchRow = box.createDiv({ cls: PLUGIN_ID + '-spotlight-input-row' });
-    obsidian.setIcon(searchRow.createSpan({ cls: PLUGIN_ID + '-spotlight-icon' }), 'search');
+    obs.setIcon(searchRow.createSpan({ cls: PLUGIN_ID + '-spotlight-icon' }), 'search');
     this.input = searchRow.createEl('input', {
       cls: PLUGIN_ID + '-spotlight-input',
       attr: { type: 'text', placeholder: this._text('搜索待办、笔记内容、文件名或路径…', 'Search todos, notes, content, or paths…') }
@@ -256,24 +256,24 @@ class CockpitGlobalSearchModal extends obsidian.Modal {
   }
 
   async _copyResult(result) {
-    if (!result.file) { new obsidian.Notice(this._text('待办不支持复制链接', 'Todos have no link to copy')); return; }
-    try { await navigator.clipboard.writeText(`[[${result.file.path.replace(/\.md$/i, '')}]]`); new obsidian.Notice(this._text('已复制笔记链接', 'Note link copied')); } catch (e) { new obsidian.Notice(this._text('复制失败', 'Could not copy')); }
+    if (!result.file) { new obs.Notice(this._text('待办不支持复制链接', 'Todos have no link to copy')); return; }
+    try { await navigator.clipboard.writeText(`[[${result.file.path.replace(/\.md$/i, '')}]]`); new obs.Notice(this._text('已复制笔记链接', 'Note link copied')); } catch (e) { new obs.Notice(this._text('复制失败', 'Could not copy')); }
   }
 
   async _toggleBookmark(result) {
     if (!result.file) return;
-    if (!this.view?._storage) { new obsidian.Notice(this._text('请从驾驶舱内打开搜索以使用收藏', 'Open search from Cockpit to pin files')); return; }
+    if (!this.view?._storage) { new obs.Notice(this._text('请从驾驶舱内打开搜索以使用收藏', 'Open search from Cockpit to pin files')); return; }
     if (this.view._bookmarks.has(result.file.path)) this.view._bookmarks.delete(result.file.path); else this.view._bookmarks.add(result.file.path);
     await this.view._storage.saveBookmarks(this.view._bookmarks);
     await this.view._saveBookmarkOrder?.();
-    new obsidian.Notice(this.view._bookmarks.has(result.file.path) ? this._text('已收藏', 'Pinned') : this._text('已取消收藏', 'Unpinned'));
+    new obs.Notice(this.view._bookmarks.has(result.file.path) ? this._text('已收藏', 'Pinned') : this._text('已取消收藏', 'Unpinned'));
   }
 
   _openResult(result, split = false) {
     // 待办命中：打开待办编辑器而不是文件。
     if (result.kind === 'todo') {
       if (this.view?._openTodoEditorRef) { this.close(); this.view._openTodoEditorRef({ id:result.todoId }); }
-      else new obsidian.Notice(this._text('请先打开驾驶舱面板', 'Open the dashboard first'));
+      else new obs.Notice(this._text('请先打开驾驶舱面板', 'Open the dashboard first'));
       return;
     }
     const leaf = split ? this.app.workspace.getLeaf('split', 'vertical') : this.app.workspace.getUnpinnedLeaf();

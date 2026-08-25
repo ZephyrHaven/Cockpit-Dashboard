@@ -18,7 +18,7 @@ function openPomodoroToolbarConfigEditor(view, root) {
   const head = panel.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-head' });
   head.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-title', text:en ? 'Pomodoro settings' : '番茄钟设置' });
   const close = head.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-close', attr:{type:'button'} });
-  obsidian.setIcon(close, 'x'); close.onclick = () => overlay.remove();
+  obs.setIcon(close, 'x'); close.onclick = () => overlay.remove();
   makeCockpitDialogDraggable(panel, head, { label:en ? 'Drag Pomodoro settings' : '拖动番茄钟设置窗口' });
   const field = panel.createEl('label', { cls:PLUGIN_ID + '-custom-toolbar-consent' });
   const autoShow = field.createEl('input', { attr:{type:'checkbox'} });
@@ -29,7 +29,7 @@ function openPomodoroToolbarConfigEditor(view, root) {
   const cancel = footer.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-secondary', text:en?'Cancel':'取消', attr:{type:'button'} });
   cancel.onclick = () => overlay.remove();
   const save = footer.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-primary', text:en?'Save':'保存', attr:{type:'button'} });
-  save.onclick = async () => { await view._setPomodoroAutoShow(autoShow.checked); overlay.remove(); new obsidian.Notice(en?'Pomodoro settings saved.':'番茄钟设置已保存。'); };
+  save.onclick = async () => { await view._setPomodoroAutoShow(autoShow.checked); overlay.remove(); new obs.Notice(en?'Pomodoro settings saved.':'番茄钟设置已保存。'); };
   panel.addEventListener('keydown', (evt) => { if (evt.key === 'Escape') overlay.remove(); });
   document.body.appendChild(overlay);
 }
@@ -49,7 +49,7 @@ function validateBuiltinToolbarConfig(command, url, spec, lang) {
 
 function openBuiltinToolbarConfigEditor(view, root, action) {
   if (view._isMobile && view._isMobile()) {
-    new obsidian.Notice(view._lang() === 'en' ? 'This configuration is only available on desktop.' : '此配置仅在桌面端可用。');
+    new obs.Notice(view._lang() === 'en' ? 'This configuration is only available on desktop.' : '此配置仅在桌面端可用。');
     return;
   }
   const spec = BUILTIN_TOOLBAR_CONFIG[action];
@@ -65,7 +65,7 @@ function openBuiltinToolbarConfigEditor(view, root, action) {
   const head = panel.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-head' });
   head.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-title', text:en?spec.titleEn:spec.titleCn });
   const close = head.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-close', attr:{type:'button'} });
-  obsidian.setIcon(close, 'x'); close.onclick = () => overlay.remove();
+  obs.setIcon(close, 'x'); close.onclick = () => overlay.remove();
   makeCockpitDialogDraggable(panel, head, { label:en ? 'Drag toolbar settings' : '拖动工具栏设置窗口' });
   panel.createDiv({ cls:PLUGIN_ID + '-toolbar-config-warning', text:en?'This command runs with your local user permissions and is stored as plain text. Do not include passwords or tokens.':'该命令会以当前本机用户权限运行并以明文保存，请勿写入密码或令牌。' });
   const labelField = panel.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-field' });
@@ -103,7 +103,7 @@ function openBuiltinToolbarConfigEditor(view, root, action) {
     await view._storage.saveToolbarCommands(commands);
     view._toolbarCmds = commands;
     overlay.remove();
-    new obsidian.Notice(en?'Toolbar configuration saved.':'Toolbar 配置已保存。');
+    new obs.Notice(en?'Toolbar configuration saved.':'Toolbar 配置已保存。');
     refreshToolbar(view, root);
   };
   panel.addEventListener('keydown', (evt) => { if (evt.key === 'Escape') overlay.remove(); });

@@ -1,6 +1,6 @@
 // ai-dialogs.js — Agent 授权、会话重命名与删除确认对话框。
 
-class CockpitAgentConfirmationModal extends obsidian.Modal {
+class CockpitAgentConfirmationModal extends obs.Modal {
   constructor(app, tool, language, resolve) {
     super(app); this.tool = tool; this.language = language; this.resolveResult = resolve; this.settled = false;
   }
@@ -11,14 +11,14 @@ class CockpitAgentConfirmationModal extends obsidian.Modal {
     this.titleEl.setText(en ? 'Allow Cockpit Agent action?' : '允许 Cockpit Agent 执行？');
     const body = this.contentEl.createDiv({ cls:PLUGIN_ID + '-ai-tool-confirm' });
     const summary = body.createDiv({ cls:PLUGIN_ID + '-ai-tool-confirm-summary' });
-    const icon = summary.createSpan({ cls:PLUGIN_ID + '-ai-tool-confirm-icon' }); obsidian.setIcon(icon, 'shield-check');
+    const icon = summary.createSpan({ cls:PLUGIN_ID + '-ai-tool-confirm-icon' }); obs.setIcon(icon, 'shield-check');
     const copy = summary.createDiv();
     copy.createEl('strong', { text:this.tool?.label || this.tool?.name || (en ? 'Agent action' : 'Agent 操作') });
     copy.createEl('p', { text:en ? 'This action changes Cockpit data. Review the arguments before allowing it once.' : '此操作会修改 Cockpit 数据。请检查参数，并仅授权本次执行。' });
     body.createEl('pre', { cls:PLUGIN_ID + '-ai-tool-confirm-args', text:JSON.stringify(this.tool?.args || {}, null, 2).slice(0, 2000) });
     body.createEl('p', { cls:PLUGIN_ID + '-ai-tool-confirm-boundary', text:en
-      ? 'Plugin source, Obsidian configuration, Shell commands, and arbitrary file writes are never available to the Agent.'
-      : 'Agent 永远无法访问插件源码、Obsidian 配置、Shell 命令或任意文件写入。' });
+      ? 'Plugin source, app configuration, Shell commands, and arbitrary file writes are never available to the Agent.'
+      : 'Agent 永远无法访问插件源码、应用配置、Shell 命令或任意文件写入。' });
     const actions = body.createDiv({ cls:PLUGIN_ID + '-ai-tool-confirm-actions' });
     const cancel = actions.createEl('button', { attr:{ type:'button' }, text:en ? 'Deny' : '拒绝' });
     const allow = actions.createEl('button', { cls:'mod-cta', attr:{ type:'button' }, text:en ? 'Allow once' : '仅允许本次' });
@@ -28,7 +28,7 @@ class CockpitAgentConfirmationModal extends obsidian.Modal {
   onClose() { this.contentEl.empty(); if (!this.settled) { this.settled = true; this.resolveResult(false); } }
 }
 
-class CockpitAISessionNameModal extends obsidian.Modal {
+class CockpitAISessionNameModal extends obs.Modal {
   constructor(app, currentTitle, language, onSave) { super(app); this.currentTitle = currentTitle; this.language = language; this.onSave = onSave; }
   onOpen() {
     const en = this.language === 'en';
@@ -46,7 +46,7 @@ class CockpitAISessionNameModal extends obsidian.Modal {
   onClose() { this.contentEl.empty(); }
 }
 
-class CockpitAISessionDeleteModal extends obsidian.Modal {
+class CockpitAISessionDeleteModal extends obs.Modal {
   constructor(app, title, language, onDelete) { super(app); this.sessionTitle = title; this.language = language; this.onDelete = onDelete; }
   onOpen() {
     const en = this.language === 'en';

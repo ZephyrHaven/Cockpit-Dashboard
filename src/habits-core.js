@@ -1,5 +1,5 @@
 // habits-core.js — 习惯打卡纯数据层：解析 / 序列化 / 连续天数统计。
-// 数据保存在 vault 内 _data/habits.md，跟随 Obsidian 同步；不写插件 data.json。
+// 数据保存在 vault 内 _data/habits.md，跟随库同步；不写插件 data.json。
 
 const HABIT_LOG_CAP = 400; // 每条习惯最多保留的打卡日期数（约一年多的每日记录）
 const HABIT_ICON_MAX = 8;

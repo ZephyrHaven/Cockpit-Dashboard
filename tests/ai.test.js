@@ -221,7 +221,7 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
     ai:{ baseUrl:'https://provider.example/v1', model:'test-model', apiKeySecret:'cockpit-key', maxContextChars:4000 }
   };
   let capturedRequest = null;
-  global.obsidian = {
+  global.obs = {
     requestUrl:async (requestOptions) => {
       capturedRequest = requestOptions;
       return { status:200, json:{ choices:[{ message:{ content:'Service response' } }] } };
@@ -283,7 +283,7 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
   assert.ok(streamed.some((event) => event.type === 'content'), 'The service exposes answer text as it arrives.');
 
   global.fetch = async () => { throw new TypeError('CORS blocked'); };
-  global.obsidian.requestUrl = async () => new Promise((resolve) => setTimeout(() => resolve({
+  global.obs.requestUrl = async () => new Promise((resolve) => setTimeout(() => resolve({
     status:200, json:{ choices:[{ message:{ content:'late fallback' } }] }
   }), 30));
   const abortController = new AbortController();
@@ -291,7 +291,7 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
   abortController.abort();
   await assert.rejects(abortedFallback, (error) => error?.name === 'AbortError', 'Stop generation interrupts the UI even when a provider falls back to requestUrl.');
   global.fetch = originalFetch;
-  global.obsidian.requestUrl = async (requestOptions) => {
+  global.obs.requestUrl = async (requestOptions) => {
     capturedRequest = requestOptions;
     return { status:200, json:{ choices:[{ message:{ content:'Service response' } }] } };
   };
@@ -318,13 +318,13 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
   assert.equal(JSON.parse(capturedRequest.body).model, 'auto/best-chat', 'A profile-card test calls that profile even when another model is active.');
   assert.equal((await service.getConfig()).activeProfileId, 'router-b', 'Testing one profile does not change the active sidebar model.');
 
-  global.obsidian.requestUrl = async () => ({ status:401, json:{ error:{ message:'provider detail must stay hidden' } } });
+  global.obs.requestUrl = async () => ({ status:401, json:{ error:{ message:'provider detail must stay hidden' } } });
   await assert.rejects(
     () => service.complete({ action:'custom', question:'hello', language:'zh-CN' }),
     /API Key 无效或没有访问权限/,
     'Provider failures expose a safe localized error rather than the raw response.'
   );
-  delete global.obsidian;
+  delete global.obs;
 
   // ── 卡死回归：超时预算可注入，兼容模式回退请求必须有硬上限 ───────────────────
   {
@@ -336,7 +336,7 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
 
     const hangingService = new CockpitAIService({ app:{ secretStorage:{ getSecret:() => '' } }, loadData:async () => ({}) });
     hangingService.fallbackTimeoutMs = 25;
-    global.obsidian = { requestUrl:() => new Promise(() => {}) };
+    global.obs = { requestUrl:() => new Promise(() => {}) };
     const savedFetch = globalThis.fetch;
     const hadFetch = typeof savedFetch === 'function';
     delete globalThis.fetch;
@@ -355,7 +355,7 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
     } finally {
       if (hadFetch) globalThis.fetch = savedFetch;
       else delete globalThis.fetch;
-      delete global.obsidian;
+      delete global.obs;
     }
   }
 
@@ -421,7 +421,7 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
   }
   console.log('AI core checks passed');
 })().catch((error) => {
-  delete global.obsidian;
+  delete global.obs;
   console.error(error);
   process.exitCode = 1;
 });

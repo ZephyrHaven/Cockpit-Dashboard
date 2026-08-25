@@ -90,7 +90,7 @@ class CockpitTipStore {
   }
 }
 
-class CockpitTipLibraryModal extends obsidian.Modal {
+class CockpitTipLibraryModal extends obs.Modal {
   constructor(app, view) { super(app); this.view = view; this.activeLang = view._lang(); this.draft = [...(view._editableTips[this.activeLang] || [])]; this.rotationMode = view._tipRotationMode || 'custom-first'; this.draggedIndex = null; this.lastChangedTip = ''; }
 
   _copy() {
@@ -157,7 +157,7 @@ class CockpitTipLibraryModal extends obsidian.Modal {
     reset.onclick = async () => { if (!window.confirm(copy.resetConfirm)) return; const state = await this.view._tipStore.resetLanguage(this.activeLang); this.view._dailyTips = state.display; this.view._editableTips = state.editable; this.view._tipRotationMode = state.rotationMode; this.view._refreshTipSection(); this.close(); };
     cancel.onclick = () => this.close();
     save.onclick = async () => {
-      if (!this.draft.some((tip) => String(tip || '').trim())) { new obsidian.Notice(copy.empty); return; }
+      if (!this.draft.some((tip) => String(tip || '').trim())) { new obs.Notice(copy.empty); return; }
       const state = await this.view._tipStore.saveLanguage(this.activeLang, this.draft, this.rotationMode, this.lastChangedTip);
       this.view._dailyTips = state.display;
       this.view._editableTips = state.editable;

@@ -1,6 +1,6 @@
 // ai-view.js — Chat-first AI 侧栏：多会话、底部组合输入、上下文选择与分段式 Agent 活动轨道。
 
-class CockpitAIView extends obsidian.ItemView {
+class CockpitAIView extends obs.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -67,7 +67,7 @@ class CockpitAIView extends obsidian.ItemView {
   }
   _iconButton(parent, iconName, label, className = '') {
     const button = parent.createEl('button', { cls:PLUGIN_ID + '-ai-header-button ' + className, attr:{ type:'button', title:label, 'aria-label':label } });
-    obsidian.setIcon(button, iconName);
+    obs.setIcon(button, iconName);
     return button;
   }
   async _render() {
@@ -173,7 +173,7 @@ class CockpitAIView extends obsidian.ItemView {
   }
   _openSessionMenu(event, session) {
     const en = this._language === 'en';
-    const menu = new obsidian.Menu();
+    const menu = new obs.Menu();
     menu.addItem((item) => item.setTitle(en ? 'Rename' : '重命名').setIcon('pencil').onClick(() => {
       new CockpitAISessionNameModal(this.app, session.title, this._language, async (title) => {
         await this.plugin.aiHistory.rename(session.id, title, this._language); await this._refreshHistoryUi();
@@ -245,7 +245,7 @@ class CockpitAIView extends obsidian.ItemView {
   _renderWelcome() {
     const en = this._language === 'en';
     const welcome = this._messagesEl.createDiv({ cls:PLUGIN_ID + '-ai-welcome' });
-    const icon = welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-icon' }); obsidian.setIcon(icon, 'sparkles');
+    const icon = welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-icon' }); obs.setIcon(icon, 'sparkles');
     welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-title', text:en ? 'What are we working on?' : '今天想处理什么？' });
     welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-copy', text:en ? 'Ask directly, or add notes and files from the composer.' : '直接提问，或者从输入框添加笔记与文件。' });
     const prompts = welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-prompts' });
@@ -270,9 +270,9 @@ class CockpitAIView extends obsidian.ItemView {
     const input = composer.createEl('textarea', { cls:PLUGIN_ID + '-ai-input', attr:{ rows:'2', maxlength:'8000', placeholder:en ? 'Message Cockpit AI' : '向 Cockpit AI 提问（可 Ctrl+V 贴图）', 'aria-label':en ? 'Ask Cockpit AI' : '向 Cockpit AI 提问' } });
     const footer = composer.createDiv({ cls:PLUGIN_ID + '-ai-composer-footer' });
     const tools = footer.createDiv({ cls:PLUGIN_ID + '-ai-composer-tools' });
-    const add = tools.createEl('button', { cls:PLUGIN_ID + '-ai-composer-add', attr:{ type:'button', title:en ? 'Add context or file' : '添加上下文或文件', 'aria-label':en ? 'Add context or file' : '添加上下文或文件', 'aria-expanded':'false' } }); obsidian.setIcon(add, 'plus');
+    const add = tools.createEl('button', { cls:PLUGIN_ID + '-ai-composer-add', attr:{ type:'button', title:en ? 'Add context or file' : '添加上下文或文件', 'aria-label':en ? 'Add context or file' : '添加上下文或文件', 'aria-expanded':'false' } }); obs.setIcon(add, 'plus');
     const contextButton = tools.createEl('button', { cls:PLUGIN_ID + '-ai-context-summary', attr:{ type:'button', 'aria-expanded':'false' } });
-    const contextIcon = contextButton.createSpan(); obsidian.setIcon(contextIcon, 'database-zap');
+    const contextIcon = contextButton.createSpan(); obs.setIcon(contextIcon, 'database-zap');
     const contextLabel = contextButton.createSpan({ cls:PLUGIN_ID + '-ai-context-summary-label' });
     const right = footer.createDiv({ cls:PLUGIN_ID + '-ai-composer-right' });
     const agentSelect = right.createEl('select', { cls:PLUGIN_ID + '-ai-agent-select dropdown', attr:{ 'aria-label':en ? 'Agent permission mode' : 'Agent 权限模式', title:en ? 'Agent permission mode' : 'Agent 权限模式' } });
@@ -293,7 +293,7 @@ class CockpitAIView extends obsidian.ItemView {
         this._agentMode = previous;
         agentSelect.value = previous;
         agentSelect.classList.toggle('is-full', previous === 'full');
-        new obsidian.Notice(en ? 'Could not save the permission mode.' : '权限模式保存失败。');
+        new obs.Notice(en ? 'Could not save the permission mode.' : '权限模式保存失败。');
       }
       finally { agentSelect.disabled = false; if (this._busy) agentSelect.disabled = true; }
     };
@@ -301,7 +301,7 @@ class CockpitAIView extends obsidian.ItemView {
     // 工作区指示 + 就地编辑：像 DeepSeek Harness 一样把工作区管理放在对话区，
     // 点击徽标弹出面板即可粘贴路径、切换最近使用或清除，不必进设置页。
     const wsChip = right.createEl('button', { cls:PLUGIN_ID + '-ai-ws-chip', attr:{ type:'button', title:en ? 'Coding workspace (click to switch)' : '编码工作区（点击切换）', 'aria-label':en ? 'Coding workspace' : '编码工作区', 'aria-haspopup':'dialog', 'aria-expanded':'false' } });
-    obsidian.setIcon(wsChip.createSpan(), 'folder-open');
+    obs.setIcon(wsChip.createSpan(), 'folder-open');
     const wsChipLabel = wsChip.createSpan({ cls:PLUGIN_ID + '-ai-ws-chip-label' });
     this._workspaceChipEls = { chip:wsChip, label:wsChipLabel };
     this._updateWorkspaceChip(config.workspaceRoot);
@@ -316,7 +316,7 @@ class CockpitAIView extends obsidian.ItemView {
     // 工作区面板：挂在 composer 上，与上下文弹出层同一交互模式（点外部关闭）。
     this._buildWorkspacePopover(composer, wsChip);
     uploadInput.onchange = async () => {
-      if (this._busy) { uploadInput.value = ''; new obsidian.Notice(en ? 'Wait for the current reply to finish.' : '请等待当前回答完成'); return; }
+      if (this._busy) { uploadInput.value = ''; new obs.Notice(en ? 'Wait for the current reply to finish.' : '请等待当前回答完成'); return; }
       try {
         const fileList = Array.from(uploadInput.files || []);
         const imageFiles = fileList.filter(isAiImageFile);
@@ -326,7 +326,7 @@ class CockpitAIView extends obsidian.ItemView {
         additions.forEach((item) => { if (!merged.some((existing) => existing.hash === item.hash && existing.name === item.name)) merged.push(item); });
         if (merged.length > AI_UPLOAD_LIMITS.maxFiles) throw new Error(en ? 'Attach at most five files.' : '最多上传 5 个文件。');
         this._uploadedContexts = merged; this._renderContextPicker();
-      } catch (error) { new obsidian.Notice((en ? 'Could not attach file: ' : '文件上传失败：') + (error?.message || 'unknown error')); }
+      } catch (error) { new obs.Notice((en ? 'Could not attach file: ' : '文件上传失败：') + (error?.message || 'unknown error')); }
       finally { uploadInput.value = ''; }
     };
     // 支持直接 Ctrl/Cmd+V 粘贴截图；部分平台仅在 items 里携带图片，做双路兜底。
@@ -345,7 +345,7 @@ class CockpitAIView extends obsidian.ItemView {
       if (!files.length) return;
       event.preventDefault();
       this._addPendingImages(files).catch((error) => {
-        new obsidian.Notice((en ? 'Could not attach image: ' : '图片添加失败：') + (error?.message || 'unknown error'));
+        new obs.Notice((en ? 'Could not attach image: ' : '图片添加失败：') + (error?.message || 'unknown error'));
       });
     });
     const resize = () => { input.style.height = 'auto'; input.style.height = Math.min(260, Math.max(48, input.scrollHeight)) + 'px'; };
@@ -366,7 +366,7 @@ class CockpitAIView extends obsidian.ItemView {
       try {
         const saved = await this.plugin.ai.setActiveProfile(modelSelect.value); if (saved.activeProfileId !== modelSelect.value) throw new Error('profile not found');
         await this.plugin.aiHistory.update(this._activeSessionId, { profileId:modelSelect.value }); await this._refreshHistoryUi();
-      } catch (error) { modelSelect.value = previous; new obsidian.Notice(en ? 'Could not switch the AI model.' : '模型切换失败，请检查配置。'); }
+      } catch (error) { modelSelect.value = previous; new obs.Notice(en ? 'Could not switch the AI model.' : '模型切换失败，请检查配置。'); }
       finally { modelSelect.disabled = false; }
     };
     // 输入栏底部：本会话累计输入/输出 tokens、缓存命中率与最近回答的 token 速度。
@@ -412,7 +412,7 @@ class CockpitAIView extends obsidian.ItemView {
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.setAttribute('aria-label', en ? 'Close preview' : '关闭预览');
-    obsidian.setIcon(closeBtn, 'x');
+    obs.setIcon(closeBtn, 'x');
     let closed = false;
     const close = () => {
       if (closed) return;
@@ -475,7 +475,7 @@ class CockpitAIView extends obsidian.ItemView {
     head.createEl('strong', { text:en ? 'Coding workspace' : '编码工作区' });
     const closeWrap = head.createDiv();
     const closeButton = closeWrap.createEl('button', { cls:PLUGIN_ID + '-ai-header-button', attr:{ type:'button', 'aria-label':en ? 'Close' : '关闭' } });
-    obsidian.setIcon(closeButton, 'x');
+    obs.setIcon(closeButton, 'x');
     const body = popover.createDiv({ cls:PLUGIN_ID + '-ai-ws-body' });
     body.createEl('p', { cls:PLUGIN_ID + '-ai-ws-desc', text:en
       ? 'The Agent can read, write, and run commands only inside this folder. Paste an absolute path to switch.'
@@ -483,7 +483,7 @@ class CockpitAIView extends obsidian.ItemView {
     const inputRow = body.createDiv({ cls:PLUGIN_ID + '-ai-ws-input-row' });
     const input = inputRow.createEl('input', { cls:PLUGIN_ID + '-ai-ws-input', attr:{ type:'text', spellcheck:'false', placeholder:en ? '/absolute/path/to/project' : '/绝对路径/到/项目（或点右侧图标选择）', 'aria-label':en ? 'Workspace folder path' : '工作区文件夹路径' } });
     const browse = inputRow.createEl('button', { cls:PLUGIN_ID + '-ai-ws-browse', attr:{ type:'button', title:en ? 'Pick a folder' : '选择文件夹', 'aria-label':en ? 'Pick a folder' : '选择文件夹' } });
-    obsidian.setIcon(browse, 'folder-open');
+    obs.setIcon(browse, 'folder-open');
     const apply = inputRow.createEl('button', { cls:PLUGIN_ID + '-ai-ws-apply', attr:{ type:'button' }, text:en ? 'Use' : '使用' });
     const status = body.createDiv({ cls:PLUGIN_ID + '-ai-ws-status', attr:{ role:'status' } });
     const recents = body.createDiv({ cls:PLUGIN_ID + '-ai-ws-recents' });
@@ -508,7 +508,7 @@ class CockpitAIView extends obsidian.ItemView {
       browse.disabled = true; apply.disabled = true;
       try {
         if (typeof this.plugin.agentTools?.pickFolder !== 'function') {
-          new obsidian.Notice(en ? 'Picking a folder needs the Obsidian desktop app.' : '选择文件夹需要桌面版 Obsidian。');
+          new obs.Notice(en ? 'Picking a folder needs the desktop app.' : '选择文件夹需要桌面端。');
           return;
         }
         const verdict = await this.plugin.agentTools.pickFolder();
@@ -516,10 +516,10 @@ class CockpitAIView extends obsidian.ItemView {
           input.value = verdict.root;
           if (await this._applyWorkspaceRoot(verdict.root)) this._toggleWorkspacePopover(false);
         } else if (verdict?.reason === 'unsupported') {
-          new obsidian.Notice(en ? 'No folder picker available here; paste an absolute path instead.' : '此环境无法打开文件夹选择器，请直接粘贴绝对路径。');
+          new obs.Notice(en ? 'No folder picker available here; paste an absolute path instead.' : '此环境无法打开文件夹选择器，请直接粘贴绝对路径。');
         }
       } catch (error) {
-        new obsidian.Notice((en ? 'Could not open the folder picker: ' : '无法打开文件夹选择器：') + (error?.message || 'unknown'));
+        new obs.Notice((en ? 'Could not open the folder picker: ' : '无法打开文件夹选择器：') + (error?.message || 'unknown'));
       } finally { browse.disabled = false; apply.disabled = false; }
     };
     clearButton.onclick = async () => {
@@ -580,21 +580,21 @@ class CockpitAIView extends obsidian.ItemView {
     if (value) {
       const registry = this.plugin.agentTools;
       if (typeof registry?.checkPath !== 'function') {
-        new obsidian.Notice(en ? 'The coding workspace needs the Obsidian desktop app (reload the plugin after updating).' : '编码工作区仅支持桌面版 Obsidian（更新后请重新加载插件）。');
+        new obs.Notice(en ? 'The coding workspace needs the desktop app (reload the plugin after updating).' : '编码工作区仅支持桌面端（更新后请重新加载插件）。');
         return false;
       }
       let verdict = null;
       try { verdict = await registry.checkPath(value); }
       catch (error) {
-        new obsidian.Notice((en ? 'Could not verify the folder: ' : '无法校验该文件夹：') + (error?.message || 'unknown'));
+        new obs.Notice((en ? 'Could not verify the folder: ' : '无法校验该文件夹：') + (error?.message || 'unknown'));
         return false;
       }
       if (!verdict?.ok) {
         const reason = verdict?.reason;
-        if (reason === 'relative') new obsidian.Notice(en ? 'Enter an absolute path, e.g. /Users/you/Projects/demo.' : '请填写绝对路径，如 /Users/you/Projects/demo。');
-        else if (reason === 'missing') new obsidian.Notice((en ? 'This folder does not exist yet: ' : '该文件夹不存在：') + (verdict.root || value));
-        else if (reason === 'not-directory') new obsidian.Notice((en ? 'This is not a folder: ' : '这不是一个文件夹：') + (verdict.root || value));
-        else new obsidian.Notice(en ? 'The coding workspace needs the Obsidian desktop app.' : '编码工作区仅支持桌面版 Obsidian。');
+        if (reason === 'relative') new obs.Notice(en ? 'Enter an absolute path, e.g. /path/to/project.' : '请填写绝对路径，如 /path/to/project。');
+        else if (reason === 'missing') new obs.Notice((en ? 'This folder does not exist yet: ' : '该文件夹不存在：') + (verdict.root || value));
+        else if (reason === 'not-directory') new obs.Notice((en ? 'This is not a folder: ' : '这不是一个文件夹：') + (verdict.root || value));
+        else new obs.Notice(en ? 'The coding workspace needs the desktop app.' : '编码工作区仅支持桌面端。');
         return false;
       }
       root = verdict.root;
@@ -608,12 +608,12 @@ class CockpitAIView extends obsidian.ItemView {
         await this.plugin.aiHistory.update(this._activeSessionId, { workspaceRoot:root });
       }
     } catch (error) {
-      new obsidian.Notice((en ? 'Could not save the workspace: ' : '工作区保存失败：') + (error?.message || 'unknown'));
+      new obs.Notice((en ? 'Could not save the workspace: ' : '工作区保存失败：') + (error?.message || 'unknown'));
       return false;
     }
     this._updateWorkspaceChip(root);
     if (options.silent !== true) {
-      new obsidian.Notice(root ? ((en ? 'Workspace switched to ' : '工作区已切换到 ') + root) : (en ? 'Coding workspace cleared.' : '已清除编码工作区。'));
+      new obs.Notice(root ? ((en ? 'Workspace switched to ' : '工作区已切换到 ') + root) : (en ? 'Coding workspace cleared.' : '已清除编码工作区。'));
     }
     return true;
   }
@@ -665,11 +665,11 @@ class CockpitAIView extends obsidian.ItemView {
     const refresh = this._iconButton(menuActions, 'refresh-cw', en ? 'Refresh recent notes' : '刷新最近笔记');
     upload.onclick = () => elements.uploadInput.click(); refresh.onclick = () => this._refreshContextOptions();
     const auto = elements.menu.createEl('button', { cls:PLUGIN_ID + '-ai-context-option is-auto' + (effectiveMode === 'auto' ? ' is-selected' : ''), attr:{ type:'button', role:'menuitem' } });
-    const autoIcon = auto.createSpan({ cls:PLUGIN_ID + '-ai-context-option-icon' }); obsidian.setIcon(autoIcon, 'sparkles');
+    const autoIcon = auto.createSpan({ cls:PLUGIN_ID + '-ai-context-option-icon' }); obs.setIcon(autoIcon, 'sparkles');
     const autoCopy = auto.createSpan({ cls:PLUGIN_ID + '-ai-context-option-copy' }); autoCopy.createSpan({ text:en ? 'Automatic local RAG' : '自动本地 RAG' }); autoCopy.createSpan({ text:en ? 'Search the Vault only when you send' : '仅在发送问题时检索知识库' });
     auto.onclick = () => { this._contextMode = 'auto'; this._renderContextPicker(); };
     const none = elements.menu.createEl('button', { cls:PLUGIN_ID + '-ai-context-option is-none' + (effectiveMode === 'none' ? ' is-selected' : ''), attr:{ type:'button', role:'menuitem' } });
-    const noneIcon = none.createSpan({ cls:PLUGIN_ID + '-ai-context-option-icon' }); obsidian.setIcon(noneIcon, 'circle-slash');
+    const noneIcon = none.createSpan({ cls:PLUGIN_ID + '-ai-context-option-icon' }); obs.setIcon(noneIcon, 'circle-slash');
     const noneCopy = none.createSpan({ cls:PLUGIN_ID + '-ai-context-option-copy' }); noneCopy.createSpan({ text:en ? 'No context' : '不使用上下文' }); noneCopy.createSpan({ text:en ? 'Reply from the chat only, without notes or RAG' : '仅凭问题与对话回答，不检索笔记' });
     none.onclick = () => { this._contextMode = 'none'; this._selectedContextPaths = []; this._renderContextPicker(); };
     this._contextEntries.forEach((entry) => {
@@ -685,9 +685,9 @@ class CockpitAIView extends obsidian.ItemView {
     elements.chips.empty();
     const addChip = (label, iconName, remove, title) => {
       const chip = elements.chips.createDiv({ cls:PLUGIN_ID + '-ai-context-chip', attr:{ title:title || label } });
-      const icon = chip.createSpan({ cls:PLUGIN_ID + '-ai-context-chip-icon' }); obsidian.setIcon(icon, iconName);
+      const icon = chip.createSpan({ cls:PLUGIN_ID + '-ai-context-chip-icon' }); obs.setIcon(icon, iconName);
       chip.createSpan({ cls:PLUGIN_ID + '-ai-context-chip-label', text:label });
-      const close = chip.createEl('button', { attr:{ type:'button', 'aria-label':(en ? 'Remove ' : '移除 ') + label } }); obsidian.setIcon(close, 'x'); close.onclick = remove;
+      const close = chip.createEl('button', { attr:{ type:'button', 'aria-label':(en ? 'Remove ' : '移除 ') + label } }); obs.setIcon(close, 'x'); close.onclick = remove;
     };
     this._selectedContextPaths.forEach((path) => addChip(path.split('/').pop()?.replace(/\.md$/i, '') || path, 'file-text', () => { this._selectedContextPaths = this._selectedContextPaths.filter((item) => item !== path); this._renderContextPicker(); }, path));
     this._uploadedContexts.forEach((item) => addChip(item.name, 'paperclip', () => { this._uploadedContexts = this._uploadedContexts.filter((entry) => entry !== item); this._renderContextPicker(); }, item.name));
@@ -699,7 +699,7 @@ class CockpitAIView extends obsidian.ItemView {
       thumb.addEventListener('click', () => this._openImagePreview(image));
       chip.createSpan({ cls:PLUGIN_ID + '-ai-context-chip-label', text:(index + 1) + '. ' + image.name });
       const remove = chip.createEl('button', { attr:{ type:'button', 'aria-label':(en ? 'Remove ' : '移除 ') + image.name } });
-      obsidian.setIcon(remove, 'x');
+      obs.setIcon(remove, 'x');
       remove.onclick = () => {
         this._pendingImages = this._pendingImages.filter((entry) => entry !== image);
         this._renderContextPicker();
@@ -712,13 +712,13 @@ class CockpitAIView extends obsidian.ItemView {
     const config = await this.plugin.ai.getConfig(); this._fillModelOptions(modelSelect, config); modelSelect.disabled = this._busy;
   }
   async _renderMarkdown(element, text) {
-    try { element.empty(); await obsidian.MarkdownRenderer.render(this.app, String(text || ''), element, '', this); }
+    try { element.empty(); await obs.MarkdownRenderer.render(this.app, String(text || ''), element, '', this); }
     catch (error) { element.setText(String(text || '')); }
   }
   _appendMessage(role, text, pending, options = {}) {
     this._messagesEl?.querySelector('.' + PLUGIN_ID + '-ai-welcome')?.remove();
     const row = this._messagesEl.createDiv({ cls:PLUGIN_ID + '-ai-message ' + role + (pending ? ' pending' : '') });
-    if (role === 'assistant') { const avatar = row.createDiv({ cls:PLUGIN_ID + '-ai-message-avatar' }); obsidian.setIcon(avatar, 'sparkles'); }
+    if (role === 'assistant') { const avatar = row.createDiv({ cls:PLUGIN_ID + '-ai-message-avatar' }); obs.setIcon(avatar, 'sparkles'); }
     const content = row.createDiv({ cls:PLUGIN_ID + '-ai-message-content' });
     const body = content.createDiv({ cls:PLUGIN_ID + '-ai-message-body' });
     if (options.markdown && role === 'assistant') this._renderMarkdown(body, text); else body.setText(text || '');
@@ -739,7 +739,7 @@ class CockpitAIView extends obsidian.ItemView {
         await navigator.clipboard.writeText(String(getText() || ''));
         copy.setText(en ? 'Copied' : '已复制');
         window.setTimeout(() => { copy.setText(en ? 'Copy' : '复制'); }, 1500);
-      } catch (error) { new obsidian.Notice(en ? 'Could not copy the message.' : '复制失败，请手动选择文本。'); }
+      } catch (error) { new obs.Notice(en ? 'Could not copy the message.' : '复制失败，请手动选择文本。'); }
     };
     return tools;
   }
@@ -760,7 +760,7 @@ class CockpitAIView extends obsidian.ItemView {
     activity.createEl('summary', { text:en ? 'Work log' : '处理过程' });
     const toolActivity = activity.createDiv({ cls:PLUGIN_ID + '-ai-activity-track', attr:{ 'aria-live':'polite' } });
     const status = toolActivity.createDiv({ cls:PLUGIN_ID + '-ai-activity-step is-running', attr:{ role:'status' } });
-    const statusIcon = status.createSpan({ cls:PLUGIN_ID + '-ai-activity-icon' }); obsidian.setIcon(statusIcon, 'loader-circle');
+    const statusIcon = status.createSpan({ cls:PLUGIN_ID + '-ai-activity-icon' }); obs.setIcon(statusIcon, 'loader-circle');
     const statusText = status.createSpan({ cls:PLUGIN_ID + '-ai-activity-label', text:en ? 'Connecting to model' : '正在连接模型' });
     status.createSpan({ cls:PLUGIN_ID + '-ai-tool-state' });
     const reasoning = message.body.createEl('details', { cls:PLUGIN_ID + '-ai-reasoning is-empty' }); reasoning.createEl('summary', { text:en ? 'Reasoning' : '思考过程' });
@@ -775,7 +775,7 @@ class CockpitAIView extends obsidian.ItemView {
     if (!row) {
       row = message.toolActivity.createDiv({ cls:PLUGIN_ID + '-ai-activity-step' });
       const icon = row.createSpan({ cls:PLUGIN_ID + '-ai-activity-icon' });
-      const iconName = event.name === 'local_context' ? 'search' : event.name === 'reasoning' ? 'brain' : event.name === 'writing' ? 'pencil-line' : 'wrench'; obsidian.setIcon(icon, iconName);
+      const iconName = event.name === 'local_context' ? 'search' : event.name === 'reasoning' ? 'brain' : event.name === 'writing' ? 'pencil-line' : 'wrench'; obs.setIcon(icon, iconName);
       row.createSpan({ cls:PLUGIN_ID + '-ai-activity-label', text:event.label || event.name || (en ? 'Cockpit tool' : 'Cockpit 工具') }); row.createSpan({ cls:PLUGIN_ID + '-ai-tool-state' });
       message.toolRows.set(event.callId, row);
     }
@@ -796,7 +796,7 @@ class CockpitAIView extends obsidian.ItemView {
   _renderSendState(running) {
     const send = this._composerEls?.send;
     if (!send) return;
-    const en = this._language === 'en'; send.empty(); obsidian.setIcon(send, running ? 'square' : 'arrow-up'); send.classList.toggle('is-stop', running);
+    const en = this._language === 'en'; send.empty(); obs.setIcon(send, running ? 'square' : 'arrow-up'); send.classList.toggle('is-stop', running);
     send.setAttribute('aria-label', running ? (en ? 'Stop generation' : '停止生成') : (en ? 'Send message' : '发送消息'));
     send.setAttribute('title', running ? (en ? 'Stop generation' : '停止生成') : (en ? 'Send message' : '发送消息'));
   }
@@ -816,7 +816,7 @@ class CockpitAIView extends obsidian.ItemView {
     if (this._busy) return;
     const en = this._language === 'en';
     if (action !== 'custom' && !this._selectedContextPaths.length && !this._uploadedContexts.length) {
-      new obsidian.Notice(en ? 'Select at least one note or attach a text file for this action.' : '请先选择笔记或添加文本文件'); this._closeContextPopover(); return;
+      new obs.Notice(en ? 'Select at least one note or attach a text file for this action.' : '请先选择笔记或添加文本文件'); this._closeContextPopover(); return;
     }
     const session = this._activeSession();
     const priorHistory = (session?.messages || []).map((message) => ({ role:message.role, content:message.content }));
@@ -857,7 +857,7 @@ class CockpitAIView extends obsidian.ItemView {
     const elapsedLabel = () => Math.max(0, (Date.now() - startedAt) / 1000).toFixed(1) + 's';
     const setStatus = (text, state = 'is-running') => { streamMessage.status.className = PLUGIN_ID + '-ai-activity-step ' + state; streamMessage.statusText.setText(text); };
     // 流式输出必须缓冲后批量刷写：推理模型每秒可推送数百个 delta，
-    // 逐 token 追加 DOM 会把主线程打满（样式重算 + 上万文本节点），整个 Obsidian 假死。
+    // 逐 token 追加 DOM 会把主线程打满（样式重算 + 上万文本节点），整个应用假死。
     // 这里统一走 ≥120ms 的节拍器合并刷新；字符串始终是完整真相，DOM 只是投影。
     let lastPaintAt = 0;
     let answer = ''; let reasoning = '';

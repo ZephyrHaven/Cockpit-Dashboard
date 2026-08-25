@@ -12,8 +12,9 @@ async function isCockpitAiReady(plugin, forceCheck = false) {
     const config = await plugin.ai.getConfig();
     const profile = typeof getActiveAiProfile === 'function' ? getActiveAiProfile(config) : null;
     if (profile?.model) {
-      if (!profile.apiKeySecret) value = true;
-      else { try { value = !!plugin.ai.getSecret(profile.apiKeySecret); } catch (e) { value = false; } }
+      const needsKey = !!(profile.apiKey || profile.apiKeySecret);
+      if (!needsKey) value = true;
+      else { try { value = !!plugin.ai.getProfileApiKey(profile); } catch (e) { value = false; } }
     }
   } catch (e) { value = false; }
   cockpitAiReadyCache = { at:now, value };

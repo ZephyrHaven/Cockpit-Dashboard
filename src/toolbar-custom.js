@@ -43,19 +43,19 @@ async function executeCustomToolbarButton(view, button) {
   const isMobile = view._isMobile && view._isMobile();
   if (button.type === 'url') {
     const error = validateCustomToolbarDraft(button, view._lang());
-    if (error) { new obsidian.Notice(error); return { ok:false, error }; }
+    if (error) { new obs.Notice(error); return { ok:false, error }; }
     try {
       if (isMobile) { window.open(button.value, '_blank'); }
       else { require('electron').shell.openExternal(button.value); }
       return { ok:true, stdout:'Opened URL: ' + button.value };
     } catch (e) {
-      new obsidian.Notice(view._lang() === 'en' ? 'Could not open this URL.' : '无法打开该网址。');
+      new obs.Notice(view._lang() === 'en' ? 'Could not open this URL.' : '无法打开该网址。');
       return { ok:false, error:e?.message || String(e) };
     }
   }
   if (button.type !== 'script') return { ok:false, error:'unsupported-toolbar-action' };
   if (isMobile) {
-    new obsidian.Notice(view._lang() === 'en' ? 'Script execution is only available on desktop.' : '脚本执行仅在桌面端可用。');
+    new obs.Notice(view._lang() === 'en' ? 'Script execution is only available on desktop.' : '脚本执行仅在桌面端可用。');
     return { ok:false, error:'desktop-only' };
   }
   const startedAt = Date.now();
@@ -64,18 +64,18 @@ async function executeCustomToolbarButton(view, button) {
       const target = 'macos-terminal';
       await view._launchInSystemTerminal(button.value);
       await appendCustomToolbarLog(view, { label:button.label, status:'launched-in-terminal', ok:true, durationMs:Date.now()-startedAt, exitCode:'n/a', stdout:target, stderr:'' });
-      new obsidian.Notice((view._lang() === 'en' ? 'Opened in terminal: ' : '已在终端运行：') + button.label);
+      new obs.Notice((view._lang() === 'en' ? 'Opened in terminal: ' : '已在终端运行：') + button.label);
       return { ok:true, stdout:target };
     } catch (e) {
       await appendCustomToolbarLog(view, { label:button.label, status:'launch-failed', ok:false, durationMs:Date.now()-startedAt, exitCode:'unknown', stdout:'', stderr:e?.message || String(e) });
-      new obsidian.Notice(view._lang() === 'en' ? 'Could not open a terminal.' : '无法打开终端。');
+      new obs.Notice(view._lang() === 'en' ? 'Could not open a terminal.' : '无法打开终端。');
       return { ok:false, error:e?.message || String(e) };
     }
   }
   try {
     const { execFile } = require('child_process');
     const cwd = view.app.vault.adapter.getBasePath();
-    new obsidian.Notice((view._lang() === 'en' ? 'Running: ' : '正在运行：') + button.label);
+    new obs.Notice((view._lang() === 'en' ? 'Running: ' : '正在运行：') + button.label);
     return await new Promise((resolve) => {
       execFile('/bin/zsh', ['-lc', button.value], {
         cwd,
@@ -94,19 +94,19 @@ async function executeCustomToolbarButton(view, button) {
         });
         if (error) {
           console.warn('[Cockpit custom toolbar]', button.label, error);
-          new obsidian.Notice(ttyError
+          new obs.Notice(ttyError
             ? (view._lang() === 'en' ? 'This command needs a terminal. Change its run mode to Terminal.' : '该命令需要交互终端，请把运行方式改为“终端运行”。')
             : ((view._lang() === 'en' ? 'Script failed: ' : '脚本执行失败：') + button.label));
           resolve({ ok:false, error:error?.message || String(error), stdout, stderr, exitCode:typeof error?.code === 'number' ? error.code : 'unknown' });
           return;
         }
-        new obsidian.Notice((view._lang() === 'en' ? 'Script finished: ' : '脚本执行完成：') + button.label);
+        new obs.Notice((view._lang() === 'en' ? 'Script finished: ' : '脚本执行完成：') + button.label);
         resolve({ ok:true, stdout, stderr, exitCode:0 });
       });
     });
   } catch (e) {
     console.warn('[Cockpit custom toolbar]', button.label, e);
-    new obsidian.Notice(view._lang() === 'en' ? 'Could not start this script.' : '无法启动该脚本。');
+    new obs.Notice(view._lang() === 'en' ? 'Could not start this script.' : '无法启动该脚本。');
     return { ok:false, error:e?.message || String(e) };
   }
 }
@@ -162,7 +162,7 @@ async function openCustomToolbarLogs(view) {
     head.createDiv({ cls:PLUGIN_ID + '-toolbar-log-title', text:view._lang()==='en'?'Toolbar run logs':'Toolbar 运行日志' });
     const controls = head.createDiv({ cls:PLUGIN_ID + '-toolbar-log-controls' });
     const clear = controls.createEl('button', { text:view._lang()==='en'?'Clear':'清空', attr:{type:'button'} });
-    const close = controls.createEl('button', { attr:{type:'button'} }); obsidian.setIcon(close, 'x'); close.onclick = () => overlay.remove();
+    const close = controls.createEl('button', { attr:{type:'button'} }); obs.setIcon(close, 'x'); close.onclick = () => overlay.remove();
     makeCockpitDialogDraggable(panel, head, { label:view._lang()==='en' ? 'Drag Toolbar logs' : '拖动 Toolbar 日志窗口' });
     clear.onclick = () => {
       if (isMobile) { overlay.remove(); return; }
@@ -181,7 +181,7 @@ async function openCustomToolbarLogs(view) {
     });
     document.body.appendChild(overlay);
   } catch (e) {
-    new obsidian.Notice(view._lang() === 'en' ? 'Could not open Toolbar logs.' : '无法打开 Toolbar 运行日志。');
+    new obs.Notice(view._lang() === 'en' ? 'Could not open Toolbar logs.' : '无法打开 Toolbar 运行日志。');
   }
 }
 
@@ -204,7 +204,7 @@ function openCustomToolbarButtonEditor(view, root, existing) {
   const head = panel.createDiv({ cls: PID + '-custom-toolbar-head' });
   head.createDiv({ cls: PID + '-custom-toolbar-title', text: existing ? (en ? 'Edit custom button' : '编辑自定义按钮') : (en ? 'Add custom button' : '添加自定义按钮') });
   const close = head.createEl('button', { cls: PID + '-custom-toolbar-close', attr: { type:'button', title: en ? 'Close' : '关闭' } });
-  obsidian.setIcon(close, 'x');
+  obs.setIcon(close, 'x');
   close.onclick = () => overlay.remove();
   makeCockpitDialogDraggable(panel, head, { label:en ? 'Drag custom button editor' : '拖动自定义按钮编辑窗口' });
 

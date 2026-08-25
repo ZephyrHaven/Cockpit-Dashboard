@@ -1,4 +1,4 @@
-// ai-local-tools.js — Agent 的本地（Obsidian 之外）工具适配层。
+// ai-local-tools.js — Agent 的本地（笔记库之外）工具适配层。
 // 安全模型：模型永远不能发明命令——只能使用这里内置的窄能力工具，
 // 以及用户在配置中显式登记的命令允许列表；全部受三层权限模式约束。
 
@@ -63,7 +63,7 @@ function localToolDefinitions(commands) {
     {
       name:'sys_notify',
       label:'系统通知',
-      description:'Show a desktop notification outside Obsidian.',
+      description:'Show a desktop notification outside the note-taking app.',
       mutates:false,
       parameters:{
         type:'object', additionalProperties:false, required:['message'],
@@ -195,7 +195,7 @@ class CockpitLocalToolsRegistry {
   }
   async _openTarget(args) {
     const deps = this._resolveDeps();
-    if (!deps.shell) throw new Error('Opening external targets requires the Obsidian desktop app.');
+    if (!deps.shell) throw new Error('Opening external targets requires the desktop app.');
     const target = String(args.target || '').replace(/[\r\n\0]/g, '').trim();
     if (/^https?:\/\//i.test(target)) {
       await deps.shell.openExternal(target);
@@ -210,7 +210,7 @@ class CockpitLocalToolsRegistry {
   }
   _runCommand(args) {
     const deps = this._resolveDeps();
-    if (!deps.execFile) throw new Error('Running local commands requires the Obsidian desktop app.');
+    if (!deps.execFile) throw new Error('Running local commands requires the desktop app.');
     const entry = this._commands.find((item) => item.id === args.id);
     if (!entry) throw new Error('The requested command is not on the user allowlist.');
     const extraArgs = Array.isArray(args.args) ? args.args.map((item) => String(item)) : [];

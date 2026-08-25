@@ -91,7 +91,7 @@ function agentToolDefinitions() {
     {
       name:'cockpit_search_notes',
       label:'搜索 Vault 笔记',
-      description:'Search Markdown note names and content excerpts. Obsidian configuration and plugin files are always excluded.',
+      description:'Search Markdown note names and content excerpts. App configuration and plugin files are always excluded.',
       mutates:false,
       parameters:{
         type:'object', additionalProperties:false, required:['query'],

@@ -35,7 +35,7 @@ function mountAiLauncher(plugin) {
   launcher.setAttribute('title', 'Cockpit AI');
 
   const icon = launcher.createSpan({ cls:PLUGIN_ID + '-ai-launcher-icon', attr:{ 'aria-hidden':'true' } });
-  obsidian.setIcon(icon, 'bot-message-square');
+  obs.setIcon(icon, 'bot-message-square');
   const label = launcher.createSpan({ cls:PLUGIN_ID + '-ai-launcher-label', text:'AI 助手' });
 
   let savedPosition = null;
@@ -108,7 +108,7 @@ function mountAiLauncher(plugin) {
     try { await plugin.toggleAI(); }
     catch (e) {
       console.warn('Cockpit AI view failed to open', e);
-      new obsidian.Notice('无法打开 Cockpit AI。');
+      new obs.Notice('无法打开 Cockpit AI。');
     } finally {
       launcher.classList.remove('is-launching');
     }
@@ -129,7 +129,7 @@ function mountAiLauncher(plugin) {
       launcher.style.setProperty('--cockpit-ai-launcher-right', right + 'px');
     } else launcher.style.removeProperty('--cockpit-ai-launcher-right');
     launcher.classList.toggle('is-open', isOpen);
-    obsidian.setIcon(icon, isOpen ? 'panel-right-close' : 'bot-message-square');
+    obs.setIcon(icon, isOpen ? 'panel-right-close' : 'bot-message-square');
     label.setText(isOpen ? '关闭 AI' : 'AI 助手');
     launcher.setAttribute('aria-label', isOpen ? '关闭 Cockpit AI 助手' : '打开 Cockpit AI 助手');
     launcher.setAttribute('title', isOpen ? '关闭 Cockpit AI' : '打开 Cockpit AI');

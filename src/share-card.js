@@ -128,7 +128,7 @@ function drawShareCard(canvas, data, lang) {
   ctx.fillStyle = 'rgba(255,255,255,0.28)';
   ctx.font = '400 15px "Segoe UI", "PingFang SC", sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText(en ? 'Cockpit Dashboard · Obsidian' : 'Cockpit Dashboard · Obsidian', W - 48, H - 30);
+  ctx.fillText('Cockpit Dashboard', W - 48, H - 30);
   ctx.textAlign = 'left';
 }
 
@@ -148,7 +148,7 @@ function downloadShareCard(view, lang) {
   const data = collectShareCardData(view);
   drawShareCard(canvas, data, lang);
   canvas.toBlob((blob) => {
-    if (!blob) { new obsidian.Notice(lang === 'en' ? 'Could not export the image.' : '图片导出失败。'); return; }
+    if (!blob) { new obs.Notice(lang === 'en' ? 'Could not export the image.' : '图片导出失败。'); return; }
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -157,6 +157,6 @@ function downloadShareCard(view, lang) {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
-    new obsidian.Notice(lang === 'en' ? '✅ Weekly card saved' : '✅ 周报卡片已保存');
+    new obs.Notice(lang === 'en' ? '✅ Weekly card saved' : '✅ 周报卡片已保存');
   }, 'image/png');
 }

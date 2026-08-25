@@ -28,7 +28,7 @@ function createPomodoro(view, root, initialTodo) {
       }
       // 旧版浮窗没有可安全调用的销毁钩子；保留本轮计时并要求用户主动关闭后再打开。
       if (existing._cockpitPomodoroFeatureVersion !== 3) {
-        new obsidian.Notice(view._lang() === 'en' ? 'Close the existing timer, then reopen it to use the latest reminder settings.' : '请关闭当前旧番茄钟，再重新打开以使用最新提醒设置。');
+        new obs.Notice(view._lang() === 'en' ? 'Close the existing timer, then reopen it to use the latest reminder settings.' : '请关闭当前旧番茄钟，再重新打开以使用最新提醒设置。');
         return existing;
       }
       if (typeof existing._cockpitSyncLanguage === 'function') {
@@ -65,7 +65,7 @@ function createPomodoro(view, root, initialTodo) {
     const statusEl = body.createDiv({ text: t('pomodoro.ready'), attr: { 'aria-live':'polite', style: 'display:none;align-items:center;justify-content:center;min-height:22px;padding:4px 9px;border-radius:999px;font-size:0.64em;font-weight:700;color:var(--text-muted);margin-bottom:0;' } });
 
     const taskRow = body.createDiv({ cls: PID + '-pomodoro-task' });
-    obsidian.setIcon(taskRow.createSpan({ cls:PID + '-pomodoro-task-icon' }), 'list-checks');
+    obs.setIcon(taskRow.createSpan({ cls:PID + '-pomodoro-task-icon' }), 'list-checks');
     const taskSelect = taskRow.createEl('select', { cls:PID + '-pomodoro-task-select', attr:{ 'aria-label':t('pomodoro.selectTask') } });
     const taskMeta = taskRow.createSpan({ cls:PID + '-pomodoro-task-meta' });
 
@@ -185,7 +185,7 @@ function createPomodoro(view, root, initialTodo) {
         boundTask = null;
         setTaskActionsVisible(false);
         if (taskLocked) {
-          new obsidian.Notice(self._lang() === 'en' ? 'The linked task was completed or removed. This focus session will stay unlinked.' : '关联待办已完成或删除，本轮专注将不再关联任务。');
+          new obs.Notice(self._lang() === 'en' ? 'The linked task was completed or removed. This focus session will stay unlinked.' : '关联待办已完成或删除，本轮专注将不再关联任务。');
         }
       }
       taskSelect.empty();
@@ -377,7 +377,7 @@ function createPomodoro(view, root, initialTodo) {
       if (!ref) return false;
       const hasProgress = !isBreak && remaining < totalSeconds;
       if (!canChangePomodoroTask(isRunning, hasProgress, boundTask, ref)) {
-        new obsidian.Notice(self._lang() === 'en' ? 'Reset this focus session before switching tasks.' : '当前专注轮已有进度，请重置后再切换待办。');
+        new obs.Notice(self._lang() === 'en' ? 'Reset this focus session before switching tasks.' : '当前专注轮已有进度，请重置后再切换待办。');
         return false;
       }
       boundTask = ref;
@@ -397,7 +397,7 @@ function createPomodoro(view, root, initialTodo) {
     };
     floatEl._cockpitSyncLanguage = syncPomodoroText;
     floatEl._cockpitSyncTheme = () => applyVisualState();
-    // Obsidian 会在定时主题切换时替换 body 的 theme-light/theme-dark class；运行中的浮窗不重建，也要同步重绘。
+    // 宿主应用会在定时主题切换时替换 body 的 theme-light/theme-dark class；运行中的浮窗不重建，也要同步重绘。
     themeObserver = new MutationObserver(() => {
       if (floatEl.isConnected) applyVisualState();
     });
@@ -408,7 +408,7 @@ function createPomodoro(view, root, initialTodo) {
       const nextTask = todo ? pomodoroTaskRef(todo) : null;
       const hasProgress = !isBreak && remaining < totalSeconds;
       if (!canChangePomodoroTask(isRunning, hasProgress, boundTask, nextTask)) {
-        new obsidian.Notice(self._lang() === 'en' ? 'Reset this focus session before switching tasks.' : '当前专注轮已有进度，请重置后再切换待办。');
+        new obs.Notice(self._lang() === 'en' ? 'Reset this focus session before switching tasks.' : '当前专注轮已有进度，请重置后再切换待办。');
         renderTaskPicker();
         return;
       }
@@ -438,7 +438,7 @@ function createPomodoro(view, root, initialTodo) {
         setTaskActionsVisible(false);
         renderTaskPicker();
         persistSession();
-      } else new obsidian.Notice(self._lang() === 'en' ? 'This task no longer exists or could not be saved.' : '这个待办已不存在或保存失败。');
+      } else new obs.Notice(self._lang() === 'en' ? 'This task no longer exists or could not be saved.' : '这个待办已不存在或保存失败。');
     };
     deferTaskBtn.onclick = async () => {
       if (!boundTask) return;
@@ -446,7 +446,7 @@ function createPomodoro(view, root, initialTodo) {
         setTaskActionsVisible(false);
         renderTaskPicker();
         persistSession();
-      } else new obsidian.Notice(self._lang() === 'en' ? 'This task no longer exists or could not be saved.' : '这个待办已不存在或保存失败。');
+      } else new obs.Notice(self._lang() === 'en' ? 'This task no longer exists or could not be saved.' : '这个待办已不存在或保存失败。');
     };
 
     // 最小化
@@ -571,7 +571,7 @@ function createPomodoro(view, root, initialTodo) {
         floatEl.style.transform = 'translateY(0)';
       }, 1800);
       if (forceNotice || minimized || document.hidden) {
-        new obsidian.Notice(message, 2600);
+        new obs.Notice(message, 2600);
       }
     }
 
@@ -657,7 +657,7 @@ function createPomodoro(view, root, initialTodo) {
             console.warn('Cockpit: commit focus completion failed', e);
             // 若首次 data.json 提交失败，把同一个 completion ID 放进会话；恢复时仍按幂等键补记。
             pendingCompletion = completion;
-            new obsidian.Notice(self._lang() === 'en' ? 'Focus was completed, but saving failed. Cockpit will retry on next launch.' : '专注已完成，但保存失败；Cockpit 会在下次启动时重试。');
+            new obs.Notice(self._lang() === 'en' ? 'Focus was completed, but saving failed. Cockpit will retry on next launch.' : '专注已完成，但保存失败；Cockpit 会在下次启动时重试。');
             await persistSession();
           }
           if (self._updateStatsRef) self._updateStatsRef();
@@ -702,7 +702,7 @@ function createPomodoro(view, root, initialTodo) {
           setTaskActionsVisible(false);
           renderTaskPicker();
           persistSession();
-          new obsidian.Notice(self._lang() === 'en' ? 'The linked task is no longer pending. Choose another task.' : '关联待办已完成或不存在，请重新选择。');
+          new obs.Notice(self._lang() === 'en' ? 'The linked task is no longer pending. Choose another task.' : '关联待办已完成或不存在，请重新选择。');
           return;
         }
         boundTask = pomodoroTaskRef(liveTodo);

@@ -92,15 +92,15 @@ function buildCalendar(root, todos, opts) {
         cls:PLUGIN_ID + '-cal-timeline-node p-' + (todo.priority || 'mid') + (todo.done ? ' done' : ''),
         attr:{ type:'button', 'aria-label':todo.done ? (language === 'en' ? 'Mark task open' : '恢复为待办') : (language === 'en' ? 'Complete task' : '完成待办'), 'aria-pressed':String(todo.done) }
       });
-      if (todo.done) obsidian.setIcon(check, 'check');
+      if (todo.done) obs.setIcon(check, 'check');
       const content = item.createDiv({ cls:PLUGIN_ID + '-cal-timeline-content' });
       const text = content.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-title', text:todo.text, attr:{ type:'button', title:todo.text } });
       const meta = content.createDiv({ cls:PLUGIN_ID + '-cal-timeline-meta' });
       const dueChip = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-date' });
-      obsidian.setIcon(dueChip.createSpan(), 'calendar-days');
+      obs.setIcon(dueChip.createSpan(), 'calendar-days');
       dueChip.createSpan({ text:formatTodoDue(todo.dueDate, language, todo.dueHasTime) });
       const prio = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-priority p-' + (todo.priority || 'mid') });
-      obsidian.setIcon(prio.createSpan(), priorityIcon[todo.priority] || 'minus');
+      obs.setIcon(prio.createSpan(), priorityIcon[todo.priority] || 'minus');
       prio.createSpan({ text:priorityText[todo.priority] || priorityText.mid });
       if (todo === nextTimed) content.createSpan({ cls:PLUGIN_ID + '-cal-timeline-now', text:'NOW' });
       const rowActions = content.createDiv({ cls:PLUGIN_ID + '-cal-timeline-actions' });
@@ -110,11 +110,11 @@ function buildCalendar(root, todos, opts) {
           cls:PLUGIN_ID + '-cal-detail-edit ' + PLUGIN_ID + '-cal-detail-alarm' + (hasLinkedAlarm ? ' active' : ''),
           attr:{ type:'button', title:t(hasLinkedAlarm ? 'todo.editAlarm' : 'todo.createAlarm'), 'aria-label':t(hasLinkedAlarm ? 'todo.editAlarm' : 'todo.createAlarm'), 'aria-pressed':String(hasLinkedAlarm) }
         });
-        obsidian.setIcon(alarm, 'alarm-clock');
+        obs.setIcon(alarm, 'alarm-clock');
         alarm.onclick = async (event) => { event.stopPropagation(); await onTodoAlarm?.(todo.raw); };
       }
       const edit = rowActions.createEl('button', { cls:PLUGIN_ID + '-cal-detail-edit', attr:{ type:'button', title:t('todo.edit'), 'aria-label':t('todo.edit') } });
-      obsidian.setIcon(edit, 'square-pen');
+      obs.setIcon(edit, 'square-pen');
       check.onclick = async (event) => { event.stopPropagation(); await onTodoToggle(todo.raw.id, !todo.raw.done); };
       text.onclick = (event) => { event.stopPropagation(); openTodoEditor({ id:todo.raw.id }); };
       edit.onclick = (event) => { event.stopPropagation(); openTodoEditor({ id:todo.raw.id }); };

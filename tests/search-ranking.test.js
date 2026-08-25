@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const source = fs.readFileSync('src/search.js', 'utf8');
-const context = { obsidian: { Modal: class {} }, PLUGIN_ID: 'cockpit-dashboard', DEFAULT_LANG: 'zh' };
+const context = { obs: { Modal: class {} }, PLUGIN_ID: 'cockpit-dashboard', DEFAULT_LANG: 'zh' };
 vm.createContext(context);
 vm.runInContext(source + '\nthis.rankSearchFiles = rankSearchFiles;', context);
 

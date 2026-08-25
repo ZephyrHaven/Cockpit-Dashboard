@@ -1,4 +1,4 @@
-class CockpitView extends obsidian.ItemView {
+class CockpitView extends obs.ItemView {
   constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
@@ -850,7 +850,7 @@ class CockpitView extends obsidian.ItemView {
     } catch (e) {
       this._language = prev;
       console.warn('Cockpit: save language failed', e);
-      new obsidian.Notice('Language switch failed: ' + (e?.message || 'unknown error'));
+      new obs.Notice('Language switch failed: ' + (e?.message || 'unknown error'));
     }
   }
   async _setCalendarViewMode(mode) {
@@ -860,7 +860,7 @@ class CockpitView extends obsidian.ItemView {
       await this._mutatePluginData((data) => { data.calendarViewMode = next; });
     } catch (error) {
       console.warn('Cockpit: save calendar view failed', error);
-      new obsidian.Notice(this._lang() === 'en' ? 'Could not save the calendar view preference.' : '日历视图偏好保存失败。');
+      new obs.Notice(this._lang() === 'en' ? 'Could not save the calendar view preference.' : '日历视图偏好保存失败。');
     }
   }
 
@@ -878,7 +878,7 @@ class CockpitView extends obsidian.ItemView {
     this._todos = loaded ?? ensureTodoIds(DEFAULT_TODOS.map(t=>({...t})));
     this._bookmarks = new Set(await this._storage.loadBookmarks());
 
-    // 同步 Hermes 功能待办到 Obsidian；文件已存在且无内置功能待办时跳过，
+    // 同步 Hermes 功能待办到库内待办；文件已存在且无内置功能待办时跳过，
     // 避免每次重载都多一轮文件读取。
     if (loaded === null || HERMES_TODOS.length) await syncHermesTodos(this.app.vault, this._todos);
 
@@ -1031,7 +1031,7 @@ class CockpitView extends obsidian.ItemView {
     // 通用默认值：不含任何本机路径。个人命令通过工具栏配置写入 data.json。
     if (this._isMobile()) return {};
     return {
-      Hermes: { command:'hermes --tui', mode:'auto' },
+      Hermes: { command:'', mode:'auto' },
       '驾驶舱': { command:'', url:DEFAULT_COCKPIT_URL },
       '工作日志': { command:'', url:'' }
     };
@@ -1076,7 +1076,7 @@ class CockpitView extends obsidian.ItemView {
       {
         title: this._lang() === 'en' ? 'Clear local RSS cache' : '清除本机 RSS 缓存',
         icon: 'trash-2',
-        onClick: async () => { await this._rss.clearCache(); this._refreshCalendarRef?.(); new obsidian.Notice(this._lang() === 'en' ? 'Local RSS cache cleared.' : '本机 RSS 缓存已清除。'); }
+        onClick: async () => { await this._rss.clearCache(); this._refreshCalendarRef?.(); new obs.Notice(this._lang() === 'en' ? 'Local RSS cache cleared.' : '本机 RSS 缓存已清除。'); }
       },
       {
         title: this._t('contextMenu.releaseNotes'),
@@ -1109,12 +1109,12 @@ class CockpitView extends obsidian.ItemView {
     const en = this._lang() === 'en';
     let message = (en ? 'Updated ' : '已更新 ') + result.refreshed + (en ? ' sources' : ' 个订阅源');
     if (result.failed) message += (en ? '; failed: ' : '；更新失败：') + result.failedFeeds.join('、');
-    new obsidian.Notice(message);
+    new obs.Notice(message);
     this._refreshCalendarRef?.();
     return result;
   }
   _openDashboardMenu(anchorEl, sourceEvent) {
-    const menu = new obsidian.Menu();
+    const menu = new obs.Menu();
     this._getDashboardMenuItems().forEach(({ title, icon, onClick }) => {
       menu.addItem((item) => {
         item.setTitle(title).setIcon(icon).onClick(onClick);
@@ -1329,7 +1329,7 @@ class CockpitView extends obsidian.ItemView {
     const commitTodoMutation = async (mutator, failureMessage) => {
       const outcome = await mutateTodos(this.app.vault, mutator);
       if (!outcome.saved || !outcome.todos) {
-        new obsidian.Notice(failureMessage || (lang === 'en' ? 'Could not save tasks. Nothing was changed.' : '待办保存失败，内容未发生变化。'));
+        new obs.Notice(failureMessage || (lang === 'en' ? 'Could not save tasks. Nothing was changed.' : '待办保存失败，内容未发生变化。'));
         return false;
       }
       this._todos = outcome.todos;
@@ -1403,7 +1403,7 @@ class CockpitView extends obsidian.ItemView {
     // AI 拆解子任务：把大任务拆成 3-6 条可执行子待办，插入到原待办之后。
     const decomposeTodoWithAi = async (todo) => {
       const en = lang === 'en';
-      new obsidian.Notice(en ? '🤖 Agent is breaking down…' : '🤖 Agent 正在拆解…');
+      new obs.Notice(en ? '🤖 Agent is breaking down…' : '🤖 Agent 正在拆解…');
       try {
         const question = (en
           ? 'Break the task below into 3-6 concrete, actionable subtasks. Reply ONLY with a JSON array of strings, no extra text.\nTask: '
@@ -1428,11 +1428,11 @@ class CockpitView extends obsidian.ItemView {
           todos.splice(index + 1, 0, ...created);
           return true;
         }, en ? 'Could not save the subtasks.' : '子任务保存失败。');
-        if (saved) new obsidian.Notice(en ? '✅ Added ' + subtasks.length + ' subtasks' : '✅ 已添加 ' + subtasks.length + ' 个子任务');
+        if (saved) new obs.Notice(en ? '✅ Added ' + subtasks.length + ' subtasks' : '✅ 已添加 ' + subtasks.length + ' 个子任务');
       } catch (e) {
         console.warn('Cockpit ai decompose failed', e);
         const detail = String(e?.message || '').trim().slice(0, 80);
-        new obsidian.Notice((en ? 'AI breakdown failed: ' : 'AI 拆解失败：') + (detail || (en ? 'check the AI model settings.' : '请检查「AI 模型」配置。')));
+        new obs.Notice((en ? 'AI breakdown failed: ' : 'AI 拆解失败：') + (detail || (en ? 'check the AI model settings.' : '请检查「AI 模型」配置。')));
       }
     };
 
@@ -1685,8 +1685,8 @@ class CockpitView extends obsidian.ItemView {
       { title: t('contextMenu.exportBackup'), icon: 'archive', onClick: async () => {
         try {
           const path = await exportCockpitBackup(this._plugin);
-          new obsidian.Notice(path ? ('✅ ' + path) : (lang === 'en' ? 'Nothing to back up.' : '没有可备份的数据文件。'), 8000);
-        } catch (e) { new obsidian.Notice((lang === 'en' ? 'Backup failed: ' : '备份失败：') + (e?.message || e)); }
+          new obs.Notice(path ? ('✅ ' + path) : (lang === 'en' ? 'Nothing to back up.' : '没有可备份的数据文件。'), 8000);
+        } catch (e) { new obs.Notice((lang === 'en' ? 'Backup failed: ' : '备份失败：') + (e?.message || e)); }
       } }
     ];
 
@@ -1764,7 +1764,7 @@ class CockpitView extends obsidian.ItemView {
         const overview = files.find(f=>f.basename.includes('概览')||f.basename.includes('MOC')||f.basename.includes('概述'));
         const target = overview || files[0];
         if (target) await this.app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:target.path}});
-        else new obsidian.Notice(t('categories.emptyFolder', { folder:name }));
+        else new obs.Notice(t('categories.emptyFolder', { folder:name }));
       };
     });
 
@@ -1911,7 +1911,7 @@ class CockpitView extends obsidian.ItemView {
       { key:'done', label:t('todo.done') }
     ];
     const statusSelectWrap = todoHeader.createDiv({ cls: PLUGIN_ID+'-status-select-wrap' });
-    obsidian.setIcon(statusSelectWrap.createSpan({ cls: PLUGIN_ID+'-status-select-icon' }), 'list-filter');
+    obs.setIcon(statusSelectWrap.createSpan({ cls: PLUGIN_ID+'-status-select-icon' }), 'list-filter');
     const statusSelect = statusSelectWrap.createEl('select', {
       cls: PLUGIN_ID+'-status-select',
       attr: { title: lang === 'en' ? 'Filter tasks by status' : '按状态筛选待办', 'aria-label': lang === 'en' ? 'Task status filter' : '待办状态筛选' }
@@ -2173,10 +2173,10 @@ class CockpitView extends obsidian.ItemView {
         // 操作按钮
         const actions = item.createDiv({ cls: PLUGIN_ID+'-todo-actions' });
 
-        // 延期、编辑与删除使用 Obsidian 同一套 Lucide 图标，避免 emoji 风格割裂。
+        // 延期、编辑与删除与宿主应用共用同一套 Lucide 图标，避免 emoji 风格割裂。
         if (!done && pomodoroTaskRef(todo)) {
           const focusBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn focus', attr:{type:'button', 'aria-label':lang === 'en' ? 'Start a Pomodoro linked to this task' : '专注此任务：启动并关联番茄钟'} });
-          obsidian.setIcon(focusBtn, 'timer');
+          obs.setIcon(focusBtn, 'timer');
           focusBtn.onclick = (e) => {
             e.stopPropagation();
             buildPomodoro(this, root, todo);
@@ -2185,12 +2185,12 @@ class CockpitView extends obsidian.ItemView {
         if (!done && todo.id) {
           const hasLinkedAlarm = linkedAlarmTodoIds.has(todo.id);
           const alarmBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn alarm'+(hasLinkedAlarm ? ' active' : ''), attr:{type:'button', 'aria-label':t(hasLinkedAlarm ? 'todo.editAlarm' : 'todo.createAlarm'), 'aria-pressed':String(hasLinkedAlarm)} });
-          obsidian.setIcon(alarmBtn, 'alarm-clock');
+          obs.setIcon(alarmBtn, 'alarm-clock');
           alarmBtn.onclick = async (e) => { e.stopPropagation(); await openTodoAlarm(todo); };
         }
         if (!done && aiReady && todo.text) {
           const aiBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn ai', attr:{type:'button', title:lang === 'en' ? 'AI: break into subtasks' : 'AI 拆解为子任务', 'aria-label':lang === 'en' ? 'Break this task into subtasks with AI' : '用 AI 把这个任务拆解为子任务'} });
-          obsidian.setIcon(aiBtn, 'sparkles');
+          obs.setIcon(aiBtn, 'sparkles');
           aiBtn.onclick = async (e) => {
             e.stopPropagation();
             if (aiBtn.disabled) return;
@@ -2201,7 +2201,7 @@ class CockpitView extends obsidian.ItemView {
         }
         if (!done) {
           const deferBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn', attr:{type:'button', 'aria-label':lang === 'en' ? 'Move this task to tomorrow' : '延期到明天：保留任务并调整截止日期'} });
-          obsidian.setIcon(deferBtn, 'calendar-clock');
+          obs.setIcon(deferBtn, 'calendar-clock');
           deferBtn.onclick = async (e) => {
             e.stopPropagation();
             await commitTodoMutation((todos) => {
@@ -2213,7 +2213,7 @@ class CockpitView extends obsidian.ItemView {
           };
         }
         const editBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn', attr:{type:'button', 'aria-label':lang === 'en' ? 'Edit title, date, priority, and tags' : '编辑：修改标题、日期、优先级和标签'} });
-        obsidian.setIcon(editBtn, 'square-pen');
+        obs.setIcon(editBtn, 'square-pen');
         editBtn.onclick = (e)=>{
           e.stopPropagation();
           openTodoEditor({ id:todo.id });
@@ -2221,7 +2221,7 @@ class CockpitView extends obsidian.ItemView {
 
         // 删除按钮
         const delBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn del', attr:{type:'button', 'aria-label':lang === 'en' ? 'Delete this task permanently' : '删除：永久移除此待办'} });
-        obsidian.setIcon(delBtn, 'trash-2');
+        obs.setIcon(delBtn, 'trash-2');
         delBtn.onclick = async (e)=>{
           e.stopPropagation();
           await commitTodoMutation((todos) => {
@@ -2238,7 +2238,7 @@ class CockpitView extends obsidian.ItemView {
           text:lang === 'en' ? `Show more (${totalVisibleTodos - renderedTodos} remaining)` : `显示更多（还剩 ${totalVisibleTodos - renderedTodos} 项）`,
           attr:{ type:'button' }
         });
-        obsidian.setIcon(more.createSpan({ cls:PLUGIN_ID+'-todo-load-more-icon' }), 'chevrons-down');
+        obs.setIcon(more.createSpan({ cls:PLUGIN_ID+'-todo-load-more-icon' }), 'chevrons-down');
         more.onclick = async () => {
           todoRenderLimit += 120;
           await renderTodos({ persist:false });
@@ -2425,14 +2425,14 @@ class CockpitView extends obsidian.ItemView {
         try {
           const content = await this.app.vault.read(file);
           await this.app.vault.modify(file, content.replace(new RegExp('(^- \\[[^\\]]+\\] ' + escaped + ')(?!.*#' + escapedTag + ')', 'm'), '$1 #' + rawTag));
-          new obsidian.Notice(en ? 'Tag added.' : '标签已添加。');
+          new obs.Notice(en ? 'Tag added.' : '标签已添加。');
         } catch (e) {
           console.warn('Cockpit: add flash tag failed', e);
-          new obsidian.Notice(en ? 'Could not add a tag to this line.' : '无法给这条闪念添加标签。');
+          new obs.Notice(en ? 'Could not add a tag to this line.' : '无法给这条闪念添加标签。');
         }
       });
       makeAction(en ? 'Open today' : '打开今日日记', en ? 'Open today\'s daily note' : '打开保存这条闪念的今日日记', () => this.app.workspace.getUnpinnedLeaf().setViewState({ type:'markdown', state:{ file:filePath } }));
-      makeAction(en ? 'Organize later' : '稍后整理', en ? 'Keep this thought in the dashboard inbox' : '把这条闪念保留在驾驶舱整理箱', async () => { const entry={id:'flash-'+Date.now().toString(36),text,filePath,createdAt:new Date().toISOString()};this._flashInbox=[...this._flashInbox,entry].slice(-100);await this._mutatePluginData((data)=>{const state=data.workspaceState&&typeof data.workspaceState==='object'?data.workspaceState:{};state.flashInbox=this._flashInbox;data.workspaceState=state;});flashTitle.dataset.pending=String(this._flashInbox.length);flashTitle.setText(t('sections.flash')+' · '+this._flashInbox.length);new obsidian.Notice(en?'Added to the organize-later inbox.':'已加入稍后整理。'); });
+      makeAction(en ? 'Organize later' : '稍后整理', en ? 'Keep this thought in the dashboard inbox' : '把这条闪念保留在驾驶舱整理箱', async () => { const entry={id:'flash-'+Date.now().toString(36),text,filePath,createdAt:new Date().toISOString()};this._flashInbox=[...this._flashInbox,entry].slice(-100);await this._mutatePluginData((data)=>{const state=data.workspaceState&&typeof data.workspaceState==='object'?data.workspaceState:{};state.flashInbox=this._flashInbox;data.workspaceState=state;});flashTitle.dataset.pending=String(this._flashInbox.length);flashTitle.setText(t('sections.flash')+' · '+this._flashInbox.length);new obs.Notice(en?'Added to the organize-later inbox.':'已加入稍后整理。'); });
       makeAction(en ? 'Keep writing' : '继续记录', en ? 'Focus the quick-capture input' : '回到输入框继续记录', () => { hideFlashActions(); flashInput.focus(); });
       flashActions.style.display = 'flex';
     };
@@ -2549,7 +2549,7 @@ class CockpitView extends obsidian.ItemView {
       const cell = heatmapEl.createDiv({ cls: PLUGIN_ID+'-hm-cell' });
       cell.title = key + ': ' + t('heatmap.files', { count });
       cell.tabIndex = 0; cell.setAttribute('role','button');
-      const openDay = async () => { const candidates=allFiles.filter((file)=>window.moment(file.stat.mtime).format('YYYY-MM-DD')===key).sort((a,b)=>b.stat.mtime-a.stat.mtime);if(candidates[0])await this.app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:candidates[0].path}});else new obsidian.Notice(lang==='en'?'No edited notes on this date.':'这一天没有编辑过的笔记。'); };
+      const openDay = async () => { const candidates=allFiles.filter((file)=>window.moment(file.stat.mtime).format('YYYY-MM-DD')===key).sort((a,b)=>b.stat.mtime-a.stat.mtime);if(candidates[0])await this.app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:candidates[0].path}});else new obs.Notice(lang==='en'?'No edited notes on this date.':'这一天没有编辑过的笔记。'); };
       cell.onclick=openDay;cell.onkeydown=(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openDay();}};
       cell.style.background = getColor(count);
     }
@@ -2733,7 +2733,7 @@ class CockpitView extends obsidian.ItemView {
         cls: PLUGIN_ID + '-bookmark-action',
         attr: { type: 'button', title: this._lang() === 'en' ? 'Open in split' : '在分栏打开' }
       });
-      obsidian.setIcon(splitBtn, 'panel-right-open');
+      obs.setIcon(splitBtn, 'panel-right-open');
       splitBtn.onclick = async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -2741,11 +2741,11 @@ class CockpitView extends obsidian.ItemView {
       };
       const upBtn = actions.createEl('button', { cls: PLUGIN_ID + '-bookmark-action', attr: { type: 'button', title: this._lang() === 'en' ? 'Move up' : '上移' } });
       upBtn.disabled = index === 0;
-      obsidian.setIcon(upBtn, 'chevron-up');
+      obs.setIcon(upBtn, 'chevron-up');
       upBtn.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); if (index === 0) return; [this._bookmarkOrder[index - 1], this._bookmarkOrder[index]] = [this._bookmarkOrder[index], this._bookmarkOrder[index - 1]]; await this._saveBookmarkOrder(); await this._refreshBookmarkSection(root, allFiles); };
       const downBtn = actions.createEl('button', { cls: PLUGIN_ID + '-bookmark-action', attr: { type: 'button', title: this._lang() === 'en' ? 'Move down' : '下移' } });
       downBtn.disabled = index === orderedPaths.length - 1;
-      obsidian.setIcon(downBtn, 'chevron-down');
+      obs.setIcon(downBtn, 'chevron-down');
       downBtn.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); if (index >= orderedPaths.length - 1) return; [this._bookmarkOrder[index + 1], this._bookmarkOrder[index]] = [this._bookmarkOrder[index], this._bookmarkOrder[index + 1]]; await this._saveBookmarkOrder(); await this._refreshBookmarkSection(root, allFiles); };
       item.createDiv({ cls: PLUGIN_ID + '-recent-time', text: f.path });
     }
@@ -2763,34 +2763,18 @@ class CockpitView extends obsidian.ItemView {
     }
     return null;
   }
-  _isBrokenLegacyDefaultCommand(command) {
-    // 旧版插件的默认命令写死了原作者本机路径，并随存储迁移写进了部分用户的 data.json。
-    // 仅当命令与旧默认值一致、且其引用的路径在当前电脑上不存在（必然执行失败）时才判定为失效；
-    // 路径仍然存在的机器（例如原作者本机）照常执行，不做任何拦截。
-    const cmd = String(command || '').trim();
-    if (!cmd) return false;
-    try {
-      const os = require('os');
-      const fs = require('fs');
-      const path = require('path');
-      const home = os.homedir();
-      const legacyCockpit = 'cd ' + path.join(home, 'Downloads', 'cockpit') + ' && ' + path.join(home, '.local', 'bin', 'node') + ' server.js';
-      if (cmd === legacyCockpit) {
-        return !fs.existsSync(path.join(home, 'Downloads', 'cockpit')) || !fs.existsSync(path.join(home, '.local', 'bin', 'node'));
-      }
-      const legacyWorkLog = cmd.match(/^(\/Library\/Frameworks\/Python\.framework\/Versions\/[\d.]+\/bin\/python3)\s+(\S*oaAtuoLogin_obsidian\.py)$/);
-      if (legacyWorkLog) {
-        return !fs.existsSync(legacyWorkLog[1]) || !fs.existsSync(legacyWorkLog[2]);
-      }
-    } catch (e) { console.warn('Cockpit: legacy default command check failed', e); }
-    return false;
+  _isCommandMissingError(err) {
+    // 通用判断：命令不存在 / 找不到可执行文件（不再针对任何写死路径做特判）。
+    const code = String((err && err.code) || '').toUpperCase();
+    if (code === 'ENOENT' || code === '127') return true;
+    return /ENOENT|command not found|cannot find/i.test(String((err && err.message) || ''));
   }
-  _notifyLegacyDefaultConfig(action, sourceEl) {
-    new obsidian.Notice(this._t('notices.legacyDefaultConfig'));
+  _notifyCommandNeedsConfig(action, sourceEl) {
+    new obs.Notice(this._t('notices.commandNotAvailable'));
     try {
       const toolbar = sourceEl && sourceEl.closest ? sourceEl.closest('.' + PLUGIN_ID + '-toolbar') : null;
       openBuiltinToolbarConfigEditor(this, toolbar ? toolbar.parentElement : null, action);
-    } catch (e) { console.warn('Cockpit: failed to open legacy default config editor', e); }
+    } catch (e) { console.warn('Cockpit: failed to open toolbar config editor', e); }
   }
   _launchInSystemTerminal(command) {
     if (this._isMobile()) return Promise.reject(new Error('desktop-only'));
@@ -2820,19 +2804,21 @@ class CockpitView extends obsidian.ItemView {
       return executeCustomToolbarButton(this, this._customToolbarButtons.find((button) => button.id === id));
     }
     if (this._isMobile() && ['hermes','cockpit-h5','work-log'].includes(a)) {
-      new obsidian.Notice(this._t('notices.desktopOnly', { action: a }) || (this._lang() === 'en' ? 'This action is only available on desktop.' : '此功能仅在桌面端可用。'));
+      new obs.Notice(this._t('notices.desktopOnly', { action: a }) || (this._lang() === 'en' ? 'This action is only available on desktop.' : '此功能仅在桌面端可用。'));
       return;
     }
     if (a === 'hermes') {
       (async () => {
         try {
           const cfg = this._getToolbarCommandConfig('Hermes', 'hermes') || {};
-          const command = cfg.command || 'hermes --tui';
+          const command = String(cfg.command || '').trim();
+          if (!command) { new obs.Notice(this._t('notices.hermesMissing')); return; }
           await this._launchInSystemTerminal(command);
-          new obsidian.Notice(this._t('notices.hermesStartingExternal'));
+          new obs.Notice(this._t('notices.hermesStartingExternal'));
         } catch(e) {
           console.warn('Hermes failed', e);
-          new obsidian.Notice(this._t('notices.hermesFailed', { message: e?.message || 'unknown error' }));
+          if (this._isCommandMissingError(e)) { this._notifyCommandNeedsConfig('hermes', sourceEl); return; }
+          new obs.Notice(this._t('notices.hermesFailed', { message: e?.message || 'unknown error' }));
         }
       })();
       return;
@@ -2842,20 +2828,20 @@ class CockpitView extends obsidian.ItemView {
         const { exec, execFile } = require('child_process');
         const cfg = this._toolbarCmds['驾驶舱'];
         const cmd = cfg && cfg.command;
-        if (!cmd) { new obsidian.Notice(this._t('notices.cockpitMissing')); return; }
-        if (this._isBrokenLegacyDefaultCommand(cmd)) { this._notifyLegacyDefaultConfig('cockpit-h5', sourceEl); return; }
+        if (!cmd) { new obs.Notice(this._t('notices.cockpitMissing')); return; }
         const url = cfg && cfg.url || DEFAULT_COCKPIT_URL;
         exec(cmd, (err) => {
           if (err) {
             if (!err.message.includes('EADDRINUSE')) {
               console.warn('驾驶舱 启动失败', err);
-              new obsidian.Notice(this._t('notices.cockpitFailed', { message: err.message }));
+              if (this._isCommandMissingError(err)) { this._notifyCommandNeedsConfig('cockpit-h5', sourceEl); return; }
+              new obs.Notice(this._t('notices.cockpitFailed', { message: err.message }));
               return;
             }
           }
           setTimeout(() => { execFile('open', [url]); }, 800);
         });
-        new obsidian.Notice(this._t('notices.cockpitStarting'));
+        new obs.Notice(this._t('notices.cockpitStarting'));
       } catch(e) {
         console.warn('驾驶舱 launch failed', e);
       }
@@ -2866,17 +2852,17 @@ class CockpitView extends obsidian.ItemView {
         const { exec } = require('child_process');
         const cfg = this._toolbarCmds['工作日志'];
         const cmd = cfg && cfg.command;
-        if (!cmd) { new obsidian.Notice(this._t('notices.workLogMissing')); return; }
-        if (this._isBrokenLegacyDefaultCommand(cmd)) { this._notifyLegacyDefaultConfig('work-log', sourceEl); return; }
+        if (!cmd) { new obs.Notice(this._t('notices.workLogMissing')); return; }
         exec(cmd, (err, stdout, stderr) => {
           if (err) {
             console.warn('工作日志执行失败', err);
-            new obsidian.Notice(this._t('notices.workLogFailed', { message: err.message }));
+            if (this._isCommandMissingError(err)) { this._notifyCommandNeedsConfig('work-log', sourceEl); return; }
+            new obs.Notice(this._t('notices.workLogFailed', { message: err.message }));
             return;
           }
           if (stdout) console.log('[工作日志]', stdout);
           if (stderr) console.warn('[工作日志 stderr]', stderr);
-          new obsidian.Notice(this._t('notices.workLogDone'));
+          new obs.Notice(this._t('notices.workLogDone'));
         });
       } catch(e) {
         console.warn('工作日志启动失败', e);
@@ -3164,7 +3150,7 @@ async function exportCockpitBackup(plugin) {
   return path;
 }
 
-class CockpitPlugin extends obsidian.Plugin {
+class CockpitPlugin extends obs.Plugin {
   async mutateData(mutator) {
     return mutatePluginData(this, mutator);
   }
@@ -3234,12 +3220,12 @@ class CockpitPlugin extends obsidian.Plugin {
       id:'send-morning-brief',
       name:'发送晨间简报',
       callback:async () => {
-        new obsidian.Notice('📮 正在发送晨间简报…');
+        new obs.Notice('📮 正在发送晨间简报…');
         try {
           const ok = await this.morningBrief.sendNow();
-          new obsidian.Notice(ok ? '✅ 晨间简报已发送' : '⚠️ 没有已启用的推送渠道，请先在设置里配置');
+          new obs.Notice(ok ? '✅ 晨间简报已发送' : '⚠️ 没有已启用的推送渠道，请先在设置里配置');
         } catch (e) {
-          new obsidian.Notice('❌ 晨间简报发送失败：' + (e?.message || 'unknown error'));
+          new obs.Notice('❌ 晨间简报发送失败：' + (e?.message || 'unknown error'));
         }
       }
     });
@@ -3249,10 +3235,10 @@ class CockpitPlugin extends obsidian.Plugin {
       callback:async () => {
         try {
           const path = await exportCockpitBackup(this);
-          new obsidian.Notice(path ? ('✅ 已备份到 ' + path) : '没有可备份的数据文件。', 8000);
+          new obs.Notice(path ? ('✅ 已备份到 ' + path) : '没有可备份的数据文件。', 8000);
         } catch (e) {
           console.warn('Cockpit backup export failed', e);
-          new obsidian.Notice('❌ 备份失败：' + (e?.message || 'unknown error'));
+          new obs.Notice('❌ 备份失败：' + (e?.message || 'unknown error'));
         }
       }
     });
@@ -3294,6 +3280,16 @@ class CockpitPlugin extends obsidian.Plugin {
     if (this.app.workspace.getLeavesOfType(AI_VIEW_TYPE).length) return this.closeAI();
     return this.openAI();
   }
-  async onunload() { this.alarms?.stop(); this.scheduledTasks?.stop(); this._aiLauncherCleanup?.(); this._aiLauncherCleanup = null; this.app.workspace.detachLeavesOfType(AI_VIEW_TYPE); this.app.workspace.detachLeavesOfType(VIEW_TYPE); }
+  async onunload() {
+    // 官方审查要求：插件卸载时清理全部全局资源；且不得在 onunload 中 detach leaves，
+    // 更新/禁用后由宿主应用原位恢复视图位置。番茄钟浮层带会话销毁，重新启用时自动恢复倒计时。
+    try {
+      document.querySelector('.' + PLUGIN_ID + '-pomodoro')?._cockpitDestroy?.({ preserveSession:true });
+    } catch (e) { console.warn('Cockpit: pomodoro cleanup failed', e); }
+    this.alarms?.stop();
+    this.scheduledTasks?.stop();
+    this._aiLauncherCleanup?.();
+    this._aiLauncherCleanup = null;
+  }
 }
 module.exports = CockpitPlugin;

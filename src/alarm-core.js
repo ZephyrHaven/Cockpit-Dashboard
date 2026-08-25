@@ -1,4 +1,4 @@
-// alarm-core.js — 闹钟纯数据与时间计算；不依赖 Obsidian 或 DOM。
+// alarm-core.js — 闹钟纯数据与时间计算；不依赖宿主 API 或 DOM。
 
 const ALARM_RECOVERY_WINDOW_MS = 10 * 60 * 1000;
 const ALARM_SNOOZE_MS = 10 * 60 * 1000;

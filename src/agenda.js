@@ -71,7 +71,7 @@ async function buildAgendaModule(view, root, options = {}) {
       const row = body.createDiv({ cls: PLUGIN_ID + '-agenda-row kind-' + item.kind, attr:{ role:'button', tabindex:'0' } });
       row.createSpan({ cls: PLUGIN_ID + '-agenda-time', text: item.time || '--:--' });
       const iconMap = { todo:'check-circle-2', alarm:'alarm-clock', rss:'rss' };
-      obsidian.setIcon(row.createSpan({ cls:PLUGIN_ID + '-agenda-icon' }), iconMap[item.kind] || 'circle');
+      obs.setIcon(row.createSpan({ cls:PLUGIN_ID + '-agenda-icon' }), iconMap[item.kind] || 'circle');
       const main = row.createDiv({ cls: PLUGIN_ID + '-agenda-main' });
       main.createDiv({ cls: PLUGIN_ID + '-agenda-text prio-' + (item.priority || 'mid'), text:item.text });
       let subText = '';

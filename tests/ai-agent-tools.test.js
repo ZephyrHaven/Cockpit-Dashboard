@@ -182,7 +182,7 @@ definitions.forEach((tool) => {
 
   let compatibilityRequest = null;
   global.fetch = async () => ({ ok:false, status:400, headers:{ get:() => 'application/json' } });
-  global.obsidian = {
+  global.obs = {
     requestUrl:async (options) => {
       compatibilityRequest = JSON.parse(options.body);
       return { status:200, json:{ choices:[{ message:{ content:'兼容模式回答' } }] } };
@@ -194,7 +194,7 @@ definitions.forEach((tool) => {
     (event) => compatibilityEvents.push(event)
   );
   global.fetch = originalFetch;
-  delete global.obsidian;
+  delete global.obs;
   assert.equal(compatibilityResult.content, '兼容模式回答', 'Models without tool calling keep the original assistant available.');
   assert.equal(compatibilityRequest.tools, undefined, 'Compatibility retry removes tool definitions instead of weakening the registry.');
   assert.ok(compatibilityEvents.some((event) => event.type === 'status' && event.stage === 'tools_unavailable'), 'The sidebar can disclose when a model lacks Agent tool support.');
@@ -248,7 +248,7 @@ definitions.forEach((tool) => {
 
   console.log('AI Agent tool checks passed');
 })().catch((error) => {
-  delete global.obsidian;
+  delete global.obs;
   console.error(error);
   process.exitCode = 1;
 });

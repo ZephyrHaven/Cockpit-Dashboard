@@ -4,7 +4,7 @@ function buildSceneSwitcher(view, parent) {
   const wrap = parent.createDiv({ cls: PLUGIN_ID + '-scene-switcher' });
   const trigger = wrap.createEl('button', { cls: PLUGIN_ID + '-scene-trigger', attr: { type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false' } });
   const icon = trigger.createSpan({ cls: PLUGIN_ID + '-scene-icon' });
-  obsidian.setIcon(icon, 'layers-3');
+  obs.setIcon(icon, 'layers-3');
   const label = trigger.createSpan({ cls: PLUGIN_ID + '-scene-label' });
   trigger.createSpan({ cls: PLUGIN_ID + '-scene-chevron', text: '⌄' });
   let menu = null;
@@ -21,7 +21,7 @@ function buildSceneSwitcher(view, parent) {
     label.textContent = view._sceneLabel(scene);
     trigger.title = view._lang() === 'en' ? 'Switch layout scene' : '切换情景布局';
     icon.empty();
-    obsidian.setIcon(icon, 'layers-3');
+    obs.setIcon(icon, 'layers-3');
   };
   const open = () => {
     if (menu) { close(); return; }
@@ -41,7 +41,7 @@ function buildSceneSwitcher(view, parent) {
     const createAction = (iconName, text, extraClass = '') => {
       const button = actions.createEl('button', { cls:PLUGIN_ID + '-scene-menu-action' + (extraClass ? ' ' + extraClass : ''), attr:{ type:'button' } });
       const iconEl = button.createSpan({ cls:PLUGIN_ID + '-scene-menu-action-icon' });
-      obsidian.setIcon(iconEl, iconName);
+      obs.setIcon(iconEl, iconName);
       button.createSpan({ cls:PLUGIN_ID + '-scene-menu-action-label', text });
       return button;
     };
@@ -63,7 +63,7 @@ function buildSceneSwitcher(view, parent) {
   refresh();
 }
 
-class CockpitSceneNameModal extends obsidian.Modal {
+class CockpitSceneNameModal extends obs.Modal {
   constructor(app, view) { super(app); this.view = view; }
   onOpen() {
     const { contentEl } = this;
@@ -89,7 +89,7 @@ class CockpitSceneNameModal extends obsidian.Modal {
   onClose() { this._dragCleanup?.(); this._dragCleanup = null; this.contentEl.empty(); }
 }
 
-class CockpitSceneScheduleModal extends obsidian.Modal {
+class CockpitSceneScheduleModal extends obs.Modal {
   constructor(app, view) { super(app); this.view = view; }
   onOpen() {
     const en = this.view._lang() === 'en'; const { contentEl } = this;

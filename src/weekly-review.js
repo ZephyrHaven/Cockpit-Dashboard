@@ -177,10 +177,10 @@ async function buildWeeklyReviewModule(view, root) {
       if (existing) await view.app.vault.modify(existing, content);
       else await view.app.vault.create(path, content);
       await view.app.workspace.getUnpinnedLeaf().setViewState({ type:'markdown', state:{ file:path } });
-      new obsidian.Notice(en ? 'Weekly review saved to ' + path : '周回顾已保存到 ' + path);
+      new obs.Notice(en ? 'Weekly review saved to ' + path : '周回顾已保存到 ' + path);
     } catch (e) {
       console.warn('Cockpit weekly review save failed', e);
-      new obsidian.Notice(en ? 'Could not save the weekly review.' : '周回顾保存失败。');
+      new obs.Notice(en ? 'Could not save the weekly review.' : '周回顾保存失败。');
     }
   };
 

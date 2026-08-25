@@ -38,8 +38,7 @@ constants → data-store → ai-index → ai-context → ai … → ai-launcher
 |---|---|
 | `_data/todos.md` | 待办（行内 `id:`/`due:`/`p:` 元数据，插件自动维护） |
 | `_data/focus.md` | 按日期累计的专注历史 |
-| 插件 `data.json` | Storage V2 设置、布局情景、Toolbar、RSS 配置、AI 模型配置（**不含 API Key**） |
-| Obsidian SecretStorage | AI 服务 API Key |
+| 插件 `data.json` | Storage V2 设置、布局情景、Toolbar、RSS 配置、AI 模型配置（**API Key 以明文保存在此处**） |
 | 插件私有 `ai-history.json` | 最多 30 个 AI 会话（不含附件正文/RAG 片段/思考过程） |
 | 插件私有 `ai-index.json` | 倒排索引快照 |
 | IndexedDB | 设备本地的 RSS 正文缓存与已读状态 |

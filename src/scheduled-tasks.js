@@ -242,8 +242,8 @@ class ScheduledTaskService {
     try {
       if (task.kind === 'obsidian-command') {
         const ok = this.plugin.app.commands.executeCommandById(task.command);
-        if (ok === false) throw new Error('Obsidian command was not available.');
-        stdout = 'Obsidian command executed: ' + task.command;
+        if (ok === false) throw new Error('Command is not available.');
+        stdout = 'Command executed: ' + task.command;
       } else if (task.kind === 'toolbar-action') {
         const result = await this.runToolbarAction(task.command);
         stdout = result.stdout; stderr = result.stderr;
@@ -322,7 +322,7 @@ function openScheduledTaskLogs(view) {
   head.createDiv({ cls:PLUGIN_ID + '-scheduler-dialog-title', text:en ? 'Scheduled task audit log' : '定时任务审计日志' });
   const controls = head.createDiv({ cls:PLUGIN_ID + '-scheduler-dialog-controls' });
   const clear = controls.createEl('button', { cls:'danger', text:en ? 'Clear logs' : '清除日志', attr:{type:'button'} });
-  const close = controls.createEl('button', { attr:{type:'button','aria-label':en?'Close':'关闭'} }); obsidian.setIcon(close,'x'); close.onclick=()=>overlay.remove();
+  const close = controls.createEl('button', { attr:{type:'button','aria-label':en?'Close':'关闭'} }); obs.setIcon(close,'x'); close.onclick=()=>overlay.remove();
   const list = panel.createDiv({ cls:PLUGIN_ID + '-scheduler-log-list' });
   const renderLogs = () => {
     list.empty();
@@ -341,7 +341,7 @@ function openScheduledTaskLogs(view) {
     if (!window.confirm(en ? 'Clear all scheduled task audit logs? This cannot be undone.' : '确定清除全部定时任务审计日志吗？此操作无法撤销。')) return;
     clear.disabled = true;
     const ok = await view._plugin.scheduledTasks.clearLogs();
-    if (!ok) new obsidian.Notice(en ? 'Could not clear the audit logs.' : '审计日志清除失败。');
+    if (!ok) new obs.Notice(en ? 'Could not clear the audit logs.' : '审计日志清除失败。');
     renderLogs();
   };
   makeCockpitDialogDraggable(panel, head, { label:en ? 'Drag audit log window' : '拖动审计日志窗口' });
@@ -358,13 +358,13 @@ function openScheduledTaskEditor(view, existing) {
   const overlay=document.createElement('div'); overlay.className=PLUGIN_ID+'-scheduler-backdrop';
   const panel=overlay.createDiv({cls:PLUGIN_ID+'-scheduler-dialog'}); const head=panel.createDiv({cls:PLUGIN_ID+'-scheduler-dialog-head'});
   head.createDiv({cls:PLUGIN_ID+'-scheduler-dialog-title',text:existing?(en?'Edit scheduled task':'编辑定时任务'):(en?'New scheduled task':'新建定时任务')});
-  const close=head.createEl('button',{attr:{type:'button','aria-label':en?'Close':'关闭'}}); obsidian.setIcon(close,'x'); close.onclick=()=>overlay.remove();
+  const close=head.createEl('button',{attr:{type:'button','aria-label':en?'Close':'关闭'}}); obs.setIcon(close,'x'); close.onclick=()=>overlay.remove();
   makeCockpitDialogDraggable(panel, head, { label:en ? 'Drag scheduled task editor' : '拖动定时任务编辑窗口' });
   const field=(label)=>{const wrap=panel.createDiv({cls:PLUGIN_ID+'-scheduler-field'});wrap.createDiv({cls:PLUGIN_ID+'-scheduler-label',text:label});return wrap;};
   const name=field(en?'Name':'名称').createEl('input',{attr:{type:'text',maxlength:'80',placeholder:en?'e.g. Daily backup':'例如：每日备份'}}); name.value=draft.name;
   const kind=field(en?'Task type':'任务类型').createEl('select'); kind.createEl('option',{text:en?'Toolbar action':'Toolbar 动作',attr:{value:'toolbar-action'}}); kind.createEl('option',{text:en?'Obsidian command':'Obsidian 命令',attr:{value:'obsidian-command'}}); kind.createEl('option',{text:en?'Shell command (desktop)':'Shell 命令（仅桌面端）',attr:{value:'shell'}}); kind.value=draft.kind;
   const commandWrap=field(en?'Command':'命令'); const command=commandWrap.createEl('textarea',{attr:{rows:'5',maxlength:'12000'}}); command.value=draft.command;
-  const commandPicker=commandWrap.createEl('select'); commandPicker.createEl('option',{text:en?'Choose an Obsidian command…':'选择 Obsidian 命令…',attr:{value:''}});
+  const commandPicker=commandWrap.createEl('select'); commandPicker.createEl('option',{text:en?'Choose an app command…':'选择应用命令…',attr:{value:''}});
   (view.app.commands.listCommands?.()||[]).sort((a,b)=>a.name.localeCompare(b.name)).forEach((item)=>commandPicker.createEl('option',{text:item.name,attr:{value:item.id}}));
   commandPicker.value=draft.kind==='obsidian-command'?draft.command:''; commandPicker.onchange=()=>{if(commandPicker.value)command.value=commandPicker.value;};
   const toolbarPicker=commandWrap.createEl('select'); toolbarPicker.createEl('option',{text:en?'Choose a Toolbar action…':'选择 Toolbar 动作…',attr:{value:''}});
@@ -376,7 +376,7 @@ function openScheduledTaskEditor(view, existing) {
   const interval=field(en?'Interval minutes':'间隔分钟数').createEl('input',{attr:{type:'number',min:'1',max:'10080'}}); interval.value=String(draft.schedule.intervalMinutes);
   const time=field(en?'Run time':'运行时间').createEl('input',{attr:{type:'time'}}); time.value=draft.schedule.time;
   const days=field(en?'Weekdays (0=Sun … 6=Sat)':'星期（0=周日 … 6=周六）').createEl('input',{attr:{type:'text',placeholder:'1,2,3,4,5'}}); days.value=draft.schedule.weekdays.join(',');
-  const missed=field(en?'After Obsidian was closed':'Obsidian 关闭期间错过后').createEl('select'); missed.createEl('option',{text:en?'Run once on next launch':'下次启动补跑一次',attr:{value:'run-once'}}); missed.createEl('option',{text:en?'Skip missed runs':'跳过错过的运行',attr:{value:'skip'}}); missed.value=draft.missedPolicy;
+  const missed=field(en?'After the app was closed':'应用关闭期间错过后').createEl('select'); missed.createEl('option',{text:en?'Run once on next launch':'下次启动补跑一次',attr:{value:'run-once'}}); missed.createEl('option',{text:en?'Skip missed runs':'跳过错过的运行',attr:{value:'skip'}}); missed.value=draft.missedPolicy;
   const trusted=field(en?'Shell permission':'Shell 权限').createEl('label',{cls:PLUGIN_ID+'-scheduler-check'}); const trustBox=trusted.createEl('input',{attr:{type:'checkbox'}}); trustBox.checked=draft.trusted; trusted.createSpan({text:en?'I understand this command can change files and system data.':'我了解此命令可能修改文件与系统数据。'});
   const enabled=field(en?'Status':'状态').createEl('label',{cls:PLUGIN_ID+'-scheduler-check'}); const enabledBox=enabled.createEl('input',{attr:{type:'checkbox'}}); enabledBox.checked=draft.enabled; enabled.createSpan({text:en?'Enable this schedule':'启用此计划'});
   const error=panel.createDiv({cls:PLUGIN_ID+'-scheduler-error'}); const footer=panel.createDiv({cls:PLUGIN_ID+'-scheduler-footer'});
@@ -391,8 +391,8 @@ function buildScheduledTasksModule(view, root) {
   const en=view._lang()==='en'; const title=root.createDiv({cls:PLUGIN_ID+'-section-title',text:en?'Scheduled tasks':'定时任务'});title.dataset.section='scheduled-tasks-title';
   const body=root.createDiv({cls:PLUGIN_ID+'-scheduler'});body.dataset.section='scheduled-tasks-body';
   const render=async()=>{body.empty();const tasks=await view._plugin.scheduledTasks.load();const top=body.createDiv({cls:PLUGIN_ID+'-scheduler-summary'});top.createDiv({cls:PLUGIN_ID+'-scheduler-summary-text',text:en?`${tasks.filter(t=>t.enabled).length} enabled · ${tasks.length} total`:`已启用 ${tasks.filter(t=>t.enabled).length} 项 · 共 ${tasks.length} 项`});const controls=top.createDiv({cls:PLUGIN_ID+'-scheduler-controls'});const logs=controls.createEl('button',{text:en?'Logs':'审计日志',attr:{type:'button'}});logs.onclick=()=>openScheduledTaskLogs(view);const add=controls.createEl('button',{cls:'primary',text:'+ '+(en?'New task':'新建任务'),attr:{type:'button'}});add.onclick=()=>openScheduledTaskEditor(view);
-    if(!tasks.length)body.createDiv({cls:PLUGIN_ID+'-scheduler-empty',text:en?'No scheduled tasks. Automate Toolbar actions, Obsidian commands, or desktop Shell commands.':'暂无定时任务。你可以自动运行 Toolbar 动作、Obsidian 命令或桌面端 Shell 命令。'});
-    const list=body.createDiv({cls:PLUGIN_ID+'-scheduler-list'});tasks.forEach((task)=>{const row=list.createDiv({cls:PLUGIN_ID+'-scheduler-row'});const main=row.createDiv({cls:PLUGIN_ID+'-scheduler-main'});const name=main.createEl('button',{cls:PLUGIN_ID+'-scheduler-name',text:task.name,attr:{type:'button'}});name.onclick=()=>openScheduledTaskEditor(view,task);const kindLabel=task.kind==='shell'?'Shell':(task.kind==='toolbar-action'?'Toolbar':'Obsidian');main.createDiv({cls:PLUGIN_ID+'-scheduler-meta',text:scheduleLabel(task,view._lang())+' · '+kindLabel});const next=nextScheduledRun(task);main.createDiv({cls:PLUGIN_ID+'-scheduler-next',text:task.enabled&&next?(en?'Next: ':'下次：')+next.format('MM-DD HH:mm'):(en?'Paused':'已暂停')});const status=row.createSpan({cls:PLUGIN_ID+'-scheduler-status '+(task.lastStatus||'idle'),text:task.lastStatus||(en?'Not run':'未运行')});const toggle=row.createEl('button',{cls:PLUGIN_ID+'-scheduler-icon-btn',attr:{type:'button','aria-label':task.enabled?(en?'Pause':'暂停'):(en?'Enable':'启用')}});obsidian.setIcon(toggle,task.enabled?'pause':'play');toggle.onclick=async()=>{if(task.kind==='shell'&&!task.trusted){new obsidian.Notice(en?'Edit the task and confirm Shell permission first.':'请先编辑任务并确认 Shell 权限。');return;}await view._plugin.scheduledTasks.toggle(task.id);};const run=row.createEl('button',{cls:PLUGIN_ID+'-scheduler-run',text:view._plugin.scheduledTasks.running.has(task.id)?(en?'Running…':'运行中…'):(en?'Run now':'立即运行'),attr:{type:'button'}});run.disabled=view._plugin.scheduledTasks.running.has(task.id)||view.app.isMobile&&task.kind==='shell';run.onclick=async()=>{run.disabled=true;run.setText(en?'Running…':'运行中…');try{const ok=await view._plugin.scheduledTasks.runTask(task.id,{trigger:'manual'});new obsidian.Notice(ok?(en?'Task succeeded.':'任务运行成功。'):(en?'Task failed. Check the audit log.':'任务运行失败，请查看审计日志。'));}catch(error){new obsidian.Notice((en?'Could not run task: ':'无法运行任务：')+(error?.message||error));}};});};
+    if(!tasks.length)body.createDiv({cls:PLUGIN_ID+'-scheduler-empty',text:en?'No scheduled tasks. Automate Toolbar actions, app commands, or desktop Shell commands.':'暂无定时任务。你可以自动运行 Toolbar 动作、应用命令或桌面端 Shell 命令。'});
+    const list=body.createDiv({cls:PLUGIN_ID+'-scheduler-list'});tasks.forEach((task)=>{const row=list.createDiv({cls:PLUGIN_ID+'-scheduler-row'});const main=row.createDiv({cls:PLUGIN_ID+'-scheduler-main'});const name=main.createEl('button',{cls:PLUGIN_ID+'-scheduler-name',text:task.name,attr:{type:'button'}});name.onclick=()=>openScheduledTaskEditor(view,task);const kindLabel=task.kind==='shell'?'Shell':(task.kind==='toolbar-action'?'Toolbar':'App');main.createDiv({cls:PLUGIN_ID+'-scheduler-meta',text:scheduleLabel(task,view._lang())+' · '+kindLabel});const next=nextScheduledRun(task);main.createDiv({cls:PLUGIN_ID+'-scheduler-next',text:task.enabled&&next?(en?'Next: ':'下次：')+next.format('MM-DD HH:mm'):(en?'Paused':'已暂停')});const status=row.createSpan({cls:PLUGIN_ID+'-scheduler-status '+(task.lastStatus||'idle'),text:task.lastStatus||(en?'Not run':'未运行')});const toggle=row.createEl('button',{cls:PLUGIN_ID+'-scheduler-icon-btn',attr:{type:'button','aria-label':task.enabled?(en?'Pause':'暂停'):(en?'Enable':'启用')}});obs.setIcon(toggle,task.enabled?'pause':'play');toggle.onclick=async()=>{if(task.kind==='shell'&&!task.trusted){new obs.Notice(en?'Edit the task and confirm Shell permission first.':'请先编辑任务并确认 Shell 权限。');return;}await view._plugin.scheduledTasks.toggle(task.id);};const run=row.createEl('button',{cls:PLUGIN_ID+'-scheduler-run',text:view._plugin.scheduledTasks.running.has(task.id)?(en?'Running…':'运行中…'):(en?'Run now':'立即运行'),attr:{type:'button'}});run.disabled=view._plugin.scheduledTasks.running.has(task.id)||view.app.isMobile&&task.kind==='shell';run.onclick=async()=>{run.disabled=true;run.setText(en?'Running…':'运行中…');try{const ok=await view._plugin.scheduledTasks.runTask(task.id,{trigger:'manual'});new obs.Notice(ok?(en?'Task succeeded.':'任务运行成功。'):(en?'Task failed. Check the audit log.':'任务运行失败，请查看审计日志。'));}catch(error){new obs.Notice((en?'Could not run task: ':'无法运行任务：')+(error?.message||error));}};});};
   view._scheduledTasksUnsubscribe?.();view._scheduledTasksUnsubscribe=view._plugin.scheduledTasks.subscribe(()=>render().catch((e)=>console.warn('[Cockpit scheduler UI]',e)));render();view._makeModuleCollapsible('scheduledTasks',title,body);return render;
 }
 

@@ -34,7 +34,7 @@ function buildFocusChart(view, root) {
       }
       return path;
     };
-    // 不依赖 Obsidian 的 DOM 扩展：SVG 子节点使用原生 namespace 创建，避免中断整页布局渲染。
+    // 不依赖宿主的 DOM 扩展：SVG 子节点使用原生 namespace 创建，避免中断整页布局渲染。
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     Object.entries({ viewBox:'0 0 100 100', preserveAspectRatio:'none', 'aria-hidden':'true' }).forEach(([key, value]) => svg.setAttribute(key, value));
     graph.appendChild(svg);
@@ -77,13 +77,13 @@ function buildFocusChart(view, root) {
         try {
           const shareRow = box.createDiv({ cls:PLUGIN_ID + '-fi-share' });
           const shareBtn = shareRow.createEl('button', { cls:PLUGIN_ID + '-fi-share-btn', attr:{ type:'button' } });
-          obsidian.setIcon(shareBtn.createSpan({ cls:PLUGIN_ID + '-fi-share-icon' }), 'image-down');
+          obs.setIcon(shareBtn.createSpan({ cls:PLUGIN_ID + '-fi-share-icon' }), 'image-down');
           shareBtn.createSpan({ text:t('focusChart.shareCard') });
           shareBtn.onclick = async () => {
             if (shareBtn.disabled) return;
             shareBtn.disabled = true;
             try { downloadShareCard(view, view._lang()); }
-            catch (e) { console.warn('Cockpit share card failed', e); new obsidian.Notice(view._lang() === 'en' ? 'Could not generate the card.' : '卡片生成失败。'); }
+            catch (e) { console.warn('Cockpit share card failed', e); new obs.Notice(view._lang() === 'en' ? 'Could not generate the card.' : '卡片生成失败。'); }
             finally { shareBtn.disabled = false; }
           };
         } catch (e) { console.warn('Cockpit share button failed', e); }

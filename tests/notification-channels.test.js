@@ -13,7 +13,7 @@ const context = vm.createContext({
   Date,
   console,
   navigator: { language: 'en-US' },
-  obsidian: {
+  obs: {
     PluginSettingTab: class {},
     requestUrl: async (request) => { requests.push(request); return { status: 200, json: { code: 0, status: 200 } }; }
   }
@@ -46,7 +46,7 @@ assert.equal(api.normalizeServerChanConfig({ times:['08:00', '20:15'] }).time, '
 const fakeNow = (date, time) => ({ format:(pattern) => pattern === 'HH:mm:ss' ? time : pattern === 'YYYY-MM-DD' ? date : '' });
 const multiTimeConfig = api.normalizeServerChanConfig({ times:['18:00', '09:00', '11:30'] });
 const activeSlot = api.getServerChanScheduleSlot(multiTimeConfig, fakeNow('2026-08-13', '12:00:00'));
-assert.equal(activeSlot.time, '11:30:00', 'Only the latest elapsed time is eligible after Obsidian resumes.');
+assert.equal(activeSlot.time, '11:30:00', 'Only the latest elapsed time is eligible after the app resumes.');
 assert.equal(activeSlot.key, '2026-08-13|11:30:00');
 assert.equal(api.getServerChanScheduleSlot(multiTimeConfig, fakeNow('2026-08-13', '08:59:59')), null, 'No slot is due before the first configured time.');
 
