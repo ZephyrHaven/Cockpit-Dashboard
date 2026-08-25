@@ -12,6 +12,7 @@ function buildPomodoro(view, root) {
 function createPomodoro(view, root) {
     const PID = PLUGIN_ID;
     let self = view;
+    const isMobile = !!(self._isMobile && self._isMobile());
     const t = (key, vars) => self._t(key, vars);
 
     // 全局单例：如果已存在则复用，不重建
@@ -32,11 +33,12 @@ function createPomodoro(view, root) {
     // 创建浮动容器
     const floatEl = document.createElement('div');
     floatEl.className = PID + '-pomodoro';
+    if (isMobile) floatEl.classList.add(PID + '-pomodoro-mobile');
     floatEl.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:999;width:198px;max-width:calc(100vw - 24px);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;border-radius:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:box-shadow 0.25s,border-color 0.25s,transform 0.25s,background 0.25s;';
 
     // 标题栏（拖拽区域）
     const header = floatEl.createDiv({ cls: PID + '-pomo-header' });
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 10px;cursor:move;user-select:none;-webkit-user-select:none;touch-action:none;border-bottom:1px solid transparent;';
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 10px;cursor:' + (isMobile ? 'default' : 'move') + ';user-select:none;-webkit-user-select:none;touch-action:' + (isMobile ? 'manipulation' : 'none') + ';border-bottom:1px solid transparent;';
     const headerLeft = header.createDiv({ attr: { style: 'display:flex;flex-direction:column;gap:0;min-width:0;' } });
     const modeChip = headerLeft.createDiv({ attr: { style: 'display:inline-flex;align-items:center;gap:6px;align-self:flex-start;padding:3px 8px;border-radius:999px;font-size:0.6em;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;' } });
     const titleSpan = headerLeft.createSpan({ text: t('pomodoro.title'), attr: { style: 'display:none;font-size:1.05em;font-weight:800;color:var(--text-normal);line-height:1.05;' } });
@@ -263,8 +265,9 @@ function createPomodoro(view, root) {
     toggleBtn.onclick = () => {
       minimized = !minimized;
       body.style.display = minimized ? 'none' : 'block';
+      floatEl.classList.toggle(PID + '-pomodoro-minimized', minimized);
       toggleBtn.textContent = minimized ? '+' : '−';
-      floatEl.style.width = minimized ? '126px' : '198px';
+      if (!isMobile) floatEl.style.width = minimized ? '126px' : '198px';
       syncPomodoroText();
       persistSession();
     };
@@ -305,6 +308,7 @@ function createPomodoro(view, root) {
     }
 
     header.addEventListener('pointerdown', (e) => {
+      if (isMobile) return;
       if (isHeaderControl(e.target)) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       const rect = floatEl.getBoundingClientRect();
@@ -460,8 +464,9 @@ function createPomodoro(view, root) {
 
     if (minimized) {
       body.style.display = 'none';
+      floatEl.classList.add(PID + '-pomodoro-minimized');
       toggleBtn.textContent = '+';
-      floatEl.style.width = '126px';
+      if (!isMobile) floatEl.style.width = '126px';
     }
     updateDisplay();
     if (restoredSession?.isRunning) startBtn.onclick();

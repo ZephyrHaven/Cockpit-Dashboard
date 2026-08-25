@@ -5,6 +5,20 @@ class CockpitView extends obsidian.ItemView {
   getIcon() { return 'layout-dashboard'; }
   _lang() { return normalizeLang(this._language); }
   _t(key, vars) { return getText(this._language, key, vars); }
+  _isMobile() { return this.app.isMobile === true; }
+  _syncResponsiveViewport() {
+    const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
+    if (!root) return;
+    const rect = root.parentElement?.getBoundingClientRect() || root.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const width = Math.round(rect.width || window.innerWidth);
+    const height = Math.round(Math.min(viewport?.height || window.innerHeight, window.innerHeight));
+    root.style.setProperty('--cockpit-available-width', width + 'px');
+    root.style.setProperty('--cockpit-available-height', height + 'px');
+    root.classList.toggle(PLUGIN_ID + '-phone-narrow', this._isMobile() && width < 390);
+    root.classList.toggle(PLUGIN_ID + '-phone', this._isMobile() && width < 680);
+    root.classList.toggle(PLUGIN_ID + '-tablet', this._isMobile() && width >= 680 && width < 980);
+  }
   // 模块契约：新增模块必须在此注册 id、默认排序、编辑态显示名与 DOM 归属规则。
   // 布局编辑、排序、隐藏和情景布局都只认这份注册表，避免新模块成为页面里的“例外”。
   _moduleRegistry() {
@@ -42,7 +56,8 @@ class CockpitView extends obsidian.ItemView {
     return this._moduleRegistry().find((module) => module.id === id)?.label || id;
   }
   _toolbarButtons() {
-    return [
+    const desktopOnly = this._isMobile() ? new Set(['hermes','cockpit-h5','work-log']) : new Set();
+    const buttons = [
       { icon: '+', label: this._t('toolbar.new'), action: 'new', primary: true },
       { icon: E.search, label: this._t('toolbar.search'), action: 'search' },
       { icon: E.tag, label: this._t('toolbar.tag'), action: 'tag' },
@@ -53,7 +68,11 @@ class CockpitView extends obsidian.ItemView {
       { icon: '📝', label: this._toolbarCmds?.['工作日志']?.label || this._t('toolbar.workLog'), action: 'work-log' },
       { icon: '🔔', label: this._lang() === 'en' ? 'Notifications' : '通知设置', action: 'notifications' },
       { icon: '🍅', label: this._t('toolbar.pomodoro'), action: 'pomodoro' }
-    ].filter((button) => !this._deletedToolbarActions.has(button.action));
+    ].filter((button) => !this._deletedToolbarActions.has(button.action) && !desktopOnly.has(button.action));
+    if (!this._isMobile()) return buttons;
+    const primary = buttons.filter((button) => ['new','search','pomodoro'].includes(button.action));
+    primary.push({ icon:'•••', label:this._lang() === 'en' ? 'More' : '更多', action:'more' });
+    return primary;
   }
   _toolbarActionIds() {
     return this._toolbarButtons().map((button) => button.action);
@@ -684,14 +703,20 @@ class CockpitView extends obsidian.ItemView {
   }
 
   _defaultToolbarCommands() {
-    const homedir = require('os').homedir();
-    const vaultBase = this.app.vault.adapter.getBasePath();
-    const scriptPath = require('path').join(vaultBase, '.obsidian', 'plugins', 'cockpit-dashboard', 'oaAtuoLogin_obsidian.py');
-    return {
-      Hermes: { command:'hermes --tui', mode:'auto' },
-      '驾驶舱': { command:'cd ' + homedir + '/Downloads/cockpit && ' + homedir + '/.local/bin/node server.js', url:'http://localhost:3456' },
-      '工作日志': { command:'/Library/Frameworks/Python.framework/Versions/3.13/bin/python3 ' + scriptPath, url:'' }
-    };
+    if (this._isMobile()) return {};
+    try {
+      const homedir = require('os').homedir();
+      const vaultBase = this.app.vault.adapter.getBasePath();
+      const scriptPath = require('path').join(vaultBase, '.obsidian', 'plugins', 'cockpit-dashboard', 'oaAtuoLogin_obsidian.py');
+      return {
+        Hermes: { command:'hermes --tui', mode:'auto' },
+        '驾驶舱': { command:'cd ' + homedir + '/Downloads/cockpit && ' + homedir + '/.local/bin/node server.js', url:'http://localhost:3456' },
+        '工作日志': { command:'/Library/Frameworks/Python.framework/Versions/3.13/bin/python3 ' + scriptPath, url:'' }
+      };
+    } catch (e) {
+      console.warn('Cockpit: failed to build default toolbar commands', e);
+      return {};
+    }
   }
 
   _shouldOpenContextMenu(target) {
@@ -820,6 +845,7 @@ class CockpitView extends obsidian.ItemView {
     root.createEl('style', { text: CSS });
     this._attachRootContextMenu(container);
     await this._buildAll(root);
+    this._syncResponsiveViewport();
     if (previousRoot) {
       requestAnimationFrame(() => {
         previousRoot.classList.add(PLUGIN_ID + '-scene-leaving');
@@ -840,6 +866,9 @@ class CockpitView extends obsidian.ItemView {
 
   async onOpen() {
     await this._renderDashboard(true);
+    this._viewportSyncHandler = () => this._syncResponsiveViewport();
+    window.addEventListener('resize', this._viewportSyncHandler);
+    window.visualViewport?.addEventListener('resize', this._viewportSyncHandler);
     this._bindSilentRefreshSensors();
     this._startSilentRefreshLoops();
     setTimeout(() => {
@@ -1899,6 +1928,7 @@ class CockpitView extends obsidian.ItemView {
     return null;
   }
   _launchInSystemTerminal(command) {
+    if (this._isMobile()) return Promise.reject(new Error('desktop-only'));
     return new Promise((resolve, reject) => {
       try {
         const { execFile } = require('child_process');
@@ -1923,6 +1953,10 @@ class CockpitView extends obsidian.ItemView {
     if (String(a || '').startsWith('custom:')) {
       const id = String(a).slice('custom:'.length);
       executeCustomToolbarButton(this, this._customToolbarButtons.find((button) => button.id === id));
+      return;
+    }
+    if (this._isMobile() && ['hermes','cockpit-h5','work-log'].includes(a)) {
+      new obsidian.Notice(this._t('notices.desktopOnly', { action: a }) || (this._lang() === 'en' ? 'This action is only available on desktop.' : '此功能仅在桌面端可用。'));
       return;
     }
     if (a === 'hermes') {
@@ -2017,6 +2051,11 @@ class CockpitView extends obsidian.ItemView {
       this._visibilityRefreshHandler = null;
     }
     this._unbindSilentRefreshSensors();
+    if (this._viewportSyncHandler) {
+      window.removeEventListener('resize', this._viewportSyncHandler);
+      window.visualViewport?.removeEventListener('resize', this._viewportSyncHandler);
+      this._viewportSyncHandler = null;
+    }
     this._closeTodoEditor();
     this._closeWelcomeCover();
     this._closeOnboardingCard();

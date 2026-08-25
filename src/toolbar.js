@@ -104,7 +104,7 @@ function buildToolbar(view, root, allFiles, t) {
     const el = slot.createEl('button', { cls:PLUGIN_ID+'-toolbtn'+(button.primary?' primary':''), attr:{type:'button'} });
     el.dataset.action = button.action;
     el.createSpan({ cls:PLUGIN_ID+'-icon', text:button.icon });
-    el.createSpan({ text:button.label });
+    el.createSpan({ cls:PLUGIN_ID+'-toolbtn-label', text:button.label });
     el.onclick = () => { if (!view._editMode) view._doAction(button.action, el); };
 
     const hidden = button.builtin ? view._hiddenToolbarActions.has(button.action) : !!button.hidden;

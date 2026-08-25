@@ -49,8 +49,6 @@ Cockpit Dashboard is a local-first Obsidian dashboard for tasks, calendar, searc
 | 🔔 消息推送 | 可选集成 Server酱³、Bark 与 MEOW。可同时启用多个渠道，支持每天、指定星期或指定月日的秒级定时推送，以及今日到期 / 逾期待办汇总或自定义正文 |
 | 🌐 多语言界面 | 支持 `中文 / EN` 一键切换，覆盖首页主要文案并持久化语言设置，且语言开关会适配深浅色模式 |
 | ✨ 交互动效 | 语言切换、工具栏、筛选和卡片增加 hover / press 反馈，让点击更有层次 |
-| 🤖 Hermes | 统一通过 macOS 系统终端启动，不依赖 Obsidian 集成终端；迁移前仍支持通过 `_data/toolbar.md` 自定义命令 |
-| 🛩️ 驾驶舱 H5 / 📝 工作日志 | 通过 `_data/toolbar.md` 自定义启动命令和目标地址 |
 | 🧭 首次引导 | 首次打开显示分步引导，可跳过并记住状态 |
 | 📦 折叠面板 | 分类、统计、待办、专注趋势、最近更新、收藏、闪念、热力图等区块支持折叠状态持久化 |
 
@@ -91,8 +89,8 @@ Cockpit Dashboard 已上架 Obsidian 社区插件市场：
 | 文件 | 作用 |
 |---|---|
 | `_data/todos.md` | 待办数据 |
-| 插件 `data.json` | Storage V2 设置、自定义按钮、收藏、排序、Toolbar 命令与 RSS 订阅/过滤配置（不含正文缓存） |
-| 浏览器 IndexedDB | 当前设备的 RSS 正文摘要、已读状态和受限缓存；不参与 Obsidian Sync，可随时在 RSS 菜单清除 |
+| `data.json` | Storage V2 设置、自定义按钮、收藏、排序、Toolbar 命令与 RSS 订阅/过滤配置（不含正文缓存） |
+| IndexedDB | 当前设备的 RSS 正文摘要、已读状态和受限缓存；不参与 Obsidian Sync，可随时在 RSS 菜单清除 |
 | `_data/bookmarks.md` | 未完成数据迁移时的收藏存储；迁移后停止写入，可由用户主动清理 |
 | `_data/focus.md` | 按日期累计的专注历史记录 |
 | `_data/toolbar.md` | 未完成数据迁移时的 Toolbar 命令配置；迁移后停止读取和写入 |
@@ -155,23 +153,12 @@ bash deploy.sh --min
 
 ### 当前版本
 
-- Manifest version: `1.1.3`
+- Manifest version: `1.1.4`
 - Latest update date: `2026-07-27`
 
-### 1.1.3 最近更新
+### 1.1.4 最近更新
 
-- RSS 阅读器新增顶部全局朗读播放器，日历也会在跨日后静默更新当天状态。
-
-### 1.1.2 最近更新
-
-- 新增日历 RSS 订阅：支持多源筛选、日期总数、已读状态、正文过滤与仅本机缓存，并可通过顶部全局播放器朗读当前文章。
-
-### 1.1.1 最近更新
-
-- 新增情景布局，让模块和 Toolbar 可按不同工作场景独立保存、排序、显示和折叠。
-- 每日一语与 Toolbar 编辑支持按当前语言维护、拖拽调整和局部保存。
-- 新增默认隐藏的专注趋势，可查看近 7 / 30 天记录并切换折线或柱状图。
-- 番茄钟支持自动显示控制，并会随 Obsidian 切换深浅主题。
+- 升级手机端驾驶舱的浏览与编辑体验，优化首页、工具栏、待办、番茄钟和编辑模式，并保持桌面端原有工作流。
 
 ### 赞助作者
 
@@ -225,8 +212,6 @@ Cockpit Dashboard is designed to be more than a visual landing page. It centrali
 | 🔔 Message Notifications | Optional ServerChan³, Bark, and MEOW delivery. Enable multiple channels at once with second-level daily, weekday, or monthly schedules, task summaries, or a custom body |
 | 🌐 Multi-language UI | One-tap `中文 / EN` switching with persisted preference and better light/dark readability |
 | ✨ Interaction Polish | Hover and press feedback for language toggle, toolbar actions, filters, and cards |
-| 🤖 Hermes | Always launches through the macOS system Terminal without depending on Obsidian’s integrated terminal; legacy custom commands remain available through `_data/toolbar.md` before migration |
-| 🛩️ Cockpit H5 / 📝 Work Log | Custom launch commands configured through `_data/toolbar.md` |
 | 🧭 Onboarding | First-run guided tour with persistent completion state |
 | 📦 Collapsible Sections | Persistent collapsed state for categories, stats, todos, Focus Trend, recent files, bookmarks, flash notes, heatmap, and other registered modules |
 
@@ -265,8 +250,8 @@ Your data stays yours: the plugin does not collect or upload Vault data and incl
 | File | Purpose |
 |---|---|
 | `_data/todos.md` | Todo storage |
-| Plugin `data.json` | Storage V2 settings, custom buttons, bookmarks, ordering, Toolbar commands, and RSS subscription/filter configuration (not article cache) |
-| Browser IndexedDB | Device-local RSS summaries, read states, and bounded cache; excluded from Obsidian Sync and removable from the RSS menu |
+| `data.json` | Storage V2 settings, custom buttons, bookmarks, ordering, Toolbar commands, and RSS subscription/filter configuration (not article cache) |
+| IndexedDB | Device-local RSS summaries, read states, and bounded cache; excluded from Obsidian Sync and removable from the RSS menu |
 | `_data/bookmarks.md` | Bookmark storage before migration; no longer written after migration and removable by the user |
 | `_data/focus.md` | Focus history accumulated by date |
 | `_data/toolbar.md` | Toolbar command configuration before migration; no longer read or written after migration |
@@ -327,23 +312,12 @@ Build notes:
 
 ### Current Version
 
-- Manifest version: `1.1.3`
+- Manifest version: `1.1.4`
 - Latest update date: `2026-07-27`
 
-### What’s New in 1.1.3
+### What’s New in 1.1.4
 
-- Added a top-level RSS text-to-speech player and silent calendar updates when the date changes.
-
-### What’s New in 1.1.2
-
-- Added calendar RSS subscriptions with multi-source filtering, daily totals, read state, content filters, device-local cache, and a top-level player for reading the current article aloud.
-
-### What’s New in 1.1.1
-
-- Added layout scenes for independently saving, ordering, showing, and collapsing modules and Toolbar items by workflow.
-- Daily Note and Toolbar editing now support language-aware maintenance, drag adjustment, and local saves.
-- Added a hidden-by-default Focus Trend with 7/30-day history and line or bar views.
-- Pomodoro supports auto-show control and follows Obsidian’s light/dark theme.
+- Upgraded the mobile dashboard browsing and editing experience across the home screen, toolbar, tasks, Pomodoro timer, and edit mode while preserving the desktop workflow.
 
 ### Sponsor
 

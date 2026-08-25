@@ -15,18 +15,18 @@ const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f9
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
 const RELEASE_HISTORY = [
   {
-    version: '1.1.3',
+    version: '1.1.4',
     date: '2026-07-27',
     title: {
-      'zh-CN': 'RSS 朗读与日历刷新优化',
-      en: 'RSS Playback and Calendar Refresh Improvements'
+      'zh-CN': '移动端体验升级',
+      en: 'Mobile Experience Upgrade'
     },
     highlights: {
       'zh-CN': [
-        'RSS 阅读器新增顶部全局朗读播放器，日历也会在跨日后静默更新当天状态。'
+        '升级手机端驾驶舱的浏览与编辑体验，优化首页、工具栏、待办、番茄钟和编辑模式，并保持桌面端原有工作流。'
       ],
       en: [
-        'Added a top-level RSS text-to-speech player and silent calendar updates when the date changes.'
+        'Upgraded the mobile dashboard browsing and editing experience across the home screen, toolbar, tasks, Pomodoro timer, and edit mode while preserving the desktop workflow.'
       ]
     }
   },
@@ -39,10 +39,10 @@ const RELEASE_HISTORY = [
     },
     highlights: {
       'zh-CN': [
-        '新增日历 RSS 订阅：支持多源按日期查看、已读未读提醒、正文过滤与顶部全局朗读播放器。'
+        '新增日历 RSS 订阅：支持多源按日期查看、已读未读提醒、正文过滤、顶部全局朗读播放器与跨日静默更新。'
       ],
       en: [
-        'Added calendar RSS subscriptions with multi-source date-based entries, read/unread reminders, content filters, and a top-level text-to-speech player.'
+        'Added calendar RSS subscriptions with multi-source date-based entries, read/unread reminders, content filters, a top-level text-to-speech player, and silent date-change updates.'
       ]
     }
   },

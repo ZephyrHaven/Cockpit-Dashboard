@@ -1692,6 +1692,177 @@
   }
 }
 
+/* Runtime-sized mobile layouts.  The classes are applied from the dashboard
+   container rather than inferred from the device's physical screen width. */
+.cockpit-dashboard-root.cockpit-dashboard-phone {
+  --cockpit-mobile-gap: 10px;
+}
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-hero {
+  padding: 14px;
+  text-align: left;
+}
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-hero-controls {
+  position: static;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-scene-switcher,
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-lang-switch { width: 100%; min-width: 0; }
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-scene-trigger { min-width: 0; width: 100%; }
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+}
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolslot { width: auto; min-width: 0; }
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbtn {
+  display: flex;
+  min-height: 58px;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 6px;
+}
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbtn-label {
+  display: -webkit-box;
+  overflow: hidden;
+  max-width: 100%;
+  line-height: 1.2;
+  text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.cockpit-dashboard-root.cockpit-dashboard-phone-narrow .cockpit-dashboard-toolbar { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 8px; }
+.cockpit-dashboard-root.cockpit-dashboard-phone-narrow .cockpit-dashboard-toolbtn { min-height: 54px; padding: 6px 3px; font-size: .76em; }
+.cockpit-dashboard-root.cockpit-dashboard-phone-narrow .cockpit-dashboard-toolbtn .cockpit-dashboard-icon { font-size: 1.1em; }
+
+/* A task becomes a deliberate vertical card before the title is squeezed into
+   one-character columns by status, priority, and action controls. */
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-todo {
+  display: grid;
+  grid-template-columns: 8px 30px minmax(0, 1fr);
+  grid-template-areas: 'priority check content' '. actions actions';
+  align-items: start;
+  gap: 9px 8px;
+  padding: 12px 11px 10px;
+}
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-todo-pdot { grid-area: priority; margin-top: 8px; }
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-todo-chk { grid-area: check; width: 28px; height: 28px; }
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-todo-main { grid-area: content; min-width: 0; }
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-todo-text { font-size: .94em; line-height: 1.48; overflow-wrap: anywhere; }
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-todo-meta { gap: 5px 7px; margin-top: 6px; line-height: 1.45; }
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-todo-tag,
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-prio-picker { display: none; }
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-todo-actions { grid-area: actions; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-todo-btn { width:38px; height:38px; border-color: var(--background-modifier-border); }
+
+/* Mobile pomodoro is a bottom sheet.  Its compact state is intentionally a
+   single timer row, so no empty desktop-sized shell remains after minimising. */
+.cockpit-dashboard-pomodoro-mobile {
+  left: 10px !important;
+  right: 10px !important;
+  bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+  width: auto !important;
+  max-width: none !important;
+  border-radius: 18px !important;
+}
+.cockpit-dashboard-pomodoro-mobile .cockpit-dashboard-pomo-header { min-height: 48px; padding: 10px 13px !important; }
+.cockpit-dashboard-pomodoro-mobile .cockpit-dashboard-pomo-body { padding: 8px 13px 13px !important; }
+.cockpit-dashboard-pomodoro-mobile .cockpit-dashboard-pomo-body > div[style*="112px"] { transform: scale(.9); transform-origin: center; margin: -6px 0 -2px; }
+.cockpit-dashboard-pomodoro-mobile.cockpit-dashboard-pomodoro-minimized { min-height: 52px; }
+.cockpit-dashboard-pomodoro-mobile.cockpit-dashboard-pomodoro-minimized .cockpit-dashboard-pomo-header { border-bottom: 0 !important; }
+
+@media (max-width: 389px) {
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-hero-controls { grid-template-columns: 1fr; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-lang-switch { max-width: 150px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbtn { flex-direction: column; gap: 2px; }
+}
+
+/* Responsive dashboard: compact tablets keep the desktop hierarchy, while
+   phones prioritise readable cards, touch targets, and a single scroll path. */
+@media (max-width: 900px) {
+  .cockpit-dashboard-root { max-width:760px; padding:14px 18px calc(22px + env(safe-area-inset-bottom)); }
+  .cockpit-dashboard-hero { padding:18px 126px 16px 18px; }
+  .cockpit-dashboard-hero-controls { top:12px; right:12px; }
+  .cockpit-dashboard-toolbar { gap:8px; }
+  .cockpit-dashboard-toolslot { flex:0 0 calc(12.5% - 7px); }
+  .cockpit-dashboard-cal-cell { min-height:52px; }
+  .cockpit-dashboard-cal-detail { margin-bottom:16px; }
+  .cockpit-dashboard-stats { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .cockpit-dashboard-cats { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .cockpit-dashboard-recent, .cockpit-dashboard-bookmarks { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .modal.cockpit-dashboard-rss-modal { width:calc(100vw - 24px); }
+  .cockpit-dashboard-rss-reader { height:min(620px, calc(100vh - 220px)); }
+  .cockpit-dashboard-pomodoro { max-width:calc(100vw - 28px); }
+}
+
+@media (max-width: 600px) {
+  .cockpit-dashboard-root { padding:10px 12px calc(20px + env(safe-area-inset-bottom)); font-size:15px; overflow-x:hidden; }
+  .cockpit-dashboard-hero { margin:2px 0 10px; padding:66px 14px 15px; border-radius:14px; text-align:left; }
+  .cockpit-dashboard-hero-controls { top:10px; left:12px; right:12px; flex-direction:row; align-items:center; justify-content:space-between; gap:8px; }
+  .cockpit-dashboard-scene-switcher, .cockpit-dashboard-lang-switch { width:auto; min-width:0; }
+  .cockpit-dashboard-scene-trigger { min-width:118px; height:36px; }
+  .cockpit-dashboard-lang-switch { min-height:36px; }
+  .cockpit-dashboard-toolbar { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:7px; padding:10px; border-radius:14px; }
+  .cockpit-dashboard-toolslot { min-width:0; width:auto; }
+  .cockpit-dashboard-toolbtn { width:100%; min-width:0; min-height:46px; padding:6px 2px; border-radius:11px; }
+  .cockpit-dashboard-toolbtn-label { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.63em; }
+  .cockpit-dashboard-tip { margin:10px 0; }
+  .cockpit-dashboard-cal-wrap { margin:10px 0 12px; }
+  .cockpit-dashboard-cal-surface { padding:10px 8px 8px; border-radius:14px; }
+  .cockpit-dashboard-cal-header { gap:8px; align-items:flex-start; }
+  .cockpit-dashboard-cal-title { font-size:.88em; }
+  .cockpit-dashboard-cal-subtitle { font-size:.62em; }
+  .cockpit-dashboard-cal-controls { gap:4px; }
+  .cockpit-dashboard-cal-nav { gap:3px; }
+  .cockpit-dashboard-cal-nav-btn, .cockpit-dashboard-cal-rss-btn { width:36px; min-width:36px; height:36px; min-height:36px; border-radius:10px; }
+  .cockpit-dashboard-cal-grid { gap:2px; }
+  .cockpit-dashboard-cal-dow { padding:4px 0; font-size:.55em; letter-spacing:0; }
+  .cockpit-dashboard-cal-cell { min-height:42px; padding:5px 4px 4px; border-radius:8px; }
+  .cockpit-dashboard-cal-num { font-size:.75em; }
+  .cockpit-dashboard-cal-badge { top:3px; right:3px; min-width:14px; height:14px; padding:0 3px; font-size:.5em; }
+  .cockpit-dashboard-cal-rss-badge { right:3px; bottom:3px; padding:0 2px; font-size:.42em; }
+  .cockpit-dashboard-cal-dots { gap:2px; padding-top:3px; }
+  .cockpit-dashboard-cal-dot { width:4px; height:4px; }
+  .cockpit-dashboard-cal-detail { margin-top:8px; border-radius:14px; }
+  .cockpit-dashboard-cal-detail-head { align-items:flex-start; gap:8px; }
+  .cockpit-dashboard-cal-detail-actions { flex-shrink:0; }
+  .cockpit-dashboard-cal-detail-add { min-height:38px; }
+  .cockpit-dashboard-stats, .cockpit-dashboard-cats, .cockpit-dashboard-recent, .cockpit-dashboard-bookmarks { grid-template-columns:1fr; gap:9px; }
+  .cockpit-dashboard-stat, .cockpit-dashboard-cat, .cockpit-dashboard-recent-item, .cockpit-dashboard-bookmark-item { min-height:48px; }
+  .cockpit-dashboard-section-title, .cockpit-dashboard-todo-header { flex-wrap:wrap; gap:8px; }
+  .cockpit-dashboard-status-select-wrap { min-height:38px; }
+  .cockpit-dashboard-todo-tabs { overflow-x:auto; flex-wrap:nowrap; padding-bottom:3px; scrollbar-width:none; }
+  .cockpit-dashboard-todo-tab { flex:0 0 auto; min-height:36px; }
+  .cockpit-dashboard-todo { align-items:flex-start; padding:11px 10px; }
+  .cockpit-dashboard-todo-actions { opacity:1; }
+  .cockpit-dashboard-flash-row { align-items:stretch; flex-direction:column; }
+  .cockpit-dashboard-flash-input, .cockpit-dashboard-flash-save { min-height:44px; }
+  .cockpit-dashboard-heatmap { overflow-x:auto; padding-bottom:4px; }
+  .cockpit-dashboard-pomodoro { left:12px !important; right:12px !important; bottom:calc(12px + env(safe-area-inset-bottom)) !important; width:auto !important; max-width:none; }
+  .modal.cockpit-dashboard-rss-modal { width:calc(100vw - 16px); max-height:calc(100vh - 24px); margin:12px 8px; }
+  .cockpit-dashboard-rss-modal-head { padding:2px 2px 0; cursor:default; }
+  .cockpit-dashboard-rss-global-player { padding:0 4px 9px; }
+  .cockpit-dashboard-rss-reader { height:calc(100vh - 260px); min-height:340px; border-radius:10px; }
+  .cockpit-dashboard-rss-list { max-height:172px; }
+  .cockpit-dashboard-rss-card { width:calc(100% - 12px); margin:6px; padding:11px 12px; }
+  .cockpit-dashboard-rss-detail-scroll { padding:18px 16px 24px; }
+  .cockpit-dashboard-rss-speech-dock { position:static; margin:8px 10px; }
+  .cockpit-dashboard-rss-speech, .cockpit-dashboard-rss-speech.is-collapsed { width:100%; min-width:0; }
+  .cockpit-dashboard-rss-feed-form { padding:10px; border:1px solid var(--background-modifier-border); border-radius:10px; }
+  .cockpit-dashboard-rss-settings-actions { position:sticky; bottom:0; padding:10px 0 calc(4px + env(safe-area-inset-bottom)); background:var(--background-primary); }
+  .cockpit-dashboard-custom-toolbar-editor, .cockpit-dashboard-toolbar-config-editor, .cockpit-dashboard-toolbar-log-viewer { width:calc(100vw - 24px); max-height:calc(100vh - 28px); overflow:auto; }
+  .cockpit-dashboard-custom-toolbar-footer, .cockpit-dashboard-toolbar-config-footer { position:sticky; bottom:-1px; padding-top:10px; background:var(--background-primary); }
+  .cockpit-dashboard-welcome-card { max-height:calc(100vh - 24px); overflow:auto; }
+  .cockpit-dashboard-onboarding-card { left:12px !important; right:12px !important; bottom:calc(12px + env(safe-area-inset-bottom)) !important; width:auto; max-width:none; }
+}
+
 .cockpit-dashboard-release-modal .modal {
   width: min(720px, calc(100vw - 32px));
 }
@@ -1993,6 +2164,137 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* Mobile browse mode — deliberately placed after all legacy breakpoints so it
+   remains the final authority for a narrow Cockpit container. */
+@media (max-width: 680px) {
+  .cockpit-dashboard-root.cockpit-dashboard-phone {
+    padding: 12px 16px calc(28px + env(safe-area-inset-bottom));
+    --cockpit-mobile-surface: color-mix(in srgb, var(--background-secondary) 74%, transparent);
+  }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-hero {
+    margin: 4px 0 12px;
+    padding: 14px 15px 16px;
+    border-radius: 18px;
+    background: linear-gradient(145deg, rgba(72,180,255,.1), rgba(167,139,250,.045));
+    border-color: rgba(72,180,255,.14);
+  }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-hero-controls {
+    position: static;
+    display: grid;
+    grid-template-columns: 124px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin: 0 0 16px;
+  }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-scene-switcher,
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-lang-switch,
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-scene-trigger { width:100%; min-width:0; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 10px 0 20px;
+    padding: 0;
+  }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolslot { min-width:0; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbtn {
+    width:100%; min-height:64px; flex-direction:column; justify-content:center; gap:4px;
+    padding:7px 4px; border-radius:15px; background:var(--cockpit-mobile-surface);
+    box-shadow:none;
+  }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbtn.primary { box-shadow:0 10px 22px rgba(72,180,255,.18); }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbtn-label { font-size:.66em; line-height:1.15; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-tip { margin:0 0 14px; padding:13px 15px; border-radius:15px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-section-title { margin:26px 0 10px; padding-bottom:7px; font-size:1em; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-section-title::before { background:linear-gradient(90deg,rgba(72,180,255,.2),transparent 46%); }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-cal-surface { border-radius:17px; box-shadow:none; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-focus-chart { padding:14px; border-radius:17px; box-shadow:none; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-focus-chart-plot { height:116px; padding-top:4px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-focus-chart-graph { height:92px; background:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,rgba(72,180,255,.055) 30px,transparent 31px); }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-focus-chart-content { margin-top:11px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-heatmap-wrap { padding:4px 0; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-heatmap { gap:5px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-hm-cell { border-radius:5px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-recent { gap:7px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-recent-item { min-height:52px; padding:8px 11px; border-radius:13px; background:var(--cockpit-mobile-surface); }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-flash-row { flex-direction:row; align-items:center; gap:8px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-flash-input { min-height:46px; border-radius:13px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-flash-row .cockpit-dashboard-todo-input-ok { width:46px; height:46px; border-radius:13px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone.cockpit-dashboard-layout-editing .cockpit-dashboard-module-tools { transform:scale(.84); transform-origin:top right; }
+}
+@media (max-width: 389px) {
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-hero-controls { grid-template-columns:1fr; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-lang-switch { max-width:128px; }
+}
+
+/* Phone refinement pass: compact controls and a horizontal action rail avoid
+   both the oversized dashboard-card look and tiny, crowded touch targets. */
+@media (max-width: 680px) {
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-hero {
+    padding: 13px 14px 15px;
+    border-radius: 16px;
+    background: linear-gradient(150deg, rgba(72,180,255,.075), rgba(167,139,250,.025));
+    box-shadow: none;
+  }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-hero-controls {
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 7px;
+    margin-bottom: 13px;
+  }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-lang-switch { padding:3px; border-radius:11px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-lang-btn { min-height:32px; padding:4px 7px; border-radius:8px; font-size:.68em; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-scene-trigger { height:38px; padding:4px 10px; border-radius:11px; font-size:.72em; box-shadow:none; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-greeting { padding:0; font-size:1.34em; letter-spacing:-.025em; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-sub { margin-top:5px; font-size:.76em; line-height:1.5; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbar {
+    display:flex;
+    flex-wrap:nowrap;
+    justify-content:flex-start;
+    overflow-x:auto;
+    overscroll-behavior-x:contain;
+    scroll-snap-type:x proximity;
+    scrollbar-width:none;
+    gap:9px;
+    margin:10px -16px 20px;
+    padding:0 16px 4px;
+  }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbar::-webkit-scrollbar { display:none; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolslot { flex:0 0 auto; scroll-snap-align:start; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbtn {
+    width:auto;
+    min-width:72px;
+    min-height:46px;
+    flex-direction:row;
+    gap:5px;
+    padding:7px 11px;
+    border-radius:13px;
+    font-size:.76em;
+  }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbtn.primary { min-width:96px; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-toolbtn-label { font-size:inherit; white-space:nowrap; display:block; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-layout-done {
+    top:auto;
+    right:16px;
+    bottom:calc(16px + env(safe-area-inset-bottom));
+    width:auto;
+    min-width:128px;
+    height:48px;
+    padding:0 18px;
+    border-radius:14px;
+    font-size:0;
+    z-index:1000;
+  }
+  .cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-layout-done::after {
+    content:'完成编辑';
+    font-size:15px;
+    letter-spacing:.02em;
+  }
+  .cockpit-dashboard-root.cockpit-dashboard-phone.cockpit-dashboard-layout-editing { padding-bottom:calc(90px + env(safe-area-inset-bottom)); }
+  .cockpit-dashboard-root.cockpit-dashboard-phone.cockpit-dashboard-layout-editing .cockpit-dashboard-module-tools { transform:scale(.72); transform-origin:top right; }
+  .cockpit-dashboard-root.cockpit-dashboard-phone.cockpit-dashboard-layout-editing .cockpit-dashboard-module-badge { max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 }
 .cockpit-dashboard-onboarding-highlight {
   animation: cockpit-onboarding-pulse 1.6s ease-in-out infinite;

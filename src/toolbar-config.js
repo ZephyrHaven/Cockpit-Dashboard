@@ -47,6 +47,10 @@ function validateBuiltinToolbarConfig(command, url, spec, lang) {
 }
 
 function openBuiltinToolbarConfigEditor(view, root, action) {
+  if (view._isMobile && view._isMobile()) {
+    new obsidian.Notice(view._lang() === 'en' ? 'This configuration is only available on desktop.' : '此配置仅在桌面端可用。');
+    return;
+  }
   const spec = BUILTIN_TOOLBAR_CONFIG[action];
   if (!spec) return;
   const en = view._lang() === 'en';

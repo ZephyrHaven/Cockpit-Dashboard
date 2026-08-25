@@ -40,17 +40,23 @@ function validateCustomToolbarDraft(draft, lang) {
 
 async function executeCustomToolbarButton(view, button) {
   if (!button) return;
+  const isMobile = view._isMobile && view._isMobile();
   if (button.type === 'url') {
     const error = validateCustomToolbarDraft(button, view._lang());
     if (error) { new obsidian.Notice(error); return; }
     try {
-      require('electron').shell.openExternal(button.value);
+      if (isMobile) { window.open(button.value, '_blank'); }
+      else { require('electron').shell.openExternal(button.value); }
     } catch (e) {
       new obsidian.Notice(view._lang() === 'en' ? 'Could not open this URL.' : '无法打开该网址。');
     }
     return;
   }
   if (button.type !== 'script') return;
+  if (isMobile) {
+    new obsidian.Notice(view._lang() === 'en' ? 'Script execution is only available on desktop.' : '脚本执行仅在桌面端可用。');
+    return;
+  }
   const startedAt = Date.now();
   if (button.runMode === 'terminal') {
     try {
@@ -105,6 +111,7 @@ function sanitizeToolbarLogOutput(value) {
 }
 
 async function appendCustomToolbarLog(view, entry) {
+  if (view._isMobile && view._isMobile()) return;
   try {
     const fs = require('fs');
     const path = require('path');
@@ -127,13 +134,19 @@ async function appendCustomToolbarLog(view, entry) {
 }
 
 async function openCustomToolbarLogs(view) {
+  const isMobile = view._isMobile && view._isMobile();
+  let entries = [];
+  let fs, dir, file;
+  if (!isMobile) {
+    try {
+      fs = require('fs');
+      const path = require('path');
+      dir = path.join(view.app.vault.adapter.getBasePath(), view.app.vault.configDir, 'plugins', PLUGIN_ID, 'logs');
+      file = path.join(dir, 'toolbar-runs.jsonl');
+      try { entries = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)).reverse(); } catch (e) {}
+    } catch (e) {}
+  }
   try {
-    const fs = require('fs');
-    const path = require('path');
-    const dir = path.join(view.app.vault.adapter.getBasePath(), view.app.vault.configDir, 'plugins', PLUGIN_ID, 'logs');
-    const file = path.join(dir, 'toolbar-runs.jsonl');
-    let entries = [];
-    try { entries = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)).reverse(); } catch (e) {}
     const overlay = document.createElement('div');
     overlay.className = PLUGIN_ID + '-toolbar-log-backdrop';
     const panel = overlay.createDiv({ cls:PLUGIN_ID + '-toolbar-log-viewer' });
@@ -144,12 +157,13 @@ async function openCustomToolbarLogs(view) {
     const clear = controls.createEl('button', { text:view._lang()==='en'?'Clear':'清空', attr:{type:'button'} });
     const close = controls.createEl('button', { attr:{type:'button'} }); obsidian.setIcon(close, 'x'); close.onclick = () => overlay.remove();
     clear.onclick = () => {
+      if (isMobile) { overlay.remove(); return; }
       if (!window.confirm(view._lang()==='en'?'Clear all Toolbar logs?':'清空所有 Toolbar 运行日志？')) return;
       try { fs.mkdirSync(dir,{recursive:true}); fs.writeFileSync(file,'','utf8'); } catch (e) {}
       overlay.remove(); openCustomToolbarLogs(view);
     };
     const list = panel.createDiv({ cls:PLUGIN_ID + '-toolbar-log-list' });
-    if (!entries.length) list.createDiv({ cls:PLUGIN_ID + '-toolbar-log-empty', text:view._lang()==='en'?'No run logs yet.':'暂无运行日志。' });
+    if (!entries.length) list.createDiv({ cls:PLUGIN_ID + '-toolbar-log-empty', text:view._lang()==='en'?(isMobile?'Run logs are only available on desktop.':'No run logs yet.'):(isMobile?'运行日志仅在桌面端可用。':'暂无运行日志。') });
     entries.forEach((entry) => {
       const card = list.createDiv({ cls:PLUGIN_ID + '-toolbar-log-card ' + (entry.status === 'success' || entry.status === 'launched-in-terminal' ? 'success' : 'failed') });
       card.createDiv({ cls:PLUGIN_ID + '-toolbar-log-card-title', text:entry.label + ' · ' + entry.status });
