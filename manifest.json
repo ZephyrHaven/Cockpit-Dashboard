@@ -1,9 +1,9 @@
 {
   "id": "cockpit-dashboard",
   "name": "Cockpit Dashboard",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minAppVersion": "0.15.0",
-  "description": "A customizable cockpit-style dashboard homepage for your Obsidian vault. Features task management, Pomodoro timer, calendar view, bookmarks, note statistics, and more.",
+  "description": "A customizable cockpit-style dashboard homepage for your vault. Features task management, Pomodoro timer, calendar view, bookmarks, note statistics, and more.",
   "author": "hang",
   "isDesktopOnly": false
 }

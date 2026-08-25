@@ -405,8 +405,8 @@
   padding: 2px 0; 
   position: relative;
 }
-.cockpit-dashboard-cal-cell:hover { 
-  background: var(--background-secondary) !important; 
+.cockpit-dashboard-cal-cell.cockpit-dashboard-cal-cell:hover { 
+  background: var(--background-secondary); 
   border-color: var(--interactive-accent); 
   transform: scale(1.1); 
   box-shadow: 0 3px 10px rgba(72,180,255,0.15);
