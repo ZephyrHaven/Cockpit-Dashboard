@@ -11,7 +11,7 @@ class CockpitAIView extends obsidian.ItemView {
     this._uploadedContexts = [];
     this._contextEntries = [];
     // 上下文模式：'auto' 自动本地 RAG / 'none' 不使用任何检索上下文；勾选笔记时始终视为手动选择。
-    this._contextMode = 'auto';
+    this._contextMode = 'none';
     // Agent 三层权限：readonly 只读 / read-write 读写（默认）/ full 完整权限。
     this._agentMode = 'read-write';
     // 贴图：随消息发送的多模态图片（data URL），不写入本地历史。
@@ -41,7 +41,8 @@ class CockpitAIView extends obsidian.ItemView {
     }
     this._activeSessionId = session.id;
     this._selectedContextPaths = [...session.contextPaths];
-    this._contextMode = session.contextMode === 'none' ? 'none' : 'auto';
+    // 默认「不使用上下文」：自动 RAG 只在用户显式选择后启用。
+    this._contextMode = session.contextMode === 'auto' ? 'auto' : 'none';
     this._agentMode = ['readonly', 'read-write', 'full'].includes(session.agentMode) ? session.agentMode : 'read-write';
     this._resetSessionStats();
     if (session.profileId && config.profiles.some((profile) => profile.id === session.profileId) && session.profileId !== config.activeProfileId) {
@@ -174,7 +175,7 @@ class CockpitAIView extends obsidian.ItemView {
     this._historyState = await this.plugin.aiHistory.load();
     this._activeSessionId = session.id;
     this._selectedContextPaths = [];
-    this._contextMode = 'auto';
+    this._contextMode = 'none';
     this._agentMode = 'read-write';
     if (this._composerEls?.agentSelect) {
       this._composerEls.agentSelect.value = this._agentMode;
@@ -196,7 +197,8 @@ class CockpitAIView extends obsidian.ItemView {
     this._historyState = await this.plugin.aiHistory.load();
     this._activeSessionId = session.id;
     this._selectedContextPaths = [...session.contextPaths];
-    this._contextMode = session.contextMode === 'none' ? 'none' : 'auto';
+    // 默认「不使用上下文」：自动 RAG 只在用户显式选择后启用。
+    this._contextMode = session.contextMode === 'auto' ? 'auto' : 'none';
     this._agentMode = ['readonly', 'read-write', 'full'].includes(session.agentMode) ? session.agentMode : 'read-write';
     this._resetSessionStats();
     if (this._composerEls?.agentSelect) {
@@ -654,18 +656,38 @@ class CockpitAIView extends obsidian.ItemView {
     let firstOutputAt = null;
     const elapsedLabel = () => Math.max(0, (Date.now() - startedAt) / 1000).toFixed(1) + 's';
     const setStatus = (text, state = 'is-running') => { streamMessage.status.className = PLUGIN_ID + '-ai-activity-step ' + state; streamMessage.statusText.setText(text); };
-    // 流式输出逐 token 到达，这里合并高频的滚动与状态刷新（≥120ms 一次），避免长回答越写越卡。
+    // 流式输出必须缓冲后批量刷写：推理模型每秒可推送数百个 delta，
+    // 逐 token 追加 DOM 会把主线程打满（样式重算 + 上万文本节点），整个 Obsidian 假死。
+    // 这里统一走 ≥120ms 的节拍器合并刷新；字符串始终是完整真相，DOM 只是投影。
     let lastPaintAt = 0;
-    const repaint = () => {
+    let answer = ''; let reasoning = '';
+    let reasoningSent = 0; let answerSent = 0;
+    const shownStreamRows = new Set();
+    const showStreamRowOnce = (callId, name, label) => {
+      if (shownStreamRows.has(callId)) return;
+      shownStreamRows.add(callId);
+      this._renderToolEvent(streamMessage, { callId, name, label, stage:'executing' });
+    };
+    const scrollToBottom = () => { if (this._messagesEl) this._messagesEl.scrollTop = this._messagesEl.scrollHeight; };
+    const flushStreamUi = (force = false) => {
       const now = Date.now();
-      if (now - lastPaintAt < 120) return;
+      if (!force && now - lastPaintAt < 120) return;
       lastPaintAt = now;
       setStatus(stage + ' · ' + elapsedLabel());
-      if (this._messagesEl) this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
+      if (reasoning.length > reasoningSent) {
+        streamMessage.reasoning.removeClass('is-empty');
+        streamMessage.reasoningText.append(document.createTextNode(reasoning.slice(reasoningSent)));
+        reasoningSent = reasoning.length;
+        scrollToBottom();
+      }
+      if (answer.length > answerSent) {
+        streamMessage.answer.append(document.createTextNode(answer.slice(answerSent)));
+        answerSent = answer.length;
+        scrollToBottom();
+      }
     };
     try {
-      clock = window.setInterval(() => setStatus(stage + ' · ' + elapsedLabel()), 500);
-      let answer = ''; let reasoning = '';
+      clock = window.setInterval(() => flushStreamUi(), 500);
       const result = await this.plugin.ai.completeAgentStream({
         action, question, history:priorHistory,
         contextPaths:this._contextMode === 'none' ? [] : [...this._selectedContextPaths],
@@ -685,7 +707,12 @@ class CockpitAIView extends obsidian.ItemView {
         }
         if (event.type === 'status' && event.stage === 'context_ready') {
           const isRag = String(event.mode || '').startsWith('rag-');
-          const label = isRag ? (en ? `Selected ${event.count || 0} local excerpts` : `已选取 ${event.count || 0} 个本地片段`) : (en ? `Loaded ${event.count || 0} contexts` : `已载入 ${event.count || 0} 个上下文`);
+          const warming = event.mode === 'rag-warming';
+          const label = warming
+            ? (en ? 'Knowledge base index is warming up — replied without note context this turn' : '知识库索引准备中，本轮未注入笔记上下文')
+            : isRag
+              ? (en ? `Selected ${event.count || 0} local excerpts` : `已选取 ${event.count || 0} 个本地片段`)
+              : (en ? `Loaded ${event.count || 0} contexts` : `已载入 ${event.count || 0} 个上下文`);
           runStats.contextCount = Number(event.count) || 0;
           runStats.contextChars = Number(event.chars) || 0;
           this._renderToolEvent(streamMessage, { callId:'context-' + startedAt, name:'local_context', label, stage:'completed' });
@@ -694,14 +721,14 @@ class CockpitAIView extends obsidian.ItemView {
         if (event.type === 'reasoning' && event.text) {
           if (!firstOutputAt) firstOutputAt = Date.now();
           stage = en ? 'Reasoning' : '正在思考'; reasoning += event.text;
-          this._renderToolEvent(streamMessage, { callId:'reasoning-' + startedAt, name:'reasoning', label:stage, stage:'executing' });
-          streamMessage.reasoning.removeClass('is-empty'); streamMessage.reasoningText.append(document.createTextNode(event.text));
+          showStreamRowOnce('reasoning-' + startedAt, 'reasoning', stage);
         }
         if (event.type === 'content' && event.text) {
           if (!firstOutputAt) firstOutputAt = Date.now();
-          stage = en ? 'Writing answer' : '正在生成回答'; answer += event.text;
-          this._renderToolEvent(streamMessage, { callId:'writing-' + startedAt, name:'writing', label:stage, stage:'executing' });
-          streamMessage.answer.append(document.createTextNode(event.text));
+          if (!answer && reasoning) showStreamRowOnce('writing-' + startedAt, 'writing', en ? 'Writing answer' : '正在生成回答');
+          stage = answer || !reasoning ? (en ? 'Writing answer' : '正在生成回答') : stage;
+          answer += event.text;
+          showStreamRowOnce('writing-' + startedAt, 'writing', stage);
         }
         if (event.type === 'tool') {
           this._renderToolEvent(streamMessage, event);
@@ -710,11 +737,12 @@ class CockpitAIView extends obsidian.ItemView {
           else if (event.stage === 'completed') stage = en ? 'Tool completed' : '工具执行完成';
           else if (event.stage === 'denied') stage = en ? 'Tool denied' : '工具已拒绝';
         }
-        repaint();
-      }, this._abortController.signal, {
-        mode:this._agentMode,
+        flushStreamUi();
+      }, this._abortController.signal, {        mode:this._agentMode,
         confirmTool:(tool) => this._confirmAgentTool(tool)
       });
+      // 流结束：先把缓冲里剩余的文本一次性刷进 DOM，再做收尾渲染。
+      flushStreamUi(true);
       answer = result.content || answer; reasoning = result.reasoning || reasoning;
       if (!streamMessage.answer.textContent && answer) streamMessage.answer.setText(answer);
       if (!streamMessage.reasoningText.textContent && reasoning) { streamMessage.reasoning.removeClass('is-empty'); streamMessage.reasoningText.setText(reasoning); }

@@ -71,11 +71,36 @@ class AlarmOverlayRuntime {
     this.overlay = overlay;
     this._startSound();
     this._requestFullscreen();
+    // 后台触发时浏览器会以“缺少用户手势”拒绝全屏与聚焦；
+    // 这里补一个手势追赶：提醒存续期间的第一次点击/按键自动补进全屏。
+    this._gestureCatch = () => {
+      if (!this.active || document.fullscreenElement) return;
+      this._requestFullscreen();
+    };
+    document.addEventListener('pointerdown', this._gestureCatch, { capture:true, once:false });
+    document.addEventListener('keydown', this._gestureCatch, { capture:true, once:false });
+    this._raiseWindow();
     window.focus?.();
     setTimeout(() => stop.focus(), 20);
-    if (document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      try { new Notification(next.title || (en ? 'Alarm' : '闹钟'), { body:next.subtitle || '', silent:false }); } catch (e) {}
+    const unfocused = document.hidden || !document.hasFocus?.();
+    if (unfocused && typeof Notification !== 'undefined') {
+      if (Notification.permission === 'granted') {
+        try { new Notification(next.title || (en ? 'Alarm' : '闹钟'), { body:next.subtitle || '', silent:false }); } catch (e) {}
+      } else if (Notification.permission === 'default') {
+        try { Notification.requestPermission().catch(() => {}); } catch (e) {}
+      }
     }
+  }
+
+  // 尝试把 Obsidian 窗口拉到前台；Electron remote 不可用时安静放弃。
+  _raiseWindow() {
+    try {
+      const remote = require('electron')?.remote;
+      const win = typeof remote?.getCurrentWindow === 'function' ? remote.getCurrentWindow() : null;
+      if (!win) return;
+      if (typeof win.show === 'function') win.show();
+      if (typeof win.focus === 'function') win.focus();
+    } catch (e) {}
   }
 
   _requestFullscreen() {
@@ -93,6 +118,15 @@ class AlarmOverlayRuntime {
         const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextCtor) throw new Error('audio-context-unavailable');
         if (!this.audioContext) this.audioContext = new AudioContextCtor();
+        // 后台触发时 AudioContext 可能处于挂起状态（无用户手势），先尝试恢复；
+        // 恢复失败则直接用系统蜂鸣，保证后台闹钟一定有声音。
+        if (this.audioContext.state === 'suspended') {
+          try { this.audioContext.resume?.().catch?.(() => {}); } catch (e) {}
+        }
+        if (this.audioContext.state !== 'running') {
+          try { require('electron').shell?.beep?.(); } catch (ignored) {}
+          return;
+        }
         const start = this.audioContext.currentTime;
         [0, 0.18, 0.38].forEach((offset, index) => {
           const oscillator = this.audioContext.createOscillator();
@@ -117,6 +151,11 @@ class AlarmOverlayRuntime {
     const current = this.active;
     clearInterval(this.clockTimer); clearInterval(this.soundTimer);
     this.clockTimer = null; this.soundTimer = null;
+    if (this._gestureCatch) {
+      document.removeEventListener('pointerdown', this._gestureCatch, { capture:true });
+      document.removeEventListener('keydown', this._gestureCatch, { capture:true });
+      this._gestureCatch = null;
+    }
     if (this.audioContext) { this.audioContext.close?.().catch?.(() => {}); this.audioContext = null; }
     this.overlay?.remove(); this.overlay = null; this.active = null;
     if (this.enteredFullscreen && document.fullscreenElement && typeof document.exitFullscreen === 'function') {

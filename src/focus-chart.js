@@ -44,6 +44,51 @@ function buildFocusChart(view, root) {
     else { const width = Math.min(8, 74 / days); points.forEach((p, i) => addSvg('rect', {x:Math.max(0,p.x - width / 2),y:p.y,width,height:100-p.y,rx:Math.min(1.4,width/3),class:PLUGIN_ID + '-focus-chart-bar',title:data[i].date.format('YYYY-MM-DD') + ' · ' + data[i].minutes + ' min'})); }
     const labels = chart.createDiv({ cls:PLUGIN_ID + '-focus-chart-labels' }); (isWeek ? data.map((_, i) => i) : [0,7,14,21,29]).forEach((i) => labels.createSpan({text:isWeek ? data[i].date.format('dd').replace('.','') : data[i].date.format('M/D')}));
     const peak = data.reduce((best, item) => item.minutes > best.minutes ? item : best, data[0]); content.createDiv({ cls:PLUGIN_ID + '-focus-chart-caption', text:total ? t('focusChart.peak', {minutes:peak.minutes,date:peak.date.format(isWeek ? 'M/D ddd':'M/D')}) : t('focusChart.empty') });
+    // —— 专注洞察：本周 vs 上周 / 最佳时段 / 任务 Top3（数据不足时自动省略对应行）
+    try {
+      const insights = computeFocusInsights({ history, completions:view._pomodoroCompletions, taskStats:view._pomodoroTaskStats, now:window.moment() });
+      const box = content.createDiv({ cls:PLUGIN_ID + '-focus-insights' });
+      if (insights.thisWeekMinutes > 0 || insights.lastWeekMinutes > 0) {
+        const deltaText = insights.weekDeltaPct == null ? '' : (insights.weekDeltaPct >= 0 ? ' ↑' : ' ↓') + Math.abs(insights.weekDeltaPct) + '%';
+        const row = box.createDiv({ cls:PLUGIN_ID + '-fi-row' });
+        row.createSpan({ cls:PLUGIN_ID + '-fi-icon', text:'📈' });
+        row.createSpan({ text:t('focusChart.insightWeek', { thisWeek:insights.thisWeekMinutes, lastWeek:insights.lastWeekMinutes }) });
+        if (deltaText) row.createSpan({ cls:PLUGIN_ID + '-fi-delta ' + (insights.weekDeltaPct >= 0 ? 'is-up' : 'is-down'), text:deltaText });
+      }
+      if (insights.bestHours) {
+        const pad = (n) => String(n).padStart(2, '0');
+        const row = box.createDiv({ cls:PLUGIN_ID + '-fi-row' });
+        row.createSpan({ cls:PLUGIN_ID + '-fi-icon', text:'⏰' });
+        row.createSpan({ text:t('focusChart.insightBestHours', { from:pad(insights.bestHours.from), to:pad(insights.bestHours.to), minutes:insights.bestHours.minutes }) });
+      }
+      if (insights.topTasks.length) {
+        const maxTask = Math.max(...insights.topTasks.map((task) => task.minutes));
+        const wrap = box.createDiv({ cls:PLUGIN_ID + '-fi-tasks' });
+        insights.topTasks.forEach((task) => {
+          const line = wrap.createDiv({ cls:PLUGIN_ID + '-fi-task' });
+          line.createDiv({ cls:PLUGIN_ID + '-fi-task-name', text:task.name || '—' });
+          const track = line.createDiv({ cls:PLUGIN_ID + '-fi-task-track' });
+          track.createDiv({ cls:PLUGIN_ID + '-fi-task-fill', attr:{ style:'width:' + Math.max(6, Math.round(task.minutes / maxTask * 100)) + '%' } });
+          line.createDiv({ cls:PLUGIN_ID + '-fi-task-minutes', text:task.minutes + 'm' });
+        });
+      }
+      // 周报分享卡片：Canvas 绘制 PNG，一键保存
+      if (insights.thisWeekMinutes > 0 || insights.doneHint !== false) {
+        try {
+          const shareRow = box.createDiv({ cls:PLUGIN_ID + '-fi-share' });
+          const shareBtn = shareRow.createEl('button', { cls:PLUGIN_ID + '-fi-share-btn', attr:{ type:'button' } });
+          obsidian.setIcon(shareBtn.createSpan({ cls:PLUGIN_ID + '-fi-share-icon' }), 'image-down');
+          shareBtn.createSpan({ text:t('focusChart.shareCard') });
+          shareBtn.onclick = async () => {
+            if (shareBtn.disabled) return;
+            shareBtn.disabled = true;
+            try { downloadShareCard(view, view._lang()); }
+            catch (e) { console.warn('Cockpit share card failed', e); new obsidian.Notice(view._lang() === 'en' ? 'Could not generate the card.' : '卡片生成失败。'); }
+            finally { shareBtn.disabled = false; }
+          };
+        } catch (e) { console.warn('Cockpit share button failed', e); }
+      }
+    } catch (e) { console.warn('Cockpit focus insights failed', e); }
   };
   render(); view._makeModuleCollapsible('focusChart', title, panel); return render;
 }

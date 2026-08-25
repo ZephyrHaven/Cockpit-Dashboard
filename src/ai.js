@@ -215,8 +215,13 @@ function parseAiResponseText(payload) {
   const content = payload?.choices?.[0]?.message?.content;
   const text = typeof content === 'string' ? content : Array.isArray(content)
     ? content.filter((item) => item?.type === 'text' && typeof item.text === 'string').map((item) => item.text).join('\n') : '';
-  if (!text.trim()) throw new Error('模型没有返回可显示的内容');
-  return text.trim();
+  if (text.trim()) return text.trim();
+  // 兼容推理型模型：部分模型在简单请求下只返回思维链（reasoning）而不写 content，
+  // 此时退回思维链文本，避免把有效回答误判为“没有返回内容”。
+  const fallbackText = getAiDeltaText(payload?.choices?.[0]?.message?.reasoning_content
+    ?? payload?.choices?.[0]?.message?.reasoning);
+  if (fallbackText.trim()) return fallbackText.trim();
+  throw new Error('模型没有返回可显示的内容');
 }
 
 function createAiRequest(profile, apiKey, messages, options = {}) {
@@ -622,6 +627,7 @@ class CockpitAIService {
     let streamError = null;
     let streamUsage = null;
     const toolCalls = [];
+    let chunksSinceYield = 0;
     const parser = createAiSseParser((event) => {
       if (event.type === 'reasoning') { reasoning += event.text; emit(event); }
       if (event.type === 'content') { content += event.text; emit(event); }
@@ -639,6 +645,10 @@ class CockpitAIService {
       const { done, value } = chunk;
       if (done) break;
       parser.push(decoder.decode(value, { stream:true }));
+      // 高速流保护：字节持续涌入时 await read() 会形成近乎连续的微任务链，
+      // 渲染器拿不到执行机会，整个界面会被饿死。定期让出宏任务兜底。
+      chunksSinceYield += 1;
+      if (chunksSinceYield >= 64) { chunksSinceYield = 0; await new Promise((resolve) => setTimeout(resolve, 0)); }
     }
     parser.push(decoder.decode());
     parser.finish();

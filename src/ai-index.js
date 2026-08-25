@@ -8,9 +8,14 @@ const AI_INDEX_LIMITS = Object.freeze({
   maxTokensPerFile:4000,
   maxTermsPerFile:1500,
   candidateLimit:12,
-  readBatchSize:8,
+  readBatchSize:4,
+  // 单篇参与分词的最大字符数：超出部分对“主题代表性”贡献极小。
+  maxScanCharsPerFile:200000,
   maxSerializedChars:3000000,
-  saveDebounceMs:4000
+  saveDebounceMs:4000,
+  // 批间让出主线程的毫秒数：后台建索引必须给 UI 与其他任务留足空间，
+  // 宁可建得慢一点也不能拖累交互。每次让出期间至多读一小批文件。
+  yieldMs:40
 });
 
 const AI_INDEX_STOPWORDS = new Set(['the','and','for','with','from','this','that','what','when','where','how','about','please','into','your']);
@@ -23,7 +28,8 @@ function isProtectedAiIndexPath(value) {
 // 分词：拉丁词元 + 中日韩文本的双字组合（含 ≤10 字短串本身）。
 // 返回 { counts:Map<词元,出现次数>, truncated:boolean }，供倒排与查询两端共用。
 function collectAiIndexTerms(value) {
-  const text = String(value || '').normalize('NFKC').toLocaleLowerCase();
+  // 长文截断：分词只看开头一段已足够代表主题；避免超大笔记长时间占用主线程。
+  const text = String(value || '').normalize('NFKC').toLocaleLowerCase().slice(0, AI_INDEX_LIMITS.maxScanCharsPerFile);
   const counts = new Map();
   let seen = 0;
   let truncated = false;
@@ -40,7 +46,8 @@ function collectAiIndexTerms(value) {
   while ((match = cjk.exec(text))) {
     const run = match[0];
     if (run.length <= 10) bump(run);
-    for (let index = 0; index + 1 < run.length; index++) bump(run.slice(index, index + 2));
+    // 已截断时立即停止：避免超长中文段落继续做无效的双字切片。
+    for (let index = 0; !truncated && index + 1 < run.length; index++) bump(run.slice(index, index + 2));
     if (truncated) break;
   }
   return { counts, truncated };
@@ -55,7 +62,7 @@ function rankAiIndexTerms(counts) {
     .map((item) => item.term);
 }
 
-function yieldToAiIndexQueue() { return new Promise((resolve) => setTimeout(resolve, 0)); }
+function yieldToAiIndexQueue() { return new Promise((resolve) => setTimeout(resolve, AI_INDEX_LIMITS.yieldMs)); }
 
 class CockpitAiSearchIndex {
   constructor(plugin) {

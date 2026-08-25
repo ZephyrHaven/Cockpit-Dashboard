@@ -1,5 +1,5 @@
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -28,14 +28,19 @@ class CockpitView extends obsidian.ItemView {
       { id:'tip', label:this._t('layout.modules.tip'), matches:(el) => el.classList.contains(PLUGIN_ID + '-tip') },
       { id:'toolbar', label:this._t('layout.modules.toolbar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-toolbar') || el.classList.contains(PLUGIN_ID + '-search-row') || el.classList.contains(PLUGIN_ID + '-search-results') },
       { id:'alarms', label:this._t('layout.modules.alarms'), collapsible:true, matches:(el) => el.dataset.section === 'alarms-title' || el.dataset.section === 'alarms-body' || el.classList.contains(PLUGIN_ID + '-alarms') },
+      { id:'agenda', label:this._t('layout.modules.agenda'), collapsible:true, matches:(el) => el.dataset.section === 'agenda-title' || el.dataset.section === 'agenda-body' || el.classList.contains(PLUGIN_ID + '-agenda') },
       { id:'calendar', label:this._t('layout.modules.calendar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-cal-wrap') || el.classList.contains(PLUGIN_ID + '-cal-detail') },
       { id:'cats', label:this._t('sections.cats'), collapsible:true, matches:(el) => el.dataset.section === 'cats-title' || el.classList.contains(PLUGIN_ID + '-cats') },
       { id:'stats', label:this._t('sections.stats'), collapsible:true, matches:(el) => el.dataset.section === 'stats-title' || el.classList.contains(PLUGIN_ID + '-stats') },
       { id:'todos', label:this._t('sections.todos'), collapsible:true, matches:(el) => el.classList.contains(PLUGIN_ID + '-todo-header') || el.dataset.section === 'todos-body' },
+      { id:'habits', label:this._t('layout.modules.habits'), collapsible:true, matches:(el) => el.dataset.section === 'habits-title' || el.dataset.section === 'habits-body' || el.classList.contains(PLUGIN_ID + '-habits') },
+      { id:'projects', label:this._t('layout.modules.projects'), collapsible:true, matches:(el) => el.dataset.section === 'projects-title' || el.dataset.section === 'projects-body' || el.classList.contains(PLUGIN_ID + '-projects') },
       { id:'focusChart', label:this._t('layout.modules.focusChart'), collapsible:true, matches:(el) => el.dataset.section === 'focus-chart-title' || el.dataset.section === 'focus-chart' },
       { id:'bookmarks', label:this._t('sections.bookmarks'), collapsible:true, matches:(el) => el.dataset.section === 'bookmarks-title' || el.dataset.section === 'bookmarks-list' },
       { id:'flash', label:this._t('sections.flash'), collapsible:true, matches:(el) => el.dataset.section === 'flash-title' || el.dataset.section === 'flash-content' },
+      { id:'resurface', label:this._t('layout.modules.resurface'), collapsible:true, matches:(el) => el.dataset.section === 'resurface-title' || el.dataset.section === 'resurface-body' || el.classList.contains(PLUGIN_ID + '-resurface') },
       { id:'heatmap', label:this._t('sections.heatmap'), collapsible:true, matches:(el) => el.dataset.section === 'heatmap-title' || el.classList.contains(PLUGIN_ID + '-heatmap') },
+      { id:'weeklyReview', label:this._t('layout.modules.weeklyReview'), collapsible:true, matches:(el) => el.dataset.section === 'weekly-review-title' || el.dataset.section === 'weekly-review-body' || el.classList.contains(PLUGIN_ID + '-weekly-review') },
       { id:'scheduledTasks', label:this._t('sections.scheduledTasks'), collapsible:true, matches:(el) => el.dataset.section === 'scheduled-tasks-title' || el.dataset.section === 'scheduled-tasks-body' },
       { id:'footer', label:this._t('layout.modules.footer'), matches:(el) => el.classList.contains(PLUGIN_ID + '-footer') },
       { id:'recent', label:this._t('sections.recent'), collapsible:true, matches:(el) => el.dataset.section === 'recent-title' || el.classList.contains(PLUGIN_ID + '-recent-tabs') || el.classList.contains(PLUGIN_ID + '-recent') }
@@ -93,6 +98,7 @@ class CockpitView extends obsidian.ItemView {
       { icon: '🤖', label: this._toolbarCmds?.Hermes?.label || this._t('toolbar.hermes'), action: 'hermes' },
       { icon: '🛩️', label: this._toolbarCmds?.['驾驶舱']?.label || this._t('toolbar.cockpit'), action: 'cockpit-h5' },
       { icon: '📝', label: this._toolbarCmds?.['工作日志']?.label || this._t('toolbar.workLog'), action: 'work-log' },
+      { icon: E.cal, label: this._t('toolbar.todayNote'), action: 'today-note' },
       { icon: '🔔', label: this._lang() === 'en' ? 'Notifications' : '通知设置', action: 'notifications' },
       { icon: '🍅', label: this._t('toolbar.pomodoro'), action: 'pomodoro' }
     ].filter((button) => !this._deletedToolbarActions.has(button.action) && !desktopOnly.has(button.action));
@@ -895,6 +901,7 @@ class CockpitView extends obsidian.ItemView {
       this._pomodoroCompletions = normalizePomodoroCompletions(pluginData?.pomodoroCompletions);
       this._focusChartSettings = { range:pluginData?.focusChartSettings?.range === 'month' ? 'month' : 'week', type:pluginData?.focusChartSettings?.type === 'bar' ? 'bar' : 'line' };
       this._calendarViewMode = pluginData?.calendarViewMode === 'week' ? 'week' : 'month';
+      this._calendarLunarEnabled = pluginData?.calendarLunarEnabled !== false;
       this._username = pluginData?.username || this._t('hero.defaultName');
       this._collapsed = pluginData?.collapsed || {};
       this._moduleOrder = this._normalizeModuleOrder(pluginData?.moduleOrder);
@@ -957,6 +964,42 @@ class CockpitView extends obsidian.ItemView {
         });
         if (!hasUserLayout) this._applySceneSnapshot(this._getActiveScene());
       }
+      // 可选仪表盘模块默认隐藏：记录用户“见过”的可选模块清单；
+      // 新模块首次出现时，若用户布局从未提及它，则做一次性隐藏，
+      // 已显式摆放或隐藏过的模块完全沿用用户配置。
+      if (Array.isArray(OPTIONAL_DASH_MODULES) && OPTIONAL_DASH_MODULES.length) {
+        const seen = new Set(Array.isArray(pluginData.optionalModulesSeen) ? pluginData.optionalModulesSeen : []);
+        // 兼容旧版标记：这两个模块此前已通过 habitsReviewIntroduced 处理过。
+        if (pluginData.habitsReviewIntroduced) { seen.add('habits'); seen.add('weeklyReview'); }
+        let changed = false;
+        OPTIONAL_DASH_MODULES.forEach((moduleId) => {
+          if (seen.has(moduleId)) return;
+          seen.add(moduleId);
+          changed = true;
+          const mentioned = Object.values(this._sceneLayouts).some((scene) => {
+            const layout = scene?.layout;
+            if (!layout) return false;
+            const order = Array.isArray(layout.moduleOrder) ? layout.moduleOrder : [];
+            const hiddenList = Array.isArray(layout.hiddenModules) ? layout.hiddenModules : [];
+            return order.includes(moduleId) || hiddenList.includes(moduleId);
+          });
+          if (!mentioned) {
+            Object.values(this._sceneLayouts).forEach((scene) => {
+              const hidden = new Set(Array.isArray(scene?.layout?.hiddenModules) ? scene.layout.hiddenModules : []);
+              hidden.add(moduleId);
+              scene.layout = { ...(scene.layout || {}), hiddenModules:Array.from(hidden) };
+            });
+          }
+        });
+        if (changed) {
+          pluginData.sceneLayouts = this._sceneLayouts;
+          await this._mutatePluginData((data) => {
+            data.sceneLayouts = this._sceneLayouts;
+            data.optionalModulesSeen = Array.from(seen);
+          });
+          this._applySceneSnapshot(this._getActiveScene());
+        }
+      }
       this._bookmarkOrder = Array.isArray(pluginData?.bookmarkOrder) ? pluginData.bookmarkOrder.filter((path) => this._bookmarks.has(path)) : [];
       this._bookmarks.forEach((path) => { if (!this._bookmarkOrder.includes(path)) this._bookmarkOrder.push(path); });
       if (!pluginData.startDate) {
@@ -965,7 +1008,7 @@ class CockpitView extends obsidian.ItemView {
       }
       this._startDate = pluginData.startDate;
       this._onboardingDone = pluginData?.onboardingDone || false;
-    } catch(e) { this._language = DEFAULT_LANG; this._calendarViewMode = 'month'; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks']); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:this._sceneSnapshot() } }; this._activeSceneId = 'default'; }
+    } catch(e) { this._language = DEFAULT_LANG; this._calendarViewMode = 'month'; this._calendarLunarEnabled = true; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda']); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:this._sceneSnapshot() } }; this._activeSceneId = 'default'; }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -1296,6 +1339,9 @@ class CockpitView extends obsidian.ItemView {
         refreshCalendarRef?.();
         this._refreshHeroReminder?.();
       }
+      // 项目进度条与待办同源，待办变化后局部刷新（模块未开启时为空操作）。
+      this._refreshProjectsRef?.();
+      this._refreshAgendaRef?.();
       return true;
     };
 
@@ -1354,8 +1400,44 @@ class CockpitView extends obsidian.ItemView {
         await renderTodos({ persist:false });
       }, todo);
     };
+    // AI 拆解子任务：把大任务拆成 3-6 条可执行子待办，插入到原待办之后。
+    const decomposeTodoWithAi = async (todo) => {
+      const en = lang === 'en';
+      new obsidian.Notice(en ? '🤖 Agent is breaking down…' : '🤖 Agent 正在拆解…');
+      try {
+        const question = (en
+          ? 'Break the task below into 3-6 concrete, actionable subtasks. Reply ONLY with a JSON array of strings, no extra text.\nTask: '
+          : '把下面的任务拆解为 3-6 个具体、可执行的子任务。只回复一个 JSON 字符串数组，不要任何多余文字。\n任务：') + todo.text;
+        // 与 Agent 对话同一条管线：流式输出、兼容模式降级、超时控制全部一致。
+        const answer = await cockpitAgentOneShot(this._plugin, question, lang);
+        const subtasks = parseAiSubtaskTitles(answer);
+        if (!subtasks.length) throw new Error('no subtasks parsed');
+        const saved = await commitTodoMutation((todos) => {
+          const index = todos.findIndex((entry) => entry.id === todo.id);
+          if (index < 0) return false;
+          const created = subtasks.map((text) => ({
+            text,
+            tags:(todo.tags || []).slice(),
+            priority:todo.priority || 'mid',
+            dueDate:null,
+            dueHasTime:false,
+            done:false,
+            created:window.moment(),
+            doneDate:null
+          }));
+          todos.splice(index + 1, 0, ...created);
+          return true;
+        }, en ? 'Could not save the subtasks.' : '子任务保存失败。');
+        if (saved) new obsidian.Notice(en ? '✅ Added ' + subtasks.length + ' subtasks' : '✅ 已添加 ' + subtasks.length + ' 个子任务');
+      } catch (e) {
+        console.warn('Cockpit ai decompose failed', e);
+        const detail = String(e?.message || '').trim().slice(0, 80);
+        new obsidian.Notice((en ? 'AI breakdown failed: ' : 'AI 拆解失败：') + (detail || (en ? 'check the AI model settings.' : '请检查「AI 模型」配置。')));
+      }
+    };
+
     const openTodoEditor = (options = {}) => {
-      const existingTodo = options.id
+      this._openTodoEditorRef = (typeof options === 'object') ? openTodoEditor : openTodoEditor;      const existingTodo = options.id
         ? this._todos.find((todo) => todo.id === options.id)
         : (typeof options.index === 'number' ? this._todos[options.index] : null);
       const existingId = existingTodo?.id || '';
@@ -1580,6 +1662,7 @@ class CockpitView extends obsidian.ItemView {
       document.body.appendChild(overlay);
       setTimeout(() => titleInput.focus(), 16);
     };
+    this._openTodoEditorRef = openTodoEditor;
 
     // ===== 1.5 每日小贴士 =====
     const tip = getDailyTip(lang, this._dailyTips).replace(/^💡\s*/, '');
@@ -1598,7 +1681,13 @@ class CockpitView extends obsidian.ItemView {
       { title: t('contextMenu.searchNotes'), icon: 'search', onClick: toggleSearch },
       { title: t('contextMenu.commandPalette'), icon: 'terminal', onClick: () => this._doAction('command') },
       { title: t('contextMenu.openGraph'), icon: 'git-fork', onClick: () => this._doAction('graph') },
-      { title: t('contextMenu.startPomodoro'), icon: 'timer', onClick: () => this._doAction('pomodoro') }
+      { title: t('contextMenu.startPomodoro'), icon: 'timer', onClick: () => this._doAction('pomodoro') },
+      { title: t('contextMenu.exportBackup'), icon: 'archive', onClick: async () => {
+        try {
+          const path = await exportCockpitBackup(this._plugin);
+          new obsidian.Notice(path ? ('✅ ' + path) : (lang === 'en' ? 'Nothing to back up.' : '没有可备份的数据文件。'), 8000);
+        } catch (e) { new obsidian.Notice((lang === 'en' ? 'Backup failed: ' : '备份失败：') + (e?.message || e)); }
+      } }
     ];
 
     // ===== 2.5 闹钟（独立模块；调度由插件级 AlarmService 持续运行） =====
@@ -1608,10 +1697,23 @@ class CockpitView extends obsidian.ItemView {
       console.warn('Cockpit alarm module failed; dashboard basics remain available', e);
     }
 
+    // ===== 2.6 今日时间流（待办 + 闹钟 + RSS 合并时间线；默认隐藏） =====
+    try {
+      this._refreshAgendaRef = await buildAgendaModule(this, root, {
+        openTodoEditor,
+        rss:this._rss,
+        openRss:(date) => new CockpitRssModal(this.app, this, date).open()
+      });
+    } catch (e) {
+      this._refreshAgendaRef = null;
+      console.warn('Cockpit agenda module failed; dashboard basics remain available', e);
+    }
+
     // ===== 3.5 日历看板（模块化实现） =====
     await refreshLinkedAlarmTodoIds();
     const refreshCalendar = buildCalendar(root, () => this._todos, {
       language: lang,
+      lunarEnabled: this._calendarLunarEnabled !== false,
       t,
       openTodoEditor,
       onTodoAlarm: openTodoAlarm,
@@ -1875,6 +1977,8 @@ class CockpitView extends obsidian.ItemView {
       todosEl.empty();
       updateStats();
       await refreshLinkedAlarmTodoIds();
+      // AI 拆解按钮的可见性：整个列表渲染只查询一次（内部带缓存）。
+      const aiReady = await isCockpitAiReady(this._plugin);
 
       const todayKey = window.moment().format('YYYY-MM-DD');
       const baseTodayGroups = currentStatus === 'today' ? groupTodayTodos(this._todos, todayKey) : null;
@@ -2084,6 +2188,17 @@ class CockpitView extends obsidian.ItemView {
           obsidian.setIcon(alarmBtn, 'alarm-clock');
           alarmBtn.onclick = async (e) => { e.stopPropagation(); await openTodoAlarm(todo); };
         }
+        if (!done && aiReady && todo.text) {
+          const aiBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn ai', attr:{type:'button', title:lang === 'en' ? 'AI: break into subtasks' : 'AI 拆解为子任务', 'aria-label':lang === 'en' ? 'Break this task into subtasks with AI' : '用 AI 把这个任务拆解为子任务'} });
+          obsidian.setIcon(aiBtn, 'sparkles');
+          aiBtn.onclick = async (e) => {
+            e.stopPropagation();
+            if (aiBtn.disabled) return;
+            aiBtn.disabled = true;
+            try { await decomposeTodoWithAi(todo); }
+            finally { aiBtn.disabled = false; }
+          };
+        }
         if (!done) {
           const deferBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn', attr:{type:'button', 'aria-label':lang === 'en' ? 'Move this task to tomorrow' : '延期到明天：保留任务并调整截止日期'} });
           obsidian.setIcon(deferBtn, 'calendar-clock');
@@ -2170,6 +2285,31 @@ class CockpitView extends obsidian.ItemView {
     addBtn.onclick = async ()=>{
       openTodoEditor();
     };
+
+    // ===== 5.3 习惯打卡（独立模块；数据在 _data/habits.md） =====
+    try {
+      await buildHabitsModule(this, root);
+    } catch (e) {
+      console.warn('Cockpit habits module failed; dashboard basics remain available', e);
+    }
+
+    // ===== 5.4 项目进度条（按标签聚合待办；默认隐藏，编辑布局可开启） =====
+    // 此处 todos 区块已渲染完毕，过滤变量与 renderTodos 均已就绪。
+    try {
+      this._refreshProjectsRef = buildProjectsModule(this, root, {
+        onOpenProject:(tag) => {
+          currentStatus = 'all';
+          statusSelect.value = 'all';
+          currentTag = 'tag:' + tag;
+          todoRenderLimit = 120;
+          renderTodos({ persist:false }).catch((err) => console.warn('Cockpit project filter failed', err));
+          todoHeader.scrollIntoView({ behavior:'smooth', block:'start' });
+        }
+      });
+    } catch (e) {
+      this._refreshProjectsRef = null;
+      console.warn('Cockpit projects module failed; dashboard basics remain available', e);
+    }
 
     // ===== 5.5 专注趋势 =====
     // 图表是可选模块，绝不能阻断后面的模块布局、编辑模式或情景布局初始化。
@@ -2323,8 +2463,60 @@ class CockpitView extends obsidian.ItemView {
     };
     flashInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){e.preventDefault();saveFlash();} });
     flashOk.onclick = saveFlash;
-    if (this._flashInbox.length) { flashTitle.setText(t('sections.flash')+' · '+this._flashInbox.length); flashTitle.dataset.pending=String(this._flashInbox.length); const inbox=flashContent.createDiv({cls:PLUGIN_ID+'-flash-inbox'}); inbox.createSpan({text:(lang==='en'?'To organize: ':'待整理：')+this._flashInbox.length}); const clear=inbox.createEl('button',{text:lang==='en'?'Mark organized':'标记已整理',attr:{type:'button'}});clear.onclick=async()=>{this._flashInbox=[];await this._mutatePluginData((data)=>{const state=data.workspaceState&&typeof data.workspaceState==='object'?data.workspaceState:{};state.flashInbox=[];data.workspaceState=state;});inbox.remove();flashTitle.setText(t('sections.flash'));}; }
+    // 「稍后整理」箱：计数、标记已整理、AI 整理（聚类 → 转待办 / 保存笔记）。
+    // 渲染封装成可重复调用的函数，AI 操作完成后局部刷新，不整页重绘。
+    const renderFlashInboxUi = async () => {
+      flashContent.querySelector('.' + PLUGIN_ID + '-flash-inbox')?.remove();
+      if (!this._flashInbox.length) { flashTitle.setText(t('sections.flash')); delete flashTitle.dataset.pending; return; }
+      flashTitle.setText(t('sections.flash')+' · '+this._flashInbox.length);
+      flashTitle.dataset.pending = String(this._flashInbox.length);
+      const inbox = flashContent.createDiv({ cls:PLUGIN_ID+'-flash-inbox' });
+      inbox.createSpan({ text:(lang==='en'?'To organize: ':'待整理：')+this._flashInbox.length });
+      const persistInbox = () => this._mutatePluginData((data)=>{const state=data.workspaceState&&typeof data.workspaceState==='object'?data.workspaceState:{};state.flashInbox=this._flashInbox;data.workspaceState=state;});
+      const clear=inbox.createEl('button',{text:lang==='en'?'Mark organized':'标记已整理',attr:{type:'button'}});
+      clear.onclick=async()=>{this._flashInbox=[];await persistInbox();await renderFlashInboxUi();};
+      try {
+        if (await isCockpitAiReady(this._plugin)) {
+          const aiBtn=inbox.createEl('button',{cls:PLUGIN_ID+'-flash-inbox-ai',text:'✨ '+(lang==='en'?'AI organize':'AI 整理'),attr:{type:'button'}});
+          aiBtn.onclick=async()=>{
+            if (aiBtn.disabled) return;
+            aiBtn.disabled=true;
+            try {
+              await organizeFlashInboxWithAi(this, {
+                lang,
+                addTodo:async(text)=>{
+                  const saved = await commitTodoMutation((todos)=>{
+                    todos.unshift({ text, tags:[], priority:'mid', dueDate:null, dueHasTime:false, done:false, created:window.moment(), doneDate:null });
+                    return true;
+                  }, lang==='en'?'Could not save the task.':'待办保存失败。');
+                  return !!saved;
+                },
+                saveNote:async(markdown)=>{
+                  const dirFile=this.app.vault.getAbstractFileByPath(DAILY_DIR);
+                  if (!dirFile) await this.app.createFolder(DAILY_DIR);
+                  const stamp=window.moment().format('YYYY-MM-DD HHmm');
+                  const notePath=`${DAILY_DIR}/${lang==='en'?'Flash Digest':'闪念整理'} ${stamp}.md`;
+                  const created=await this.app.vault.create(notePath, markdown);
+                  await this.app.workspace.getUnpinnedLeaf().setViewState({ type:'markdown', state:{ file:created.path } });
+                },
+                clearInbox:async()=>{ this._flashInbox=[]; await persistInbox(); await renderFlashInboxUi(); }
+              });
+            } catch(e){ console.warn('Cockpit flash AI organize failed', e); }
+            finally { aiBtn.disabled=false; }
+          };
+        }
+      } catch(e) {}
+    };
+    renderFlashInboxUi();
     makeCollapsible(flashTitle, flashContent, 'flash');
+
+    // ===== 6.9 旧笔记重现（往年今天 / 长期未动笔记；默认隐藏） =====
+    try {
+      this._refreshResurfaceRef = await buildResurfaceModule(this, root);
+    } catch (e) {
+      this._refreshResurfaceRef = null;
+      console.warn('Cockpit resurface module failed; dashboard basics remain available', e);
+    }
 
     // ===== 底部：编辑热力图 =====
     const hmTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: t('sections.heatmap') });
@@ -2370,6 +2562,14 @@ class CockpitView extends obsidian.ItemView {
     });
     legend.createSpan({ cls: PLUGIN_ID+'-hm-legend-label', text: t('heatmap.high') });
     makeCollapsible(hmTitle, heatmapEl, 'heatmap');
+
+    // ===== 周回顾（本地聚合生成，模块失败不影响布局基础能力） =====
+    try {
+      this._refreshWeeklyReviewRef = await buildWeeklyReviewModule(this, root);
+    } catch (e) {
+      this._refreshWeeklyReviewRef = null;
+      console.warn('Cockpit weekly review module failed; dashboard basics remain available', e);
+    }
 
     root.createDiv({ cls: PLUGIN_ID+'-footer', text: t('footer.text') });
 
@@ -2614,7 +2814,7 @@ class CockpitView extends obsidian.ItemView {
       }
     });
   }
-  _doAction(a, sourceEl) {
+  async _doAction(a, sourceEl) {
     if (String(a || '').startsWith('custom:')) {
       const id = String(a).slice('custom:'.length);
       return executeCustomToolbarButton(this, this._customToolbarButtons.find((button) => button.id === id));
@@ -2707,6 +2907,17 @@ class CockpitView extends obsidian.ItemView {
       case 'tag': this.app.workspace.rightSplit.expand(); break;
       case 'graph': this.app.commands.executeCommandById('graph:open'); break;
       case 'command': this.app.commands.executeCommandById('command-palette:open'); break;
+      case 'today-note': {
+        const todayPath = DAILY_DIR + '/' + window.moment().format('YYYY-MM-DD') + '.md';
+        try {
+          if (!this.app.vault.getAbstractFileByPath(DAILY_DIR)) await this.app.vault.createFolder(DAILY_DIR);
+          if (!this.app.vault.getAbstractFileByPath(todayPath)) {
+            await this.app.vault.create(todayPath, '# ' + window.moment().format('YYYY-MM-DD') + '\n\n');
+          }
+          await this.app.workspace.getUnpinnedLeaf().setViewState({ type:'markdown', state:{ file:todayPath } });
+        } catch (e) { console.warn('Cockpit open today note failed', e); }
+        break;
+      }
     }
   }
   async onClose() {
@@ -2728,6 +2939,8 @@ class CockpitView extends obsidian.ItemView {
     this._closeOnboardingCard();
     this._alarmUnsubscribe?.();
     this._alarmUnsubscribe = null;
+    this._agendaAlarmUnsubscribe?.();
+    this._agendaAlarmUnsubscribe = null;
     // 番茄钟是全局单例，不随驾驶舱关闭而销毁
     // 只清理引用，不移除 DOM
     this._pomodoroTimer = null;
@@ -2929,6 +3142,28 @@ class CockpitView extends obsidian.ItemView {
   }
 }
 
+// 数据备份：把驾驶舱管理的 vault 数据文件（待办/专注/习惯/收藏）打包成 JSON 归档。
+// 只导出 vault 内容，绝不含 data.json（其中可能有推送密钥等隐私配置）。
+async function exportCockpitBackup(plugin) {
+  const vault = plugin.app.vault;
+  const files = {};
+  for (const path of [TODO_FILE, FOCUS_FILE, HABIT_FILE, BOOKMARK_FILE]) {
+    const file = vault.getAbstractFileByPath(path);
+    if (!file) continue;
+    try { files[path] = await vault.read(file); } catch (e) { console.warn('Cockpit backup read failed for ' + path, e); }
+  }
+  if (!Object.keys(files).length) return null;
+  const dir = DATA_DIR + '/backups';
+  if (!vault.getAbstractFileByPath(DATA_DIR)) await vault.createFolder(DATA_DIR);
+  if (!vault.getAbstractFileByPath(dir)) await vault.createFolder(dir);
+  const path = dir + '/cockpit-backup-' + window.moment().format('YYYY-MM-DD-HHmm') + '.json';
+  const payload = JSON.stringify({ app:'cockpit-dashboard', exportedAt:new Date().toISOString(), files }, null, 2);
+  const existing = vault.getAbstractFileByPath(path);
+  if (existing) await vault.modify(existing, payload);
+  else await vault.create(path, payload);
+  return path;
+}
+
 class CockpitPlugin extends obsidian.Plugin {
   async mutateData(mutator) {
     return mutatePluginData(this, mutator);
@@ -2964,15 +3199,59 @@ class CockpitPlugin extends obsidian.Plugin {
     await this.alarms.start();
     this.scheduledTasks = new ScheduledTaskService(this);
     this.scheduledTasks.start();
+    // 后台闹钟依赖系统通知兜底；在 default 状态下提前请求一次权限（granted/denied 时静默跳过）。
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        Notification.requestPermission?.().catch?.(() => {});
+      }
+    } catch (e) {}
     this.serverChan = new ServerChanService(this);
     this.serverChan.startScheduler();
+    // 晨间简报：复用推送渠道与 AI 配置，独立调度与发送记录；失败不阻断插件加载。
+    this.morningBrief = new CockpitMorningBriefService(this);
+    this.morningBrief.startScheduler();
     this.addSettingTab(new CockpitServerChanSettingTab(this.app, this));
     this.registerView(VIEW_TYPE, l=>new CockpitView(l, this));
     this.registerView(AI_VIEW_TYPE, l=>new CockpitAIView(l, this));
     this.addRibbonIcon('layout-dashboard','Cockpit',()=>this._open());
     this._aiLauncherCleanup = mountAiLauncher(this);
     this.addCommand({id:'open-cockpit',name:'打开 Cockpit 驾驶舱',callback:()=>this._open()});
+    this.addCommand({
+      id:'global-search',
+      name:'全局搜索（待办 / 笔记内容 / 文件名）',
+      callback:() => {
+        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view;
+        openGlobalSearch(this.app, this._lang?.() || DEFAULT_LANG, view || null);
+        if (!view) this._open();
+      }
+    });
     this.addCommand({id:'open-cockpit-ai',name:'打开 Cockpit AI 助手',callback:()=>this.openAI()});
+    this.addCommand({
+      id:'send-morning-brief',
+      name:'发送晨间简报',
+      callback:async () => {
+        new obsidian.Notice('📮 正在发送晨间简报…');
+        try {
+          const ok = await this.morningBrief.sendNow();
+          new obsidian.Notice(ok ? '✅ 晨间简报已发送' : '⚠️ 没有已启用的推送渠道，请先在设置里配置');
+        } catch (e) {
+          new obsidian.Notice('❌ 晨间简报发送失败：' + (e?.message || 'unknown error'));
+        }
+      }
+    });
+    this.addCommand({
+      id:'export-data-backup',
+      name:'导出数据备份（待办/专注/习惯/收藏）',
+      callback:async () => {
+        try {
+          const path = await exportCockpitBackup(this);
+          new obsidian.Notice(path ? ('✅ 已备份到 ' + path) : '没有可备份的数据文件。', 8000);
+        } catch (e) {
+          console.warn('Cockpit backup export failed', e);
+          new obsidian.Notice('❌ 备份失败：' + (e?.message || 'unknown error'));
+        }
+      }
+    });
     this.addCommand({ id:'global-search', name:'打开 Cockpit 全局搜索', callback:() => openGlobalSearch(this.app) });
     this.addCommand({ id:'open-data-migration', name:'打开 Cockpit 数据迁移', callback:async () => { await this._open(); const view = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view; if (view) openStorageMigration(view); } });
     const initialActiveFile = this.app.workspace.getActiveFile?.();

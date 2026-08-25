@@ -231,7 +231,12 @@ class CockpitRagService {
     const mtime = Number(file?.stat?.mtime || 0);
     const size = Number(file?.stat?.size || 0);
     const cachedPath = this.pathCache.get(path);
-    if (cachedPath && cachedPath.mtime === mtime && cachedPath.size === size) return cachedPath.document;
+    if (cachedPath && cachedPath.mtime === mtime && cachedPath.size === size) {
+      // LRU 触碰：移到末尾表示最近使用。
+      this.pathCache.delete(path);
+      this.pathCache.set(path, cachedPath);
+      return cachedPath.document;
+    }
     const vault = this.plugin.app.vault;
     const content = String(await (typeof vault.cachedRead === 'function' ? vault.cachedRead(file) : vault.read(file)) || '');
     const hash = await computeAiContentHash(content);
@@ -247,7 +252,13 @@ class CockpitRagService {
       while (this.chunkCache.size > 1600) this.chunkCache.delete(this.chunkCache.keys().next().value);
     }
     const document = { path, content, source:'vault', hash, chunks:templates.map((chunk) => ({ ...chunk, path, source:'vault' })) };
+    // pathCache 上限：缓存持有整篇正文与小写副本，不设上限的大库会吃掉数百 MB
+    // 并引发长时间 GC 停顿（表现为整个界面周期性假死）。LRU 淘汰最旧的条目。
     this.pathCache.set(path, { mtime, size, hash, document });
+    while (this.pathCache.size > 150) {
+      const oldestKey = this.pathCache.keys().next().value;
+      this.pathCache.delete(oldestKey);
+    }
     return document;
   }
   async _readSelected(paths, signal) {
@@ -295,11 +306,24 @@ class CockpitRagService {
     const keywordsSource = query || [...selectedPaths, ...attachments.map((item) => item.path)].join(' ');
     let documents;
     if (global && this.index) {
-      // 自动 RAG：先让索引就绪（含首次构建进度），再只读取命中的候选笔记。
-      await this.index.ensure({ signal:options.signal, onProgress:options.onProgress });
-      const candidateLimit = typeof AI_INDEX_LIMITS !== 'undefined' ? AI_INDEX_LIMITS.candidateLimit : 12;
-      const candidates = this.index.query(keywordsSource, { limit:candidateLimit }).map((item) => item.path);
-      documents = candidates.length ? (await this._readSelected(candidates, options.signal)) : [];
+      if (this.index.ready) {
+        // 索引已就绪：正常 RAG 检索。
+        await this.index.ensure({ signal:options.signal, onProgress:options.onProgress });
+        const candidateLimit = typeof AI_INDEX_LIMITS !== 'undefined' ? AI_INDEX_LIMITS.candidateLimit : 12;
+        const candidates = this.index.query(keywordsSource, { limit:candidateLimit }).map((item) => item.path);
+        documents = candidates.length ? (await this._readSelected(candidates, options.signal)) : [];
+      } else {
+        // 索引还在后台首次构建：本轮直接跳过注入、立刻回答，
+        // 绝不在发送路径上做任何全库扫描或等待。索引就绪后自动恢复完整 RAG。
+        this.index.warmUp();
+        return {
+          mode:'rag-warming',
+          contexts:manual,
+          searchedFiles:0,
+          truncated:false,
+          warming:true
+        };
+      }
       if (!documents.length) documents = await this._readAll(options.onProgress, options.signal);
     } else {
       documents = global ? await this._readAll(options.onProgress, options.signal) : selected;

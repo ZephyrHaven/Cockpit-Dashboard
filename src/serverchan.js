@@ -218,14 +218,16 @@ function getCockpitSettingsSections(language) {
   return [
     { id:'ai', label:en ? 'AI models' : 'AI 模型', icon:'bot-message-square' },
     { id:'channels', label:en ? 'Channels' : '推送渠道', icon:'send' },
+    { id:'brief', label:en ? 'Morning brief' : '晨间简报', icon:'sunrise' },
     { id:'schedule', label:en ? 'Schedule' : '提醒计划', icon:'calendar-clock' },
-    { id:'scope', label:en ? 'Message' : '消息内容', icon:'list-checks' }
+    { id:'scope', label:en ? 'Message' : '消息内容', icon:'list-checks' },
+    { id:'calendar', label:en ? 'Calendar' : '日历', icon:'calendar-days' }
   ];
 }
 
 function normalizeCockpitSettingsSection(value) {
   const id = String(value || '');
-  return ['ai','channels','schedule','scope'].includes(id) ? id : 'ai';
+  return ['ai','channels','brief','schedule','scope','calendar'].includes(id) ? id : 'ai';
 }
 
 class ServerChanService {
@@ -347,6 +349,11 @@ class CockpitServerChanSettingTab extends obsidian.PluginSettingTab {
 
     await renderAiSettings(panels.ai, this.plugin, language);
     if (renderVersion !== this._displayVersion) return;
+    // 晨间简报面板：复用下方「推送渠道」的渠道配置，只管理自己的内容与发送时间。
+    try {
+      await renderMorningBriefSettings(panels.brief, this.plugin, language);
+    } catch (e) { console.warn('Cockpit morning brief settings failed', e); }
+    if (renderVersion !== this._displayVersion) return;
     const copy = getServerChanSettingsCopy(language); const save = async (options) => {
       const saved = await this.plugin.serverChan.saveConfig(config, options);
       config.time = saved.time; config.times = saved.times; config.sentReminders = saved.sentReminders;
@@ -418,5 +425,32 @@ class CockpitServerChanSettingTab extends obsidian.PluginSettingTab {
     new obsidian.Setting(panels.scope).setName(copy.today).setDesc(copy.todayDesc).addToggle((toggle) => toggle.setValue(config.notifyToday).onChange(async (value) => { config.notifyToday = value; await save(); }));
     new obsidian.Setting(panels.scope).setName(copy.overdue).setDesc(copy.overdueDesc).addToggle((toggle) => toggle.setValue(config.notifyOverdue).onChange(async (value) => { config.notifyOverdue = value; await save(); }));
     new obsidian.Setting(panels.scope).setName(copy.custom).setDesc(copy.customDesc).addTextArea((text) => text.setPlaceholder(copy.customPlaceholder).setValue(config.messageTemplate).onChange(async (value) => { config.messageTemplate = safeText(value,4000); await save(); }));
+
+    // 日历面板：农历/节假日标注开关。改动立即持久化，并刷新已打开的驾驶舱日历。
+    addPanelIntro(panels.calendar, en ? 'Calendar' : '日历', en ? 'Tune how the dashboard calendar looks.' : '调整仪表盘日历的显示细节。');
+    const applyLunarSetting = async (value) => {
+      try {
+        const data = await this.plugin.loadData() || {};
+        data.calendarLunarEnabled = value === true;
+        await this.plugin.saveData(data);
+      } catch (e) { console.warn('Cockpit lunar setting failed', e); }
+      this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((leaf) => {
+        try {
+          if (!leaf.view || typeof leaf.view._refreshCalendarRef !== 'function') return;
+          leaf.view._calendarLunarEnabled = value === true;
+          leaf.view._refreshCalendarRef();
+        } catch (e) {}
+      });
+    };
+    try {
+      const currentData = await this.plugin.loadData() || {};
+      const lunarOn = currentData.calendarLunarEnabled !== false;
+      new obsidian.Setting(panels.calendar)
+        .setName(en ? 'Show lunar dates & holidays' : '显示农历与节假日')
+        .setDesc(en
+          ? 'Mark each month-grid day with its lunar date, traditional festivals, statutory holidays, and make-up workdays. Turn off to keep a clean calendar.'
+          : '在月视图标注农历日期、传统节日、法定假日与调休上班日；关闭后日历保持简洁样式。')
+        .addToggle((toggle) => toggle.setValue(lunarOn).onChange((value) => applyLunarSetting(value)));
+    } catch (e) { console.warn('Cockpit calendar settings failed', e); }
   }
 }

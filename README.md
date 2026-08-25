@@ -7,11 +7,12 @@ Cockpit Dashboard 是一个本地优先的 Obsidian 驾驶舱首页插件：把�
 
 ## 核心特性
 
-- **仪表盘工作台**：待办今天队列、日历看板（月/周视图、拖拽排期）、统计卡片、编辑热力图、分类卡片、最近更新、收藏文件、闪念胶囊
-- **AI 助手**：多模型对话侧栏，本地多会话历史、多选笔记上下文、临时文本附件、贴图对话、本地关键词 RAG、流式输出、白名单 Agent 工具
-- **自动化**：番茄钟（可关联待办）、全局闹钟、定时任务（含桌面 Shell）、Server酱³/Bark/MEOW 消息推送
+- **仪表盘工作台**：待办今天队列、日历看板（月/周视图、拖拽排期、农历与法定节假日调休显示、可开关）、今日 Agenda 时间流、统计卡片、编辑热力图、项目进度条、分类卡片、最近更新、收藏文件、闪念胶囊、旧笔记重现
+- **AI 助手**：多模型对话侧栏，本地多会话历史、多选笔记上下文、临时文本附件、贴图对话、本地关键词 RAG、流式输出、白名单 Agent 工具；待办一键 AI 拆解子任务，闪念整理箱 Agent 聚类成主题后转待办或存为整理笔记
+- **自动化**：番茄钟（可关联待办）、全局闹钟（后台全屏提醒 + 手势追赶）、定时任务（含桌面 Shell）、Server酱³/Bark/MEOW 消息推送
+- **专注分析**：专注趋势图表（折线/柱状），本周对比上周、黄金专注时段、任务投入 Top3 洞察，一键生成周报分享卡片 PNG
 - **布局系统**：模块拖拽排序、显示/隐藏、折叠持久化，多情景布局可按星期/时间段/文件夹自动切换
-- **其他**：Spotlight 全局搜索、RSS 双栏阅读器、双语界面、首次引导
+- **其他**：Spotlight 统一搜索（待办 / 笔记内容 / 文件名一次出结果）、RSS 双栏阅读器、双语界面、首次引导
 
 ## 技术架构
 
@@ -20,9 +21,11 @@ Cockpit Dashboard 是一个本地优先的 Obsidian 驾驶舱首页插件：把�
 插件不依赖打包器，`build.js` 按 fixed 顺序拼接 `src/` 下模块生成 `main.js` 与压缩版 `main.min.js`：
 
 ```text
-constants → utils → todos → bookmarks → calendar → search → pomodoro
-→ release-notes-core → ai-index → ai-context → ai-history → ai-local-tools
-→ ai-tools → ai … → _framework（视图与插件主类）
+constants → data-store → ai-index → ai-context → ai … → ai-launcher
+→ daily-tips → utils → todos → todo-focus → focus-insights → share-card
+→ habits → weekly-review → projects → resurface → morning-brief
+→ serverchan → bookmarks → rss → lunar → calendar → search → toolbar
+→ scenes → scheduled-tasks → alarm → pomodoro → … → _framework（视图与插件主类）
 ```
 
 模块间通过顶层函数声明共享作用域，各模块均可用 Node 直接 `require` 单测。测试是无框架的断言脚本（纯函数断言 + 源码模式断言），逐文件独立运行。

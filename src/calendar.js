@@ -1,7 +1,7 @@
 // calendar.js — 日历看板模块
 
 function buildCalendar(root, todos, opts) {
-  const { language, t, openTodoEditor, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, initialViewMode, onViewModeChange } = opts;
+  const { language, t, openTodoEditor, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, initialViewMode, onViewModeChange, lunarEnabled } = opts;
   // 刷新时必须读取视图的最新待办数组；不能闭包捕获初次渲染的旧快照。
   const getTodos = typeof todos === 'function' ? todos : () => todos;
   let calYear = window.moment().year();
@@ -179,7 +179,15 @@ function buildCalendar(root, todos, opts) {
       const date = window.moment([calYear, calMonth, day]);
       const dayTodos = todoMap[date.format('YYYY-MM-DD')] || [];
       const dayRss = rss?.config.enabled ? rss.itemsForDate(date) : [];
-      const cell = gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell' + (date.isSame(now, 'day') ? ' today' : '') + (dayTodos.length ? ' has-todos' : '') + (dayRss.length ? ' has-rss' : '') + (day === selDay ? ' selected' : '') });
+      // 农历 / 节日 / 法定假日标记：lunar.js 纯函数，查表无 IO；可在设置中关闭，英文界面只保留悬停提示与配色。
+      const dayInfo = (lunarEnabled === false || language === 'en') ? null : getCockpitDayInfo(date);
+      const cell = gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell' + (date.isSame(now, 'day') ? ' today' : '') + (dayTodos.length ? ' has-todos' : '') + (dayRss.length ? ' has-rss' : '') + (day === selDay ? ' selected' : '') + (dayInfo?.offMark === 'off' ? ' holiday' : '') + (dayInfo?.offMark === 'work' ? ' workday' : '') });
+      const tipParts = [date.format('YYYY-MM-DD')];
+      if (dayInfo?.lunarText) tipParts.push('农历' + dayInfo.lunarText);
+      if (dayInfo?.festival) tipParts.push(dayInfo.festival);
+      if (dayInfo?.offMark === 'off') tipParts.push('法定假日');
+      if (dayInfo?.offMark === 'work') tipParts.push('调休上班');
+      cell.setAttribute('title', tipParts.join(' · '));
       cell.addEventListener('dragover', (event) => { if (!event.dataTransfer?.types?.includes('application/x-cockpit-todo')) return; event.preventDefault(); cell.classList.add('todo-drop-target'); });
       cell.addEventListener('dragleave', () => cell.classList.remove('todo-drop-target'));
       cell.addEventListener('drop', async (event) => {
@@ -190,6 +198,10 @@ function buildCalendar(root, todos, opts) {
       });
       const inner = cell.createDiv({ cls: PLUGIN_ID + '-cal-cell-inner' });
       inner.createSpan({ cls: PLUGIN_ID + '-cal-num', text: String(day) });
+      if (dayInfo && dayInfo.label) {
+        inner.createSpan({ cls: PLUGIN_ID + '-cal-lunar' + (dayInfo.festival ? ' festival' : '') + (dayInfo.offMark === 'work' ? ' workday' : ''), text: dayInfo.offMark === 'work' ? '班' : dayInfo.label });
+      }
+      if (date.isSame(now, 'day')) inner.createDiv({ cls: PLUGIN_ID + '-cal-today-mark' });
       if (date.isSame(now, 'day')) inner.createDiv({ cls: PLUGIN_ID + '-cal-today-mark' });
       const indicators = cell.createDiv({ cls:PLUGIN_ID + '-cal-indicators' + (dayTodos.length && dayRss.length ? ' has-both' : '') });
       if (dayTodos.length) {

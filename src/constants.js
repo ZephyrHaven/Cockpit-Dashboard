@@ -6,6 +6,7 @@ const PLUGIN_ID = 'cockpit-dashboard';
 const TODO_FILE = '_data/todos.md';
 const BOOKMARK_FILE = '_data/bookmarks.md';
 const FOCUS_FILE = '_data/focus.md';
+const HABIT_FILE = '_data/habits.md';
 const DAILY_DIR = '_daily';
 const DATA_DIR = '_data';
 // 驾驶舱 H5 服务默认地址（可被工具栏配置覆盖）
@@ -17,6 +18,8 @@ const LANG_OPTIONS = [
 ];
 
 const E = { wave:'👋', search:'🔍', tag:'🏷️', graph:'🕸️', bolt:'⚡', folder:'📂', rule:'📋', gear:'⚙️', robot:'🤖', box:'📦', chart:'📊', pencil:'✏️', check:'✅', save:'💾', edit:'✏️', del:'✕', cal:'📅' };
+// 可选仪表盘模块：首次引入且用户布局未提及时默认隐藏，用户可在编辑模式里自行开启。
+const OPTIONAL_DASH_MODULES = ['habits', 'weeklyReview', 'projects', 'resurface', 'agenda'];
 const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f97316','#6366f1'];
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
 const I18N = {
@@ -30,6 +33,11 @@ const I18N = {
       flash: '⚡ 闪念胶囊',
       focusChart: '🍅 专注趋势',
       alarms: '⏰ 闹钟',
+      habits: '🔥 习惯打卡',
+      agenda: '🕐 今日时间流',
+      weeklyReview: '🗓 周回顾',
+      projects: '🎯 项目进度',
+      resurface: '🕰 旧笔记重现',
       scheduledTasks: '⏱ 定时任务',
       heatmap: '📈 编辑热力图（近30天）'
     },
@@ -65,6 +73,7 @@ const I18N = {
       hermes: 'Hermes',
       cockpit: '驾驶舱',
       workLog: '工作日志',
+      todayNote: '今日笔记',
       pomodoro: '番茄钟'
     },
     search: {
@@ -77,6 +86,7 @@ const I18N = {
       commandPalette: '命令面板',
       openGraph: '打开图谱',
       startPomodoro: '启动番茄钟',
+      exportBackup: '导出数据备份',
       releaseNotes: '最近更新记录'
     },
     layout: {
@@ -99,6 +109,11 @@ const I18N = {
         alarms: '闹钟',
         calendar: '日历看板',
         focusChart: '专注趋势',
+        habits: '习惯打卡',
+        agenda: '今日时间流',
+        weeklyReview: '周回顾',
+        projects: '项目进度',
+        resurface: '旧笔记重现',
         footer: '页脚'
       }
     },
@@ -123,7 +138,10 @@ const I18N = {
     focusChart: {
       range: '统计范围', chartType: '图表类型', week: '近 7 天', month: '近 30 天', line: '折线', bar: '柱状',
       total: ({ minutes }) => minutes + ' min', activeDays: ({ count, days }) => days + ' 天内专注 ' + count + ' 天',
-      peak: ({ minutes, date }) => '最高：' + date + ' · ' + minutes + ' min', empty: '还没有专注记录，完成一个番茄钟后这里会亮起来。'
+      peak: ({ minutes, date }) => '最高：' + date + ' · ' + minutes + ' min', empty: '还没有专注记录，完成一个番茄钟后这里会亮起来。',
+      insightWeek: ({ thisWeek, lastWeek }) => `本周专注 ${thisWeek} 分钟，上周 ${lastWeek} 分钟`,
+      insightBestHours: ({ from, to, minutes }) => `黄金时段 ${from}:00–${to}:00（近30天 ${minutes} 分钟）`,
+      shareCard: '📸 生成本周分享卡片',
     },
     categories: {
       noteCount: ({ count }) => count + ' 篇笔记',
@@ -295,6 +313,11 @@ const I18N = {
       flash: '⚡ Quick Capture',
       focusChart: '🍅 Focus Trend',
       alarms: '⏰ Alarms',
+      habits: '🔥 Habits',
+      agenda: '🕐 Today Timeline',
+      weeklyReview: '🗓 Weekly Review',
+      projects: '🎯 Project Progress',
+      resurface: '🕰 Resurface Old Notes',
       scheduledTasks: '⏱ Scheduled Tasks',
       heatmap: '📈 Edit Heatmap (30d)'
     },
@@ -330,6 +353,7 @@ const I18N = {
       hermes: 'Hermes',
       cockpit: 'Dashboard',
       workLog: 'Work Log',
+      todayNote: 'Today note',
       pomodoro: 'Pomodoro'
     },
     search: {
@@ -342,6 +366,7 @@ const I18N = {
       commandPalette: 'Command palette',
       openGraph: 'Open graph view',
       startPomodoro: 'Start Pomodoro',
+      exportBackup: 'Export data backup',
       releaseNotes: 'Recent updates'
     },
     layout: {
@@ -364,6 +389,11 @@ const I18N = {
         alarms: 'Alarms',
         calendar: 'Calendar',
         focusChart: 'Focus Trend',
+        habits: 'Habits',
+        agenda: 'Today Timeline',
+        weeklyReview: 'Weekly Review',
+        projects: 'Project Progress',
+        resurface: 'Resurface Notes',
         footer: 'Footer'
       }
     },
