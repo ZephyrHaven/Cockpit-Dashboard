@@ -24,6 +24,7 @@ function buildSearch(root, toolbar, allFiles, app, texts) {
     else { searchInput.value=''; searchResults.empty(); }
   };
   // 重写搜索按钮行为
-  toolbar.querySelector('button:nth-child(2)').onclick = toggleSearch;
+  const searchBtn = toolbar.querySelector('.' + PLUGIN_ID + '-toolbtn[data-action="search"]');
+  if (searchBtn) searchBtn.onclick = toggleSearch;
   return toggleSearch;
 }

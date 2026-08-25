@@ -8,8 +8,16 @@ function buildCalendar(root, todos, opts) {
   let selDay   = window.moment().date();
   let calRoot  = null;
   let gridEl   = null;
+  let subtitleEl = null;
   const DOW_LABELS = ['一','二','三','四','五','六','日'];
   const now = window.moment();
+  const getSelectedDate = () => window.moment([calYear, calMonth, selDay]);
+  const updateCalendarSubtitle = () => {
+    if (!subtitleEl) return;
+    const selDate = getSelectedDate();
+    const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][selDate.day()];
+    subtitleEl.setText(selDate.format('M月D日') + ' ' + weekDay);
+  };
 
   function buildTodoMap() {
     const m = {};
@@ -38,7 +46,7 @@ function buildCalendar(root, todos, opts) {
     if (!calRoot || !calRoot.parentNode) return;
     const old = calRoot.parentNode.querySelector('.' + PLUGIN_ID + '-cal-detail');
     if (old) old.remove();
-    const selDate  = window.moment([calYear, calMonth, selDay]);
+    const selDate  = getSelectedDate();
     const selKey   = selDate.format('YYYY-MM-DD');
     const items    = tm[selKey] || [];
     const det      = document.createElement('div');
@@ -71,7 +79,10 @@ function buildCalendar(root, todos, opts) {
     const todoMap = buildTodoMap();
     ensureRoot();
     const header = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-header' });
-    header.createDiv({ cls: PLUGIN_ID + '-cal-title', text: calYear + '年' + (calMonth + 1) + '月' });
+    const titleWrap = header.createDiv({ cls: PLUGIN_ID + '-cal-title-wrap' });
+    titleWrap.createDiv({ cls: PLUGIN_ID + '-cal-title', text: calYear + '年' + (calMonth + 1) + '月' });
+    subtitleEl = titleWrap.createDiv({ cls: PLUGIN_ID + '-cal-subtitle', text: '' });
+    updateCalendarSubtitle();
     const nav = header.createDiv({ cls: PLUGIN_ID + '-cal-nav' });
     const prevBtn  = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '‹' });
     const todayBtn = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '●', attr:{ title:'回到今天' } });
@@ -124,6 +135,7 @@ function buildCalendar(root, todos, opts) {
 
   function renderDayDetailOnly(tm) {
     if (gridEl) { const allCells = gridEl.querySelectorAll('.' + PLUGIN_ID + '-cal-cell'); let cur = 0; allCells.forEach(c => { if (c.classList.contains('dim')) return; cur++; c.classList.toggle('selected', cur === selDay); }); }
+    updateCalendarSubtitle();
     renderDetail(tm);
   }
 

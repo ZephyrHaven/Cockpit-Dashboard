@@ -2,7 +2,7 @@
 var obsidian = require('obsidian');
 
 // ===== styles.css =====
-const CSS = "/* styles.css — Cockpit Dashboard v2 */\n/* Note: ${PLUGIN_ID} has been replaced with cockpit-dashboard */\n\n:root {\n  --cockpit-accent: #48b4ff;\n  --cockpit-accent-light: rgba(72,180,255,0.12);\n  --cockpit-accent-glow: rgba(72,180,255,0.25);\n}\n\n.cockpit-dashboard-root { \n  padding: 16px 24px; \n  max-width: 960px; \n  margin: 0 auto; \n  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;\n  position: relative;\n  --accent: var(--cockpit-accent);\n  --accent-light: var(--cockpit-accent-light);\n}\n.cockpit-dashboard-root ::selection {\n  background: rgba(72,180,255,0.18);\n  color: var(--text-normal);\n}\n.cockpit-dashboard-hero { \n  text-align: center; \n  padding: 20px 20px 14px; \n  background: linear-gradient(135deg, rgba(72,180,255,0.06), rgba(167,139,250,0.03));\n  border-radius: 16px;\n  margin: 8px 0 12px;\n  border: 1px solid rgba(72,180,255,0.08);\n  position: relative;\n}\n.cockpit-dashboard-hero-controls {\n  position: absolute;\n  top: 14px;\n  right: 14px;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  justify-content: flex-end;\n  z-index: 3;\n}\n.cockpit-dashboard-layout-done {\n  width: 36px;\n  height: 36px;\n  display: none;\n  align-items: center;\n  justify-content: center;\n  position: fixed;\n  top: 22px;\n  right: 22px;\n  border: 1px solid rgba(72,180,255,0.2);\n  border-radius: 999px;\n  background: linear-gradient(135deg, #48b4ff, #7c9cff);\n  color: white;\n  font-size: 1em;\n  font-weight: 800;\n  cursor: pointer;\n  box-shadow: 0 10px 24px rgba(72,180,255,0.24);\n  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;\n  z-index: 120;\n}\n.cockpit-dashboard-layout-done:hover {\n  transform: translateY(-1px) scale(1.03);\n  box-shadow: 0 14px 28px rgba(72,180,255,0.28);\n  filter: saturate(1.06);\n}\n.cockpit-dashboard-lang-switch {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  padding: 4px;\n  border-radius: 999px;\n  border: 1px solid rgba(72,180,255,0.12);\n  backdrop-filter: blur(14px) saturate(1.1);\n  user-select: none;\n  -webkit-user-select: none;\n  touch-action: manipulation;\n  pointer-events: auto;\n}\n.theme-dark .cockpit-dashboard-lang-switch {\n  background: linear-gradient(180deg, rgba(37, 45, 58, 0.96), rgba(29, 36, 48, 0.94));\n  border-color: rgba(72,180,255,0.2);\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 20px rgba(0,0,0,0.2);\n}\n.theme-light .cockpit-dashboard-lang-switch {\n  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,246,252,0.96));\n  border-color: rgba(72,180,255,0.18);\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 18px rgba(72,180,255,0.08);\n}\n.cockpit-dashboard-lang-btn {\n  border: none;\n  background: transparent;\n  color: var(--text-normal);\n  font-size: 0.7em;\n  font-weight: 700;\n  letter-spacing: 0.03em;\n  padding: 5px 10px;\n  border-radius: 999px;\n  cursor: pointer;\n  position: relative;\n  overflow: hidden;\n  user-select: none;\n  -webkit-user-select: none;\n  transition: transform 0.18s ease, filter 0.18s ease, color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;\n}\n.theme-dark .cockpit-dashboard-lang-btn {\n  color: rgba(226,232,240,0.72);\n}\n.theme-light .cockpit-dashboard-lang-btn {\n  color: rgba(15,23,42,0.62);\n}\n.cockpit-dashboard-lang-btn:hover {\n  color: var(--text-normal);\n  background: rgba(72,180,255,0.1);\n  filter: saturate(1.08) brightness(1.02);\n  transform: translateY(-1px);\n}\n.cockpit-dashboard-lang-btn.active {\n  color: white;\n  background: linear-gradient(135deg, #48b4ff, #6bc8ff);\n  box-shadow: 0 6px 16px rgba(72,180,255,0.22);\n}\n.theme-light .cockpit-dashboard-lang-btn.active {\n  box-shadow: 0 6px 16px rgba(72,180,255,0.18);\n}\n.cockpit-dashboard-lang-btn::after {\n  content: '';\n  position: absolute;\n  inset: 0;\n  background: radial-gradient(circle at center, rgba(255,255,255,0.42), rgba(255,255,255,0));\n  opacity: 0;\n  transform: scale(0.6);\n  transition: opacity 0.18s ease, transform 0.22s ease;\n}\n.cockpit-dashboard-lang-btn:hover::after {\n  opacity: 0.5;\n  transform: scale(1);\n}\n.cockpit-dashboard-lang-btn.pressing {\n  transform: scale(0.96);\n  filter: saturate(1.12) brightness(0.98);\n}\n.cockpit-dashboard-lang-btn.pressing::after {\n  opacity: 0.68;\n  transform: scale(1.08);\n}\n.cockpit-dashboard-greeting { \n  font-size: 1.5em; \n  font-weight: 800; \n  background: linear-gradient(135deg, #48b4ff, #60c0ff, #a78bfa);\n  -webkit-background-clip: text;\n  -webkit-text-fill-color: transparent;\n  background-clip: text;\n  padding: 0 88px;\n}\n.cockpit-dashboard-sub { \n  color: var(--text-muted); \n  font-size: 0.78em; \n  margin-top: 4px;\n  letter-spacing: 0.02em;\n}\n.cockpit-dashboard-toolbar { \n  display: flex; \n  gap: 10px; \n  justify-content: center; \n  flex-wrap: wrap; \n  margin: 16px 0;\n}\n.cockpit-dashboard-toolbtn { \n  display: flex; \n  align-items: center; \n  gap: 6px; \n  padding: 8px 16px; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 12px; \n  color: var(--text-normal); \n  font-size: 0.82em; \n  font-weight: 600; \n  cursor: pointer; \n  position: relative;\n  overflow: hidden;\n  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s ease;\n}\n.cockpit-dashboard-toolbtn:hover { \n  border-color: var(--interactive-accent); \n  box-shadow: 0 4px 16px rgba(72,180,255,0.15); \n  transform: translateY(-2px);\n  filter: saturate(1.06) brightness(1.01);\n}\n.cockpit-dashboard-toolbtn.primary { \n  background: var(--interactive-accent); \n  border-color: var(--interactive-accent); \n  color: white;\n  box-shadow: 0 2px 8px rgba(72,180,255,0.2);\n}\n.cockpit-dashboard-toolbtn.primary:hover {\n  box-shadow: 0 6px 20px rgba(72,180,255,0.3);\n  transform: translateY(-3px);\n}\n.cockpit-dashboard-toolbtn:active,\n.cockpit-dashboard-status-btn:active,\n.cockpit-dashboard-todo-tab:active,\n.cockpit-dashboard-cal-nav-btn:active,\n.cockpit-dashboard-todo-add:active,\n.cockpit-dashboard-todo-btn:active,\n.cockpit-dashboard-bookmark-btn:active,\n.cockpit-dashboard-cat:active,\n.cockpit-dashboard-stat:active,\n.cockpit-dashboard-recent-item:active {\n  transform: scale(0.98);\n  filter: saturate(1.08) brightness(0.98);\n}\n.cockpit-dashboard-icon { font-size: 1.1em; }\n.cockpit-dashboard-module {\n  position: relative;\n}\n.cockpit-dashboard-module-tools {\n  position: absolute;\n  top: -10px;\n  right: 10px;\n  display: none;\n  align-items: center;\n  gap: 6px;\n  z-index: 12;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module {\n  margin: 12px 0;\n  padding: 10px 12px 12px;\n  border-radius: 18px;\n  border: 1px dashed rgba(72,180,255,0.22);\n  background: linear-gradient(180deg, rgba(72,180,255,0.045), rgba(72,180,255,0.015));\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module-tools {\n  display: inline-flex;\n}\n.cockpit-dashboard-module-badge {\n  display: inline-flex;\n  align-items: center;\n  padding: 4px 10px;\n  border-radius: 999px;\n  background: rgba(15, 23, 42, 0.86);\n  color: white;\n  font-size: 0.66em;\n  font-weight: 700;\n  letter-spacing: 0.04em;\n  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.22);\n}\n.cockpit-dashboard-module-visibility {\n  border: 1px solid rgba(72,180,255,0.16);\n  background: rgba(15, 23, 42, 0.82);\n  color: rgba(255,255,255,0.88);\n  font-size: 0.66em;\n  font-weight: 700;\n  letter-spacing: 0.03em;\n  padding: 5px 9px;\n  border-radius: 999px;\n  cursor: pointer;\n  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;\n}\n.cockpit-dashboard-module-visibility:hover {\n  transform: translateY(-1px);\n  border-color: rgba(72,180,255,0.32);\n  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.18);\n}\n.cockpit-dashboard-module-visibility.is-hidden {\n  background: linear-gradient(135deg, rgba(239,68,68,0.82), rgba(245,158,11,0.82));\n  border-color: rgba(255,255,255,0.14);\n  color: white;\n}\n.cockpit-dashboard-module-handle {\n  width: 28px;\n  height: 28px;\n  border: none;\n  border-radius: 999px;\n  background: linear-gradient(135deg, #48b4ff, #7c9cff);\n  color: white;\n  font-size: 0.96em;\n  font-weight: 800;\n  cursor: grab;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  box-shadow: 0 8px 18px rgba(72,180,255,0.2);\n}\n.cockpit-dashboard-module-handle:active {\n  cursor: grabbing;\n}\n.cockpit-dashboard-root:not(.cockpit-dashboard-layout-editing) .cockpit-dashboard-module-handle,\n.cockpit-dashboard-root:not(.cockpit-dashboard-layout-editing) .cockpit-dashboard-module-badge,\n.cockpit-dashboard-root:not(.cockpit-dashboard-layout-editing) .cockpit-dashboard-module-visibility {\n  display: none;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.dragging {\n  opacity: 0.52;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.is-hidden {\n  opacity: 0.88;\n  border-color: rgba(245,158,11,0.3);\n  background: linear-gradient(180deg, rgba(245,158,11,0.08), rgba(72,180,255,0.015));\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-before::before,\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-after::after {\n  content: '';\n  position: absolute;\n  left: 16px;\n  right: 16px;\n  height: 3px;\n  border-radius: 999px;\n  background: linear-gradient(90deg, #48b4ff, #7c9cff);\n  box-shadow: 0 0 12px rgba(72,180,255,0.3);\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-before::before {\n  top: -2px;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-after::after {\n  bottom: -2px;\n}\n.cockpit-dashboard-section-title { \n  position: relative;\n  font-size: 0.92em; \n  font-weight: 700; \n  color: var(--text-normal); \n  margin: 22px 0 12px; \n  padding: 0 0 10px 2px;\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n.cockpit-dashboard-section-title::before {\n  content: '';\n  position: absolute;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  height: 1px;\n  background: linear-gradient(90deg, rgba(72,180,255,0.16), rgba(72,180,255,0.08) 34%, rgba(72,180,255,0) 74%);\n}\n.cockpit-dashboard-section-title::after {\n  content: '';\n  position: absolute;\n  left: 2px;\n  bottom: -1px;\n  width: 44px;\n  height: 3px;\n  border-radius: 999px;\n  background: linear-gradient(90deg, rgba(72,180,255,0.9), rgba(167,139,250,0.55));\n  box-shadow: 0 0 12px rgba(72,180,255,0.16);\n}\n.cockpit-dashboard-cats { \n  display: grid; \n  grid-template-columns: repeat(4, 1fr); \n  gap: 12px;\n}\n.cockpit-dashboard-cat { \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 14px; \n  padding: 14px; \n  cursor: pointer; \n  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); \n  border-left: 4px solid var(--cat-clr, var(--interactive-accent));\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-cat::before {\n  content: '';\n  position: absolute;\n  top: 0;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  background: linear-gradient(135deg, var(--cat-clr), transparent);\n  opacity: 0.04;\n  transition: opacity 0.25s;\n}\n.cockpit-dashboard-cat:hover { \n  border-color: var(--cat-clr, var(--interactive-accent)); \n  box-shadow: 0 6px 24px rgba(72,180,255,0.12); \n  transform: translateY(-3px);\n}\n.cockpit-dashboard-cat:hover::before { opacity: 0.08; }\n.cockpit-dashboard-cat-icon { font-size: 1.5em; margin-bottom: 6px; }\n.cockpit-dashboard-cat-name { font-weight: 600; font-size: 0.86em; }\n.cockpit-dashboard-cat-count { font-size: 0.72em; color: var(--text-muted); margin-top: 2px; }\n.cockpit-dashboard-todo-header { display:flex; align-items:center; gap:6px; margin:16px 0 8px; padding-bottom:6px; border-bottom:1px solid var(--background-modifier-border); }\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title { margin:0; padding:0; border:none; flex:1; }\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title::before,\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title::after { display:none; }\n.cockpit-dashboard-todo-add { \n  width: 26px; \n  height: 26px; \n  display: flex; \n  align-items: center; \n  justify-content: center; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 8px; \n  color: var(--text-muted); \n  font-size: 1.15em; \n  font-weight: 700; \n  cursor: pointer; \n  transition: all 0.2s; \n  line-height: 1;\n}\n.cockpit-dashboard-todo-add:hover { \n  border-color: var(--interactive-accent); \n  color: var(--interactive-accent); \n  box-shadow: 0 0 12px rgba(72,180,255,0.2);\n  transform: scale(1.1);\n}\n.cockpit-dashboard-todos { \n  display: flex; \n  flex-direction: column; \n  gap: 6px; \n  margin-bottom: 16px;\n}\n.cockpit-dashboard-todo { \n  display: flex; \n  align-items: center; \n  gap: 10px; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 12px; \n  padding: 10px 12px; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);\n}\n.cockpit-dashboard-todo:hover { \n  border-color: var(--interactive-accent);\n  box-shadow: 0 2px 12px rgba(72,180,255,0.08);\n  transform: translateX(2px);\n}\n.cockpit-dashboard-todo-chk { \n  width: 22px; \n  height: 22px; \n  border: 2px solid var(--background-modifier-border); \n  border-radius: 7px; \n  flex-shrink: 0; \n  display: flex; \n  align-items: center; \n  justify-content: center; \n  font-size: 0.75em; \n  color: white; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); \n  cursor: pointer;\n}\n.cockpit-dashboard-todo-chk:hover { \n  border-color: var(--interactive-accent); \n  box-shadow: 0 0 6px rgba(72,180,255,0.2);\n}\n.cockpit-dashboard-todo.done .cockpit-dashboard-todo-chk { background:#22c55e; border-color:#22c55e; }\n.cockpit-dashboard-todo-main { flex:1; min-width:0; }\n.cockpit-dashboard-todo-text { font-size:0.84em; cursor:pointer; }\n.cockpit-dashboard-todo.done .cockpit-dashboard-todo-text { text-decoration:line-through; color:var(--text-muted); }\n.cockpit-dashboard-todo-meta { font-size:0.68em; color:var(--text-muted); margin-top:2px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }\n.cockpit-dashboard-todo-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }\n.cockpit-dashboard-todo-btn { width:22px; height:22px; border-radius:5px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.8em; color:var(--text-muted); transition:all 0.15s; border:1px solid transparent; }\n.cockpit-dashboard-todo-btn:hover { border-color:var(--interactive-accent); color:var(--interactive-accent); }\n.cockpit-dashboard-todo-btn.del:hover { border-color:#ef4444; color:#ef4444; }\n.cockpit-dashboard-todo-tag { font-size:0.64em; padding:1px 7px; border-radius:8px; flex-shrink:0; }\n.tag-todo { background:rgba(72,180,255,0.15); color:#48b4ff; }\n.tag-done { background:rgba(34,197,94,0.12); color:#4ade80; }\n.cockpit-dashboard-todo-input-row { display:flex; align-items:center; gap:6px; background:var(--background-secondary); border:1px solid var(--background-modifier-border); border-radius:9px; padding:6px 8px; margin-bottom:4px; animation:dashFadeIn 0.15s ease; }\n@keyframes dashFadeIn { \n  from {opacity:0;transform:translateY(-6px)} \n  to {opacity:1;transform:translateY(0)} \n}\n@keyframes dashSlideUp {\n  from {opacity:0;transform:translateY(8px)}\n  to {opacity:1;transform:translateY(0)}\n}\n.cockpit-dashboard-todo-input-field { flex:1; border:none; outline:none; background:transparent; color:var(--text-normal); font-size:0.84em; padding:2px 4px; }\n.cockpit-dashboard-todo-input-field::placeholder { color:var(--text-muted); opacity:0.7; }\n.cockpit-dashboard-todo-input-ok, .cockpit-dashboard-todo-input-cancel { width:24px; height:24px; border-radius:5px; border:1px solid var(--background-modifier-border); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.75em; color:var(--text-muted); background:var(--background-secondary); transition:all 0.15s; flex-shrink:0; }\n.cockpit-dashboard-todo-input-ok:hover { border-color:#22c55e; color:#22c55e; }\n.cockpit-dashboard-todo-input-cancel:hover { border-color:#ef4444; color:#ef4444; }\n.cockpit-dashboard-stats { \n  display: grid; \n  grid-template-columns: repeat(5, 1fr); \n  gap: 12px;\n}\n.cockpit-dashboard-stat { \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 14px; \n  padding: 12px 14px; \n  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-stat::after {\n  content: '';\n  position: absolute;\n  top: 0;\n  right: 0;\n  width: 60px;\n  height: 60px;\n  background: radial-gradient(circle at top right, var(--stat-clr, var(--interactive-accent)), transparent 70%);\n  opacity: 0.08;\n  transition: opacity 0.25s;\n}\n.cockpit-dashboard-stat:hover {\n  box-shadow: 0 4px 20px rgba(72,180,255,0.1);\n  transform: translateY(-2px);\n}\n.cockpit-dashboard-stat:hover::after { opacity: 0.15; }\n.cockpit-dashboard-stat-label { font-size:0.64em; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:3px; }\n.cockpit-dashboard-stat-val { font-size:1.3em; font-weight:700; color:var(--stat-clr,var(--interactive-accent)); }\n.cockpit-dashboard-stat-bar { height:3px; background:var(--background-modifier-border); border-radius:2px; margin-top:5px; overflow:hidden; }\n.cockpit-dashboard-stat-fill { height:100%; border-radius:2px; background:var(--stat-clr,var(--interactive-accent)); transition:width 0.5s ease; }\n.cockpit-dashboard-recent { display:flex; flex-direction:column; gap:3px; }\n.cockpit-dashboard-recent-item { display:flex; align-items:center; justify-content:space-between; background:var(--background-secondary); border-radius:7px; padding:6px 10px; }\n.cockpit-dashboard-recent-link { color:var(--text-accent); text-decoration:none; font-size:0.84em; cursor:pointer; }\n.cockpit-dashboard-recent-link:hover { color:var(--text-accent-hover); }\n.cockpit-dashboard-recent-time { font-size:0.7em; color:var(--text-muted); flex-shrink:0; }\n.cockpit-dashboard-footer { \n  text-align: center; \n  color: var(--text-muted); \n  font-size: 0.68em; \n  padding: 16px 0 8px;\n  border-top: 1px solid var(--background-modifier-border);\n  margin-top: 16px;\n}\n/* 待办页签 */\n.cockpit-dashboard-todo-tabs-wrap { margin:4px 0 8px; }\n.cockpit-dashboard-todo-tabs { display:flex; gap:4px; flex-wrap:wrap; }\n.cockpit-dashboard-todo-tab { padding:4px 12px; border-radius:14px; border:1px solid var(--background-modifier-border); background:var(--background-secondary); color:var(--text-muted); font-size:0.76em; font-weight:500; cursor:pointer; transition:all 0.15s; }\n.cockpit-dashboard-todo-tab:hover { border-color:var(--interactive-accent); color:var(--interactive-accent); }\n.cockpit-dashboard-todo-tab.active { background:var(--interactive-accent); border-color:var(--interactive-accent); color:white; }\n/* 标签胶囊 */\n.cockpit-dashboard-todo-tag-pill { \n  display: inline-block; \n  font-size: 0.62em; \n  padding: 1px 6px; \n  margin: 0 3px; \n  border-radius: 7px; \n  background: rgba(72,180,255,0.13); \n  color: #48b4ff; \n  cursor: pointer; \n  font-weight: 500; \n  transition: all 0.12s;\n}\n.cockpit-dashboard-todo-tag-pill:hover { \n  background: rgba(72,180,255,0.28); \n  color: #1a5a1a;\n}\n/* 优先级圆点 */\n.cockpit-dashboard-todo-pdot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }\n.p-high { background:#ef4444; box-shadow:0 0 4px rgba(239,68,68,0.5); }\n.p-mid { background:#f59e0b; }\n.p-low { background:#22c55e; }\n/* 截止日期 */\n.cockpit-dashboard-todo-due { font-size:0.64em; margin-left:4px; padding:1px 5px; border-radius:4px; }\n.due-overdue { background:rgba(239,68,68,0.15); color:#ef4444; }\n.due-today { background:rgba(245,158,11,0.15); color:#f59e0b; }\n.due-future { color:var(--text-muted); }\n/* 优先级选择 */\n.cockpit-dashboard-prio-picker { display:flex; gap:3px; margin-left:6px; }\n.cockpit-dashboard-prio-opt { width:18px; height:18px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:all 0.12s; }\n.cockpit-dashboard-prio-opt:hover { transform:scale(1.2); }\n.cockpit-dashboard-prio-opt.sel { border-color:var(--text-normal); }\n/* 热力图 */\n.cockpit-dashboard-heatmap-wrap { padding:8px 0 4px; }\n.cockpit-dashboard-heatmap { display:grid; grid-template-columns:repeat(10,1fr); gap:4px; }\n.cockpit-dashboard-hm-cell { \n  width: 100%; \n  padding-bottom: 100%; \n  border-radius: 6px; \n  background: var(--background-modifier-border); \n  cursor: default; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); \n  position: relative;\n}\n.cockpit-dashboard-hm-cell:hover { \n  transform: scale(1.25); \n  box-shadow: 0 0 8px rgba(72,180,255,0.4); \n  z-index: 2;\n}\n.cockpit-dashboard-hm-cell[title]:hover::after { content:attr(title); position:absolute; bottom:120%; left:50%; transform:translateX(-50%); background:var(--background-secondary); color:var(--text-normal); font-size:0.6em; padding:3px 7px; border-radius:5px; white-space:nowrap; z-index:10; border:1px solid var(--background-modifier-border); box-shadow:0 2px 8px rgba(0,0,0,0.12); }\n.cockpit-dashboard-hm-legend { display:flex; align-items:center; gap:4px; margin-top:6px; justify-content:flex-end; }\n.cockpit-dashboard-hm-legend-label { font-size:0.6em; color:var(--text-muted); }\n.cockpit-dashboard-hm-legend-cell { width:12px; height:12px; border-radius:3px; }\n/* 迷你搜索 */\n.cockpit-dashboard-search-row { display:flex; gap:6px; margin:8px 0; }\n.cockpit-dashboard-search-input { flex:1; padding:6px 10px; border:1px solid var(--background-modifier-border); border-radius:7px; background:var(--background-secondary); color:var(--text-normal); font-size:0.82em; outline:none; }\n.cockpit-dashboard-search-input:focus { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px rgba(72,180,255,0.1); }\n.cockpit-dashboard-search-results { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; }\n.cockpit-dashboard-search-item { display:flex; align-items:center; justify-content:space-between; padding:5px 8px; border-radius:6px; cursor:pointer; transition:background 0.12s; }\n.cockpit-dashboard-search-item:hover { \n  background: var(--background-secondary);\n  transform: translateX(2px);\n  filter: saturate(1.03);\n}\n.cockpit-dashboard-search-name { font-size:0.8em; color:var(--text-accent); }\n.cockpit-dashboard-search-path { font-size:0.64em; color:var(--text-muted); }\n/* 收藏 */\n.cockpit-dashboard-bookmark-btn { cursor:pointer; font-size:0.85em; color:var(--text-muted); transition:all 0.12s; padding:2px 4px; border-radius:4px; }\n.cockpit-dashboard-bookmark-btn:hover { \n  color: #f59e0b; \n  background: rgba(245,158,11,0.1);\n  transform: scale(1.1);\n  filter: saturate(1.08);\n}\n.cockpit-dashboard-bookmark-btn.starred { color:#f59e0b; }\n/* 闪念胶囊 */\n.cockpit-dashboard-flash-row { display:flex; gap:6px; margin:4px 0 8px; }\n.cockpit-dashboard-flash-input { flex:1; padding:6px 10px; border:1px solid var(--background-modifier-border); border-radius:7px; background:var(--background-secondary); color:var(--text-normal); font-size:0.82em; outline:none; }\n.cockpit-dashboard-flash-input:focus { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px rgba(72,180,255,0.1); }\n.cockpit-dashboard-flash-ok { font-size:0.72em; color:#22c55e; padding:4px 8px; border-radius:5px; }\n/* 每日小贴士 */\n.cockpit-dashboard-tip { \n  background: linear-gradient(135deg, rgba(72,180,255,0.08), rgba(72,180,255,0.03)); \n  border: 1px solid rgba(72,180,255,0.15); \n  border-radius: 12px; \n  padding: 12px 16px; \n  margin: 12px 0;\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-tip::before {\n  content: '';\n  position: absolute;\n  top: 0;\n  left: 0;\n  width: 4px;\n  height: 100%;\n  background: linear-gradient(180deg, #48b4ff, #a78bfa);\n  border-radius: 4px 0 0 4px;\n}\n.cockpit-dashboard-tip-label { font-size:0.64em; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:4px; }\n.cockpit-dashboard-tip-text { font-size:0.82em; color:var(--text-normal); line-height:1.5; }\n/* 状态筛选 */\n.cockpit-dashboard-status-tabs { display:flex; gap:4px; margin:0; align-items:center; }\n.cockpit-dashboard-status-btn { padding:3px 10px; border-radius:12px; border:1px solid var(--background-modifier-border); background:var(--background-secondary); color:var(--text-muted); font-size:0.72em; font-weight:500; cursor:pointer; transition:all 0.15s; }\n.cockpit-dashboard-status-btn:hover { \n  border-color: var(--interactive-accent); \n  color: var(--interactive-accent); \n  box-shadow: 0 2px 6px rgba(72,180,255,0.1);\n  filter: saturate(1.05);\n}\n.cockpit-dashboard-status-btn.active { background:var(--interactive-accent); border-color:var(--interactive-accent); color:white; }\n/* 日历看板 */\n.cockpit-dashboard-cal-wrap { margin:10px 0 14px; }\n.cockpit-dashboard-cal-surface {\n  background:\n    radial-gradient(circle at top left, rgba(72,180,255,0.09), transparent 30%),\n    linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.005));\n  border: 1px solid rgba(72,180,255,0.08);\n  border-radius: 18px;\n  padding: 12px 12px 10px;\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 24px rgba(0,0,0,0.1);\n}\n.cockpit-dashboard-cal-header {\n  display:flex;\n  align-items:center;\n  justify-content:space-between;\n  gap: 14px;\n  margin-bottom:6px;\n}\n.cockpit-dashboard-cal-title-wrap {\n  display:flex;\n  flex-direction:column;\n  gap: 2px;\n}\n.cockpit-dashboard-cal-title { font-size:0.94em; font-weight:800; color:var(--text-normal); letter-spacing:0.01em; }\n.cockpit-dashboard-cal-subtitle { font-size:0.66em; color:var(--text-muted); letter-spacing:0.02em; }\n.cockpit-dashboard-cal-nav { display:flex; gap:6px; }\n.cockpit-dashboard-cal-nav-btn {\n  width:28px;\n  height:28px;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  border:1px solid rgba(255,255,255,0.06);\n  border-radius:10px;\n  background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));\n  color:var(--text-muted);\n  cursor:pointer;\n  font-size:0.84em;\n  transition:transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease, border-color 0.2s ease, color 0.2s ease, background 0.2s ease;\n}\n.cockpit-dashboard-cal-nav-btn:hover { \n  border-color: rgba(72,180,255,0.28); \n  color: #7fd2ff; \n  transform: translateY(-1px) scale(1.04);\n  box-shadow: 0 8px 18px rgba(72,180,255,0.12);\n  background: linear-gradient(180deg, rgba(72,180,255,0.08), rgba(72,180,255,0.03));\n}\n.cockpit-dashboard-cal-stage {\n  overflow: hidden;\n  border-radius: 14px;\n}\n.cockpit-dashboard-cal-grid {\n  display:grid;\n  grid-template-columns:repeat(7, minmax(0, 1fr));\n  gap:4px;\n  transition:transform 0.34s cubic-bezier(0.22,1,0.36,1), opacity 0.34s ease, filter 0.34s ease;\n}\n.cockpit-dashboard-cal-grid.slide-out-left { transform:translateX(-18px) scale(0.985); opacity:0; filter:blur(4px); }\n.cockpit-dashboard-cal-grid.slide-out-right { transform:translateX(18px) scale(0.985); opacity:0; filter:blur(4px); }\n.cockpit-dashboard-cal-grid.slide-in { animation:calSlideIn 0.34s cubic-bezier(0.22,1,0.36,1) forwards; }\n@keyframes calSlideIn {\n  from { opacity:0; transform:translateX(18px) scale(0.985); filter:blur(4px); }\n  to { opacity:1; transform:translateX(0) scale(1); filter:blur(0); }\n}\n.cockpit-dashboard-cal-dow {\n  text-align:center;\n  font-size:0.62em;\n  font-weight:700;\n  color:var(--text-faint, var(--text-muted));\n  padding:4px 0 5px;\n  text-transform:uppercase;\n  letter-spacing:0.08em;\n}\n.cockpit-dashboard-cal-cell { \n  display:flex;\n  flex-direction:column;\n  align-items:stretch;\n  justify-content:flex-start;\n  border-radius:12px; \n  cursor:pointer; \n  transition:transform 0.22s cubic-bezier(0.22,1,0.36,1), box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease, opacity 0.22s ease; \n  color: var(--text-muted); \n  border: 1px solid transparent; \n  min-height: 44px; \n  padding: 6px 6px 5px; \n  position: relative;\n  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));\n}\n.cockpit-dashboard-cal-cell:hover { \n  background: linear-gradient(180deg, rgba(72,180,255,0.09), rgba(72,180,255,0.03)); \n  border-color: rgba(72,180,255,0.22); \n  transform: translateY(-2px); \n  box-shadow: 0 10px 24px rgba(72,180,255,0.1);\n}\n.cockpit-dashboard-cal-cell.today { \n  color: #7ed0ff; \n  background: linear-gradient(180deg, rgba(72,180,255,0.1), rgba(72,180,255,0.03));\n}\n.cockpit-dashboard-cal-cell.selected { \n  border-color: rgba(72,180,255,0.34); \n  background: linear-gradient(180deg, rgba(72,180,255,0.16), rgba(72,180,255,0.05)); \n  box-shadow: 0 12px 28px rgba(72,180,255,0.12);\n}\n.cockpit-dashboard-cal-cell.dim {\n  opacity:0.28;\n  pointer-events:none;\n  background: transparent;\n}\n.cockpit-dashboard-cal-cell-inner {\n  display:flex;\n  align-items:flex-start;\n  justify-content:space-between;\n  min-height: 16px;\n}\n.cockpit-dashboard-cal-num {\n  font-size:0.84em;\n  font-weight:700;\n  color:inherit;\n}\n.cockpit-dashboard-cal-today-mark {\n  width:6px;\n  height:6px;\n  border-radius:999px;\n  background:linear-gradient(135deg, #48b4ff, #a78bfa);\n  box-shadow:0 0 10px rgba(72,180,255,0.35);\n  margin-top:2px;\n}\n.cockpit-dashboard-cal-badge {\n  position:absolute;\n  top:6px;\n  right:6px;\n  min-width:16px;\n  height:16px;\n  padding:0 4px;\n  border-radius:999px;\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  background:rgba(72,180,255,0.16);\n  color:#8ed7ff;\n  font-size:0.56em;\n  font-weight:800;\n  letter-spacing:0.03em;\n}\n.cockpit-dashboard-cal-dots {\n  display:flex;\n  gap:3px;\n  margin-top:auto;\n  padding-top:5px;\n}\n.cockpit-dashboard-cal-dot {\n  width:5px;\n  height:5px;\n  border-radius:50%;\n  flex-shrink:0;\n  box-shadow:0 0 8px rgba(0,0,0,0.18);\n}\n.cockpit-dashboard-cal-detail { \n  background:\n    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)),\n    rgba(0,0,0,0.06);\n  border: 1px solid rgba(255,255,255,0.06); \n  border-radius: 14px; \n  padding: 10px 12px; \n  margin-top: 8px; \n  animation: calDetailIn 0.22s cubic-bezier(0.22,1,0.36,1);\n  box-shadow: 0 8px 18px rgba(0,0,0,0.08);\n}\n@keyframes calDetailIn { from{opacity:0;transform:translateY(8px) scale(0.992)} to{opacity:1;transform:translateY(0) scale(1)} }\n.cockpit-dashboard-cal-detail-head {\n  display:flex;\n  align-items:center;\n  justify-content:space-between;\n  gap:10px;\n  margin-bottom:6px;\n}\n.cockpit-dashboard-cal-detail-title { font-size:0.82em; font-weight:800; color:var(--text-normal); }\n.cockpit-dashboard-cal-detail-count {\n  min-width:20px;\n  height:20px;\n  padding:0 6px;\n  border-radius:999px;\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  font-size:0.62em;\n  font-weight:800;\n  background:rgba(72,180,255,0.12);\n  color:#8ed7ff;\n}\n.cockpit-dashboard-cal-detail-item {\n  display:flex;\n  align-items:center;\n  gap:8px;\n  padding:6px 8px;\n  font-size:0.74em;\n  transition:background 0.15s ease, transform 0.15s ease;\n  border-radius:8px;\n  cursor:pointer;\n}\n.cockpit-dashboard-cal-detail-item:hover { background:rgba(72,180,255,0.08); transform:translateX(2px); }\n.cockpit-dashboard-cal-detail-empty {\n  min-height:42px;\n  display:flex;\n  flex-direction:row;\n  align-items:center;\n  justify-content:center;\n  gap:6px;\n  color:var(--text-muted);\n  text-align:center;\n}\n.cockpit-dashboard-cal-detail-empty-icon {\n  width:20px;\n  height:20px;\n  border-radius:999px;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  background:rgba(72,180,255,0.08);\n  color:#8ed7ff;\n  font-size:0.68em;\n}\n.cockpit-dashboard-cal-detail-empty-text { font-size:0.72em; }\n.cockpit-dashboard-cal-detail-check { width:16px; height:16px; border:2px solid var(--background-modifier-border); border-radius:5px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.56em; color:white; cursor:pointer; transition:all 0.16s ease; }\n.cockpit-dashboard-cal-detail-check:hover { border-color:#22c55e; transform:scale(1.05); }\n.cockpit-dashboard-cal-detail-check.done { background:#22c55e; border-color:#22c55e; }\n.cockpit-dashboard-cal-detail-text { flex:1; line-height:1.45; }\n.cockpit-dashboard-cal-detail-text.done { text-decoration:line-through; color:var(--text-muted); }\n\n.theme-dark .cockpit-dashboard-cal-surface {\n  background:\n    radial-gradient(circle at top left, rgba(72,180,255,0.05), transparent 28%),\n    linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.004));\n  border-color: rgba(72,180,255,0.06);\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 8px 18px rgba(0,0,0,0.08);\n}\n.theme-dark .cockpit-dashboard-cal-grid {\n  gap: 2px;\n}\n.theme-dark .cockpit-dashboard-cal-cell {\n  background: transparent;\n  border-color: transparent;\n  box-shadow: none;\n  border-radius: 10px;\n}\n.theme-dark .cockpit-dashboard-cal-cell:hover {\n  background: rgba(72,180,255,0.035);\n  border-color: rgba(72,180,255,0.08);\n  transform: none;\n  box-shadow: none;\n}\n.theme-dark .cockpit-dashboard-cal-cell.has-todos {\n  background: linear-gradient(180deg, rgba(72,180,255,0.018), rgba(72,180,255,0.008));\n}\n.theme-dark .cockpit-dashboard-cal-cell.today {\n  background: rgba(72,180,255,0.04);\n  color: #8fd7ff;\n}\n.theme-dark .cockpit-dashboard-cal-cell.selected {\n  background: rgba(72,180,255,0.06);\n  border-color: rgba(72,180,255,0.26);\n  box-shadow: inset 0 0 0 1px rgba(72,180,255,0.14);\n}\n.theme-dark .cockpit-dashboard-cal-badge {\n  background: rgba(72,180,255,0.12);\n  color: #8fd7ff;\n}\n.theme-dark .cockpit-dashboard-cal-detail {\n  background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.006));\n  border-color: rgba(255,255,255,0.04);\n  box-shadow: none;\n}\n\n@media (max-width: 720px) {\n  .cockpit-dashboard-layout-done {\n    top: 16px;\n    right: 16px;\n    width: 34px;\n    height: 34px;\n  }\n}\n\n.cockpit-dashboard-release-modal .modal {\n  width: min(720px, calc(100vw - 32px));\n}\n.cockpit-dashboard-release-top {\n  margin-bottom: 12px;\n}\n.cockpit-dashboard-release-current {\n  display: inline-flex;\n  align-items: center;\n  padding: 6px 10px;\n  border-radius: 999px;\n  background: rgba(72,180,255,0.1);\n  color: var(--text-muted);\n  font-size: 0.76em;\n  font-weight: 700;\n  letter-spacing: 0.03em;\n}\n.cockpit-dashboard-release-empty {\n  padding: 24px 0;\n  color: var(--text-muted);\n  text-align: center;\n}\n.cockpit-dashboard-release-card {\n  background: linear-gradient(180deg, rgba(72,180,255,0.05), rgba(72,180,255,0.015));\n  border: 1px solid rgba(72,180,255,0.12);\n  border-radius: 16px;\n  padding: 14px 16px;\n  margin-bottom: 12px;\n}\n.cockpit-dashboard-release-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  margin-bottom: 6px;\n}\n.cockpit-dashboard-release-version {\n  font-size: 1em;\n  font-weight: 800;\n  color: var(--text-normal);\n}\n.cockpit-dashboard-release-date {\n  color: var(--text-muted);\n  font-size: 0.76em;\n  white-space: nowrap;\n}\n.cockpit-dashboard-release-title {\n  font-size: 0.82em;\n  font-weight: 700;\n  color: var(--text-normal);\n  margin-bottom: 8px;\n}\n.cockpit-dashboard-release-list {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--text-muted);\n}\n.cockpit-dashboard-release-list li {\n  margin: 4px 0;\n  line-height: 1.5;\n}\n\n/* 可编辑名称 */\n.cockpit-dashboard-greeting { position:relative; }\n.cockpit-dashboard-name { cursor:pointer; }\n.cockpit-dashboard-name:hover { opacity:0.85; }\n.cockpit-dashboard-name-input { font-size:0.7em; font-weight:800; font-family:inherit; background:transparent; border:none; border-bottom:2px solid var(--cockpit-accent); color:var(--text-normal); outline:none; padding:0 2px; width:auto; min-width:3em; -webkit-text-fill-color:var(--text-normal); }\n\n@media (max-width: 720px) {\n  .cockpit-dashboard-root {\n    padding: 14px 16px;\n  }\n  .cockpit-dashboard-hero {\n    padding: 16px 14px 14px;\n  }\n  .cockpit-dashboard-hero-controls {\n    position: static;\n    justify-content: center;\n    margin-bottom: 10px;\n  }\n  .cockpit-dashboard-greeting {\n    padding: 0;\n  }\n  .cockpit-dashboard-lang-switch {\n    background: rgba(72,180,255,0.06);\n  }\n}\n\n\n/* 首次使用引导 — 高亮脉波动画 */\n@keyframes cockpit-onboarding-pulse {\n  0%, 100% { box-shadow: 0 0 0 0 rgba(72,180,255,0.5), 0 0 0 0 rgba(72,180,255,0.2); }\n  50% { box-shadow: 0 0 0 4px rgba(72,180,255,0.4), 0 0 0 14px rgba(72,180,255,0.08); }\n}\n.cockpit-dashboard-onboarding-highlight {\n  animation: cockpit-onboarding-pulse 1.6s ease-in-out infinite;\n  border-radius: var(--radius-m, 10px);\n  outline: 2.5px solid rgba(72,180,255,0.35);\n  outline-offset: 4px;\n  position: relative;\n  transition: outline-color 0.3s;\n}\n";
+const CSS = "/* styles.css — Cockpit Dashboard v2 */\n/* Note: ${PLUGIN_ID} has been replaced with cockpit-dashboard */\n\n:root {\n  --cockpit-accent: #48b4ff;\n  --cockpit-accent-light: rgba(72,180,255,0.12);\n  --cockpit-accent-glow: rgba(72,180,255,0.25);\n}\n\n.cockpit-dashboard-root { \n  padding: 16px 24px; \n  max-width: 960px; \n  margin: 0 auto; \n  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;\n  position: relative;\n  --accent: var(--cockpit-accent);\n  --accent-light: var(--cockpit-accent-light);\n}\n.cockpit-dashboard-root ::selection {\n  background: rgba(72,180,255,0.18);\n  color: var(--text-normal);\n}\n.cockpit-dashboard-hero { \n  text-align: center; \n  padding: 20px 20px 14px; \n  background: linear-gradient(135deg, rgba(72,180,255,0.06), rgba(167,139,250,0.03));\n  border-radius: 16px;\n  margin: 8px 0 12px;\n  border: 1px solid rgba(72,180,255,0.08);\n  position: relative;\n}\n.cockpit-dashboard-hero-controls {\n  position: absolute;\n  top: 14px;\n  right: 14px;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  justify-content: flex-end;\n  z-index: 3;\n}\n.cockpit-dashboard-layout-done {\n  width: 36px;\n  height: 36px;\n  display: none;\n  align-items: center;\n  justify-content: center;\n  position: fixed;\n  top: 22px;\n  right: 22px;\n  border: 1px solid rgba(72,180,255,0.2);\n  border-radius: 999px;\n  background: linear-gradient(135deg, #48b4ff, #7c9cff);\n  color: white;\n  font-size: 1em;\n  font-weight: 800;\n  cursor: pointer;\n  box-shadow: 0 10px 24px rgba(72,180,255,0.24);\n  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;\n  z-index: 120;\n}\n.cockpit-dashboard-layout-done:hover {\n  transform: translateY(-1px) scale(1.03);\n  box-shadow: 0 14px 28px rgba(72,180,255,0.28);\n  filter: saturate(1.06);\n}\n.cockpit-dashboard-lang-switch {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  padding: 4px;\n  border-radius: 999px;\n  border: 1px solid rgba(72,180,255,0.12);\n  backdrop-filter: blur(14px) saturate(1.1);\n  user-select: none;\n  -webkit-user-select: none;\n  touch-action: manipulation;\n  pointer-events: auto;\n}\n.theme-dark .cockpit-dashboard-lang-switch {\n  background: linear-gradient(180deg, rgba(37, 45, 58, 0.96), rgba(29, 36, 48, 0.94));\n  border-color: rgba(72,180,255,0.2);\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 20px rgba(0,0,0,0.2);\n}\n.theme-light .cockpit-dashboard-lang-switch {\n  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,246,252,0.96));\n  border-color: rgba(72,180,255,0.18);\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 18px rgba(72,180,255,0.08);\n}\n.cockpit-dashboard-lang-btn {\n  border: none;\n  background: transparent;\n  color: var(--text-normal);\n  font-size: 0.7em;\n  font-weight: 700;\n  letter-spacing: 0.03em;\n  padding: 5px 10px;\n  border-radius: 999px;\n  cursor: pointer;\n  position: relative;\n  overflow: hidden;\n  user-select: none;\n  -webkit-user-select: none;\n  transition: transform 0.18s ease, filter 0.18s ease, color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;\n}\n.theme-dark .cockpit-dashboard-lang-btn {\n  color: rgba(226,232,240,0.72);\n}\n.theme-light .cockpit-dashboard-lang-btn {\n  color: rgba(15,23,42,0.62);\n}\n.cockpit-dashboard-lang-btn:hover {\n  color: var(--text-normal);\n  background: rgba(72,180,255,0.1);\n  filter: saturate(1.08) brightness(1.02);\n  transform: translateY(-1px);\n}\n.cockpit-dashboard-lang-btn.active {\n  color: white;\n  background: linear-gradient(135deg, #48b4ff, #6bc8ff);\n  box-shadow: 0 6px 16px rgba(72,180,255,0.22);\n}\n.theme-light .cockpit-dashboard-lang-btn.active {\n  box-shadow: 0 6px 16px rgba(72,180,255,0.18);\n}\n.cockpit-dashboard-lang-btn::after {\n  content: '';\n  position: absolute;\n  inset: 0;\n  background: radial-gradient(circle at center, rgba(255,255,255,0.42), rgba(255,255,255,0));\n  opacity: 0;\n  transform: scale(0.6);\n  transition: opacity 0.18s ease, transform 0.22s ease;\n}\n.cockpit-dashboard-lang-btn:hover::after {\n  opacity: 0.5;\n  transform: scale(1);\n}\n.cockpit-dashboard-lang-btn.pressing {\n  transform: scale(0.96);\n  filter: saturate(1.12) brightness(0.98);\n}\n.cockpit-dashboard-lang-btn.pressing::after {\n  opacity: 0.68;\n  transform: scale(1.08);\n}\n.cockpit-dashboard-greeting { \n  font-size: 1.5em; \n  font-weight: 800; \n  background: linear-gradient(135deg, #48b4ff, #60c0ff, #a78bfa);\n  -webkit-background-clip: text;\n  -webkit-text-fill-color: transparent;\n  background-clip: text;\n  padding: 0 88px;\n}\n.cockpit-dashboard-sub { \n  color: var(--text-muted); \n  font-size: 0.78em; \n  margin-top: 4px;\n  letter-spacing: 0.02em;\n}\n.cockpit-dashboard-toolbar { \n  display: flex; \n  gap: 10px; \n  justify-content: center; \n  flex-wrap: wrap; \n  margin: 16px 0;\n}\n.cockpit-dashboard-toolslot {\n  position: relative;\n  display: flex;\n  align-items: center;\n}\n.cockpit-dashboard-toolbtn { \n  display: flex; \n  align-items: center; \n  gap: 6px; \n  padding: 8px 16px; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 12px; \n  color: var(--text-normal); \n  font-size: 0.82em; \n  font-weight: 600; \n  cursor: pointer; \n  position: relative;\n  overflow: hidden;\n  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s ease;\n}\n.cockpit-dashboard-toolbtn:hover { \n  border-color: var(--interactive-accent); \n  box-shadow: 0 4px 16px rgba(72,180,255,0.15); \n  transform: translateY(-2px);\n  filter: saturate(1.06) brightness(1.01);\n}\n.cockpit-dashboard-toolbtn.primary { \n  background: var(--interactive-accent); \n  border-color: var(--interactive-accent); \n  color: white;\n  box-shadow: 0 2px 8px rgba(72,180,255,0.2);\n}\n.cockpit-dashboard-toolbtn.primary:hover {\n  box-shadow: 0 6px 20px rgba(72,180,255,0.3);\n  transform: translateY(-3px);\n}\n.cockpit-dashboard-toolbtn:disabled {\n  cursor: default;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-toolbtn:disabled:hover {\n  border-color: var(--background-modifier-border);\n  box-shadow: none;\n  transform: none;\n  filter: none;\n}\n.cockpit-dashboard-toolbtn-visibility {\n  display: none;\n  position: absolute;\n  top: -9px;\n  right: -6px;\n  border: 1px solid rgba(72,180,255,0.16);\n  background: rgba(15, 23, 42, 0.88);\n  color: rgba(255,255,255,0.88);\n  font-size: 0.62em;\n  font-weight: 700;\n  letter-spacing: 0.03em;\n  padding: 4px 8px;\n  border-radius: 999px;\n  cursor: pointer;\n  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;\n  z-index: 3;\n}\n.cockpit-dashboard-toolbtn-visibility:hover {\n  transform: translateY(-1px);\n  border-color: rgba(72,180,255,0.32);\n  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.18);\n}\n.cockpit-dashboard-toolbtn-visibility.is-hidden {\n  background: linear-gradient(135deg, rgba(239,68,68,0.82), rgba(245,158,11,0.82));\n  border-color: rgba(255,255,255,0.14);\n  color: white;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-toolbtn-visibility {\n  display: inline-flex;\n  align-items: center;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-toolslot {\n  padding-top: 10px;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-toolslot.is-hidden .cockpit-dashboard-toolbtn {\n  opacity: 0.5;\n  border-style: dashed;\n  filter: saturate(0.8);\n}\n.cockpit-dashboard-toolbtn:active,\n.cockpit-dashboard-status-btn:active,\n.cockpit-dashboard-todo-tab:active,\n.cockpit-dashboard-cal-nav-btn:active,\n.cockpit-dashboard-todo-add:active,\n.cockpit-dashboard-todo-btn:active,\n.cockpit-dashboard-bookmark-btn:active,\n.cockpit-dashboard-cat:active,\n.cockpit-dashboard-stat:active,\n.cockpit-dashboard-recent-item:active {\n  transform: scale(0.98);\n  filter: saturate(1.08) brightness(0.98);\n}\n.cockpit-dashboard-icon { font-size: 1.1em; }\n.cockpit-dashboard-module {\n  position: relative;\n}\n.cockpit-dashboard-module-tools {\n  position: absolute;\n  top: -10px;\n  right: 10px;\n  display: none;\n  align-items: center;\n  gap: 6px;\n  z-index: 12;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module {\n  margin: 12px 0;\n  padding: 10px 12px 12px;\n  border-radius: 18px;\n  border: 1px dashed rgba(72,180,255,0.22);\n  background: linear-gradient(180deg, rgba(72,180,255,0.045), rgba(72,180,255,0.015));\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module-tools {\n  display: inline-flex;\n}\n.cockpit-dashboard-module-badge {\n  display: inline-flex;\n  align-items: center;\n  padding: 4px 10px;\n  border-radius: 999px;\n  background: rgba(15, 23, 42, 0.86);\n  color: white;\n  font-size: 0.66em;\n  font-weight: 700;\n  letter-spacing: 0.04em;\n  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.22);\n}\n.cockpit-dashboard-module-visibility {\n  border: 1px solid rgba(72,180,255,0.16);\n  background: rgba(15, 23, 42, 0.82);\n  color: rgba(255,255,255,0.88);\n  font-size: 0.66em;\n  font-weight: 700;\n  letter-spacing: 0.03em;\n  padding: 5px 9px;\n  border-radius: 999px;\n  cursor: pointer;\n  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;\n}\n.cockpit-dashboard-module-visibility:hover {\n  transform: translateY(-1px);\n  border-color: rgba(72,180,255,0.32);\n  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.18);\n}\n.cockpit-dashboard-module-visibility.is-hidden {\n  background: linear-gradient(135deg, rgba(239,68,68,0.82), rgba(245,158,11,0.82));\n  border-color: rgba(255,255,255,0.14);\n  color: white;\n}\n.cockpit-dashboard-module-handle {\n  width: 28px;\n  height: 28px;\n  border: none;\n  border-radius: 999px;\n  background: linear-gradient(135deg, #48b4ff, #7c9cff);\n  color: white;\n  font-size: 0.96em;\n  font-weight: 800;\n  cursor: grab;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  box-shadow: 0 8px 18px rgba(72,180,255,0.2);\n}\n.cockpit-dashboard-module-handle:active {\n  cursor: grabbing;\n}\n.cockpit-dashboard-root:not(.cockpit-dashboard-layout-editing) .cockpit-dashboard-module-handle,\n.cockpit-dashboard-root:not(.cockpit-dashboard-layout-editing) .cockpit-dashboard-module-badge,\n.cockpit-dashboard-root:not(.cockpit-dashboard-layout-editing) .cockpit-dashboard-module-visibility {\n  display: none;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.dragging {\n  opacity: 0.52;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.is-hidden {\n  opacity: 0.88;\n  border-color: rgba(245,158,11,0.3);\n  background: linear-gradient(180deg, rgba(245,158,11,0.08), rgba(72,180,255,0.015));\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-before::before,\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-after::after {\n  content: '';\n  position: absolute;\n  left: 16px;\n  right: 16px;\n  height: 3px;\n  border-radius: 999px;\n  background: linear-gradient(90deg, #48b4ff, #7c9cff);\n  box-shadow: 0 0 12px rgba(72,180,255,0.3);\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-before::before {\n  top: -2px;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-after::after {\n  bottom: -2px;\n}\n.cockpit-dashboard-section-title { \n  position: relative;\n  font-size: 0.92em; \n  font-weight: 700; \n  color: var(--text-normal); \n  margin: 22px 0 12px; \n  padding: 0 0 10px 2px;\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n.cockpit-dashboard-section-title::before {\n  content: '';\n  position: absolute;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  height: 1px;\n  background: linear-gradient(90deg, rgba(72,180,255,0.16), rgba(72,180,255,0.08) 34%, rgba(72,180,255,0) 74%);\n}\n.cockpit-dashboard-section-title::after {\n  content: '';\n  position: absolute;\n  left: 2px;\n  bottom: -1px;\n  width: 44px;\n  height: 3px;\n  border-radius: 999px;\n  background: linear-gradient(90deg, rgba(72,180,255,0.9), rgba(167,139,250,0.55));\n  box-shadow: 0 0 12px rgba(72,180,255,0.16);\n}\n.cockpit-dashboard-cats { \n  display: grid; \n  grid-template-columns: repeat(4, 1fr); \n  gap: 12px;\n}\n.cockpit-dashboard-cat { \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 14px; \n  padding: 14px; \n  cursor: pointer; \n  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); \n  border-left: 4px solid var(--cat-clr, var(--interactive-accent));\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-cat::before {\n  content: '';\n  position: absolute;\n  top: 0;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  background: linear-gradient(135deg, var(--cat-clr), transparent);\n  opacity: 0.04;\n  transition: opacity 0.25s;\n}\n.cockpit-dashboard-cat:hover { \n  border-color: var(--cat-clr, var(--interactive-accent)); \n  box-shadow: 0 6px 24px rgba(72,180,255,0.12); \n  transform: translateY(-3px);\n}\n.cockpit-dashboard-cat:hover::before { opacity: 0.08; }\n.cockpit-dashboard-cat-icon { font-size: 1.5em; margin-bottom: 6px; }\n.cockpit-dashboard-cat-name { font-weight: 600; font-size: 0.86em; }\n.cockpit-dashboard-cat-count { font-size: 0.72em; color: var(--text-muted); margin-top: 2px; }\n.cockpit-dashboard-todo-header { display:flex; align-items:center; gap:6px; margin:16px 0 8px; padding-bottom:6px; border-bottom:1px solid var(--background-modifier-border); }\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title { margin:0; padding:0; border:none; flex:1; }\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title::before,\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title::after { display:none; }\n.cockpit-dashboard-todo-add { \n  width: 26px; \n  height: 26px; \n  display: flex; \n  align-items: center; \n  justify-content: center; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 8px; \n  color: var(--text-muted); \n  font-size: 1.15em; \n  font-weight: 700; \n  cursor: pointer; \n  transition: all 0.2s; \n  line-height: 1;\n}\n.cockpit-dashboard-todo-add:hover { \n  border-color: var(--interactive-accent); \n  color: var(--interactive-accent); \n  box-shadow: 0 0 12px rgba(72,180,255,0.2);\n  transform: scale(1.1);\n}\n.cockpit-dashboard-todos { \n  display: flex; \n  flex-direction: column; \n  gap: 6px; \n  margin-bottom: 16px;\n}\n.cockpit-dashboard-todo { \n  display: flex; \n  align-items: center; \n  gap: 10px; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 12px; \n  padding: 10px 12px; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);\n}\n.cockpit-dashboard-todo:hover { \n  border-color: var(--interactive-accent);\n  box-shadow: 0 2px 12px rgba(72,180,255,0.08);\n  transform: translateX(2px);\n}\n.cockpit-dashboard-todo-chk { \n  width: 22px; \n  height: 22px; \n  border: 2px solid var(--background-modifier-border); \n  border-radius: 7px; \n  flex-shrink: 0; \n  display: flex; \n  align-items: center; \n  justify-content: center; \n  font-size: 0.75em; \n  color: white; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); \n  cursor: pointer;\n}\n.cockpit-dashboard-todo-chk:hover { \n  border-color: var(--interactive-accent); \n  box-shadow: 0 0 6px rgba(72,180,255,0.2);\n}\n.cockpit-dashboard-todo.done .cockpit-dashboard-todo-chk { background:#22c55e; border-color:#22c55e; }\n.cockpit-dashboard-todo-main { flex:1; min-width:0; }\n.cockpit-dashboard-todo-text { font-size:0.84em; cursor:pointer; }\n.cockpit-dashboard-todo.done .cockpit-dashboard-todo-text { text-decoration:line-through; color:var(--text-muted); }\n.cockpit-dashboard-todo-meta { font-size:0.68em; color:var(--text-muted); margin-top:2px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }\n.cockpit-dashboard-todo-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }\n.cockpit-dashboard-todo-btn { width:22px; height:22px; border-radius:5px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.8em; color:var(--text-muted); transition:all 0.15s; border:1px solid transparent; }\n.cockpit-dashboard-todo-btn:hover { border-color:var(--interactive-accent); color:var(--interactive-accent); }\n.cockpit-dashboard-todo-btn.del:hover { border-color:#ef4444; color:#ef4444; }\n.cockpit-dashboard-todo-tag { font-size:0.64em; padding:1px 7px; border-radius:8px; flex-shrink:0; }\n.tag-todo { background:rgba(72,180,255,0.15); color:#48b4ff; }\n.tag-done { background:rgba(34,197,94,0.12); color:#4ade80; }\n.cockpit-dashboard-todo-input-row { display:flex; align-items:center; gap:6px; background:var(--background-secondary); border:1px solid var(--background-modifier-border); border-radius:9px; padding:6px 8px; margin-bottom:4px; animation:dashFadeIn 0.15s ease; }\n@keyframes dashFadeIn { \n  from {opacity:0;transform:translateY(-6px)} \n  to {opacity:1;transform:translateY(0)} \n}\n@keyframes dashSlideUp {\n  from {opacity:0;transform:translateY(8px)}\n  to {opacity:1;transform:translateY(0)}\n}\n.cockpit-dashboard-todo-input-field { flex:1; border:none; outline:none; background:transparent; color:var(--text-normal); font-size:0.84em; padding:2px 4px; }\n.cockpit-dashboard-todo-input-field::placeholder { color:var(--text-muted); opacity:0.7; }\n.cockpit-dashboard-todo-input-ok, .cockpit-dashboard-todo-input-cancel { width:24px; height:24px; border-radius:5px; border:1px solid var(--background-modifier-border); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.75em; color:var(--text-muted); background:var(--background-secondary); transition:all 0.15s; flex-shrink:0; }\n.cockpit-dashboard-todo-input-ok:hover { border-color:#22c55e; color:#22c55e; }\n.cockpit-dashboard-todo-input-cancel:hover { border-color:#ef4444; color:#ef4444; }\n.cockpit-dashboard-todo-editor-backdrop {\n  position: fixed;\n  inset: 0;\n  z-index: 1400;\n  display: flex;\n  align-items: flex-end;\n  justify-content: center;\n  padding: 16px;\n  background: rgba(15, 23, 42, 0.42);\n  backdrop-filter: blur(10px);\n}\n.cockpit-dashboard-todo-editor-sheet {\n  width: min(560px, 100%);\n  max-height: min(82vh, 760px);\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n  border-radius: 18px;\n  border: 1px solid rgba(72,180,255,0.12);\n  background: linear-gradient(180deg, rgba(29,36,48,0.98), rgba(20,25,34,0.98));\n  box-shadow: 0 18px 48px rgba(0,0,0,0.28);\n  animation: dashSlideUp 0.18s ease;\n}\n.theme-light .cockpit-dashboard-todo-editor-sheet {\n  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(243,247,252,0.98));\n  box-shadow: 0 18px 40px rgba(15,23,42,0.14);\n}\n.cockpit-dashboard-todo-editor-header,\n.cockpit-dashboard-todo-editor-footer {\n  display:flex;\n  align-items:center;\n  justify-content:space-between;\n  gap:10px;\n  padding:14px 16px;\n  border-bottom:1px solid rgba(72,180,255,0.08);\n}\n.cockpit-dashboard-todo-editor-footer {\n  border-top:1px solid rgba(72,180,255,0.08);\n  border-bottom:none;\n  justify-content:flex-end;\n}\n.cockpit-dashboard-todo-editor-title {\n  font-size:0.9em;\n  font-weight:800;\n  color:var(--text-normal);\n}\n.cockpit-dashboard-todo-editor-close,\n.cockpit-dashboard-todo-editor-primary-btn,\n.cockpit-dashboard-todo-editor-secondary-btn,\n.cockpit-dashboard-todo-editor-chip,\n.cockpit-dashboard-todo-editor-selected-tag,\n.cockpit-dashboard-todo-editor-segment-btn {\n  border:none;\n  cursor:pointer;\n  touch-action:manipulation;\n}\n.cockpit-dashboard-todo-editor-close {\n  width:30px;\n  height:30px;\n  border-radius:999px;\n  background:rgba(255,255,255,0.06);\n  color:var(--text-muted);\n  font-size:0.86em;\n}\n.cockpit-dashboard-todo-editor-body {\n  padding:14px 16px 16px;\n  overflow:auto;\n  display:flex;\n  flex-direction:column;\n  gap:14px;\n}\n.cockpit-dashboard-todo-editor-field {\n  display:flex;\n  flex-direction:column;\n  gap:8px;\n}\n.cockpit-dashboard-todo-editor-label {\n  font-size:0.72em;\n  font-weight:700;\n  color:var(--text-muted);\n  letter-spacing:0.03em;\n}\n.cockpit-dashboard-todo-editor-textarea,\n.cockpit-dashboard-todo-editor-date,\n.cockpit-dashboard-todo-editor-tag-input {\n  width:100%;\n  border:1px solid var(--background-modifier-border);\n  border-radius:12px;\n  background:var(--background-secondary);\n  color:var(--text-normal);\n  font:inherit;\n  outline:none;\n}\n.cockpit-dashboard-todo-editor-textarea {\n  min-height:84px;\n  padding:12px 14px;\n  resize:vertical;\n  line-height:1.5;\n}\n.cockpit-dashboard-todo-editor-date,\n.cockpit-dashboard-todo-editor-tag-input {\n  min-height:40px;\n  padding:0 12px;\n}\n.cockpit-dashboard-todo-editor-quick,\n.cockpit-dashboard-todo-editor-tags,\n.cockpit-dashboard-todo-editor-selected-tags {\n  display:flex;\n  flex-wrap:wrap;\n  gap:8px;\n}\n.cockpit-dashboard-todo-editor-chip,\n.cockpit-dashboard-todo-editor-selected-tag,\n.cockpit-dashboard-todo-editor-secondary-btn {\n  min-height:34px;\n  padding:0 12px;\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  border-radius:999px;\n  border:1px solid var(--background-modifier-border);\n  background:var(--background-secondary);\n  color:var(--text-muted);\n  font-size:0.74em;\n  font-weight:700;\n}\n.cockpit-dashboard-todo-editor-chip.active,\n.cockpit-dashboard-todo-editor-selected-tag,\n.cockpit-dashboard-todo-editor-segment-btn.active {\n  background:rgba(72,180,255,0.14);\n  border-color:rgba(72,180,255,0.32);\n  color:#8fd7ff;\n}\n.cockpit-dashboard-todo-editor-segment {\n  display:grid;\n  grid-template-columns:repeat(3, minmax(0, 1fr));\n  gap:8px;\n}\n.cockpit-dashboard-todo-editor-segment-btn {\n  min-height:38px;\n  padding:0 12px;\n  border-radius:12px;\n  border:1px solid var(--background-modifier-border);\n  background:var(--background-secondary);\n  color:var(--text-muted);\n  font-size:0.74em;\n  font-weight:700;\n}\n.cockpit-dashboard-todo-editor-tag-input-row {\n  display:flex;\n  gap:8px;\n  align-items:center;\n}\n.cockpit-dashboard-todo-editor-tag-input-row .cockpit-dashboard-todo-editor-secondary-btn {\n  flex-shrink:0;\n}\n.cockpit-dashboard-todo-editor-empty,\n.cockpit-dashboard-todo-editor-hint {\n  font-size:0.72em;\n  color:var(--text-muted);\n}\n.cockpit-dashboard-todo-editor-primary-btn {\n  min-height:38px;\n  padding:0 16px;\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  border-radius:12px;\n  background:var(--interactive-accent);\n  color:white;\n  font-size:0.76em;\n  font-weight:800;\n}\n.cockpit-dashboard-stats { \n  display: grid; \n  grid-template-columns: repeat(5, 1fr); \n  gap: 12px;\n}\n.cockpit-dashboard-stat { \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 14px; \n  padding: 12px 14px; \n  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-stat::after {\n  content: '';\n  position: absolute;\n  top: 0;\n  right: 0;\n  width: 60px;\n  height: 60px;\n  background: radial-gradient(circle at top right, var(--stat-clr, var(--interactive-accent)), transparent 70%);\n  opacity: 0.08;\n  transition: opacity 0.25s;\n}\n.cockpit-dashboard-stat:hover {\n  box-shadow: 0 4px 20px rgba(72,180,255,0.1);\n  transform: translateY(-2px);\n}\n.cockpit-dashboard-stat:hover::after { opacity: 0.15; }\n.cockpit-dashboard-stat-label { font-size:0.64em; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:3px; }\n.cockpit-dashboard-stat-val { font-size:1.3em; font-weight:700; color:var(--stat-clr,var(--interactive-accent)); }\n.cockpit-dashboard-stat-bar { height:3px; background:var(--background-modifier-border); border-radius:2px; margin-top:5px; overflow:hidden; }\n.cockpit-dashboard-stat-fill { height:100%; border-radius:2px; background:var(--stat-clr,var(--interactive-accent)); transition:width 0.5s ease; }\n.cockpit-dashboard-recent { display:flex; flex-direction:column; gap:3px; }\n.cockpit-dashboard-recent-item { display:flex; align-items:center; justify-content:space-between; background:var(--background-secondary); border-radius:7px; padding:6px 10px; }\n.cockpit-dashboard-recent-link { color:var(--text-accent); text-decoration:none; font-size:0.84em; cursor:pointer; }\n.cockpit-dashboard-recent-link:hover { color:var(--text-accent-hover); }\n.cockpit-dashboard-recent-time { font-size:0.7em; color:var(--text-muted); flex-shrink:0; }\n.cockpit-dashboard-footer { \n  text-align: center; \n  color: var(--text-muted); \n  font-size: 0.68em; \n  padding: 16px 0 8px;\n  border-top: 1px solid var(--background-modifier-border);\n  margin-top: 16px;\n}\n/* 待办页签 */\n.cockpit-dashboard-todo-tabs-wrap { margin:4px 0 8px; }\n.cockpit-dashboard-todo-tabs { display:flex; gap:4px; flex-wrap:wrap; }\n.cockpit-dashboard-todo-tab { padding:4px 12px; border-radius:14px; border:1px solid var(--background-modifier-border); background:var(--background-secondary); color:var(--text-muted); font-size:0.76em; font-weight:500; cursor:pointer; transition:all 0.15s; }\n.cockpit-dashboard-todo-tab:hover { border-color:var(--interactive-accent); color:var(--interactive-accent); }\n.cockpit-dashboard-todo-tab.active { background:var(--interactive-accent); border-color:var(--interactive-accent); color:white; }\n/* 标签胶囊 */\n.cockpit-dashboard-todo-tag-pill { \n  display: inline-block; \n  font-size: 0.62em; \n  padding: 1px 6px; \n  margin: 0 3px; \n  border-radius: 7px; \n  background: rgba(72,180,255,0.13); \n  color: #48b4ff; \n  cursor: pointer; \n  font-weight: 500; \n  transition: all 0.12s;\n}\n.cockpit-dashboard-todo-tag-pill:hover { \n  background: rgba(72,180,255,0.28); \n  color: #1a5a1a;\n}\n/* 优先级圆点 */\n.cockpit-dashboard-todo-pdot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }\n.p-high { background:#ef4444; box-shadow:0 0 4px rgba(239,68,68,0.5); }\n.p-mid { background:#f59e0b; }\n.p-low { background:#22c55e; }\n/* 截止日期 */\n.cockpit-dashboard-todo-due { font-size:0.64em; margin-left:4px; padding:1px 5px; border-radius:4px; }\n.due-overdue { background:rgba(239,68,68,0.15); color:#ef4444; }\n.due-today { background:rgba(245,158,11,0.15); color:#f59e0b; }\n.due-future { color:var(--text-muted); }\n/* 优先级选择 */\n.cockpit-dashboard-prio-picker { display:flex; gap:3px; margin-left:6px; }\n.cockpit-dashboard-prio-opt { width:18px; height:18px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:all 0.12s; }\n.cockpit-dashboard-prio-opt:hover { transform:scale(1.2); }\n.cockpit-dashboard-prio-opt.sel { border-color:var(--text-normal); }\n/* 热力图 */\n.cockpit-dashboard-heatmap-wrap { padding:8px 0 4px; }\n.cockpit-dashboard-heatmap { display:grid; grid-template-columns:repeat(10,1fr); gap:4px; }\n.cockpit-dashboard-hm-cell { \n  width: 100%; \n  padding-bottom: 100%; \n  border-radius: 6px; \n  background: var(--background-modifier-border); \n  cursor: default; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); \n  position: relative;\n}\n.cockpit-dashboard-hm-cell:hover { \n  transform: scale(1.25); \n  box-shadow: 0 0 8px rgba(72,180,255,0.4); \n  z-index: 2;\n}\n.cockpit-dashboard-hm-cell[title]:hover::after { content:attr(title); position:absolute; bottom:120%; left:50%; transform:translateX(-50%); background:var(--background-secondary); color:var(--text-normal); font-size:0.6em; padding:3px 7px; border-radius:5px; white-space:nowrap; z-index:10; border:1px solid var(--background-modifier-border); box-shadow:0 2px 8px rgba(0,0,0,0.12); }\n.cockpit-dashboard-hm-legend { display:flex; align-items:center; gap:4px; margin-top:6px; justify-content:flex-end; }\n.cockpit-dashboard-hm-legend-label { font-size:0.6em; color:var(--text-muted); }\n.cockpit-dashboard-hm-legend-cell { width:12px; height:12px; border-radius:3px; }\n/* 迷你搜索 */\n.cockpit-dashboard-search-row { display:flex; gap:6px; margin:8px 0; }\n.cockpit-dashboard-search-input { flex:1; padding:6px 10px; border:1px solid var(--background-modifier-border); border-radius:7px; background:var(--background-secondary); color:var(--text-normal); font-size:0.82em; outline:none; }\n.cockpit-dashboard-search-input:focus { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px rgba(72,180,255,0.1); }\n.cockpit-dashboard-search-results { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; }\n.cockpit-dashboard-search-item { display:flex; align-items:center; justify-content:space-between; padding:5px 8px; border-radius:6px; cursor:pointer; transition:background 0.12s; }\n.cockpit-dashboard-search-item:hover { \n  background: var(--background-secondary);\n  transform: translateX(2px);\n  filter: saturate(1.03);\n}\n.cockpit-dashboard-search-name { font-size:0.8em; color:var(--text-accent); }\n.cockpit-dashboard-search-path { font-size:0.64em; color:var(--text-muted); }\n/* 收藏 */\n.cockpit-dashboard-bookmark-btn { cursor:pointer; font-size:0.85em; color:var(--text-muted); transition:all 0.12s; padding:2px 4px; border-radius:4px; }\n.cockpit-dashboard-bookmark-btn:hover { \n  color: #f59e0b; \n  background: rgba(245,158,11,0.1);\n  transform: scale(1.1);\n  filter: saturate(1.08);\n}\n.cockpit-dashboard-bookmark-btn.starred { color:#f59e0b; }\n/* 闪念胶囊 */\n.cockpit-dashboard-flash-row { display:flex; gap:6px; margin:4px 0 8px; }\n.cockpit-dashboard-flash-input { flex:1; padding:6px 10px; border:1px solid var(--background-modifier-border); border-radius:7px; background:var(--background-secondary); color:var(--text-normal); font-size:0.82em; outline:none; }\n.cockpit-dashboard-flash-input:focus { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px rgba(72,180,255,0.1); }\n.cockpit-dashboard-flash-ok { font-size:0.72em; color:#22c55e; padding:4px 8px; border-radius:5px; }\n/* 每日小贴士 */\n.cockpit-dashboard-tip { \n  background: linear-gradient(135deg, rgba(72,180,255,0.08), rgba(72,180,255,0.03)); \n  border: 1px solid rgba(72,180,255,0.15); \n  border-radius: 12px; \n  padding: 12px 16px; \n  margin: 12px 0;\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-tip::before {\n  content: '';\n  position: absolute;\n  top: 0;\n  left: 0;\n  width: 4px;\n  height: 100%;\n  background: linear-gradient(180deg, #48b4ff, #a78bfa);\n  border-radius: 4px 0 0 4px;\n}\n.cockpit-dashboard-tip-label { font-size:0.64em; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:4px; }\n.cockpit-dashboard-tip-text { font-size:0.82em; color:var(--text-normal); line-height:1.5; }\n/* 状态筛选 */\n.cockpit-dashboard-status-tabs { display:flex; gap:4px; margin:0; align-items:center; }\n.cockpit-dashboard-status-btn { padding:3px 10px; border-radius:12px; border:1px solid var(--background-modifier-border); background:var(--background-secondary); color:var(--text-muted); font-size:0.72em; font-weight:500; cursor:pointer; transition:all 0.15s; }\n.cockpit-dashboard-status-btn:hover { \n  border-color: var(--interactive-accent); \n  color: var(--interactive-accent); \n  box-shadow: 0 2px 6px rgba(72,180,255,0.1);\n  filter: saturate(1.05);\n}\n.cockpit-dashboard-status-btn.active { background:var(--interactive-accent); border-color:var(--interactive-accent); color:white; }\n/* 日历看板 */\n.cockpit-dashboard-cal-wrap { margin:10px 0 14px; }\n.cockpit-dashboard-cal-surface {\n  background:\n    radial-gradient(circle at top left, rgba(72,180,255,0.09), transparent 30%),\n    linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.005));\n  border: 1px solid rgba(72,180,255,0.08);\n  border-radius: 18px;\n  padding: 12px 12px 10px;\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 24px rgba(0,0,0,0.1);\n}\n.cockpit-dashboard-cal-header {\n  display:flex;\n  align-items:center;\n  justify-content:space-between;\n  gap: 14px;\n  margin-bottom:6px;\n}\n.cockpit-dashboard-cal-title-wrap {\n  display:flex;\n  flex-direction:column;\n  gap: 2px;\n}\n.cockpit-dashboard-cal-title { font-size:0.94em; font-weight:800; color:var(--text-normal); letter-spacing:0.01em; }\n.cockpit-dashboard-cal-subtitle { font-size:0.66em; color:var(--text-muted); letter-spacing:0.02em; }\n.cockpit-dashboard-cal-nav { display:flex; gap:6px; }\n.cockpit-dashboard-cal-nav-btn {\n  width:28px;\n  height:28px;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  border:1px solid rgba(255,255,255,0.06);\n  border-radius:10px;\n  background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));\n  color:var(--text-muted);\n  cursor:pointer;\n  font-size:0.84em;\n  transition:transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease, border-color 0.2s ease, color 0.2s ease, background 0.2s ease;\n}\n.cockpit-dashboard-cal-nav-btn:hover { \n  border-color: rgba(72,180,255,0.28); \n  color: #7fd2ff; \n  transform: translateY(-1px) scale(1.04);\n  box-shadow: 0 8px 18px rgba(72,180,255,0.12);\n  background: linear-gradient(180deg, rgba(72,180,255,0.08), rgba(72,180,255,0.03));\n}\n.cockpit-dashboard-cal-stage {\n  overflow: hidden;\n  border-radius: 14px;\n}\n.cockpit-dashboard-cal-grid {\n  display:grid;\n  grid-template-columns:repeat(7, minmax(0, 1fr));\n  gap:4px;\n  transition:transform 0.34s cubic-bezier(0.22,1,0.36,1), opacity 0.34s ease, filter 0.34s ease;\n}\n.cockpit-dashboard-cal-grid.slide-out-left { transform:translateX(-18px) scale(0.985); opacity:0; filter:blur(4px); }\n.cockpit-dashboard-cal-grid.slide-out-right { transform:translateX(18px) scale(0.985); opacity:0; filter:blur(4px); }\n.cockpit-dashboard-cal-grid.slide-in { animation:calSlideIn 0.34s cubic-bezier(0.22,1,0.36,1) forwards; }\n@keyframes calSlideIn {\n  from { opacity:0; transform:translateX(18px) scale(0.985); filter:blur(4px); }\n  to { opacity:1; transform:translateX(0) scale(1); filter:blur(0); }\n}\n.cockpit-dashboard-cal-dow {\n  text-align:center;\n  font-size:0.62em;\n  font-weight:700;\n  color:var(--text-faint, var(--text-muted));\n  padding:4px 0 5px;\n  text-transform:uppercase;\n  letter-spacing:0.08em;\n}\n.cockpit-dashboard-cal-cell { \n  display:flex;\n  flex-direction:column;\n  align-items:stretch;\n  justify-content:flex-start;\n  border-radius:12px; \n  cursor:pointer; \n  transition:transform 0.22s cubic-bezier(0.22,1,0.36,1), box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease, opacity 0.22s ease; \n  color: var(--text-muted); \n  border: 1px solid transparent; \n  min-height: 44px; \n  padding: 6px 6px 5px; \n  position: relative;\n  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));\n}\n.cockpit-dashboard-cal-cell:hover { \n  background: linear-gradient(180deg, rgba(72,180,255,0.09), rgba(72,180,255,0.03)); \n  border-color: rgba(72,180,255,0.22); \n  transform: translateY(-2px); \n  box-shadow: 0 10px 24px rgba(72,180,255,0.1);\n}\n.cockpit-dashboard-cal-cell.today { \n  color: #7ed0ff; \n  background: linear-gradient(180deg, rgba(72,180,255,0.1), rgba(72,180,255,0.03));\n}\n.cockpit-dashboard-cal-cell.selected { \n  border-color: rgba(72,180,255,0.34); \n  background: linear-gradient(180deg, rgba(72,180,255,0.16), rgba(72,180,255,0.05)); \n  box-shadow: 0 12px 28px rgba(72,180,255,0.12);\n}\n.cockpit-dashboard-cal-cell.dim {\n  opacity:0.28;\n  pointer-events:none;\n  background: transparent;\n}\n.cockpit-dashboard-cal-cell-inner {\n  display:flex;\n  align-items:flex-start;\n  justify-content:space-between;\n  min-height: 16px;\n}\n.cockpit-dashboard-cal-num {\n  font-size:0.84em;\n  font-weight:700;\n  color:inherit;\n}\n.cockpit-dashboard-cal-today-mark {\n  width:6px;\n  height:6px;\n  border-radius:999px;\n  background:linear-gradient(135deg, #48b4ff, #a78bfa);\n  box-shadow:0 0 10px rgba(72,180,255,0.35);\n  margin-top:2px;\n}\n.cockpit-dashboard-cal-badge {\n  position:absolute;\n  top:6px;\n  right:6px;\n  min-width:16px;\n  height:16px;\n  padding:0 4px;\n  border-radius:999px;\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  background:rgba(72,180,255,0.16);\n  color:#8ed7ff;\n  font-size:0.56em;\n  font-weight:800;\n  letter-spacing:0.03em;\n}\n.cockpit-dashboard-cal-dots {\n  display:flex;\n  gap:3px;\n  margin-top:auto;\n  padding-top:5px;\n}\n.cockpit-dashboard-cal-dot {\n  width:5px;\n  height:5px;\n  border-radius:50%;\n  flex-shrink:0;\n  box-shadow:0 0 8px rgba(0,0,0,0.18);\n}\n.cockpit-dashboard-cal-detail { \n  background:\n    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)),\n    rgba(0,0,0,0.06);\n  border: 1px solid rgba(255,255,255,0.06); \n  border-radius: 14px; \n  padding: 10px 12px; \n  margin-top: 8px; \n  animation: calDetailIn 0.22s cubic-bezier(0.22,1,0.36,1);\n  box-shadow: 0 8px 18px rgba(0,0,0,0.08);\n}\n@keyframes calDetailIn { from{opacity:0;transform:translateY(8px) scale(0.992)} to{opacity:1;transform:translateY(0) scale(1)} }\n.cockpit-dashboard-cal-detail-head {\n  display:flex;\n  align-items:center;\n  justify-content:space-between;\n  gap:10px;\n  margin-bottom:6px;\n}\n.cockpit-dashboard-cal-detail-title-wrap {\n  min-width:0;\n  display:flex;\n  align-items:center;\n  gap:8px;\n}\n.cockpit-dashboard-cal-detail-title { font-size:0.82em; font-weight:800; color:var(--text-normal); }\n.cockpit-dashboard-cal-detail-count {\n  min-width:20px;\n  height:20px;\n  padding:0 6px;\n  border-radius:999px;\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  font-size:0.62em;\n  font-weight:800;\n  background:rgba(72,180,255,0.12);\n  color:#8ed7ff;\n}\n.cockpit-dashboard-cal-detail-add,\n.cockpit-dashboard-cal-detail-edit {\n  border:1px solid var(--background-modifier-border);\n  background:var(--background-secondary);\n  color:var(--text-muted);\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  cursor:pointer;\n  touch-action:manipulation;\n  transition:all 0.15s ease;\n}\n.cockpit-dashboard-cal-detail-add {\n  min-height:30px;\n  padding:0 12px;\n  border-radius:999px;\n  font-size:0.7em;\n  font-weight:700;\n  white-space:nowrap;\n}\n.cockpit-dashboard-cal-detail-add:hover,\n.cockpit-dashboard-cal-detail-edit:hover {\n  border-color:var(--interactive-accent);\n  color:var(--interactive-accent);\n}\n.cockpit-dashboard-cal-detail-item {\n  display:flex;\n  align-items:center;\n  gap:8px;\n  padding:6px 8px;\n  font-size:0.74em;\n  transition:background 0.15s ease, transform 0.15s ease;\n  border-radius:8px;\n  cursor:pointer;\n}\n.cockpit-dashboard-cal-detail-item:hover { background:rgba(72,180,255,0.08); transform:translateX(2px); }\n.cockpit-dashboard-cal-detail-empty {\n  min-height:42px;\n  display:flex;\n  flex-direction:row;\n  align-items:center;\n  justify-content:center;\n  gap:6px;\n  color:var(--text-muted);\n  text-align:center;\n}\n.cockpit-dashboard-cal-detail-empty-icon {\n  width:20px;\n  height:20px;\n  border-radius:999px;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  background:rgba(72,180,255,0.08);\n  color:#8ed7ff;\n  font-size:0.68em;\n}\n.cockpit-dashboard-cal-detail-empty-text { font-size:0.72em; }\n.cockpit-dashboard-cal-detail-check { width:16px; height:16px; border:2px solid var(--background-modifier-border); border-radius:5px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.56em; color:white; cursor:pointer; transition:all 0.16s ease; }\n.cockpit-dashboard-cal-detail-check:hover { border-color:#22c55e; transform:scale(1.05); }\n.cockpit-dashboard-cal-detail-check.done { background:#22c55e; border-color:#22c55e; }\n.cockpit-dashboard-cal-detail-text { flex:1; line-height:1.45; }\n.cockpit-dashboard-cal-detail-text.done { text-decoration:line-through; color:var(--text-muted); }\n.cockpit-dashboard-cal-detail-edit {\n  width:24px;\n  height:24px;\n  border-radius:7px;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  font-size:0.78em;\n  flex-shrink:0;\n}\n\n.theme-dark .cockpit-dashboard-cal-surface {\n  background:\n    radial-gradient(circle at top left, rgba(72,180,255,0.05), transparent 28%),\n    linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.004));\n  border-color: rgba(72,180,255,0.06);\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 8px 18px rgba(0,0,0,0.08);\n}\n.theme-dark .cockpit-dashboard-cal-grid {\n  gap: 2px;\n}\n.theme-dark .cockpit-dashboard-cal-cell {\n  background: transparent;\n  border-color: transparent;\n  box-shadow: none;\n  border-radius: 10px;\n}\n.theme-dark .cockpit-dashboard-cal-cell:hover {\n  background: rgba(72,180,255,0.035);\n  border-color: rgba(72,180,255,0.08);\n  transform: none;\n  box-shadow: none;\n}\n.theme-dark .cockpit-dashboard-cal-cell.has-todos {\n  background: linear-gradient(180deg, rgba(72,180,255,0.018), rgba(72,180,255,0.008));\n}\n.theme-dark .cockpit-dashboard-cal-cell.today {\n  background: rgba(72,180,255,0.04);\n  color: #8fd7ff;\n}\n.theme-dark .cockpit-dashboard-cal-cell.selected {\n  background: rgba(72,180,255,0.06);\n  border-color: rgba(72,180,255,0.26);\n  box-shadow: inset 0 0 0 1px rgba(72,180,255,0.14);\n}\n.theme-dark .cockpit-dashboard-cal-badge {\n  background: rgba(72,180,255,0.12);\n  color: #8fd7ff;\n}\n.theme-dark .cockpit-dashboard-cal-detail {\n  background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.006));\n  border-color: rgba(255,255,255,0.04);\n  box-shadow: none;\n}\n\n@media (max-width: 720px) {\n  .cockpit-dashboard-layout-done {\n    top: 16px;\n    right: 16px;\n    width: 34px;\n    height: 34px;\n  }\n}\n\n.cockpit-dashboard-release-modal .modal {\n  width: min(720px, calc(100vw - 32px));\n}\n.cockpit-dashboard-release-top {\n  margin-bottom: 12px;\n}\n.cockpit-dashboard-release-current {\n  display: inline-flex;\n  align-items: center;\n  padding: 6px 10px;\n  border-radius: 999px;\n  background: rgba(72,180,255,0.1);\n  color: var(--text-muted);\n  font-size: 0.76em;\n  font-weight: 700;\n  letter-spacing: 0.03em;\n}\n.cockpit-dashboard-release-empty {\n  padding: 24px 0;\n  color: var(--text-muted);\n  text-align: center;\n}\n.cockpit-dashboard-release-card {\n  background: linear-gradient(180deg, rgba(72,180,255,0.05), rgba(72,180,255,0.015));\n  border: 1px solid rgba(72,180,255,0.12);\n  border-radius: 16px;\n  padding: 14px 16px;\n  margin-bottom: 12px;\n}\n.cockpit-dashboard-release-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  margin-bottom: 6px;\n}\n.cockpit-dashboard-release-version {\n  font-size: 1em;\n  font-weight: 800;\n  color: var(--text-normal);\n}\n.cockpit-dashboard-release-date {\n  color: var(--text-muted);\n  font-size: 0.76em;\n  white-space: nowrap;\n}\n.cockpit-dashboard-release-title {\n  font-size: 0.82em;\n  font-weight: 700;\n  color: var(--text-normal);\n  margin-bottom: 8px;\n}\n.cockpit-dashboard-release-list {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--text-muted);\n}\n.cockpit-dashboard-release-list li {\n  margin: 4px 0;\n  line-height: 1.5;\n}\n\n/* 可编辑名称 */\n.cockpit-dashboard-greeting { position:relative; }\n.cockpit-dashboard-name { cursor:pointer; }\n.cockpit-dashboard-name:hover { opacity:0.85; }\n.cockpit-dashboard-name-input { font-size:0.7em; font-weight:800; font-family:inherit; background:transparent; border:none; border-bottom:2px solid var(--cockpit-accent); color:var(--text-normal); outline:none; padding:0 2px; width:auto; min-width:3em; -webkit-text-fill-color:var(--text-normal); }\n\n@media (max-width: 720px) {\n  .cockpit-dashboard-root {\n    padding: 14px 16px;\n  }\n  .cockpit-dashboard-hero {\n    padding: 16px 14px 14px;\n  }\n  .cockpit-dashboard-hero-controls {\n    position: static;\n    justify-content: center;\n    margin-bottom: 10px;\n  }\n  .cockpit-dashboard-greeting {\n    padding: 0;\n  }\n  .cockpit-dashboard-lang-switch {\n    background: rgba(72,180,255,0.06);\n  }\n  .cockpit-dashboard-todo-actions {\n    gap: 6px;\n  }\n  .cockpit-dashboard-todo-btn {\n    width: 28px;\n    height: 28px;\n    font-size: 0.86em;\n  }\n  .cockpit-dashboard-cal-detail-head {\n    align-items: flex-start;\n    flex-wrap: wrap;\n  }\n  .cockpit-dashboard-cal-detail-add {\n    width: 100%;\n    justify-content: center;\n  }\n  .cockpit-dashboard-todo-editor-backdrop {\n    padding: 10px 10px 0;\n  }\n  .cockpit-dashboard-todo-editor-sheet {\n    width: 100%;\n    max-height: 88vh;\n    border-bottom-left-radius: 0;\n    border-bottom-right-radius: 0;\n  }\n  .cockpit-dashboard-todo-editor-tag-input-row {\n    flex-direction: column;\n    align-items: stretch;\n  }\n  .cockpit-dashboard-todo-editor-tag-input-row .cockpit-dashboard-todo-editor-secondary-btn,\n  .cockpit-dashboard-todo-editor-primary-btn,\n  .cockpit-dashboard-todo-editor-secondary-btn {\n    width: 100%;\n    justify-content: center;\n  }\n  .cockpit-dashboard-todo-editor-footer {\n    flex-direction: column-reverse;\n    align-items: stretch;\n  }\n}\n\n\n/* 首次使用引导 — 高亮脉波动画 */\n@keyframes cockpit-onboarding-pulse {\n  0%, 100% { box-shadow: 0 0 0 0 rgba(72,180,255,0.5), 0 0 0 0 rgba(72,180,255,0.2); }\n  50% { box-shadow: 0 0 0 4px rgba(72,180,255,0.4), 0 0 0 14px rgba(72,180,255,0.08); }\n}\n.cockpit-dashboard-welcome-backdrop {\n  position: fixed;\n  inset: 0;\n  z-index: 9997;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 20px;\n  background: rgba(15, 23, 42, 0.52);\n  backdrop-filter: blur(14px);\n}\n.cockpit-dashboard-welcome-card {\n  width: min(720px, calc(100vw - 24px));\n  padding: 28px 28px 24px;\n  border-radius: 24px;\n  border: 1px solid rgba(72,180,255,0.16);\n  background:\n    radial-gradient(circle at top left, rgba(72,180,255,0.12), transparent 32%),\n    linear-gradient(180deg, rgba(29,36,48,0.98), rgba(19,24,34,0.98));\n  box-shadow: 0 28px 70px rgba(0,0,0,0.28);\n}\n.theme-light .cockpit-dashboard-welcome-card {\n  background:\n    radial-gradient(circle at top left, rgba(72,180,255,0.12), transparent 32%),\n    linear-gradient(180deg, rgba(255,255,255,0.99), rgba(244,247,252,0.98));\n  box-shadow: 0 22px 52px rgba(15,23,42,0.16);\n}\n.cockpit-dashboard-welcome-badge {\n  display: inline-flex;\n  align-items: center;\n  min-height: 28px;\n  padding: 0 12px;\n  border-radius: 999px;\n  background: rgba(72,180,255,0.12);\n  color: #8fd7ff;\n  font-size: 0.72em;\n  font-weight: 800;\n  letter-spacing: 0.04em;\n  margin-bottom: 14px;\n}\n.cockpit-dashboard-welcome-title {\n  font-size: 2em;\n  font-weight: 900;\n  color: var(--text-normal);\n  margin-bottom: 14px;\n}\n.cockpit-dashboard-welcome-intro {\n  display: grid;\n  gap: 10px;\n  margin-bottom: 20px;\n}\n.cockpit-dashboard-welcome-copy {\n  color: var(--text-muted);\n  line-height: 1.65;\n  font-size: 0.92em;\n}\n.cockpit-dashboard-welcome-copy.primary {\n  color: var(--text-normal);\n  font-weight: 600;\n}\n.cockpit-dashboard-welcome-lang-block {\n  margin-bottom: 20px;\n}\n.cockpit-dashboard-welcome-label {\n  font-size: 0.74em;\n  font-weight: 800;\n  color: var(--text-muted);\n  letter-spacing: 0.04em;\n  margin-bottom: 10px;\n}\n.cockpit-dashboard-welcome-lang-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 10px;\n}\n.cockpit-dashboard-welcome-lang-btn,\n.cockpit-dashboard-welcome-start,\n.cockpit-dashboard-welcome-skip,\n.cockpit-dashboard-onboarding-card-btn,\n.cockpit-dashboard-onboarding-card-close {\n  border: none;\n  cursor: pointer;\n  touch-action: manipulation;\n}\n.cockpit-dashboard-welcome-lang-btn {\n  min-height: 42px;\n  padding: 0 16px;\n  border-radius: 12px;\n  border: 1px solid var(--background-modifier-border);\n  background: var(--background-secondary);\n  color: var(--text-muted);\n  font-size: 0.84em;\n  font-weight: 700;\n}\n.cockpit-dashboard-welcome-lang-btn.active {\n  background: rgba(72,180,255,0.14);\n  border-color: rgba(72,180,255,0.3);\n  color: #8fd7ff;\n  box-shadow: 0 8px 20px rgba(72,180,255,0.14);\n}\n.cockpit-dashboard-welcome-actions {\n  display: flex;\n  justify-content: flex-end;\n  gap: 10px;\n}\n.cockpit-dashboard-welcome-start,\n.cockpit-dashboard-welcome-skip,\n.cockpit-dashboard-onboarding-card-btn {\n  min-height: 40px;\n  padding: 0 16px;\n  border-radius: 12px;\n  font-size: 0.8em;\n  font-weight: 800;\n}\n.cockpit-dashboard-welcome-start,\n.cockpit-dashboard-onboarding-card-btn.primary {\n  background: var(--interactive-accent);\n  color: white;\n}\n.cockpit-dashboard-welcome-skip,\n.cockpit-dashboard-onboarding-card-btn.secondary {\n  border: 1px solid var(--background-modifier-border);\n  background: var(--background-secondary);\n  color: var(--text-muted);\n}\n.cockpit-dashboard-onboarding-card {\n  position: fixed;\n  z-index: 9998;\n  max-width: 360px;\n  border-radius: 16px;\n  border: 1px solid rgba(72,180,255,0.12);\n  background: var(--background-primary);\n  box-shadow: 0 12px 36px rgba(0,0,0,0.2);\n  padding: 16px;\n  font-size: 0.85em;\n  line-height: 1.55;\n  transition: opacity 0.3s;\n}\n.cockpit-dashboard-onboarding-card-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 10px;\n  margin-bottom: 10px;\n}\n.cockpit-dashboard-onboarding-card-step {\n  font-size: 0.72em;\n  color: var(--text-muted);\n  font-weight: 700;\n}\n.cockpit-dashboard-onboarding-card-close {\n  min-height: 28px;\n  padding: 0 8px;\n  border-radius: 8px;\n  background: transparent;\n  color: var(--text-muted);\n  font-size: 0.74em;\n  font-weight: 700;\n}\n.cockpit-dashboard-onboarding-card-body {\n  color: var(--text-normal);\n  margin-bottom: 12px;\n}\n.cockpit-dashboard-onboarding-card-actions {\n  display: flex;\n  justify-content: flex-end;\n  gap: 8px;\n}\n.cockpit-dashboard-onboarding-highlight {\n  animation: cockpit-onboarding-pulse 1.6s ease-in-out infinite;\n  border-radius: var(--radius-m, 10px);\n  outline: 2.5px solid rgba(72,180,255,0.35);\n  outline-offset: 4px;\n  position: relative;\n  transition: outline-color 0.3s;\n}\n@media (max-width: 720px) {\n  .cockpit-dashboard-welcome-card {\n    width: 100%;\n    padding: 22px 18px 18px;\n    border-radius: 20px;\n  }\n  .cockpit-dashboard-welcome-title {\n    font-size: 1.6em;\n  }\n  .cockpit-dashboard-welcome-actions,\n  .cockpit-dashboard-onboarding-card-actions {\n    flex-direction: column-reverse;\n    align-items: stretch;\n  }\n  .cockpit-dashboard-welcome-start,\n  .cockpit-dashboard-welcome-skip,\n  .cockpit-dashboard-onboarding-card-btn {\n    width: 100%;\n    justify-content: center;\n  }\n  .cockpit-dashboard-onboarding-card {\n    max-width: calc(100vw - 24px);\n  }\n}\n";
 
 // ===== modules =====
 // ===== constants.js =====
@@ -22,6 +22,28 @@ const E = { wave:'👋', search:'🔍', tag:'🏷️', graph:'🕸️', bolt:'�
 const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f97316','#6366f1'];
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
 const RELEASE_HISTORY = [
+  {
+    version: '1.0.9',
+    date: '2026-07-08',
+    title: {
+      'zh-CN': '静默刷新、番茄钟历史记录与 Toolbar 可定制',
+      en: 'Silent Refresh, Pomodoro History, and Customizable Toolbar'
+    },
+    highlights: {
+      'zh-CN': [
+        '新增局部静默刷新，问候语与首页关键区块会按周期更新，并尽量避开用户输入与编辑状态。',
+        '番茄钟专注数据改为按日期累计写入 `_data/focus.md`，保留历史记录而不再只覆盖当天。',
+        '重做番茄钟浮窗，强化深浅色适配，精简大小视图信息负载，并在休息结束后提示继续专注。',
+        '修复 Hermes 启动链路，编辑模式下支持自定义隐藏 Toolbar 按钮。'
+      ],
+      en: [
+        'Added partial silent refresh so the greeting and key dashboard sections update on a schedule while avoiding active input and edit states.',
+        'Changed Pomodoro focus persistence to accumulate by date in `_data/focus.md`, preserving history instead of overwriting only today.',
+        'Refined the floating Pomodoro with better light/dark support, leaner compact and expanded views, and a reminder when breaks end.',
+        'Fixed the Hermes launch flow and added per-button Toolbar visibility controls in Edit Mode.'
+      ]
+    }
+  },
   {
     version: '1.0.8',
     date: '2026-07-06',
@@ -198,6 +220,7 @@ const I18N = {
       tag: '标签',
       graph: '图谱',
       command: '命令',
+      more: '更多',
       hermes: 'Hermes',
       cockpit: '驾驶舱',
       workLog: '工作日志',
@@ -226,6 +249,8 @@ const I18N = {
       hiddenTag: '已隐藏',
       hideModule: ({ module }) => '隐藏模块：' + module,
       showModule: ({ module }) => '显示模块：' + module,
+      hideToolbarButton: ({ button }) => '隐藏按钮：' + button,
+      showToolbarButton: ({ button }) => '显示按钮：' + button,
       modules: {
         hero: '欢迎区',
         tip: '每日小贴士',
@@ -235,6 +260,10 @@ const I18N = {
       }
     },
     notices: {
+      hermesStarting: '🤖 Hermes 正在启动…',
+      hermesStartingExternal: '🤖 已在外部终端启动 Hermes',
+      hermesFallbackExternal: '🤖 已切换到外部终端启动 Hermes',
+      hermesFailed: ({ message }) => '🤖 Hermes 启动失败: ' + message,
       cockpitMissing: '🛩️ 驾驶舱未配置',
       cockpitStarting: '🛩️ 驾驶舱正在启动…',
       cockpitFailed: ({ message }) => '🛩️ 驾驶舱启动失败: ' + message,
@@ -244,7 +273,8 @@ const I18N = {
     },
     calendar: {
       emptyDay: '这一天没有待办 🎉',
-      backToToday: '回到今天'
+      backToToday: '回到今天',
+      addTodo: '新增待办'
     },
     categories: {
       noteCount: ({ count }) => count + ' 篇笔记'
@@ -264,7 +294,7 @@ const I18N = {
       done: '已办',
       stateDone: '已完成',
       stateDoing: '进行中',
-      placeholder: '输入待办事项，可加 #标签 due:YYYY-MM-DD p:high，回车确认',
+      placeholder: '输入待办标题...',
       overdue: ({ date }) => '⚠️ 已过期: ' + date,
       dueToday: '⏰ 今天到期',
       priorityHigh: '高优先级',
@@ -272,7 +302,24 @@ const I18N = {
       priorityLow: '低优先级',
       priorityTitle: ({ value }) => '优先级: ' + value,
       edit: '编辑',
-      remove: '删除'
+      remove: '删除',
+      editorCreate: '新增待办',
+      editorEdit: '编辑待办',
+      editorTask: '待办内容',
+      editorTaskPlaceholder: '例如：整理周报',
+      editorDue: '截止日期',
+      noDue: '不设置',
+      dueTodayBtn: '今天',
+      dueTomorrowBtn: '明天',
+      editorPriority: '优先级',
+      editorTags: '标签',
+      editorNoTags: '未选择标签',
+      editorTagPlaceholder: '新标签',
+      editorAddTag: '添加标签',
+      cancel: '取消',
+      saveNew: '创建',
+      saveEdit: '保存',
+      legacyHint: '也兼容 #标签 due:YYYY-MM-DD p:high'
     },
     recent: {
       star: '收藏',
@@ -301,7 +348,10 @@ const I18N = {
       close: '关闭番茄钟',
       minimize: '最小化',
       expand: '展开',
+      modeFocus: '专注轮',
+      modeBreak: '休息轮',
       ready: '准备开始',
+      dragHint: '拖动标题栏可移动',
       start: '▶ 开始',
       resume: '▶ 继续',
       pause: '⏸ 暂停',
@@ -312,21 +362,34 @@ const I18N = {
       focusing: '专注中...',
       resting: '休息中...',
       completedOne: '✅ 完成一个番茄！',
+      readyForBreak: '专注结束，准备休息',
       startBreak: '▶ 开始休息',
       breakEnd: '休息结束',
+      readyForFocus: '休息完成，继续工作',
+      backToWork: '回到专注',
       focusLogTitle: '专注记录'
     },
     onboarding: {
-      stepName: '✏️ 点击上方昵称可直接修改，试试点击「点击修改名称」输入你的名字',
-      stepToolbar: '⚡ 工具栏一键操作：新建笔记、搜索、标签、图谱、番茄钟等',
+      stepName: '✏️ 这里可以切换界面语言，也可以点击昵称直接修改名字',
+      stepToolbar: '⚡ 工具栏里可以快速新建笔记、搜索、打开标签和图谱，也能直接启动番茄钟',
       stepCalendar: '📅 日历看板显示每日待办，左右箭头切换月份，点击日期查看详情',
       stepTodo: '✅ 待办支持标签分类、红黄绿优先级、截止日期提醒，点击复选框完成',
+      stepContextMenu: '🖱️ 桌面端在空白区域右键，可以打开快捷菜单，里面有刷新页面、最近更新和布局编辑',
       stepStats: '📊 统计卡片实时展示数据，各区域标题可点击折叠收起',
       stepPomodoro: '🍅 番茄钟 25 分专注 + 5 分休息，右下角浮动可拖拽',
       close: '✕ 关闭',
       prev: '← 上一步',
       next: '下一步 →',
       done: '✓ 完成'
+    },
+    welcome: {
+      title: 'Cockpit Dashboard',
+      badge: '首次设置',
+      introCn: '欢迎使用 Cockpit Dashboard。先选择你的界面语言，再开始功能引导。',
+      introEn: 'Welcome to Cockpit Dashboard. Choose your interface language first, then continue to the guided tour.',
+      chooseLanguage: '选择语言',
+      continue: '开始使用',
+      skip: '跳过引导'
     }
   },
   en: {
@@ -362,6 +425,7 @@ const I18N = {
       tag: 'Tags',
       graph: 'Graph',
       command: 'Commands',
+      more: 'More',
       hermes: 'Hermes',
       cockpit: 'Dashboard',
       workLog: 'Work Log',
@@ -390,6 +454,8 @@ const I18N = {
       hiddenTag: 'Hidden',
       hideModule: ({ module }) => 'Hide module: ' + module,
       showModule: ({ module }) => 'Show module: ' + module,
+      hideToolbarButton: ({ button }) => 'Hide toolbar button: ' + button,
+      showToolbarButton: ({ button }) => 'Show toolbar button: ' + button,
       modules: {
         hero: 'Hero',
         tip: 'Daily Tip',
@@ -399,6 +465,10 @@ const I18N = {
       }
     },
     notices: {
+      hermesStarting: '🤖 Starting Hermes…',
+      hermesStartingExternal: '🤖 Hermes opened in an external terminal',
+      hermesFallbackExternal: '🤖 Hermes fell back to an external terminal',
+      hermesFailed: ({ message }) => '🤖 Hermes failed to start: ' + message,
       cockpitMissing: '🛩️ Dashboard command is not configured',
       cockpitStarting: '🛩️ Launching dashboard…',
       cockpitFailed: ({ message }) => '🛩️ Failed to launch dashboard: ' + message,
@@ -408,7 +478,8 @@ const I18N = {
     },
     calendar: {
       emptyDay: 'No tasks on this day 🎉',
-      backToToday: 'Back to today'
+      backToToday: 'Back to today',
+      addTodo: 'Add task'
     },
     categories: {
       noteCount: ({ count }) => count + ' notes'
@@ -428,7 +499,7 @@ const I18N = {
       done: 'Done',
       stateDone: 'Done',
       stateDoing: 'In progress',
-      placeholder: 'Type a task, add #tags due:YYYY-MM-DD p:high, then press Enter',
+      placeholder: 'Type a task title...',
       overdue: ({ date }) => '⚠️ Overdue: ' + date,
       dueToday: '⏰ Due today',
       priorityHigh: 'High priority',
@@ -436,7 +507,24 @@ const I18N = {
       priorityLow: 'Low priority',
       priorityTitle: ({ value }) => 'Priority: ' + value,
       edit: 'Edit',
-      remove: 'Delete'
+      remove: 'Delete',
+      editorCreate: 'Add task',
+      editorEdit: 'Edit task',
+      editorTask: 'Task',
+      editorTaskPlaceholder: 'Example: Finish weekly review',
+      editorDue: 'Due date',
+      noDue: 'No due date',
+      dueTodayBtn: 'Today',
+      dueTomorrowBtn: 'Tomorrow',
+      editorPriority: 'Priority',
+      editorTags: 'Tags',
+      editorNoTags: 'No tags selected',
+      editorTagPlaceholder: 'New tag',
+      editorAddTag: 'Add tag',
+      cancel: 'Cancel',
+      saveNew: 'Create',
+      saveEdit: 'Save',
+      legacyHint: 'Also supports #tags due:YYYY-MM-DD p:high'
     },
     recent: {
       star: 'Star',
@@ -465,7 +553,10 @@ const I18N = {
       close: 'Close Pomodoro',
       minimize: 'Minimize',
       expand: 'Expand',
+      modeFocus: 'Focus session',
+      modeBreak: 'Break session',
       ready: 'Ready to focus',
+      dragHint: 'Drag the header to move',
       start: '▶ Start',
       resume: '▶ Resume',
       pause: '⏸ Pause',
@@ -476,21 +567,34 @@ const I18N = {
       focusing: 'Focusing...',
       resting: 'On break...',
       completedOne: '✅ One Pomodoro done!',
+      readyForBreak: 'Focus finished, ready for a break',
       startBreak: '▶ Start break',
       breakEnd: 'Break finished',
+      readyForFocus: 'Break over, back to focus',
+      backToWork: 'Back to focus',
       focusLogTitle: 'Focus Log'
     },
     onboarding: {
-      stepName: '✏️ Click your name above to rename it. Try replacing “Click to rename” with yours.',
-      stepToolbar: '⚡ One-click toolbar actions for notes, search, tags, graph view, Pomodoro, and more.',
+      stepName: '✏️ Use this area to switch interface language and rename yourself quickly.',
+      stepToolbar: '⚡ Use the toolbar for quick note actions, search, tags, graph view, and Pomodoro.',
       stepCalendar: '📅 The calendar shows daily tasks. Use arrows to switch months and click a day for details.',
       stepTodo: '✅ Tasks support tags, red-yellow-green priority, and due reminders. Click the checkbox to complete.',
+      stepContextMenu: '🖱️ On desktop, right-click any blank area to open the quick menu for refresh, recent updates, and layout editing.',
       stepStats: '📊 Stat cards update live, and each section title can collapse its content.',
       stepPomodoro: '🍅 Pomodoro runs 25 minutes focus + 5 minutes break, and the floating card can be dragged.',
       close: '✕ Close',
       prev: '← Back',
       next: 'Next →',
       done: '✓ Finish'
+    },
+    welcome: {
+      title: 'Cockpit Dashboard',
+      badge: 'First-time setup',
+      introCn: '欢迎使用 Cockpit Dashboard。先选择你的界面语言，再开始功能引导。',
+      introEn: 'Welcome to Cockpit Dashboard. Choose your interface language first, then continue to the guided tour.',
+      chooseLanguage: 'Choose Language',
+      continue: 'Get Started',
+      skip: 'Skip Guide'
     }
   }
 };
@@ -753,8 +857,16 @@ function buildCalendar(root, todos, opts) {
   let selDay   = window.moment().date();
   let calRoot  = null;
   let gridEl   = null;
+  let subtitleEl = null;
   const DOW_LABELS = ['一','二','三','四','五','六','日'];
   const now = window.moment();
+  const getSelectedDate = () => window.moment([calYear, calMonth, selDay]);
+  const updateCalendarSubtitle = () => {
+    if (!subtitleEl) return;
+    const selDate = getSelectedDate();
+    const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][selDate.day()];
+    subtitleEl.setText(selDate.format('M月D日') + ' ' + weekDay);
+  };
 
   function buildTodoMap() {
     const m = {};
@@ -783,7 +895,7 @@ function buildCalendar(root, todos, opts) {
     if (!calRoot || !calRoot.parentNode) return;
     const old = calRoot.parentNode.querySelector('.' + PLUGIN_ID + '-cal-detail');
     if (old) old.remove();
-    const selDate  = window.moment([calYear, calMonth, selDay]);
+    const selDate  = getSelectedDate();
     const selKey   = selDate.format('YYYY-MM-DD');
     const items    = tm[selKey] || [];
     const det      = document.createElement('div');
@@ -816,7 +928,10 @@ function buildCalendar(root, todos, opts) {
     const todoMap = buildTodoMap();
     ensureRoot();
     const header = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-header' });
-    header.createDiv({ cls: PLUGIN_ID + '-cal-title', text: calYear + '年' + (calMonth + 1) + '月' });
+    const titleWrap = header.createDiv({ cls: PLUGIN_ID + '-cal-title-wrap' });
+    titleWrap.createDiv({ cls: PLUGIN_ID + '-cal-title', text: calYear + '年' + (calMonth + 1) + '月' });
+    subtitleEl = titleWrap.createDiv({ cls: PLUGIN_ID + '-cal-subtitle', text: '' });
+    updateCalendarSubtitle();
     const nav = header.createDiv({ cls: PLUGIN_ID + '-cal-nav' });
     const prevBtn  = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '‹' });
     const todayBtn = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '●', attr:{ title:'回到今天' } });
@@ -869,6 +984,7 @@ function buildCalendar(root, todos, opts) {
 
   function renderDayDetailOnly(tm) {
     if (gridEl) { const allCells = gridEl.querySelectorAll('.' + PLUGIN_ID + '-cal-cell'); let cur = 0; allCells.forEach(c => { if (c.classList.contains('dim')) return; cur++; c.classList.toggle('selected', cur === selDay); }); }
+    updateCalendarSubtitle();
     renderDetail(tm);
   }
 
@@ -903,113 +1019,25 @@ function buildSearch(root, toolbar, allFiles, app, texts) {
     else { searchInput.value=''; searchResults.empty(); }
   };
   // 重写搜索按钮行为
-  toolbar.querySelector('button:nth-child(2)').onclick = toggleSearch;
+  const searchBtn = toolbar.querySelector('.' + PLUGIN_ID + '-toolbtn[data-action="search"]');
+  if (searchBtn) searchBtn.onclick = toggleSearch;
   return toggleSearch;
 }
 
 // ===== pomodoro.js =====
-// pomodoro.js — 番茄钟模块
-// 导出：buildPomodoro(view, root)
-// view: CockpitView 实例，root: DOM 容器
+// pomodoro.js — 番茄钟入口
+// 真正实现位于 CockpitView._buildPomodoro，避免双份代码继续分叉。
 
 function buildPomodoro(view, root) {
-  const PID = PLUGIN_ID;
-  const self = view;
-
-  // 全局单例：如果已存在则复用，不重建
-  const existing = document.querySelector('.' + PID + '-pomodoro');
-  if (existing) return;
-
-  const floatEl = document.createElement('div');
-  floatEl.className = PID + '-pomodoro';
-  floatEl.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:999;width:180px;background:var(--background-secondary);border:1px solid var(--background-modifier-border);border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.18);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;transition:box-shadow 0.2s;';
-
-  const header = floatEl.createDiv({ cls: PID + '-pomo-header' });
-  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:linear-gradient(135deg,#f97316,#ef4444);cursor:move;user-select:none;';
-  const titleSpan = header.createSpan({ text: '🍅 番茄钟', attr: { style: 'font-size:0.82em;font-weight:700;color:white;' } });
-  const btnGroup = header.createDiv({ attr: { style: 'display:flex;gap:6px;align-items:center;' } });
-  const toggleBtn = btnGroup.createSpan({ text: '−', attr: { style: 'font-size:1.1em;color:white;cursor:pointer;padding:0 4px;', title: '最小化' } });
-  const closeBtn = btnGroup.createSpan({ text: '×', attr: { style: 'font-size:1.2em;color:white;cursor:pointer;padding:0 4px;', title: '关闭番茄钟' } });
-
-  const body = floatEl.createDiv({ cls: PID + '-pomo-body' });
-  body.style.cssText = 'padding:12px;text-align:center;';
-
-  const statusEl = body.createDiv({ text: '准备开始', attr: { style: 'font-size:0.72em;color:var(--text-muted);margin-bottom:6px;' } });
-  const timerEl = body.createDiv({ text: '25:00', attr: { style: 'font-size:2.2em;font-weight:800;color:var(--text-normal);font-variant-numeric:tabular-nums;letter-spacing:2px;' } });
-  const progWrap = body.createDiv({ attr: { style: 'height:4px;background:var(--background-modifier-border);border-radius:2px;margin:8px 0;overflow:hidden;' } });
-  const progFill = progWrap.createDiv({ attr: { style: 'height:100%;width:0%;background:linear-gradient(90deg,#f97316,#ef4444);border-radius:2px;transition:width 0.3s;' } });
-  const btnRow = body.createDiv({ attr: { style: 'display:flex;gap:6px;justify-content:center;margin-top:4px;' } });
-  const startBtn = btnRow.createEl('button', { text: '▶ 开始', attr: { style: 'padding:5px 14px;border-radius:8px;border:1px solid var(--background-modifier-border);background:var(--interactive-accent);color:white;font-size:0.72em;font-weight:600;cursor:pointer;transition:all 0.15s;' } });
-  const resetBtn = btnRow.createEl('button', { text: '↺ 重置', attr: { style: 'padding:5px 14px;border-radius:8px;border:1px solid var(--background-modifier-border);background:var(--background-secondary);color:var(--text-muted);font-size:0.72em;font-weight:600;cursor:pointer;transition:all 0.15s;' } });
-  const todayFocus = body.createDiv({ text: '今日专注: 0 min', attr: { style: 'font-size:0.68em;color:var(--text-muted);margin-top:8px;' } });
-  const countEl = body.createDiv({ text: '🍅 × 0', attr: { style: 'font-size:0.68em;color:var(--text-muted);margin-top:2px;' } });
-
-  document.body.appendChild(floatEl);
-
-  let totalSeconds = 25 * 60;
-  let remaining = totalSeconds;
-  let isRunning = false;
-  let isBreak = false;
-  let pomodoroCount = 0;
-  let timerInterval = null;
-  let minimized = false;
-
-  // 拖拽
-  let dragOffsetX = 0, dragOffsetY = 0, isDragging = false;
-  header.addEventListener('mousedown', (e) => { if (e.target === toggleBtn || e.target === closeBtn || e.target.parentElement === btnGroup) return; isDragging = true; const rect = floatEl.getBoundingClientRect(); dragOffsetX = e.clientX - rect.left; dragOffsetY = e.clientY - rect.top; floatEl.style.transition = 'none'; });
-  document.addEventListener('mousemove', (e) => { if (!isDragging) return; floatEl.style.left = (e.clientX - dragOffsetX) + 'px'; floatEl.style.top = (e.clientY - dragOffsetY) + 'px'; floatEl.style.right = 'auto'; floatEl.style.bottom = 'auto'; });
-  document.addEventListener('mouseup', () => { isDragging = false; floatEl.style.transition = 'box-shadow 0.2s'; });
-
-  // 最小化
-  toggleBtn.onclick = () => { minimized = !minimized; body.style.display = minimized ? 'none' : 'block'; toggleBtn.textContent = minimized ? '+' : '−'; toggleBtn.title = minimized ? '展开' : '最小化'; floatEl.style.width = minimized ? '140px' : '180px'; titleSpan.textContent = minimized ? '🍅 ' + fmtTime(remaining) : '🍅 番茄钟'; };
-
-  // 关闭
-  closeBtn.onclick = () => { clearInterval(timerInterval); floatEl.remove(); self._pomodoroTimer = null; };
-
-  function fmtTime(s) { const m = Math.floor(s / 60); const sec = s % 60; return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0'); }
-
-  function updateDisplay() {
-    timerEl.textContent = fmtTime(remaining);
-    progFill.style.width = ((totalSeconds - remaining) / totalSeconds * 100) + '%';
-    todayFocus.textContent = '今日专注: ' + (self._focusMinutes || 0) + ' min';
-    countEl.textContent = '🍅 × ' + pomodoroCount;
-    if (minimized) titleSpan.textContent = '🍅 ' + fmtTime(remaining);
+  if (view && typeof view._buildPomodoro === 'function') {
+    return view._buildPomodoro(root);
   }
-
-  startBtn.onclick = () => {
-    if (isRunning) {
-      clearInterval(timerInterval); isRunning = false; startBtn.textContent = '▶ 继续';
-      statusEl.textContent = isBreak ? '休息暂停' : '专注暂停'; statusEl.style.color = '#f59e0b';
-    } else {
-      isRunning = true; startBtn.textContent = '⏸ 暂停';
-      statusEl.textContent = isBreak ? '休息中...' : '专注中...'; statusEl.style.color = isBreak ? '#22c55e' : '#ef4444';
-      timerInterval = setInterval(() => {
-        remaining--; updateDisplay();
-        if (remaining <= 0) {
-          clearInterval(timerInterval); isRunning = false;
-          if (!isBreak) {
-            pomodoroCount++; self._focusMinutes = (self._focusMinutes || 0) + 25;
-            (async () => { try { const today = window.moment().format('YYYY-MM-DD'); const content = '# 专注记录\n\ndate: ' + today + '\nminutes: ' + self._focusMinutes + '\n'; if (!self.app.vault.getAbstractFileByPath('_data')) await self.app.vault.createFolder('_data'); const f = self.app.vault.getAbstractFileByPath('_data/focus.md'); if (f) await self.app.vault.modify(f, content); else await self.app.vault.create('_data/focus.md', content); } catch(e) { console.warn('save focus', e); } })();
-            statusEl.textContent = '✅ 完成一个番茄！'; statusEl.style.color = '#22c55e'; startBtn.textContent = '▶ 开始休息'; isBreak = true; totalSeconds = 5 * 60; remaining = totalSeconds;
-            if (self._updateStatsRef) self._updateStatsRef();
-          } else {
-            statusEl.textContent = '休息结束'; statusEl.style.color = 'var(--text-muted)'; startBtn.textContent = '▶ 开始'; isBreak = false; totalSeconds = 25 * 60; remaining = totalSeconds;
-          }
-          updateDisplay();
-        }
-      }, 1000);
-    }
-  };
-
-  resetBtn.onclick = () => { clearInterval(timerInterval); isRunning = false; isBreak = false; totalSeconds = 25 * 60; remaining = totalSeconds; startBtn.textContent = '▶ 开始'; statusEl.textContent = '准备开始'; statusEl.style.color = 'var(--text-muted)'; updateDisplay(); };
-
-  self._pomodoroTimer = timerInterval;
-  updateDisplay();
+  console.warn('Cockpit: buildPomodoro bridge failed, _buildPomodoro is unavailable');
 }
 
 // ===== _framework.js =====
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._editMode = false; this._dragModuleId = null; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._hiddenToolbarActions = new Set(); this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -1046,6 +1074,26 @@ class CockpitView extends obsidian.ItemView {
     };
     return labels[id] || id;
   }
+  _toolbarButtons() {
+    return [
+      { icon: '+', label: this._t('toolbar.new'), action: 'new', primary: true },
+      { icon: E.search, label: this._t('toolbar.search'), action: 'search' },
+      { icon: E.tag, label: this._t('toolbar.tag'), action: 'tag' },
+      { icon: E.graph, label: this._t('toolbar.graph'), action: 'graph' },
+      { icon: E.bolt, label: this._t('toolbar.command'), action: 'command' },
+      { icon: '🤖', label: this._t('toolbar.hermes'), action: 'hermes' },
+      { icon: '🛩️', label: this._t('toolbar.cockpit'), action: 'cockpit-h5' },
+      { icon: '📝', label: this._t('toolbar.workLog'), action: 'work-log' },
+      { icon: '🍅', label: this._t('toolbar.pomodoro'), action: 'pomodoro' }
+    ];
+  }
+  _toolbarActionIds() {
+    return this._toolbarButtons().map((button) => button.action);
+  }
+  _toolbarActionLabel(action) {
+    const match = this._toolbarButtons().find((button) => button.action === action);
+    return match ? match.label : action;
+  }
   _normalizeModuleSubset(list) {
     const defaults = new Set(this._defaultModuleOrder());
     const seen = new Set();
@@ -1053,8 +1101,18 @@ class CockpitView extends obsidian.ItemView {
       ? list.filter((id) => defaults.has(id) && !seen.has(id) && (seen.add(id), true))
       : [];
   }
+  _normalizeToolbarActionSubset(list) {
+    const defaults = new Set(this._toolbarActionIds());
+    const seen = new Set();
+    return Array.isArray(list)
+      ? list.filter((id) => defaults.has(id) && !seen.has(id) && (seen.add(id), true))
+      : [];
+  }
   _isModuleHidden(moduleId) {
     return this._hiddenModules.has(moduleId);
+  }
+  _isToolbarActionHidden(action) {
+    return this._hiddenToolbarActions.has(action);
   }
   async _saveModuleOrder(order) {
     const next = this._normalizeModuleOrder(order);
@@ -1076,6 +1134,17 @@ class CockpitView extends obsidian.ItemView {
       await this._plugin.saveData(data);
     } catch (e) {
       console.warn('Cockpit: save hidden modules failed', e);
+    }
+  }
+  async _saveHiddenToolbarActions(hiddenActions) {
+    const next = this._normalizeToolbarActionSubset(hiddenActions);
+    this._hiddenToolbarActions = new Set(next);
+    try {
+      const data = await this._plugin.loadData() || {};
+      data.hiddenToolbarActions = next;
+      await this._plugin.saveData(data);
+    } catch (e) {
+      console.warn('Cockpit: save hidden toolbar actions failed', e);
     }
   }
   _getModuleIdForElement(el) {
@@ -1107,6 +1176,184 @@ class CockpitView extends obsidian.ItemView {
     root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
       wrapper.classList.remove('dragging', 'drop-before', 'drop-after');
     });
+  }
+  _closeTodoEditor() {
+    if (this._todoEditorEl && this._todoEditorEl.parentNode) this._todoEditorEl.remove();
+    this._todoEditorEl = null;
+  }
+  _closeWelcomeCover() {
+    if (this._welcomeCoverEl && this._welcomeCoverEl.parentNode) this._welcomeCoverEl.remove();
+    this._welcomeCoverEl = null;
+  }
+  _closeOnboardingCard() {
+    const card = document.getElementById(PLUGIN_ID + '-tour');
+    if (card) card.remove();
+    document.querySelectorAll('.' + PLUGIN_ID + '-onboarding-highlight').forEach((el) => {
+      el.classList.remove(PLUGIN_ID + '-onboarding-highlight');
+    });
+  }
+  _applyToolbarButtonEditState(root) {
+    const toolbar = root.querySelector('.' + PLUGIN_ID + '-toolbar');
+    if (!toolbar) return;
+    toolbar.classList.toggle(PLUGIN_ID + '-toolbar-editing', this._editMode);
+    toolbar.querySelectorAll('.' + PLUGIN_ID + '-toolslot').forEach((slot) => {
+      const action = slot.dataset.action;
+      const hidden = this._isToolbarActionHidden(action);
+      const label = this._toolbarActionLabel(action);
+      const btn = slot.querySelector('.' + PLUGIN_ID + '-toolbtn');
+      const toggle = slot.querySelector('.' + PLUGIN_ID + '-toolbtn-visibility');
+      slot.classList.toggle('is-hidden', hidden);
+      slot.style.display = !this._editMode && hidden ? 'none' : '';
+      if (btn) {
+        btn.disabled = this._editMode;
+        btn.setAttribute('aria-label', label);
+      }
+      if (toggle) {
+        toggle.textContent = hidden ? this._t('layout.show') : this._t('layout.hide');
+        toggle.title = hidden
+          ? this._t('layout.showToolbarButton', { button: label })
+          : this._t('layout.hideToolbarButton', { button: label });
+        toggle.tabIndex = this._editMode ? 0 : -1;
+        toggle.classList.toggle('is-hidden', hidden);
+      }
+    });
+  }
+  _getGreetingByHour(hour) {
+    let greeting = this._t('greetings.morning');
+    if (hour >= 12 && hour < 14) greeting = this._t('greetings.noon');
+    else if (hour >= 14 && hour < 18) greeting = this._t('greetings.afternoon');
+    else if (hour >= 18 && hour < 22) greeting = this._t('greetings.evening');
+    else if (hour >= 22 || hour < 6) greeting = this._t('greetings.night');
+    return greeting;
+  }
+  _refreshHeroSection() {
+    if (!this._heroRefs) return;
+    const now = window.moment();
+    const dueTodos = this._todos.filter((todo) => !todo.done && todo.dueDate && (
+      todo.dueDate.isBefore(now.clone().add(1, 'day'), 'day') ||
+      todo.dueDate.isSame(now.clone().add(1, 'day'), 'day')
+    ));
+    const dueIcon = dueTodos.some((todo) => todo.priority === 'high')
+      ? '🔴'
+      : dueTodos.some((todo) => todo.priority === 'mid')
+        ? '🟡'
+        : '🟢';
+    let heroSubText = this._t('hero.today', { date: formatHeroDate(now, this._lang()) });
+    if (dueTodos.length > 0) {
+      heroSubText += ' · ' + this._t('hero.dueTodos', { count: dueTodos.length, icon: dueIcon });
+    }
+    if (this._heroRefs.greetingPrefixEl) {
+      this._heroRefs.greetingPrefixEl.textContent = E.wave + ' ' + this._getGreetingByHour(now.hour()) + '，';
+    }
+    if (this._heroRefs.summaryEl) this._heroRefs.summaryEl.textContent = heroSubText;
+    if (this._heroRefs.daysEl) {
+      const days = Math.max(0, now.diff(window.moment(this._startDate), 'days'));
+      this._heroRefs.daysEl.textContent = this._t('hero.vaultDays', { days });
+    }
+  }
+  _parseFocusHistory(content) {
+    const history = new Map();
+    const re = /date:\s*(\S+)\s*\nminutes:\s*(\d+)/g;
+    let match;
+    while ((match = re.exec(content || '')) !== null) {
+      history.set(match[1], parseInt(match[2], 10) || 0);
+    }
+    return history;
+  }
+  _serializeFocusHistory(history) {
+    const lines = ['# ' + this._t('pomodoro.focusLogTitle'), ''];
+    Array.from(history.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .forEach(([date, minutes], index) => {
+        if (index > 0) lines.push('');
+        lines.push('date: ' + date);
+        lines.push('minutes: ' + minutes);
+      });
+    lines.push('');
+    return lines.join('\n');
+  }
+  async _saveFocusHistory(date, minutes) {
+    const dir = '_data';
+    if (!this.app.vault.getAbstractFileByPath(dir)) await this.app.vault.createFolder(dir);
+    const filePath = '_data/focus.md';
+    const existing = this.app.vault.getAbstractFileByPath(filePath);
+    const history = existing
+      ? this._parseFocusHistory(await this.app.vault.read(existing))
+      : new Map();
+    history.set(date, Math.max(0, parseInt(minutes, 10) || 0));
+    const content = this._serializeFocusHistory(history);
+    if (existing) await this.app.vault.modify(existing, content);
+    else await this.app.vault.create(filePath, content);
+  }
+  _bindSilentRefreshSensors() {
+    this._unbindSilentRefreshSensors();
+    const container = this.containerEl.children[1];
+    if (!container) return;
+    this._interactionSensorEl = container;
+    this._interactionHandler = () => { this._lastInteractionAt = Date.now(); };
+    ['pointerdown', 'keydown', 'input'].forEach((eventName) => {
+      container.addEventListener(eventName, this._interactionHandler, true);
+    });
+  }
+  _unbindSilentRefreshSensors() {
+    if (!this._interactionSensorEl || !this._interactionHandler) return;
+    ['pointerdown', 'keydown', 'input'].forEach((eventName) => {
+      this._interactionSensorEl.removeEventListener(eventName, this._interactionHandler, true);
+    });
+    this._interactionSensorEl = null;
+    this._interactionHandler = null;
+  }
+  _isSilentRefreshBlocked(ignoreRecentActivity) {
+    if (this._todoEditorEl || this._welcomeCoverEl || this._editMode) return true;
+    if (!ignoreRecentActivity && Date.now() - (this._lastInteractionAt || 0) < 30 * 1000) return true;
+    const activeEl = document.activeElement;
+    if (!(activeEl instanceof HTMLElement)) return false;
+    if (!activeEl.closest('.' + PLUGIN_ID + '-root')) return false;
+    return activeEl.matches('input, textarea, select, [contenteditable="true"]');
+  }
+  _startSilentRefreshLoops() {
+    if (this._minuteRefreshTimer) clearInterval(this._minuteRefreshTimer);
+    if (this._refreshTimer) clearInterval(this._refreshTimer);
+    if (this._visibilityRefreshHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityRefreshHandler);
+    }
+    this._refreshHeroSection();
+    this._minuteRefreshTimer = window.setInterval(() => {
+      try {
+        this._refreshHeroSection();
+      } catch (e) {
+        console.warn('Cockpit hero refresh failed', e);
+      }
+    }, 60 * 1000);
+    this._refreshTimer = window.setInterval(async () => {
+      try {
+        await this._runSilentRefreshCycle();
+      } catch (e) {
+        console.warn('Cockpit silent refresh failed', e);
+      }
+    }, 15 * 60 * 1000);
+    this._visibilityRefreshHandler = () => {
+      if (document.hidden) return;
+      this._runSilentRefreshCycle({ ignoreRecentActivity: true }).catch((e) => {
+        console.warn('Cockpit visibility refresh failed', e);
+      });
+    };
+    document.addEventListener('visibilitychange', this._visibilityRefreshHandler);
+  }
+  async _runSilentRefreshCycle(options = {}) {
+    this._refreshHeroSection();
+    if (document.hidden || this._isSilentRefreshBlocked(options.ignoreRecentActivity)) return;
+    const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
+    if (!root) return;
+    await this._reloadDashboardState();
+    this._allFiles = this.app.vault.getMarkdownFiles();
+    if (this._refreshCalendarRef) this._refreshCalendarRef();
+    if (this._refreshTodosRef) await this._refreshTodosRef({ persist: false });
+    else if (this._updateStatsRef) this._updateStatsRef();
+    this._refreshHeroSection();
+    this._refreshRecentSection(root, this._allFiles);
+    await this._refreshBookmarkSection(root, this._allFiles);
+    this._rebuildRecentStars();
   }
   _applyModuleEditState(root) {
     root.classList.toggle(PLUGIN_ID + '-layout-editing', this._editMode);
@@ -1141,6 +1388,7 @@ class CockpitView extends obsidian.ItemView {
         visibilityBtn.classList.toggle('is-hidden', hidden);
       }
     });
+    this._applyToolbarButtonEditState(root);
   }
   _wireModuleDnD(root) {
     root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
@@ -1294,19 +1542,16 @@ class CockpitView extends obsidian.ItemView {
     // 加载用户自定义名称 + 初始化首次使用日期
     try {
       const pluginData = await this._plugin.loadData() || {};
-      if (!pluginData.language) {
-        pluginData.language = DEFAULT_LANG;
-        await this._plugin.saveData(pluginData);
-      }
-      this._language = normalizeLang(pluginData?.language);
+      this._language = normalizeLang(pluginData?.language || DEFAULT_LANG);
       this._username = pluginData?.username || this._t('hero.defaultName');
       this._collapsed = pluginData?.collapsed || {};
       this._moduleOrder = this._normalizeModuleOrder(pluginData?.moduleOrder);
       this._hiddenModules = new Set(this._normalizeModuleSubset(pluginData?.hiddenModules));
+      this._hiddenToolbarActions = new Set(this._normalizeToolbarActionSubset(pluginData?.hiddenToolbarActions));
       if (!pluginData.startDate) { pluginData.startDate = window.moment().format('YYYY-MM-DD'); await this._plugin.saveData(pluginData); }
       this._startDate = pluginData.startDate;
       this._onboardingDone = pluginData?.onboardingDone || false;
-    } catch(e) { this._language = DEFAULT_LANG; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); }
+    } catch(e) { this._language = DEFAULT_LANG; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._hiddenToolbarActions = new Set(); }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -1315,10 +1560,7 @@ class CockpitView extends obsidian.ItemView {
       const f = this.app.vault.getAbstractFileByPath('_data/focus.md');
       if (f) {
         const content = await this.app.vault.read(f);
-        const m = content.match(/date:\s*(\S+)\s*\nminutes:\s*(\d+)/);
-        if (m && m[1] === today) {
-          this._focusMinutes = parseInt(m[2]) || 0;
-        }
+        this._focusMinutes = this._parseFocusHistory(content).get(today) || 0;
       }
     } catch(e) {}
 
@@ -1331,7 +1573,7 @@ class CockpitView extends obsidian.ItemView {
         const homedir = require('os').homedir();
         const vaultBase = this.app.vault.adapter.getBasePath();
         const scriptPath = require('path').join(vaultBase, '.obsidian', 'plugins', 'cockpit-dashboard', 'oaAtuoLogin_obsidian.py');
-        const defCmds = '# 工具栏自定义命令配置\\n# 修改 command 或 url 后刷新插件即可生效\\n\\n[驾驶舱]\\ncommand = cd ' + homedir + '/Downloads/cockpit && ' + homedir + '/.local/bin/node server.js\\nurl = http://localhost:3456\\n\\n[工作日志]\\ncommand = /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 ' + scriptPath + '\\nurl =\\n';
+        const defCmds = '# 工具栏自定义命令配置\\n# 修改 command / mode / url 后刷新插件即可生效\\n\\n[Hermes]\\ncommand = hermes --tui\\nmode = auto\\n\\n[驾驶舱]\\ncommand = cd ' + homedir + '/Downloads/cockpit && ' + homedir + '/.local/bin/node server.js\\nurl = http://localhost:3456\\n\\n[工作日志]\\ncommand = /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 ' + scriptPath + '\\nurl =\\n';
         await this.app.vault.create('_data/toolbar.md', defCmds);
         cfgContent = defCmds;
       } else {
@@ -1375,70 +1617,98 @@ class CockpitView extends obsidian.ItemView {
     ];
     return !target.closest(blockedSelectors.join(','));
   }
+  _getDashboardMenuItems() {
+    return [
+      ...this._blankContextMenuItems,
+      {
+        title: this._t('contextMenu.releaseNotes'),
+        icon: 'history',
+        onClick: () => {
+          new CockpitReleaseNotesModal(this.app, this._plugin, this._language).open();
+        }
+      },
+      {
+        title: this._editMode ? this._t('layout.done') : this._t('layout.edit'),
+        icon: 'grip-vertical',
+        onClick: () => {
+          this._editMode = !this._editMode;
+          const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
+          if (root) this._applyModuleEditState(root);
+        }
+      },
+      {
+        title: this._t('contextMenu.refreshPage'),
+        icon: 'refresh-cw',
+        onClick: async () => { await this._renderDashboard(true); }
+      }
+    ];
+  }
+  _openDashboardMenu(anchorEl, sourceEvent) {
+    const menu = new obsidian.Menu();
+    this._getDashboardMenuItems().forEach(({ title, icon, onClick }) => {
+      menu.addItem((item) => {
+        item.setTitle(title).setIcon(icon).onClick(onClick);
+      });
+    });
+    if (sourceEvent) {
+      menu.showAtMouseEvent(sourceEvent);
+      return;
+    }
+    const rect = anchorEl?.getBoundingClientRect ? anchorEl.getBoundingClientRect() : { left: window.innerWidth / 2, bottom: window.innerHeight / 2, width: 0 };
+    const evt = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: Math.round(rect.left + rect.width / 2),
+      clientY: Math.round(rect.bottom + 8)
+    });
+    menu.showAtMouseEvent(evt);
+  }
 
   _attachRootContextMenu(container) {
     container.addEventListener('contextmenu', (evt) => {
       if (!this._shouldOpenContextMenu(evt.target)) return;
       evt.preventDefault();
-      const menu = new obsidian.Menu();
-      const items = [
-        ...this._blankContextMenuItems,
-        {
-          title: this._t('contextMenu.releaseNotes'),
-          icon: 'history',
-          onClick: () => {
-            new CockpitReleaseNotesModal(this.app, this._plugin, this._language).open();
-          }
-        },
-        {
-          title: this._editMode ? this._t('layout.done') : this._t('layout.edit'),
-          icon: 'grip-vertical',
-          onClick: () => {
-            this._editMode = !this._editMode;
-            const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
-            if (root) this._applyModuleEditState(root);
-          }
-        },
-        {
-          title: this._t('contextMenu.refreshPage'),
-          icon: 'refresh-cw',
-          onClick: async () => { await this._renderDashboard(true); }
-        }
-      ];
-      items.forEach(({ title, icon, onClick }) => {
-        menu.addItem((item) => {
-          item.setTitle(title).setIcon(icon).onClick(onClick);
-        });
-      });
-      menu.showAtMouseEvent(evt);
+      this._openDashboardMenu(null, evt);
     });
   }
 
   async _renderDashboard(reloadState) {
     if (reloadState) await this._reloadDashboardState();
     this._blankContextMenuItems = [];
+    this._heroRefs = null;
+    this._recentEl = null;
+    this._refreshTodosRef = null;
+    this._refreshCalendarRef = null;
+    this._refreshHeroReminder = null;
+    this._updateStatsRef = null;
+    this._closeTodoEditor();
+    this._closeWelcomeCover();
+    this._closeOnboardingCard();
     const container = this.containerEl.children[1];
     container.empty();
     const root = container.createDiv({ cls: PLUGIN_ID+'-root' });
     root.createEl('style', { text: CSS });
     this._attachRootContextMenu(container);
     await this._buildAll(root);
+    if (this._pendingOnboarding) {
+      this._pendingOnboarding = false;
+      setTimeout(() => {
+        const liveRoot = this.containerEl.children[1]?.querySelector('.'+PLUGIN_ID+'-root');
+        if (liveRoot) this._showOnboarding(liveRoot);
+      }, 80);
+    }
     return root;
   }
 
   async onOpen() {
     await this._renderDashboard(true);
+    this._bindSilentRefreshSensors();
+    this._startSilentRefreshLoops();
     setTimeout(() => {
       const root = this.containerEl.children[1]?.querySelector('.'+PLUGIN_ID+'-root');
-      if (root) this._showOnboarding(root);
-    }, 600);
-
-    // 每 2 小时静默刷新一次数据（问候语、时间、统计、最近文件、待办）
-    this._refreshTimer = setInterval(async () => {
-      try {
-        await this._renderDashboard(true);
-      } catch(e) { console.warn('Cockpit auto-refresh failed', e); }
-    }, 2 * 60 * 60 * 1000);
+      if (!root || this._onboardingDone) return;
+      this._showWelcomeCover(root);
+    }, 80);
   }
 
   async _buildAll(root) {
@@ -1446,11 +1716,7 @@ class CockpitView extends obsidian.ItemView {
     const lang = this._lang();
     const t = (key, vars) => this._t(key, vars);
     const hr = new Date().getHours();
-    let gr = t('greetings.morning');
-    if (hr>=12&&hr<14) gr=t('greetings.noon');
-    else if (hr>=14&&hr<18) gr=t('greetings.afternoon');
-    else if (hr>=18&&hr<22) gr=t('greetings.evening');
-    else if (hr>=22||hr<6) gr=t('greetings.night');
+    const gr = this._getGreetingByHour(hr);
     const days = Math.max(0, now.diff(window.moment(this._startDate), 'days'));
     const allFiles = this.app.vault.getMarkdownFiles();
 
@@ -1499,7 +1765,7 @@ class CockpitView extends obsidian.ItemView {
         langSwitch.querySelectorAll('.' + PLUGIN_ID + '-lang-btn').forEach(elm => elm.classList.remove('pressing'));
       });
       const greetLine = el.createDiv({ cls: PLUGIN_ID+'-greeting' });
-      greetLine.createSpan({ text: E.wave+' '+gr+'，' });
+      const greetingPrefixEl = greetLine.createSpan({ text: E.wave+' '+gr+'，' });
       let currNameSpan = greetLine.createSpan({ cls: PLUGIN_ID+'-name', text: this._username });
       const startEdit = (span) => {
         const inp = document.createElement('input');
@@ -1531,19 +1797,13 @@ class CockpitView extends obsidian.ItemView {
       const dueIcon = dueTodos.some(t => t.priority==='high') ? '🔴' : dueTodos.some(t => t.priority==='mid') ? '🟡' : '🟢';
       let heroSubText = t('hero.today', { date: todayStr });
       if (dueTodos.length > 0) heroSubText += ' · ' + t('hero.dueTodos', { count: dueTodos.length, icon: dueIcon });
-      el.createDiv({ cls: PLUGIN_ID+'-sub', text: heroSubText });
-      el.createDiv({ cls: PLUGIN_ID+'-sub', text: t('hero.vaultDays', { days }) });
+      const heroSummaryEl = el.createDiv({ cls: PLUGIN_ID+'-sub', text: heroSubText });
+      const heroDaysEl = el.createDiv({ cls: PLUGIN_ID+'-sub', text: t('hero.vaultDays', { days }) });
+      this._heroRefs = { greetingPrefixEl, summaryEl: heroSummaryEl, daysEl: heroDaysEl };
     });
 
-    this._refreshHeroReminder = () => {
-      const nM = window.moment();
-      const due = this._todos.filter(t => !t.done && t.dueDate && (t.dueDate.isBefore(nM.clone().add(1,'day'),'day') || t.dueDate.isSame(nM.clone().add(1,'day'),'day')));
-      const dIcon = due.some(t => t.priority==='high') ? '🔴' : due.some(t => t.priority==='mid') ? '🟡' : '🟢';
-      let txt = t('hero.today', { date: formatHeroDate(nM, this._lang()) });
-      if (due.length > 0) txt += ' · ' + t('hero.dueTodos', { count: due.length, icon: dIcon });
-      const subs = root.querySelectorAll('.'+PLUGIN_ID+'-sub');
-      if (subs.length > 0) subs[0].textContent = txt;
-    };
+    this._refreshHeroReminder = this._refreshHeroSection.bind(this);
+    this._refreshHeroReminder();
     // 折叠/展开工具
     const makeCollapsible = (titleEl, contentEl, key, defaultCollapsed) => {
       const arrow = titleEl.createSpan({ cls: PLUGIN_ID+'-collapse-arrow', text: '▼', attr:{ style:'margin-left:6px;font-size:0.7em;opacity:0.45;transition:transform 0.2s;display:inline-block;' } });
@@ -1568,6 +1828,258 @@ class CockpitView extends obsidian.ItemView {
     let refreshTodosRef = null;
     let refreshCalendarRef = null;
 
+    const normalizeTodoTag = (value) => {
+      const next = String(value || '').trim().replace(/^#+/, '').replace(/\s+/g, '');
+      return next || null;
+    };
+    const cloneMomentOrNull = (value) => value && window.moment.isMoment(value) ? value.clone() : null;
+    const getAllTodoTags = () => {
+      const tagSet = new Set();
+      (this._todos || []).forEach((todo) => {
+        if (!todo.tags) return;
+        todo.tags.forEach((tag) => {
+          const normalized = normalizeTodoTag(tag);
+          if (normalized) tagSet.add(normalized);
+        });
+      });
+      return Array.from(tagSet).sort((a, b) => a.localeCompare(b));
+    };
+    const createTodoDraft = (todo, overrides = {}) => ({
+      text: todo?.text || '',
+      tags: Array.isArray(todo?.tags) ? todo.tags.slice() : [],
+      dueDate: cloneMomentOrNull(todo?.dueDate),
+      priority: todo?.priority || 'mid',
+      ...overrides
+    });
+    const mergeLegacyTodoInput = (rawTitle, draft) => {
+      const parsed = extractTags(rawTitle);
+      const hasTagSyntax = /#([^\s#]+)/.test(rawTitle);
+      const hasDueSyntax = /due:\s*\d{4}-\d{2}-\d{2}/.test(rawTitle);
+      const hasPrioritySyntax = /p:\s*(high|mid|low)/.test(rawTitle);
+      const cleanText = parsed.cleanText || rawTitle.trim();
+      const tags = hasTagSyntax
+        ? Array.from(new Set(parsed.tags.map((tag) => normalizeTodoTag(tag)).filter(Boolean)))
+        : draft.tags.slice();
+      const dueDate = hasDueSyntax ? parsed.dueDate : cloneMomentOrNull(draft.dueDate);
+      const priority = hasPrioritySyntax ? parsed.priority : draft.priority;
+      return { text: cleanText, tags, dueDate, priority };
+    };
+    const openTodoEditor = (options = {}) => {
+      const existingTodo = typeof options.index === 'number' ? this._todos[options.index] : null;
+      const isEditing = !!existingTodo;
+      const PID = PLUGIN_ID;
+      const duePreset = options.dueDate ? options.dueDate.clone().startOf('day') : null;
+      const draft = createTodoDraft(existingTodo, duePreset ? { dueDate: duePreset } : {});
+      const knownTags = getAllTodoTags();
+      let saveLocked = false;
+
+      this._closeTodoEditor();
+
+      const overlay = document.createElement('div');
+      overlay.className = PID + '-todo-editor-backdrop';
+      overlay.addEventListener('click', (evt) => {
+        if (evt.target === overlay) this._closeTodoEditor();
+      });
+
+      const sheet = overlay.createDiv({ cls: PID + '-todo-editor-sheet' });
+      sheet.addEventListener('click', (evt) => evt.stopPropagation());
+      sheet.addEventListener('keydown', (evt) => {
+        if (evt.key === 'Escape') {
+          evt.preventDefault();
+          this._closeTodoEditor();
+          return;
+        }
+        if ((evt.metaKey || evt.ctrlKey) && evt.key === 'Enter') {
+          evt.preventDefault();
+          saveBtn.click();
+        }
+      });
+
+      const header = sheet.createDiv({ cls: PID + '-todo-editor-header' });
+      header.createDiv({ cls: PID + '-todo-editor-title', text: isEditing ? t('todo.editorEdit') : t('todo.editorCreate') });
+      const closeBtn = header.createEl('button', { cls: PID + '-todo-editor-close', text: '✕', attr: { type: 'button', title: t('todo.cancel') } });
+      closeBtn.onclick = () => this._closeTodoEditor();
+
+      const body = sheet.createDiv({ cls: PID + '-todo-editor-body' });
+
+      const fieldTask = body.createDiv({ cls: PID + '-todo-editor-field' });
+      fieldTask.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorTask') });
+      const titleInput = fieldTask.createEl('textarea', { cls: PID + '-todo-editor-textarea', attr: { rows: '3', placeholder: t('todo.editorTaskPlaceholder') } });
+      titleInput.value = draft.text;
+
+      const fieldDue = body.createDiv({ cls: PID + '-todo-editor-field' });
+      fieldDue.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorDue') });
+      const dueQuick = fieldDue.createDiv({ cls: PID + '-todo-editor-quick' });
+      const dateInput = fieldDue.createEl('input', { cls: PID + '-todo-editor-date', attr: { type: 'date' } });
+      const dueButtons = [
+        { key: 'none', label: t('todo.noDue'), apply: () => { draft.dueDate = null; } },
+        { key: 'today', label: t('todo.dueTodayBtn'), apply: () => { draft.dueDate = window.moment().startOf('day'); } },
+        { key: 'tomorrow', label: t('todo.dueTomorrowBtn'), apply: () => { draft.dueDate = window.moment().add(1, 'day').startOf('day'); } }
+      ];
+      const renderDueButtons = () => {
+        dueQuick.querySelectorAll('.' + PID + '-todo-editor-chip').forEach((chip) => chip.remove());
+        dueButtons.forEach((item) => {
+          const btn = dueQuick.createEl('button', { cls: PID + '-todo-editor-chip', text: item.label, attr: { type: 'button' } });
+          const due = draft.dueDate;
+          const today = window.moment().startOf('day');
+          const tomorrow = today.clone().add(1, 'day');
+          const active = item.key === 'none'
+            ? !due
+            : item.key === 'today'
+              ? !!(due && due.isSame(today, 'day'))
+              : !!(due && due.isSame(tomorrow, 'day'));
+          btn.classList.toggle('active', !!active);
+          btn.onclick = () => {
+            item.apply();
+            renderDue();
+          };
+        });
+      };
+      const renderDue = () => {
+        dateInput.value = draft.dueDate ? draft.dueDate.format('YYYY-MM-DD') : '';
+        renderDueButtons();
+      };
+      dateInput.addEventListener('change', () => {
+        draft.dueDate = dateInput.value ? parseDate(dateInput.value) : null;
+        renderDueButtons();
+      });
+
+      const fieldPriority = body.createDiv({ cls: PID + '-todo-editor-field' });
+      fieldPriority.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorPriority') });
+      const priorityRow = fieldPriority.createDiv({ cls: PID + '-todo-editor-segment' });
+      const priorityOptions = [
+        { key: 'high', label: t('todo.priorityHigh') },
+        { key: 'mid', label: t('todo.priorityMid') },
+        { key: 'low', label: t('todo.priorityLow') }
+      ];
+      const renderPriority = () => {
+        priorityRow.empty();
+        priorityOptions.forEach((option) => {
+          const btn = priorityRow.createEl('button', {
+            cls: PID + '-todo-editor-segment-btn' + (draft.priority === option.key ? ' active' : ''),
+            text: option.label,
+            attr: { type: 'button' }
+          });
+          btn.onclick = () => {
+            draft.priority = option.key;
+            renderPriority();
+          };
+        });
+      };
+
+      const fieldTags = body.createDiv({ cls: PID + '-todo-editor-field' });
+      fieldTags.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorTags') });
+      const selectedTags = fieldTags.createDiv({ cls: PID + '-todo-editor-selected-tags' });
+      const tagSuggestions = fieldTags.createDiv({ cls: PID + '-todo-editor-tags' });
+      const tagInputRow = fieldTags.createDiv({ cls: PID + '-todo-editor-tag-input-row' });
+      const tagInput = tagInputRow.createEl('input', {
+        cls: PID + '-todo-editor-tag-input',
+        attr: { type: 'text', placeholder: t('todo.editorTagPlaceholder') }
+      });
+      const tagAddBtn = tagInputRow.createEl('button', {
+        cls: PID + '-todo-editor-secondary-btn',
+        text: t('todo.editorAddTag'),
+        attr: { type: 'button' }
+      });
+      const addTag = (value) => {
+        const normalized = normalizeTodoTag(value);
+        if (!normalized) return false;
+        if (!draft.tags.includes(normalized)) draft.tags.push(normalized);
+        tagInput.value = '';
+        renderTags();
+        return true;
+      };
+      const removeTag = (tag) => {
+        draft.tags = draft.tags.filter((item) => item !== tag);
+        renderTags();
+      };
+      const renderTags = () => {
+        selectedTags.empty();
+        if (!draft.tags.length) {
+          selectedTags.createDiv({ cls: PID + '-todo-editor-empty', text: t('todo.editorNoTags') });
+        } else {
+          draft.tags.forEach((tag) => {
+            const pill = selectedTags.createEl('button', {
+              cls: PID + '-todo-editor-selected-tag',
+              text: '#' + tag + ' ×',
+              attr: { type: 'button' }
+            });
+            pill.onclick = () => removeTag(tag);
+          });
+        }
+        tagSuggestions.empty();
+        knownTags.forEach((tag) => {
+          const btn = tagSuggestions.createEl('button', {
+            cls: PID + '-todo-editor-chip' + (draft.tags.includes(tag) ? ' active' : ''),
+            text: '#' + tag,
+            attr: { type: 'button' }
+          });
+          btn.onclick = () => {
+            if (draft.tags.includes(tag)) removeTag(tag);
+            else addTag(tag);
+          };
+        });
+      };
+      tagAddBtn.onclick = () => addTag(tagInput.value);
+      tagInput.addEventListener('keydown', (evt) => {
+        if (evt.key === 'Enter') {
+          evt.preventDefault();
+          addTag(tagInput.value);
+        }
+      });
+
+      body.createDiv({ cls: PID + '-todo-editor-hint', text: t('todo.legacyHint') });
+
+      const footer = sheet.createDiv({ cls: PID + '-todo-editor-footer' });
+      const cancelBtn = footer.createEl('button', {
+        cls: PID + '-todo-editor-secondary-btn',
+        text: t('todo.cancel'),
+        attr: { type: 'button' }
+      });
+      cancelBtn.onclick = () => this._closeTodoEditor();
+      const saveBtn = footer.createEl('button', {
+        cls: PID + '-todo-editor-primary-btn',
+        text: isEditing ? t('todo.saveEdit') : t('todo.saveNew'),
+        attr: { type: 'button' }
+      });
+      saveBtn.onclick = async () => {
+        if (saveLocked) return;
+        const rawTitle = titleInput.value.trim();
+        if (!rawTitle) {
+          titleInput.focus();
+          return;
+        }
+        saveLocked = true;
+        const merged = mergeLegacyTodoInput(rawTitle, draft);
+        const target = existingTodo || {};
+        const nextTodo = {
+          text: merged.text,
+          tags: merged.tags,
+          dueDate: merged.dueDate,
+          priority: merged.priority,
+          done: existingTodo ? !!existingTodo.done : false,
+          created: existingTodo?.created || window.moment(),
+          doneDate: existingTodo?.doneDate || null
+        };
+        if (isEditing) this._todos[options.index] = { ...target, ...nextTodo };
+        else this._todos.unshift(nextTodo);
+        this._closeTodoEditor();
+        if (refreshTodosRef) await refreshTodosRef();
+        else {
+          await saveTodos(this.app.vault, this._todos);
+          if (refreshCalendarRef) refreshCalendarRef();
+        }
+      };
+
+      renderDue();
+      renderPriority();
+      renderTags();
+
+      this._todoEditorEl = overlay;
+      document.body.appendChild(overlay);
+      setTimeout(() => titleInput.focus(), 16);
+    };
+
     // ===== 1.5 每日小贴士 =====
     const tip = getDailyTip(lang);
     root.createDiv({ cls: PLUGIN_ID+'-tip' }, el => {
@@ -1577,12 +2089,33 @@ class CockpitView extends obsidian.ItemView {
 
     // ===== 2. Toolbar =====
     const toolbar = root.createDiv({ cls: PLUGIN_ID+'-toolbar' });
-    [{icon:'+',label:t('toolbar.new'),action:'new',primary:true},{icon:E.search,label:t('toolbar.search'),action:'search'},{icon:E.tag,label:t('toolbar.tag'),action:'tag'},{icon:E.graph,label:t('toolbar.graph'),action:'graph'},{icon:E.bolt,label:t('toolbar.command'),action:'command'},{icon:'🤖',label:t('toolbar.hermes'),action:'hermes'},{icon:'🛩️',label:t('toolbar.cockpit'),action:'cockpit-h5'},{icon:'📝',label:t('toolbar.workLog'),action:'work-log'},{icon:'🍅',label:t('toolbar.pomodoro'),action:'pomodoro'}].forEach(b=>{
-      const el=toolbar.createEl('button',{cls:PLUGIN_ID+'-toolbtn'+(b.primary?' primary':'')});
-      el.createSpan({cls:PLUGIN_ID+'-icon',text:b.icon});
-      el.createSpan({text:b.label});
-      el.onclick=()=>this._doAction(b.action);
+    this._toolbarButtons().forEach((button) => {
+      const slot = toolbar.createDiv({ cls: PLUGIN_ID + '-toolslot' });
+      slot.dataset.action = button.action;
+      const el = slot.createEl('button', { cls: PLUGIN_ID+'-toolbtn'+(button.primary?' primary':''), attr: { type: 'button' } });
+      el.dataset.action = button.action;
+      el.createSpan({ cls: PLUGIN_ID+'-icon', text: button.icon });
+      el.createSpan({ text: button.label });
+      el.onclick = () => {
+        if (this._editMode) return;
+        this._doAction(button.action, el);
+      };
+      const visibilityBtn = slot.createEl('button', {
+        cls: PLUGIN_ID + '-toolbtn-visibility',
+        text: this._t('layout.hide'),
+        attr: { type: 'button' }
+      });
+      visibilityBtn.onclick = async (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        const hiddenActions = new Set(this._hiddenToolbarActions);
+        if (hiddenActions.has(button.action)) hiddenActions.delete(button.action);
+        else hiddenActions.add(button.action);
+        await this._saveHiddenToolbarActions(Array.from(hiddenActions));
+        this._applyToolbarButtonEditState(root);
+      };
     });
+    this._applyToolbarButtonEditState(root);
 
     // ===== 2.5 迷你搜索区域（默认隐藏，点击搜索按钮展开） =====
     const toggleSearch = buildSearch(root, toolbar, allFiles, this.app, { placeholder: t('search.placeholder') });
@@ -1601,7 +2134,12 @@ class CockpitView extends obsidian.ItemView {
       let selDay   = now.date();
       let calRoot  = null;
       let gridEl   = null;
+      let subtitleEl = null;
       const DOW_LABELS = getWeekdayLabels(lang, 'header');
+      const getSelectedDate = () => window.moment([calYear, calMonth, selDay]);
+      const updateCalendarSubtitle = () => {
+        if (subtitleEl) subtitleEl.setText(formatCalendarDetailHeading(getSelectedDate(), lang));
+      };
 
       const buildTodoMap = () => {
         const m = {};
@@ -1630,19 +2168,26 @@ class CockpitView extends obsidian.ItemView {
       const renderDetail = (tm) => {
         const old = calRoot.parentNode.querySelector('.' + PLUGIN_ID + '-cal-detail');
         if (old) old.remove();
-        const selDate  = window.moment([calYear, calMonth, selDay]);
+        const selDate  = getSelectedDate();
         const selKey   = selDate.format('YYYY-MM-DD');
         const items    = tm[selKey] || [];
         const det      = document.createElement('div');
         det.className  = PLUGIN_ID + '-cal-detail';
         calRoot.parentNode.insertBefore(det, calRoot.nextSibling);
         const detailHead = det.createDiv({ cls: PLUGIN_ID + '-cal-detail-head' });
-        detailHead.createDiv({ cls: PLUGIN_ID + '-cal-detail-title',
+        const detailTitleWrap = detailHead.createDiv({ cls: PLUGIN_ID + '-cal-detail-title-wrap' });
+        detailTitleWrap.createDiv({ cls: PLUGIN_ID + '-cal-detail-title',
           text: formatCalendarDetailHeading(selDate, lang) });
-        detailHead.createDiv({
+        detailTitleWrap.createDiv({
           cls: PLUGIN_ID + '-cal-detail-count',
           text: items.length ? String(items.length) : '0'
         });
+        const detailAddBtn = detailHead.createEl('button', {
+          cls: PLUGIN_ID + '-cal-detail-add',
+          text: '+' + ' ' + t('calendar.addTodo'),
+          attr: { type: 'button' }
+        });
+        detailAddBtn.onclick = () => openTodoEditor({ dueDate: selDate });
         if (!items.length) {
           const empty = det.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty' });
           empty.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty-icon', text: '✦' });
@@ -1654,6 +2199,11 @@ class CockpitView extends obsidian.ItemView {
                                          text: td.done ? '✓' : '' });
             const span = item.createSpan({ cls: PLUGIN_ID + '-cal-detail-text' + (td.done ? ' done' : ''),
               text: (td.done ? '🟢 ' : td.priority === 'high' ? '🔴 ' : td.priority === 'mid' ? '🟡 ' : '🟢 ') + td.text });
+            const editBtn = item.createEl('button', {
+              cls: PLUGIN_ID + '-cal-detail-edit',
+              text: E.edit,
+              attr: { type: 'button', title: t('todo.edit') }
+            });
             const toggle = async (e) => {
               if (e) e.stopPropagation();
               td.raw.done = !td.raw.done;
@@ -1663,7 +2213,14 @@ class CockpitView extends obsidian.ItemView {
               if (refreshTodosRef) refreshTodosRef();
             };
             chk.onclick  = toggle;
-            span.onclick = toggle;
+            span.onclick = (e) => {
+              e.stopPropagation();
+              openTodoEditor({ index: this._todos.indexOf(td.raw) });
+            };
+            editBtn.onclick = (e) => {
+              e.stopPropagation();
+              openTodoEditor({ index: this._todos.indexOf(td.raw) });
+            };
           });
         }
       };
@@ -1675,10 +2232,11 @@ class CockpitView extends obsidian.ItemView {
         const header = surface.createDiv({ cls: PLUGIN_ID + '-cal-header' });
         const titleWrap = header.createDiv({ cls: PLUGIN_ID + '-cal-title-wrap' });
         titleWrap.createDiv({ cls: PLUGIN_ID + '-cal-title', text: formatMonthTitle(calYear, calMonth, lang) });
-        titleWrap.createDiv({
+        subtitleEl = titleWrap.createDiv({
           cls: PLUGIN_ID + '-cal-subtitle',
-          text: formatCalendarDetailHeading(window.moment([calYear, calMonth, selDay]), lang)
+          text: ''
         });
+        updateCalendarSubtitle();
         const nav = header.createDiv({ cls: PLUGIN_ID + '-cal-nav' });
         const prevBtn  = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '‹' });
         const todayBtn = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '●', attr:{ title:t('calendar.backToToday') } });
@@ -1758,11 +2316,13 @@ class CockpitView extends obsidian.ItemView {
             c.classList.toggle('selected', cur === selDay);
           });
         }
+        updateCalendarSubtitle();
         renderDetail(tm);
       };
 
       renderAll();
       refreshCalendarRef = renderAll;
+      this._refreshCalendarRef = renderAll;
     })();
 
     // ===== 3. Categories =====
@@ -1895,9 +2455,10 @@ class CockpitView extends obsidian.ItemView {
     };
 
     // 渲染待办列表（从内存数据渲染）
-    let renderTodos = async ()=>{
+    let renderTodos = async (options = {})=>{
+      const persist = options.persist !== false;
       todosEl.empty();
-      await saveTodos(this.app.vault, this._todos);
+      if (persist) await saveTodos(this.app.vault, this._todos);
       updateStats();
 
       // 如果没有页签容器，创建它（插在 todoHeader 之后）
@@ -1960,9 +2521,7 @@ class CockpitView extends obsidian.ItemView {
         const txt = main.createDiv({ cls: PLUGIN_ID+'-todo-text', text:todo.text });
         txt.onclick = async (e)=>{
           e.stopPropagation();
-          this._todos[realIdx].done = !this._todos[realIdx].done;
-          this._todos[realIdx].doneDate = this._todos[realIdx].done ? window.moment() : null;
-          await renderTodos();
+          openTodoEditor({ index: realIdx });
         };
 
         // 时间元信息 + 截止日期 + 标签胶囊
@@ -2016,41 +2575,7 @@ class CockpitView extends obsidian.ItemView {
         const editBtn = actions.createDiv({ cls: PLUGIN_ID+'-todo-btn', text:E.edit, attr:{title:t('todo.edit')} });
         editBtn.onclick = (e)=>{
           e.stopPropagation();
-          const row = document.createElement('div');
-          row.className = PLUGIN_ID+'-todo-input-row';
-          const inp = document.createElement('input');
-          inp.className = PLUGIN_ID+'-todo-input-field';
-          inp.type = 'text';
-          // 编辑时把标签、优先级、截止日期也带回去
-          let editVal = todo.text;
-          if (todo.tags && todo.tags.length > 0) editVal += ' ' + todo.tags.map(tg=>'#'+tg).join(' ');
-          if (todo.dueDate) editVal += ' due:'+todo.dueDate.format('YYYY-MM-DD');
-          if (todo.priority && todo.priority !== 'mid') editVal += ' p:'+todo.priority;
-          inp.value = editVal;
-          const okB = document.createElement('button');
-          okB.className = PLUGIN_ID+'-todo-input-ok';
-          okB.textContent = '✓';
-          const cancelB = document.createElement('button');
-          cancelB.className = PLUGIN_ID+'-todo-input-cancel';
-          cancelB.textContent = '✕';
-          row.appendChild(inp); row.appendChild(okB); row.appendChild(cancelB);
-          item.replaceWith(row);
-          inp.focus(); inp.select();
-          const save = async ()=>{
-            const v = inp.value.trim();
-            if (v) {
-              const { cleanText, tags, dueDate, priority } = extractTags(v);
-              this._todos[realIdx].text = cleanText;
-              this._todos[realIdx].tags = tags;
-              this._todos[realIdx].dueDate = dueDate;
-              this._todos[realIdx].priority = priority;
-              this._todos[realIdx].created = window.moment();
-            }
-            await renderTodos();
-          };
-          inp.addEventListener('keydown', ke=>{ if(ke.key==='Enter'){ke.preventDefault();save()} if(ke.key==='Escape'){ke.preventDefault();renderTodos()} });
-          okB.onclick = save;
-          cancelB.onclick = ()=>renderTodos();
+          openTodoEditor({ index: realIdx });
         };
 
         // 删除按钮
@@ -2063,9 +2588,9 @@ class CockpitView extends obsidian.ItemView {
     let _rtDepth = 0;
     const _rtOrig = renderTodos;
     const _refreshHero = this._refreshHeroReminder;
-    renderTodos = async function() {
+    renderTodos = async function(options = {}) {
       _rtDepth++;
-      try { await _rtOrig(); }
+      try { await _rtOrig(options); }
       finally {
         _rtDepth--;
         if (_rtDepth === 0) {
@@ -2076,7 +2601,8 @@ class CockpitView extends obsidian.ItemView {
     };
 
     // 日历勾选待办后同步刷新下方列表
-    refreshTodosRef = renderTodos.bind(this);
+    refreshTodosRef = renderTodos;
+    this._refreshTodosRef = renderTodos;
 
     // 刷新按钮：从 MD 文件重新加载数据
     refreshBtn.onclick = async ()=>{
@@ -2090,36 +2616,9 @@ class CockpitView extends obsidian.ItemView {
     await renderTodos();
     makeCollapsible(todoTitleEl, todoWrap, 'todos');
 
-    // 新增待办（支持 #标签）
+    // 新增待办（结构化编辑器，兼容旧格式）
     addBtn.onclick = async ()=>{
-      if (todosEl.querySelector('.'+PLUGIN_ID+'-todo-input-row')) return;
-      const row = document.createElement('div');
-      row.className = PLUGIN_ID+'-todo-input-row';
-      const inp = document.createElement('input');
-      inp.className = PLUGIN_ID+'-todo-input-field';
-      inp.type = 'text';
-      inp.placeholder = t('todo.placeholder');
-      const okB = document.createElement('button');
-      okB.className = PLUGIN_ID+'-todo-input-ok';
-      okB.textContent = '✓';
-      const cancelB = document.createElement('button');
-      cancelB.className = PLUGIN_ID+'-todo-input-cancel';
-      cancelB.textContent = '✕';
-      row.appendChild(inp); row.appendChild(okB); row.appendChild(cancelB);
-      todosEl.prepend(row);
-      inp.focus();
-      const submit = async ()=>{
-        const v = inp.value.trim();
-        if (v) {
-          const { cleanText, tags, dueDate, priority } = extractTags(v);
-          this._todos.unshift({text:cleanText, tags, priority, dueDate, done:false, created:window.moment(), doneDate:null});
-          await renderTodos();
-        }
-        else row.remove();
-      };
-      inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();submit()} if(e.key==='Escape'){e.preventDefault();row.remove()} });
-      okB.onclick = submit;
-      cancelB.onclick = ()=>row.remove();
+      openTodoEditor();
     };
 
     // ===== 6. Recent =====
@@ -2279,54 +2778,60 @@ class CockpitView extends obsidian.ItemView {
   // ========== 番茄钟 ==========
   _buildPomodoro(root) {
     const PID = PLUGIN_ID;
-    const self = this;
-    const t = (key, vars) => this._t(key, vars);
+    let self = this;
+    const t = (key, vars) => self._t(key, vars);
 
     // 全局单例：如果已存在则复用，不重建
     const existing = document.querySelector('.' + PID + '-pomodoro');
     if (existing) {
-      // 只更新 _updateStatsRef，确保统计能刷新
-      this._pomodoroInstance = this._pomodoroInstance || {};
+      if (typeof existing._cockpitBindPomodoroView === 'function') {
+        existing._cockpitBindPomodoroView(this);
+      }
+      if (typeof existing._cockpitSyncLanguage === 'function') {
+        existing._cockpitSyncLanguage();
+      }
       return;
     }
 
     // 创建浮动容器
     const floatEl = document.createElement('div');
     floatEl.className = PID + '-pomodoro';
-    floatEl.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:999;width:180px;background:var(--background-secondary);border:1px solid var(--background-modifier-border);border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.18);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;transition:box-shadow 0.2s;';
+    floatEl.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:999;width:198px;max-width:calc(100vw - 24px);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;border-radius:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:box-shadow 0.25s,border-color 0.25s,transform 0.25s,background 0.25s;';
 
     // 标题栏（拖拽区域）
     const header = floatEl.createDiv({ cls: PID + '-pomo-header' });
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:linear-gradient(135deg,#f97316,#ef4444);cursor:move;user-select:none;';
-    const titleSpan = header.createSpan({ text: t('pomodoro.title'), attr: { style: 'font-size:0.82em;font-weight:700;color:white;' } });
-    const btnGroup = header.createDiv({ attr: { style: 'display:flex;gap:6px;align-items:center;' } });
-    const toggleBtn = btnGroup.createSpan({ text: '−', attr: { style: 'font-size:1.1em;color:white;cursor:pointer;padding:0 4px;', title: t('pomodoro.minimize') } });
-    const closeBtn = btnGroup.createSpan({ text: '×', attr: { style: 'font-size:1.2em;color:white;cursor:pointer;padding:0 4px;', title: t('pomodoro.close') } });
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 10px;cursor:move;user-select:none;-webkit-user-select:none;touch-action:none;border-bottom:1px solid transparent;';
+    const headerLeft = header.createDiv({ attr: { style: 'display:flex;flex-direction:column;gap:0;min-width:0;' } });
+    const modeChip = headerLeft.createDiv({ attr: { style: 'display:inline-flex;align-items:center;gap:6px;align-self:flex-start;padding:3px 8px;border-radius:999px;font-size:0.6em;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;' } });
+    const titleSpan = headerLeft.createSpan({ text: t('pomodoro.title'), attr: { style: 'display:none;font-size:1.05em;font-weight:800;color:var(--text-normal);line-height:1.05;' } });
+    const dragHint = headerLeft.createSpan({ text: t('pomodoro.dragHint'), attr: { style: 'display:none;font-size:0.62em;color:var(--text-muted);line-height:1;' } });
+    const btnGroup = header.createDiv({ attr: { style: 'display:flex;gap:6px;align-items:center;flex-shrink:0;' } });
+    const toggleBtn = btnGroup.createSpan({ text: '−', attr: { style: 'width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:var(--text-normal);cursor:pointer;touch-action:manipulation;font-size:1em;font-weight:700;', title: t('pomodoro.minimize') } });
+    const closeBtn = btnGroup.createSpan({ text: '×', attr: { style: 'width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:var(--text-normal);cursor:pointer;touch-action:manipulation;font-size:1.05em;font-weight:700;', title: t('pomodoro.close') } });
 
     // 内容区
     const body = floatEl.createDiv({ cls: PID + '-pomo-body' });
-    body.style.cssText = 'padding:12px;text-align:center;';
+    body.style.cssText = 'padding:6px 10px 10px;text-align:center;';
 
-    // 状态文字
-    const statusEl = body.createDiv({ text: t('pomodoro.ready'), attr: { style: 'font-size:0.72em;color:var(--text-muted);margin-bottom:6px;' } });
+    const statusEl = body.createDiv({ text: t('pomodoro.ready'), attr: { style: 'display:none;align-items:center;justify-content:center;min-height:22px;padding:4px 9px;border-radius:999px;font-size:0.64em;font-weight:700;color:var(--text-muted);margin-bottom:0;' } });
 
-    // 倒计时显示
-    const timerEl = body.createDiv({ text: '25:00', attr: { style: 'font-size:2.2em;font-weight:800;color:var(--text-normal);font-variant-numeric:tabular-nums;letter-spacing:2px;' } });
+    const dialWrap = body.createDiv({ attr: { style: 'display:flex;justify-content:center;margin-bottom:6px;' } });
+    const dialEl = dialWrap.createDiv({ attr: { style: 'position:relative;width:112px;height:112px;border-radius:50%;padding:7px;display:flex;align-items:center;justify-content:center;' } });
+    const dialInner = dialEl.createDiv({ attr: { style: 'width:100%;height:100%;border-radius:50%;display:flex;align-items:center;justify-content:center;' } });
+    const timerStack = dialInner.createDiv({ attr: { style: 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;' } });
+    const timerEl = timerStack.createDiv({ text: '25:00', attr: { style: 'font-size:1.75em;font-weight:800;color:var(--text-normal);font-variant-numeric:tabular-nums;letter-spacing:1px;line-height:1;' } });
+    const timerSub = timerStack.createDiv({ text: t('pomodoro.backToWork'), attr: { style: 'display:none;font-size:0.62em;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;color:var(--text-muted);opacity:0.82;' } });
 
-    // 进度条
-    const progWrap = body.createDiv({ attr: { style: 'height:4px;background:var(--background-modifier-border);border-radius:2px;margin:8px 0;overflow:hidden;' } });
-    const progFill = progWrap.createDiv({ attr: { style: 'height:100%;width:0%;background:linear-gradient(90deg,#f97316,#ef4444);border-radius:2px;transition:width 0.3s;' } });
+    const cueEl = body.createDiv({ attr: { style: 'display:none;min-height:16px;margin:0 auto 6px;padding:0 6px;font-size:0.62em;font-weight:700;line-height:1.25;' } });
 
-    // 按钮行
-    const btnRow = body.createDiv({ attr: { style: 'display:flex;gap:6px;justify-content:center;margin-top:4px;' } });
-    const startBtn = btnRow.createEl('button', { text: t('pomodoro.start'), attr: { style: 'padding:5px 14px;border-radius:8px;border:1px solid var(--background-modifier-border);background:var(--interactive-accent);color:white;font-size:0.72em;font-weight:600;cursor:pointer;transition:all 0.15s;' } });
-    const resetBtn = btnRow.createEl('button', { text: t('pomodoro.reset'), attr: { style: 'padding:5px 14px;border-radius:8px;border:1px solid var(--background-modifier-border);background:var(--background-secondary);color:var(--text-muted);font-size:0.72em;font-weight:600;cursor:pointer;transition:all 0.15s;' } });
+    const metricsRow = body.createDiv({ attr: { style: 'display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:8px;padding:6px 10px;border-radius:12px;font-size:0.62em;font-weight:700;color:var(--text-muted);line-height:1;white-space:nowrap;' } });
+    const todayFocus = metricsRow.createSpan({ text: t('pomodoro.focusToday', { minutes: 0 }) });
+    const metricsSep = metricsRow.createSpan({ text: '·', attr: { style: 'opacity:0.45;' } });
+    const countEl = metricsRow.createSpan({ text: '🍅 × 0' });
 
-    // 今日专注时长
-    const todayFocus = body.createDiv({ text: t('pomodoro.focusToday', { minutes: 0 }), attr: { style: 'font-size:0.68em;color:var(--text-muted);margin-top:8px;' } });
-
-    // 番茄计数
-    const countEl = body.createDiv({ text: '🍅 × 0', attr: { style: 'font-size:0.68em;color:var(--text-muted);margin-top:2px;' } });
+    const btnRow = body.createDiv({ attr: { style: 'display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,0.85fr);gap:8px;' } });
+    const startBtn = btnRow.createEl('button', { text: t('pomodoro.start'), attr: { style: 'min-height:32px;padding:7px 10px;border-radius:11px;border:1px solid transparent;color:white;font-size:0.7em;font-weight:800;cursor:pointer;transition:transform 0.15s,box-shadow 0.2s,background 0.2s;' } });
+    const resetBtn = btnRow.createEl('button', { text: t('pomodoro.reset'), attr: { style: 'min-height:32px;padding:7px 10px;border-radius:11px;border:1px solid var(--background-modifier-border);background:transparent;color:var(--text-normal);font-size:0.68em;font-weight:700;cursor:pointer;transition:transform 0.15s,background 0.2s,border-color 0.2s;' } });
 
     document.body.appendChild(floatEl);
 
@@ -2335,34 +2840,246 @@ class CockpitView extends obsidian.ItemView {
     let remaining = totalSeconds;
     let isRunning = false;
     let isBreak = false;
-    let pomodoroCount = 0;
     let timerInterval = null;
     let minimized = false;
+    let reminderResetTimer = null;
+    let cueTimer = null;
+    let statusKey = 'pomodoro.ready';
+    let startLabelKey = 'pomodoro.start';
+    let cueText = '';
+    let cueKey = '';
+
+    const FOCUS_ACCENT = '#ff6b57';
+    const BREAK_ACCENT = '#48b4ff';
+
+    function getPomodoroCount() {
+      return Math.max(0, Math.floor((self._focusMinutes || 0) / 25));
+    }
+
+    function getThemeTokens() {
+      const isLight = document.body.classList.contains('theme-light');
+      if (isLight) {
+        return {
+          shellTop: 'rgba(255,255,255,0.94)',
+          shellBottom: 'rgba(246,248,252,0.96)',
+          border: 'rgba(148,163,184,0.24)',
+          borderSoft: 'rgba(148,163,184,0.14)',
+          headerGlow: 'rgba(255,255,255,0.36)',
+          headerAccent: 'rgba(244,247,251,0.28)',
+          textSoft: 'rgba(71,85,105,0.88)',
+          ringTrack: 'rgba(148,163,184,0.18)',
+          dialInnerTop: 'rgba(255,255,255,0.92)',
+          dialInnerBottom: 'rgba(239,244,249,0.96)',
+          metricBg: 'rgba(255,255,255,0.84)',
+          cueBg: 'rgba(255,255,255,0.88)',
+          buttonGhost: 'rgba(255,255,255,0.72)',
+          buttonGhostHover: 'rgba(255,255,255,0.96)',
+          shadow: '0 10px 26px rgba(15,23,42,0.12)',
+          accentShadow: 'rgba(15,23,42,0.12)'
+        };
+      }
+      return {
+        shellTop: 'rgba(24,31,40,0.96)',
+        shellBottom: 'rgba(18,24,33,0.98)',
+        border: 'rgba(72,180,255,0.14)',
+        borderSoft: 'rgba(72,180,255,0.08)',
+        headerGlow: 'rgba(255,255,255,0.03)',
+        headerAccent: 'rgba(72,180,255,0.035)',
+        textSoft: 'rgba(203,213,225,0.78)',
+        ringTrack: 'rgba(148,163,184,0.12)',
+        dialInnerTop: 'rgba(29,37,49,0.96)',
+        dialInnerBottom: 'rgba(24,31,42,0.98)',
+        metricBg: 'rgba(20,27,36,0.78)',
+        cueBg: 'rgba(20,27,36,0.74)',
+        buttonGhost: 'rgba(20,27,36,0.78)',
+        buttonGhostHover: 'rgba(30,41,59,0.84)',
+        shadow: '0 14px 34px rgba(2,6,23,0.28)',
+        accentShadow: 'rgba(2,6,23,0.18)'
+      };
+    }
+
+    function currentAccent() {
+      return isBreak ? BREAK_ACCENT : FOCUS_ACCENT;
+    }
+
+    function updateModeTone() {
+      const accent = currentAccent();
+      modeChip.textContent = t(isBreak ? 'pomodoro.modeBreak' : 'pomodoro.modeFocus');
+      modeChip.style.color = accent;
+      timerSub.textContent = isBreak ? t('pomodoro.resting') : t('pomodoro.backToWork');
+      timerSub.style.color = isBreak ? BREAK_ACCENT : 'var(--text-muted)';
+    }
+
+    function applyVisualState(accentOverride) {
+      const tokens = getThemeTokens();
+      const accent = accentOverride || currentAccent();
+      const progress = Math.max(0, Math.min(100, ((totalSeconds - remaining) / totalSeconds) * 100));
+      floatEl.style.background = 'linear-gradient(180deg,' + tokens.shellTop + ',' + tokens.shellBottom + ')';
+      floatEl.style.border = '1px solid ' + tokens.border;
+      floatEl.style.boxShadow = tokens.shadow;
+      header.style.background = 'linear-gradient(135deg,' + tokens.headerGlow + ',' + tokens.headerAccent + ')';
+      header.style.borderBottomColor = tokens.borderSoft;
+      dragHint.style.color = tokens.textSoft;
+      modeChip.style.background = tokens.metricBg;
+      toggleBtn.style.background = tokens.buttonGhost;
+      closeBtn.style.background = tokens.buttonGhost;
+      statusEl.style.background = tokens.metricBg;
+      metricsRow.style.background = tokens.metricBg;
+      metricsRow.style.border = '1px solid ' + tokens.borderSoft;
+      resetBtn.style.background = tokens.buttonGhost;
+      dialEl.style.background = 'conic-gradient(' + accent + ' ' + progress + '%, ' + tokens.ringTrack + ' ' + progress + '% 100%)';
+      dialInner.style.background = 'linear-gradient(180deg,' + tokens.dialInnerTop + ',' + tokens.dialInnerBottom + ')';
+      cueEl.style.background = tokens.cueBg;
+      cueEl.style.border = '1px solid ' + tokens.borderSoft;
+      startBtn.style.background = 'linear-gradient(135deg,' + accent + ', ' + (isBreak ? '#7dd3fc' : '#fb7185') + ')';
+      startBtn.style.boxShadow = '0 8px 18px ' + tokens.accentShadow;
+      resetBtn.onmouseenter = () => { resetBtn.style.background = tokens.buttonGhostHover; };
+      resetBtn.onmouseleave = () => { resetBtn.style.background = tokens.buttonGhost; };
+      toggleBtn.onmouseenter = () => { toggleBtn.style.transform = 'translateY(-1px)'; };
+      closeBtn.onmouseenter = () => { closeBtn.style.transform = 'translateY(-1px)'; };
+      toggleBtn.onmouseleave = () => { toggleBtn.style.transform = 'translateY(0)'; };
+      closeBtn.onmouseleave = () => { closeBtn.style.transform = 'translateY(0)'; };
+      updateModeTone();
+    }
+
+    function setCue(message, key) {
+      cueText = message || '';
+      cueKey = key || '';
+      cueEl.textContent = cueText;
+      cueEl.style.display = cueText ? 'block' : 'none';
+      cueEl.style.color = cueText ? currentAccent() : 'var(--text-muted)';
+    }
+
+    function flashCue(message, accent, duration, forceNotice, key) {
+      clearTimeout(cueTimer);
+      setCue(message, key);
+      pulseReminder(message, accent, forceNotice);
+      cueTimer = setTimeout(() => {
+        setCue('', '');
+      }, duration || 4200);
+    }
+
+    function syncPomodoroText() {
+      header.title = t('pomodoro.dragHint');
+      titleSpan.textContent = t('pomodoro.title');
+      dragHint.textContent = t('pomodoro.dragHint');
+      toggleBtn.title = minimized ? t('pomodoro.expand') : t('pomodoro.minimize');
+      closeBtn.title = t('pomodoro.close');
+      statusEl.textContent = t(statusKey);
+      startBtn.textContent = t(startLabelKey);
+      resetBtn.textContent = t('pomodoro.reset');
+      todayFocus.textContent = t('pomodoro.focusToday', { minutes: self._focusMinutes || 0 });
+      if (cueKey) {
+        cueText = t(cueKey);
+        cueEl.textContent = cueText;
+      }
+      countEl.textContent = '🍅 × ' + getPomodoroCount();
+      if (minimized) {
+        modeChip.style.display = 'none';
+        titleSpan.style.display = 'block';
+        titleSpan.textContent = fmtTime(remaining);
+        metricsRow.style.display = 'none';
+        btnRow.style.display = 'none';
+        cueEl.style.display = 'none';
+      } else {
+        modeChip.style.display = 'inline-flex';
+        titleSpan.style.display = 'none';
+        metricsRow.style.display = 'flex';
+        btnRow.style.display = 'grid';
+        if (!cueText) cueEl.style.display = 'none';
+      }
+      applyVisualState();
+    }
+
+    floatEl._cockpitBindPomodoroView = (nextView) => {
+      if (nextView) self = nextView;
+    };
+    floatEl._cockpitSyncLanguage = syncPomodoroText;
 
     // 最小化
-    toggleBtn.onclick = () => { minimized = !minimized; body.style.display = minimized ? 'none' : 'block'; toggleBtn.textContent = minimized ? '+' : '−'; toggleBtn.title = minimized ? t('pomodoro.expand') : t('pomodoro.minimize'); floatEl.style.width = minimized ? '140px' : '180px'; titleSpan.textContent = minimized ? '🍅 ' + fmtTime(remaining) : t('pomodoro.title'); };
+    toggleBtn.onclick = () => {
+      minimized = !minimized;
+      body.style.display = minimized ? 'none' : 'block';
+      toggleBtn.textContent = minimized ? '+' : '−';
+      floatEl.style.width = minimized ? '126px' : '198px';
+      syncPomodoroText();
+    };
 
     // 关闭
-    closeBtn.onclick = () => { clearInterval(timerInterval); floatEl.remove(); self._pomodoroTimer = null; };
+    closeBtn.onclick = () => { clearInterval(timerInterval); clearTimeout(reminderResetTimer); clearTimeout(cueTimer); finishDrag(dragPointerId); floatEl.remove(); self._pomodoroTimer = null; };
 
     // 拖拽
-    let dragOffsetX = 0, dragOffsetY = 0, isDragging = false;
-    header.addEventListener('mousedown', (e) => {
-      if (e.target === toggleBtn || e.target === closeBtn || e.target.parentElement === btnGroup) return;
-      isDragging = true;
+    let dragOffsetX = 0, dragOffsetY = 0;
+    let dragPointerId = null;
+    let dragStartX = 0, dragStartY = 0;
+    let dragPending = false;
+    let isDragging = false;
+    const dragThreshold = 6;
+
+    function isHeaderControl(target) {
+      return target === toggleBtn || target === closeBtn || btnGroup.contains(target);
+    }
+
+    function clampPosition(left, top) {
+      const margin = 8;
+      const maxLeft = Math.max(margin, window.innerWidth - floatEl.offsetWidth - margin);
+      const maxTop = Math.max(margin, window.innerHeight - floatEl.offsetHeight - margin);
+      return {
+        left: Math.min(Math.max(margin, left), maxLeft),
+        top: Math.min(Math.max(margin, top), maxTop)
+      };
+    }
+
+    function finishDrag(pointerId) {
+      if (pointerId != null && header.hasPointerCapture && header.hasPointerCapture(pointerId)) {
+        header.releasePointerCapture(pointerId);
+      }
+      dragPointerId = null;
+      dragPending = false;
+      isDragging = false;
+      floatEl.style.transition = 'box-shadow 0.25s,border-color 0.25s,transform 0.25s,background 0.25s';
+    }
+
+    header.addEventListener('pointerdown', (e) => {
+      if (isHeaderControl(e.target)) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
       const rect = floatEl.getBoundingClientRect();
+      dragPointerId = e.pointerId;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
       dragOffsetX = e.clientX - rect.left;
       dragOffsetY = e.clientY - rect.top;
-      floatEl.style.transition = 'none';
+      dragPending = true;
+      isDragging = false;
+      if (header.setPointerCapture) header.setPointerCapture(e.pointerId);
     });
-    document.addEventListener('mousemove', (e) => {
+
+    header.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== dragPointerId) return;
+      const deltaX = e.clientX - dragStartX;
+      const deltaY = e.clientY - dragStartY;
+      if (dragPending) {
+        if (Math.hypot(deltaX, deltaY) < dragThreshold) return;
+        dragPending = false;
+        isDragging = true;
+        floatEl.style.transition = 'none';
+      }
       if (!isDragging) return;
-      floatEl.style.left = (e.clientX - dragOffsetX) + 'px';
-      floatEl.style.top = (e.clientY - dragOffsetY) + 'px';
+      const next = clampPosition(e.clientX - dragOffsetX, e.clientY - dragOffsetY);
+      floatEl.style.left = next.left + 'px';
+      floatEl.style.top = next.top + 'px';
       floatEl.style.right = 'auto';
       floatEl.style.bottom = 'auto';
     });
-    document.addEventListener('mouseup', () => { isDragging = false; floatEl.style.transition = 'box-shadow 0.2s'; });
+
+    header.addEventListener('pointerup', (e) => {
+      if (e.pointerId !== dragPointerId) return;
+      finishDrag(e.pointerId);
+    });
+    header.addEventListener('pointercancel', (e) => {
+      if (e.pointerId !== dragPointerId) return;
+      finishDrag(e.pointerId);
+    });
     // 格式化时间
     function fmtTime(s) {
       const m = Math.floor(s / 60);
@@ -2370,14 +3087,25 @@ class CockpitView extends obsidian.ItemView {
       return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
     }
 
+    function pulseReminder(message, accent, forceNotice) {
+      const tokens = getThemeTokens();
+      clearTimeout(reminderResetTimer);
+      floatEl.style.borderColor = accent;
+      floatEl.style.boxShadow = '0 0 0 1px ' + accent + ', 0 16px 32px ' + tokens.accentShadow;
+      floatEl.style.transform = 'translateY(-3px)';
+      reminderResetTimer = setTimeout(() => {
+        applyVisualState();
+        floatEl.style.transform = 'translateY(0)';
+      }, 1800);
+      if (forceNotice || minimized || document.hidden) {
+        new obsidian.Notice(message, 2600);
+      }
+    }
+
     // 更新显示
     function updateDisplay() {
       timerEl.textContent = fmtTime(remaining);
-      const pct = ((totalSeconds - remaining) / totalSeconds) * 100;
-      progFill.style.width = pct + '%';
-      todayFocus.textContent = t('pomodoro.focusToday', { minutes: self._focusMinutes || 0 });
-      countEl.textContent = '🍅 × ' + pomodoroCount;
-      if (minimized) titleSpan.textContent = '🍅 ' + fmtTime(remaining);
+      syncPomodoroText();
     }
 
     // 开始/暂停
@@ -2386,15 +3114,17 @@ class CockpitView extends obsidian.ItemView {
         // 暂停
         clearInterval(timerInterval);
         isRunning = false;
-        startBtn.textContent = t('pomodoro.resume');
-        statusEl.textContent = isBreak ? t('pomodoro.breakPaused') : t('pomodoro.focusPaused');
+        startLabelKey = 'pomodoro.resume';
+        statusKey = isBreak ? 'pomodoro.breakPaused' : 'pomodoro.focusPaused';
         statusEl.style.color = '#f59e0b';
+        syncPomodoroText();
       } else {
         // 开始
         isRunning = true;
-        startBtn.textContent = t('pomodoro.pause');
-        statusEl.textContent = isBreak ? t('pomodoro.resting') : t('pomodoro.focusing');
+        startLabelKey = 'pomodoro.pause';
+        statusKey = isBreak ? 'pomodoro.resting' : 'pomodoro.focusing';
         statusEl.style.color = isBreak ? '#22c55e' : '#ef4444';
+        syncPomodoroText();
         timerInterval = setInterval(() => {
           remaining--;
           updateDisplay();
@@ -2403,36 +3133,32 @@ class CockpitView extends obsidian.ItemView {
             isRunning = false;
             if (!isBreak) {
               // 专注完成
-              pomodoroCount++;
               self._focusMinutes = (self._focusMinutes || 0) + 25;
               // 持久化到文件
               (async () => {
                 try {
                   const today = window.moment().format('YYYY-MM-DD');
-                  const content = '# ' + t('pomodoro.focusLogTitle') + '\n\ndate: ' + today + '\nminutes: ' + self._focusMinutes + '\n';
-                  const dir = '_data';
-                  if (!self.app.vault.getAbstractFileByPath(dir)) await self.app.vault.createFolder(dir);
-                  const f = self.app.vault.getAbstractFileByPath('_data/focus.md');
-                  if (f) await self.app.vault.modify(f, content);
-                  else await self.app.vault.create('_data/focus.md', content);
+                  await self._saveFocusHistory(today, self._focusMinutes);
                 } catch(e) { console.warn('save focus', e); }
               })();
-              statusEl.textContent = t('pomodoro.completedOne');
+              statusKey = 'pomodoro.completedOne';
               statusEl.style.color = '#22c55e';
-              startBtn.textContent = t('pomodoro.startBreak');
+              startLabelKey = 'pomodoro.startBreak';
               isBreak = true;
               totalSeconds = 5 * 60;
               remaining = totalSeconds;
+              flashCue(t('pomodoro.readyForBreak'), '#22c55e', 3600, false, 'pomodoro.readyForBreak');
               // 刷新统计
               if (self._updateStatsRef) self._updateStatsRef();
             } else {
               // 休息完成
-              statusEl.textContent = t('pomodoro.breakEnd');
-              statusEl.style.color = 'var(--text-muted)';
-              startBtn.textContent = t('pomodoro.start');
+              statusKey = 'pomodoro.breakEnd';
+              statusEl.style.color = BREAK_ACCENT;
+              startLabelKey = 'pomodoro.start';
               isBreak = false;
               totalSeconds = 25 * 60;
               remaining = totalSeconds;
+              flashCue(t('pomodoro.readyForFocus'), BREAK_ACCENT, 5200, minimized || document.hidden, 'pomodoro.readyForFocus');
             }
             updateDisplay();
           }
@@ -2447,15 +3173,21 @@ class CockpitView extends obsidian.ItemView {
       isBreak = false;
       totalSeconds = 25 * 60;
       remaining = totalSeconds;
-      startBtn.textContent = t('pomodoro.start');
-      statusEl.textContent = t('pomodoro.ready');
+      startLabelKey = 'pomodoro.start';
+      statusKey = 'pomodoro.ready';
       statusEl.style.color = 'var(--text-muted)';
+      setCue('', '');
       updateDisplay();
     };
 
     // 保存引用
     this._pomodoroTimer = timerInterval;
     this._updateStatsRef = null; // 将在 _buildAll 中设置
+
+    startBtn.onmouseenter = () => { startBtn.style.transform = 'translateY(-1px)'; };
+    startBtn.onmouseleave = () => { startBtn.style.transform = 'translateY(0)'; };
+    resetBtn.onmouseenter = () => { resetBtn.style.transform = 'translateY(-1px)'; };
+    resetBtn.onmouseleave = () => { resetBtn.style.transform = 'translateY(0)'; };
 
     updateDisplay();
   }
@@ -2476,6 +3208,44 @@ class CockpitView extends obsidian.ItemView {
       starBtn.title = isStarred ? this._t('recent.unstar') : this._t('recent.star');
       count++;
     }
+  }
+  _refreshRecentSection(root, allFiles) {
+    const recentEl = this._recentEl || root.querySelector('.' + PLUGIN_ID + '-recent');
+    if (!recentEl) return;
+    recentEl.innerHTML = '';
+    this._recentEl = recentEl;
+    this._allFiles = allFiles;
+    this._allFiles
+      .filter((file) => file.basename !== 'Home')
+      .sort((a, b) => b.stat.mtime - a.stat.mtime)
+      .slice(0, 5)
+      .forEach((file) => {
+        const item = recentEl.createDiv({ cls: PLUGIN_ID + '-recent-item', attr: { 'data-path': file.path } });
+        const isStarred = this._bookmarks.has(file.path);
+        const starBtn = item.createSpan({
+          cls: PLUGIN_ID + '-bookmark-btn' + (isStarred ? ' starred' : ''),
+          text: isStarred ? '★' : '☆',
+          attr: { title: isStarred ? this._t('recent.unstar') : this._t('recent.star') }
+        });
+        starBtn.onclick = async (e) => {
+          e.stopPropagation();
+          if (this._bookmarks.has(file.path)) this._bookmarks.delete(file.path);
+          else this._bookmarks.add(file.path);
+          await saveBookmarks(this.app.vault, this._bookmarks);
+          const nowStarred = this._bookmarks.has(file.path);
+          starBtn.textContent = nowStarred ? '★' : '☆';
+          starBtn.className = PLUGIN_ID + '-bookmark-btn' + (nowStarred ? ' starred' : '');
+          starBtn.title = nowStarred ? this._t('recent.unstar') : this._t('recent.star');
+          await this._refreshBookmarkSection(root, this._allFiles);
+          this._rebuildRecentStars();
+        };
+        const link = item.createEl('a', { cls: PLUGIN_ID + '-recent-link', text: file.basename, href: '#' });
+        link.onclick = (e) => {
+          e.preventDefault();
+          this.app.workspace.getUnpinnedLeaf().setViewState({ type: 'markdown', state: { file: file.path } });
+        };
+        item.createDiv({ cls: PLUGIN_ID + '-recent-time', text: window.moment(file.stat.mtime).fromNow() });
+      });
   }
 
   // 异步刷新收藏 section（局部 DOM 更新，不重建整个页面）
@@ -2538,60 +3308,116 @@ class CockpitView extends obsidian.ItemView {
     this._applyModuleLayout(root);
   }
 
-  _doAction(a) {
-    if (a === 'hermes') {
+  _getToolbarCommandConfig(...names) {
+    for (const name of names) {
+      if (name && this._toolbarCmds[name]) return this._toolbarCmds[name];
+    }
+    return null;
+  }
+  _trySendCommandToTerminalView(termView, command) {
+    if (!termView || !command) return false;
+    const seen = new Set();
+    const queue = [termView];
+    while (queue.length > 0) {
+      const node = queue.shift();
+      if (!node || (typeof node !== 'object' && typeof node !== 'function') || seen.has(node)) continue;
+      seen.add(node);
       try {
-        // 1. 打开终端面板
-        this.app.commands.executeCommandById('terminal:open-terminal.integrated.root');
-        // 2. 等终端就绪后模拟键盘输入
-        const tryInject = () => {
-          const termLeaves = this.app.workspace.getLeavesOfType('terminal');
-          if (termLeaves.length === 0) return false;
-          const termLeaf = termLeaves[termLeaves.length - 1];
-          const termView = termLeaf?.view;
-          if (!termView) return false;
-          
-          // 获取 xterm.js Terminal 实例 - 通过 _children 或 symbol 属性查找
-          let xterm = null;
-          // 直接在 termView 上找
-          for (const key of Object.getOwnPropertyNames(termView)) {
-            const val = termView[key];
-            if (val && val._core && val._core._coreService) {
-              xterm = val;
-              break;
-            }
-          }
-          // 检查 _children
-          if (!xterm && termView._children) {
-            for (const child of termView._children) {
-              if (child._core && child._core._coreService) { xterm = child; break; }
-              // 再深一层
-              if (child._children) {
-                for (const c2 of child._children) {
-                  if (c2._core && c2._core._coreService) { xterm = c2; break; }
-                }
-              }
-              // 检查 renderTerminal / _terminal
-              for (const k of Object.getOwnPropertyNames(child)) {
-                const v = child[k];
-                if (v && v._core && v._core._coreService) { xterm = v; break; }
-              }
-            }
-          }
-          if (xterm) {
-            xterm.write('hermes --tui\r');
-            return true;
-          }
-          return false;
-        };
-        let attempts = 0;
-        const timer = setInterval(() => {
-          attempts++;
-          if (tryInject() || attempts > 30) clearInterval(timer);
-        }, 300);
-      } catch(e) {
-        console.warn('Hermes failed', e);
+        if (typeof node.write === 'function' && (node._core || node.buffer || node.options || node._coreService)) {
+          node.write(command + '\r');
+          return true;
+        }
+        if (typeof node.paste === 'function') {
+          node.paste(command + '\r');
+          return true;
+        }
+        if (typeof node.sendText === 'function') {
+          node.sendText(command, true);
+          return true;
+        }
+      } catch (e) {}
+      const keys = Object.getOwnPropertyNames(node).slice(0, 40);
+      keys.forEach((key) => {
+        try {
+          const value = node[key];
+          if (value && (typeof value === 'object' || typeof value === 'function') && !seen.has(value)) queue.push(value);
+        } catch (e) {}
+      });
+      if (Array.isArray(node._children)) {
+        node._children.forEach((child) => {
+          if (child && !seen.has(child)) queue.push(child);
+        });
       }
+    }
+    return false;
+  }
+  _launchHermesInIntegratedTerminal(command) {
+    try {
+      this.app.commands.executeCommandById('terminal:open-terminal.integrated.root');
+    } catch (e) {}
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const timer = setInterval(() => {
+        attempts++;
+        const termLeaves = this.app.workspace.getLeavesOfType('terminal') || [];
+        for (let i = termLeaves.length - 1; i >= 0; i--) {
+          const termView = termLeaves[i]?.view;
+          if (this._trySendCommandToTerminalView(termView, command)) {
+            clearInterval(timer);
+            resolve(true);
+            return;
+          }
+        }
+        if (attempts > 20) {
+          clearInterval(timer);
+          resolve(false);
+        }
+      }, 250);
+    });
+  }
+  _launchHermesInExternalTerminal(command, appName) {
+    return new Promise((resolve, reject) => {
+      try {
+        const { execFile } = require('child_process');
+        const escapedCommand = String(command || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const targetApp = appName || 'Terminal';
+        execFile('osascript', [
+          '-e', 'tell application "' + targetApp + '"',
+          '-e', 'activate',
+          '-e', 'do script "' + escapedCommand + '"',
+          '-e', 'end tell'
+        ], (err) => {
+          if (err) reject(err);
+          else resolve(true);
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+  _doAction(a, sourceEl) {
+    if (a === 'hermes') {
+      (async () => {
+        try {
+          const cfg = this._getToolbarCommandConfig('Hermes', 'hermes') || {};
+          const command = cfg.command || 'hermes --tui';
+          const mode = String(cfg.mode || 'auto').toLowerCase();
+          const terminalApp = cfg.app || 'Terminal';
+          let launched = false;
+          if (mode !== 'external') {
+            launched = await this._launchHermesInIntegratedTerminal(command);
+          }
+          if (launched) {
+            new obsidian.Notice(this._t('notices.hermesStarting'));
+            return;
+          }
+          await this._launchHermesInExternalTerminal(command, terminalApp);
+          new obsidian.Notice(this._t(mode === 'external' ? 'notices.hermesStartingExternal' : 'notices.hermesFallbackExternal'));
+        } catch(e) {
+          console.warn('Hermes failed', e);
+          new obsidian.Notice(this._t('notices.hermesFailed', { message: e?.message || 'unknown error' }));
+        }
+      })();
       return;
     }
     if (a === 'cockpit-h5') {
@@ -2645,6 +3471,12 @@ class CockpitView extends obsidian.ItemView {
       } catch(e) { console.warn('Pomodoro failed', e); }
       return;
     }
+    if (a === 'more') {
+      try {
+        this._openDashboardMenu(sourceEl);
+      } catch(e) { console.warn('More menu failed', e); }
+      return;
+    }
     switch(a) {
       case 'new': this.app.commands.executeCommandById('file-explorer:new-file'); break;
       case 'search': /* 搜索已内嵌到 Dashboard，点击 toolbar 按钮展开 */ break;
@@ -2655,13 +3487,103 @@ class CockpitView extends obsidian.ItemView {
   }
   async onClose() {
     if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; }
+    if (this._minuteRefreshTimer) { clearInterval(this._minuteRefreshTimer); this._minuteRefreshTimer = null; }
+    if (this._visibilityRefreshHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityRefreshHandler);
+      this._visibilityRefreshHandler = null;
+    }
+    this._unbindSilentRefreshSensors();
+    this._closeTodoEditor();
+    this._closeWelcomeCover();
+    this._closeOnboardingCard();
     // 番茄钟是全局单例，不随驾驶舱关闭而销毁
     // 只清理引用，不移除 DOM
     this._pomodoroTimer = null;
+    this._heroRefs = null;
+    this._refreshTodosRef = null;
+    this._refreshCalendarRef = null;
+    this._refreshHeroReminder = null;
   }
         // ========== 首次使用引导 — 区域引导卡片 ==========
+  _markOnboardingDone() {
+    this._onboardingDone = true;
+    (async () => {
+      try {
+        const d = await this._plugin.loadData() || {};
+        d.onboardingDone = true;
+        await this._plugin.saveData(d);
+      } catch(e) { console.warn('save onboard', e); }
+    })();
+  }
+  _showWelcomeCover(root) {
+    if (this._onboardingDone) return;
+    this._closeWelcomeCover();
+    const PID = PLUGIN_ID;
+    const t = (key, vars) => this._t(key, vars);
+    let selectedLang = this._language;
+
+    const overlay = document.createElement('div');
+    overlay.className = PID + '-welcome-backdrop';
+    const card = overlay.createDiv({ cls: PID + '-welcome-card' });
+    card.createDiv({ cls: PID + '-welcome-badge', text: t('welcome.badge') });
+    card.createDiv({ cls: PID + '-welcome-title', text: t('welcome.title') });
+    const intro = card.createDiv({ cls: PID + '-welcome-intro' });
+    intro.createDiv({ cls: PID + '-welcome-copy primary', text: t('welcome.introCn') });
+    intro.createDiv({ cls: PID + '-welcome-copy', text: t('welcome.introEn') });
+
+    const langBlock = card.createDiv({ cls: PID + '-welcome-lang-block' });
+    langBlock.createDiv({ cls: PID + '-welcome-label', text: t('welcome.chooseLanguage') });
+    const langRow = langBlock.createDiv({ cls: PID + '-welcome-lang-row' });
+    const renderLangs = () => {
+      langRow.empty();
+      LANG_OPTIONS.forEach((option) => {
+        const btn = langRow.createEl('button', {
+          cls: PID + '-welcome-lang-btn' + (selectedLang === option.code ? ' active' : ''),
+          text: option.label,
+          attr: { type: 'button' }
+        });
+        btn.onclick = () => {
+          selectedLang = option.code;
+          renderLangs();
+        };
+      });
+    };
+    renderLangs();
+
+    const actions = card.createDiv({ cls: PID + '-welcome-actions' });
+    const skipBtn = actions.createEl('button', {
+      cls: PID + '-welcome-skip',
+      text: t('welcome.skip'),
+      attr: { type: 'button' }
+    });
+    skipBtn.onclick = async () => {
+      this._closeWelcomeCover();
+      if (selectedLang !== this._language) {
+        await this._setLanguage(selectedLang);
+      }
+      this._markOnboardingDone();
+    };
+    const startBtn = actions.createEl('button', {
+      cls: PID + '-welcome-start',
+      text: t('welcome.continue'),
+      attr: { type: 'button' }
+    });
+    startBtn.onclick = async () => {
+      this._closeWelcomeCover();
+      if (selectedLang !== this._language) {
+        this._pendingOnboarding = true;
+        await this._setLanguage(selectedLang);
+        return;
+      }
+      this._showOnboarding(root);
+    };
+
+    this._welcomeCoverEl = overlay;
+    document.body.appendChild(overlay);
+  }
   _showOnboarding(root) {
     if (this._onboardingDone) return;
+    this._closeWelcomeCover();
     const PID = PLUGIN_ID;
     const t = (key, vars) => this._t(key, vars);
 
@@ -2670,6 +3592,7 @@ class CockpitView extends obsidian.ItemView {
       { sel: '.'+PID+'-toolbar', text: t('onboarding.stepToolbar'), pos: 'below' },
       { sel: '.'+PID+'-cal-wrap', text: t('onboarding.stepCalendar'), pos: 'above' },
       { sel: '.'+PID+'-todo-header', text: t('onboarding.stepTodo'), pos: 'above' },
+      { sel: '.'+PID+'-toolbar', text: t('onboarding.stepContextMenu'), pos: 'below' },
       { sel: '.'+PID+'-stats', text: t('onboarding.stepStats'), pos: 'above' },
     ];
     const pomoEl = document.querySelector('.'+PID+'-pomodoro');
@@ -2718,42 +3641,42 @@ class CockpitView extends obsidian.ItemView {
       if (!card) {
         card = document.createElement('div');
         card.id = PID+'-tour';
-        card.style.cssText = 'position:fixed;z-index:9998;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:14px;padding:14px 16px;max-width:340px;width:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18);transition:opacity 0.3s;font-size:0.85em;line-height:1.5;';
+        card.className = PID + '-onboarding-card';
         document.body.appendChild(card);
       }
       card.innerHTML = '';
       card.style.opacity = '1';
       // header
       const top = document.createElement('div');
-      top.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;';
+      top.className = PID + '-onboarding-card-head';
       const num = document.createElement('span');
       num.textContent = (i+1)+'/'+steps.length;
-      num.style.cssText = 'font-size:0.72em;color:var(--text-muted);font-weight:600;';
+      num.className = PID + '-onboarding-card-step';
       top.appendChild(num);
-      const cl = document.createElement('span');
+      const cl = document.createElement('button');
       cl.textContent = t('onboarding.close');
-      cl.style.cssText = 'font-size:0.7em;color:var(--text-muted);cursor:pointer;padding:2px 6px;border-radius:6px;';
+      cl.className = PID + '-onboarding-card-close';
       cl.onclick = finish;
       top.appendChild(cl);
       card.appendChild(top);
       // body
       const body = document.createElement('div');
       body.textContent = s.text;
-      body.style.cssText = 'color:var(--text-normal);margin-bottom:12px;';
+      body.className = PID + '-onboarding-card-body';
       card.appendChild(body);
       // buttons
       const btnRow = document.createElement('div');
-      btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+      btnRow.className = PID + '-onboarding-card-actions';
       if (i > 0) {
         const pb = document.createElement('button');
         pb.textContent = t('onboarding.prev');
-        pb.style.cssText = 'padding:4px 14px;border-radius:8px;border:1px solid var(--background-modifier-border);background:var(--background-secondary);color:var(--text-muted);font-size:0.78em;cursor:pointer;';
+        pb.className = PID + '-onboarding-card-btn secondary';
         pb.onclick = () => { cur = i-1; buildCard(cur); };
         btnRow.appendChild(pb);
       }
       const nb = document.createElement('button');
       nb.textContent = i < steps.length-1 ? t('onboarding.next') : t('onboarding.done');
-      nb.style.cssText = 'padding:4px 16px;border-radius:8px;border:none;background:var(--interactive-accent);color:white;font-size:0.78em;font-weight:600;cursor:pointer;';
+      nb.className = PID + '-onboarding-card-btn primary';
       nb.onclick = () => { cur = i+1; buildCard(cur); };
       btnRow.appendChild(nb);
       card.appendChild(btnRow);
@@ -2766,8 +3689,7 @@ class CockpitView extends obsidian.ItemView {
       if (hlEl) hlEl.classList.remove(PID+'-onboarding-highlight');
       const c = document.getElementById(PID+'-tour');
       if (c) { c.style.opacity = '0'; setTimeout(() => c.remove(), 300); }
-      this._onboardingDone = true;
-      (async () => { try { const d = await this._plugin.loadData() || {}; d.onboardingDone = true; await this._plugin.saveData(d); } catch(e) { console.warn('save onboard', e); } })();
+      this._markOnboardingDone();
     };
 
     buildCard(0);

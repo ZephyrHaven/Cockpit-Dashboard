@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// build.js — 把 src/ 下的模块打包成 main.js
+// build.js — 把 src/ 下的模块打包成 main.js，并额外产出压缩版 main.min.js
 
 const fs = require('fs');
 const path = require('path');
@@ -7,6 +7,7 @@ const path = require('path');
 const ROOT = __dirname;
 const SRC_DIR = path.join(ROOT, 'src');
 const OUT_FILE = path.join(ROOT, 'main.js');
+const MIN_OUT_FILE = path.join(ROOT, 'main.min.js');
 const CSS_FILE = path.join(ROOT, 'styles.css');
 
 const MODULES = [
@@ -20,27 +21,28 @@ const MODULES = [
   '_framework.js'
 ];
 
-let css;
-try {
-  css = fs.readFileSync(CSS_FILE, 'utf8');
-} catch (e) {
-  console.error('❌ 读取 styles.css 失败:', e.message);
-  process.exit(1);
+function readFileOrExit(filePath, label) {
+  try {
+    return fs.readFileSync(filePath, 'utf8');
+  } catch (e) {
+    console.error(`❌ 读取 ${label} 失败:`, e.message);
+    process.exit(1);
+  }
 }
 
-const parts = [];
-for (const mod of MODULES) {
+function loadModuleCode(mod) {
   const filePath = path.join(SRC_DIR, mod);
   if (!fs.existsSync(filePath)) {
     console.error(`❌ 缺少模块: ${mod}`);
     process.exit(1);
   }
-  let code = fs.readFileSync(filePath, 'utf8').trim();
-  code = code.replace(/^'use strict';\s*/gm, '');
-  parts.push(`// ===== ${mod} =====\n${code}`);
+  return readFileOrExit(filePath, mod).trim().replace(/^'use strict';\s*/gm, '');
 }
 
-const output = `'use strict';
+function buildBundle(css, moduleBodies, mode) {
+  if (mode === 'pretty') {
+    const parts = moduleBodies.map(({ name, code }) => `// ===== ${name} =====\n${code}`);
+    return `'use strict';
 var obsidian = require('obsidian');
 
 // ===== styles.css =====
@@ -49,8 +51,63 @@ const CSS = ${JSON.stringify(css)};
 // ===== modules =====
 ${parts.join('\n\n')}
 `;
+  }
 
-fs.writeFileSync(OUT_FILE, output);
-const outSize = fs.statSync(OUT_FILE).size;
-const outLines = output.split('\n').length;
-console.log(`✅ 构建完成: ${OUT_FILE} (${outSize} bytes, ${outLines} 行)`);
+  const compactCss = css
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*([{}:;,])\s*/g, '$1')
+    .replace(/;}/g, '}')
+    .trim();
+  const compactModules = moduleBodies
+    .map(({ code }) => code
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .filter((line) => line.trim() && !line.trim().startsWith('//'))
+      .join('\n'))
+    .join('\n');
+  return `'use strict';var obsidian=require('obsidian');const CSS=${JSON.stringify(compactCss)};\n${compactModules}\n`;
+}
+
+async function tryMinifyWithTool(code) {
+  try {
+    const terser = require('terser');
+    const result = await terser.minify(code, {
+      compress: true,
+      mangle: true,
+      format: { comments: false }
+    });
+    if (result && result.code) return { code: result.code, tool: 'terser' };
+  } catch (e) {}
+  return null;
+}
+
+function writeAndReport(filePath, content, label) {
+  fs.writeFileSync(filePath, content);
+  const size = fs.statSync(filePath).size;
+  const lines = content.split('\n').length;
+  console.log(`✅ ${label}: ${filePath} (${size} bytes, ${lines} 行)`);
+}
+
+async function main() {
+  const css = readFileOrExit(CSS_FILE, 'styles.css');
+  const moduleBodies = MODULES.map((name) => ({ name, code: loadModuleCode(name) }));
+
+  const prettyOutput = buildBundle(css, moduleBodies, 'pretty');
+  writeAndReport(OUT_FILE, prettyOutput, '构建完成');
+
+  const toolMinified = await tryMinifyWithTool(prettyOutput);
+  if (toolMinified) {
+    writeAndReport(MIN_OUT_FILE, toolMinified.code, `压缩构建完成 (${toolMinified.tool})`);
+    return;
+  }
+
+  const compactOutput = buildBundle(css, moduleBodies, 'compact');
+  writeAndReport(MIN_OUT_FILE, compactOutput, '压缩构建完成 (fallback compact)');
+  console.log('ℹ️ 未检测到 terser，main.min.js 使用内置轻量压缩模式');
+}
+
+main().catch((e) => {
+  console.error('❌ 构建失败:', e);
+  process.exit(1);
+});

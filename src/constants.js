@@ -15,6 +15,28 @@ const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f9
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
 const RELEASE_HISTORY = [
   {
+    version: '1.0.9',
+    date: '2026-07-08',
+    title: {
+      'zh-CN': '静默刷新、番茄钟历史记录与 Toolbar 可定制',
+      en: 'Silent Refresh, Pomodoro History, and Customizable Toolbar'
+    },
+    highlights: {
+      'zh-CN': [
+        '新增局部静默刷新，问候语与首页关键区块会按周期更新，并尽量避开用户输入与编辑状态。',
+        '番茄钟专注数据改为按日期累计写入 `_data/focus.md`，保留历史记录而不再只覆盖当天。',
+        '重做番茄钟浮窗，强化深浅色适配，精简大小视图信息负载，并在休息结束后提示继续专注。',
+        '修复 Hermes 启动链路，编辑模式下支持自定义隐藏 Toolbar 按钮。'
+      ],
+      en: [
+        'Added partial silent refresh so the greeting and key dashboard sections update on a schedule while avoiding active input and edit states.',
+        'Changed Pomodoro focus persistence to accumulate by date in `_data/focus.md`, preserving history instead of overwriting only today.',
+        'Refined the floating Pomodoro with better light/dark support, leaner compact and expanded views, and a reminder when breaks end.',
+        'Fixed the Hermes launch flow and added per-button Toolbar visibility controls in Edit Mode.'
+      ]
+    }
+  },
+  {
     version: '1.0.8',
     date: '2026-07-06',
     title: {
@@ -190,6 +212,7 @@ const I18N = {
       tag: '标签',
       graph: '图谱',
       command: '命令',
+      more: '更多',
       hermes: 'Hermes',
       cockpit: '驾驶舱',
       workLog: '工作日志',
@@ -218,6 +241,8 @@ const I18N = {
       hiddenTag: '已隐藏',
       hideModule: ({ module }) => '隐藏模块：' + module,
       showModule: ({ module }) => '显示模块：' + module,
+      hideToolbarButton: ({ button }) => '隐藏按钮：' + button,
+      showToolbarButton: ({ button }) => '显示按钮：' + button,
       modules: {
         hero: '欢迎区',
         tip: '每日小贴士',
@@ -227,6 +252,10 @@ const I18N = {
       }
     },
     notices: {
+      hermesStarting: '🤖 Hermes 正在启动…',
+      hermesStartingExternal: '🤖 已在外部终端启动 Hermes',
+      hermesFallbackExternal: '🤖 已切换到外部终端启动 Hermes',
+      hermesFailed: ({ message }) => '🤖 Hermes 启动失败: ' + message,
       cockpitMissing: '🛩️ 驾驶舱未配置',
       cockpitStarting: '🛩️ 驾驶舱正在启动…',
       cockpitFailed: ({ message }) => '🛩️ 驾驶舱启动失败: ' + message,
@@ -236,7 +265,8 @@ const I18N = {
     },
     calendar: {
       emptyDay: '这一天没有待办 🎉',
-      backToToday: '回到今天'
+      backToToday: '回到今天',
+      addTodo: '新增待办'
     },
     categories: {
       noteCount: ({ count }) => count + ' 篇笔记'
@@ -256,7 +286,7 @@ const I18N = {
       done: '已办',
       stateDone: '已完成',
       stateDoing: '进行中',
-      placeholder: '输入待办事项，可加 #标签 due:YYYY-MM-DD p:high，回车确认',
+      placeholder: '输入待办标题...',
       overdue: ({ date }) => '⚠️ 已过期: ' + date,
       dueToday: '⏰ 今天到期',
       priorityHigh: '高优先级',
@@ -264,7 +294,24 @@ const I18N = {
       priorityLow: '低优先级',
       priorityTitle: ({ value }) => '优先级: ' + value,
       edit: '编辑',
-      remove: '删除'
+      remove: '删除',
+      editorCreate: '新增待办',
+      editorEdit: '编辑待办',
+      editorTask: '待办内容',
+      editorTaskPlaceholder: '例如：整理周报',
+      editorDue: '截止日期',
+      noDue: '不设置',
+      dueTodayBtn: '今天',
+      dueTomorrowBtn: '明天',
+      editorPriority: '优先级',
+      editorTags: '标签',
+      editorNoTags: '未选择标签',
+      editorTagPlaceholder: '新标签',
+      editorAddTag: '添加标签',
+      cancel: '取消',
+      saveNew: '创建',
+      saveEdit: '保存',
+      legacyHint: '也兼容 #标签 due:YYYY-MM-DD p:high'
     },
     recent: {
       star: '收藏',
@@ -293,7 +340,10 @@ const I18N = {
       close: '关闭番茄钟',
       minimize: '最小化',
       expand: '展开',
+      modeFocus: '专注轮',
+      modeBreak: '休息轮',
       ready: '准备开始',
+      dragHint: '拖动标题栏可移动',
       start: '▶ 开始',
       resume: '▶ 继续',
       pause: '⏸ 暂停',
@@ -304,21 +354,34 @@ const I18N = {
       focusing: '专注中...',
       resting: '休息中...',
       completedOne: '✅ 完成一个番茄！',
+      readyForBreak: '专注结束，准备休息',
       startBreak: '▶ 开始休息',
       breakEnd: '休息结束',
+      readyForFocus: '休息完成，继续工作',
+      backToWork: '回到专注',
       focusLogTitle: '专注记录'
     },
     onboarding: {
-      stepName: '✏️ 点击上方昵称可直接修改，试试点击「点击修改名称」输入你的名字',
-      stepToolbar: '⚡ 工具栏一键操作：新建笔记、搜索、标签、图谱、番茄钟等',
+      stepName: '✏️ 这里可以切换界面语言，也可以点击昵称直接修改名字',
+      stepToolbar: '⚡ 工具栏里可以快速新建笔记、搜索、打开标签和图谱，也能直接启动番茄钟',
       stepCalendar: '📅 日历看板显示每日待办，左右箭头切换月份，点击日期查看详情',
       stepTodo: '✅ 待办支持标签分类、红黄绿优先级、截止日期提醒，点击复选框完成',
+      stepContextMenu: '🖱️ 桌面端在空白区域右键，可以打开快捷菜单，里面有刷新页面、最近更新和布局编辑',
       stepStats: '📊 统计卡片实时展示数据，各区域标题可点击折叠收起',
       stepPomodoro: '🍅 番茄钟 25 分专注 + 5 分休息，右下角浮动可拖拽',
       close: '✕ 关闭',
       prev: '← 上一步',
       next: '下一步 →',
       done: '✓ 完成'
+    },
+    welcome: {
+      title: 'Cockpit Dashboard',
+      badge: '首次设置',
+      introCn: '欢迎使用 Cockpit Dashboard。先选择你的界面语言，再开始功能引导。',
+      introEn: 'Welcome to Cockpit Dashboard. Choose your interface language first, then continue to the guided tour.',
+      chooseLanguage: '选择语言',
+      continue: '开始使用',
+      skip: '跳过引导'
     }
   },
   en: {
@@ -354,6 +417,7 @@ const I18N = {
       tag: 'Tags',
       graph: 'Graph',
       command: 'Commands',
+      more: 'More',
       hermes: 'Hermes',
       cockpit: 'Dashboard',
       workLog: 'Work Log',
@@ -382,6 +446,8 @@ const I18N = {
       hiddenTag: 'Hidden',
       hideModule: ({ module }) => 'Hide module: ' + module,
       showModule: ({ module }) => 'Show module: ' + module,
+      hideToolbarButton: ({ button }) => 'Hide toolbar button: ' + button,
+      showToolbarButton: ({ button }) => 'Show toolbar button: ' + button,
       modules: {
         hero: 'Hero',
         tip: 'Daily Tip',
@@ -391,6 +457,10 @@ const I18N = {
       }
     },
     notices: {
+      hermesStarting: '🤖 Starting Hermes…',
+      hermesStartingExternal: '🤖 Hermes opened in an external terminal',
+      hermesFallbackExternal: '🤖 Hermes fell back to an external terminal',
+      hermesFailed: ({ message }) => '🤖 Hermes failed to start: ' + message,
       cockpitMissing: '🛩️ Dashboard command is not configured',
       cockpitStarting: '🛩️ Launching dashboard…',
       cockpitFailed: ({ message }) => '🛩️ Failed to launch dashboard: ' + message,
@@ -400,7 +470,8 @@ const I18N = {
     },
     calendar: {
       emptyDay: 'No tasks on this day 🎉',
-      backToToday: 'Back to today'
+      backToToday: 'Back to today',
+      addTodo: 'Add task'
     },
     categories: {
       noteCount: ({ count }) => count + ' notes'
@@ -420,7 +491,7 @@ const I18N = {
       done: 'Done',
       stateDone: 'Done',
       stateDoing: 'In progress',
-      placeholder: 'Type a task, add #tags due:YYYY-MM-DD p:high, then press Enter',
+      placeholder: 'Type a task title...',
       overdue: ({ date }) => '⚠️ Overdue: ' + date,
       dueToday: '⏰ Due today',
       priorityHigh: 'High priority',
@@ -428,7 +499,24 @@ const I18N = {
       priorityLow: 'Low priority',
       priorityTitle: ({ value }) => 'Priority: ' + value,
       edit: 'Edit',
-      remove: 'Delete'
+      remove: 'Delete',
+      editorCreate: 'Add task',
+      editorEdit: 'Edit task',
+      editorTask: 'Task',
+      editorTaskPlaceholder: 'Example: Finish weekly review',
+      editorDue: 'Due date',
+      noDue: 'No due date',
+      dueTodayBtn: 'Today',
+      dueTomorrowBtn: 'Tomorrow',
+      editorPriority: 'Priority',
+      editorTags: 'Tags',
+      editorNoTags: 'No tags selected',
+      editorTagPlaceholder: 'New tag',
+      editorAddTag: 'Add tag',
+      cancel: 'Cancel',
+      saveNew: 'Create',
+      saveEdit: 'Save',
+      legacyHint: 'Also supports #tags due:YYYY-MM-DD p:high'
     },
     recent: {
       star: 'Star',
@@ -457,7 +545,10 @@ const I18N = {
       close: 'Close Pomodoro',
       minimize: 'Minimize',
       expand: 'Expand',
+      modeFocus: 'Focus session',
+      modeBreak: 'Break session',
       ready: 'Ready to focus',
+      dragHint: 'Drag the header to move',
       start: '▶ Start',
       resume: '▶ Resume',
       pause: '⏸ Pause',
@@ -468,21 +559,34 @@ const I18N = {
       focusing: 'Focusing...',
       resting: 'On break...',
       completedOne: '✅ One Pomodoro done!',
+      readyForBreak: 'Focus finished, ready for a break',
       startBreak: '▶ Start break',
       breakEnd: 'Break finished',
+      readyForFocus: 'Break over, back to focus',
+      backToWork: 'Back to focus',
       focusLogTitle: 'Focus Log'
     },
     onboarding: {
-      stepName: '✏️ Click your name above to rename it. Try replacing “Click to rename” with yours.',
-      stepToolbar: '⚡ One-click toolbar actions for notes, search, tags, graph view, Pomodoro, and more.',
+      stepName: '✏️ Use this area to switch interface language and rename yourself quickly.',
+      stepToolbar: '⚡ Use the toolbar for quick note actions, search, tags, graph view, and Pomodoro.',
       stepCalendar: '📅 The calendar shows daily tasks. Use arrows to switch months and click a day for details.',
       stepTodo: '✅ Tasks support tags, red-yellow-green priority, and due reminders. Click the checkbox to complete.',
+      stepContextMenu: '🖱️ On desktop, right-click any blank area to open the quick menu for refresh, recent updates, and layout editing.',
       stepStats: '📊 Stat cards update live, and each section title can collapse its content.',
       stepPomodoro: '🍅 Pomodoro runs 25 minutes focus + 5 minutes break, and the floating card can be dragged.',
       close: '✕ Close',
       prev: '← Back',
       next: 'Next →',
       done: '✓ Finish'
+    },
+    welcome: {
+      title: 'Cockpit Dashboard',
+      badge: 'First-time setup',
+      introCn: '欢迎使用 Cockpit Dashboard。先选择你的界面语言，再开始功能引导。',
+      introEn: 'Welcome to Cockpit Dashboard. Choose your interface language first, then continue to the guided tour.',
+      chooseLanguage: 'Choose Language',
+      continue: 'Get Started',
+      skip: 'Skip Guide'
     }
   }
 };
