@@ -7,8 +7,11 @@ const path = require('node:path');
 const {
   normalizeGitHubRelease,
   getOnlineReleaseNotesModel,
+  selectOnlineReleaseNotes,
+  getCachedReleaseNotesModel,
   loadGitHubReleaseNotes,
-  GITHUB_RELEASES_API_URL
+  GITHUB_RELEASES_API_URL,
+  RELEASE_NOTES_CACHE_TTL_MS
 } = require('../src/release-notes-core.js');
 
 const releases = Array.from({ length:12 }, (_, index) => ({
@@ -28,11 +31,15 @@ assert.match(normalized.body, /Change 0/);
 assert.equal(normalized.date, '2026-08-13');
 
 let model = getOnlineReleaseNotesModel(releases);
-assert.equal(model.releases.length, 10, 'The online picker is capped to the ten latest published releases.');
+assert.equal(model.releases.length, 12, 'The online picker keeps the complete published release history returned by GitHub.');
 assert.equal(model.selected.version, '1.11.0', 'The newest GitHub release is selected by default.');
 
 model = getOnlineReleaseNotesModel(releases, '1.7.0');
 assert.equal(model.selected.version, '1.7.0', 'Selecting a recent GitHub release changes the displayed version.');
+
+model = selectOnlineReleaseNotes(model.releases, '1.10.0');
+assert.equal(model.releases.length, 12, 'Switching versions keeps the already-normalized release cache intact.');
+assert.equal(model.selected.version, '1.10.0', 'Switching versions selects from cache without reparsing GitHub fields.');
 
 model = getOnlineReleaseNotesModel([
   { ...releases[0], draft:true },
@@ -48,9 +55,21 @@ assert.deepEqual(getOnlineReleaseNotesModel(null), { releases:[], selected:null 
     requestOptions = options;
     return { status:200, json:releases };
   });
-  assert.equal(requestOptions.url, GITHUB_RELEASES_API_URL + '?per_page=10');
+  assert.equal(requestOptions.url, GITHUB_RELEASES_API_URL + '?per_page=100');
   assert.equal(requestOptions.headers.Accept, 'application/vnd.github+json');
   assert.equal(loaded.selected.version, '1.11.0', 'A successful GitHub API response becomes the online release model.');
+
+  const freshCache = { releases:loaded.releases, fetchedAt:1000 };
+  assert.equal(
+    getCachedReleaseNotesModel(freshCache, '1.10.0', 1000 + RELEASE_NOTES_CACHE_TTL_MS - 1).selected.version,
+    '1.10.0',
+    'A fresh plugin-level cache serves version changes without another request.'
+  );
+  assert.equal(
+    getCachedReleaseNotesModel(freshCache, null, 1000 + RELEASE_NOTES_CACHE_TTL_MS + 1),
+    null,
+    'An expired cache is refreshed on the next modal open.'
+  );
 
   await assert.rejects(
     () => loadGitHubReleaseNotes(async () => ({ status:403, json:{ message:'rate limited' } })),
@@ -63,13 +82,16 @@ assert.deepEqual(getOnlineReleaseNotesModel(null), { releases:[], selected:null 
   const readme = fs.readFileSync(path.join(__dirname, '../README.md'), 'utf8');
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../manifest.json'), 'utf8'));
   assert.match(releaseUi, /obsidian\.requestUrl/, 'The modal uses Obsidian requestUrl for cross-platform, CORS-free GitHub requests.');
+  assert.match(releaseUi, /_plugin\._releaseNotesCache/, 'Fetched releases are cached on the plugin instance across modal openings.');
+  assert.match(releaseUi, /versionSelect\.onchange[\s\S]*selectOnlineReleaseNotes/, 'Version changes only select from the in-memory cache.');
+  assert.doesNotMatch(releaseUi, /versionSelect\.onchange\s*=\s*\(\)\s*=>\s*\{[^}]*_loadReleases/, 'Changing a version never performs another network request.');
   assert.match(releaseUi, /release-loading[\s\S]*release-error[\s\S]*release-retry/, 'Loading, failure, and retry states are visible in the modal.');
   assert.match(releaseUi, /MarkdownRenderer\.render/, 'GitHub release Markdown is rendered as formatted release content.');
   assert.match(releaseUi, /createEl\('select'[\s\S]*release-version-select/, 'Online releases remain available through a real select control.');
   assert.doesNotMatch(constants, /const RELEASE_HISTORY\s*=/, 'Release history is no longer bundled into the plugin.');
   assert.doesNotMatch(releaseUi, /RELEASE_HISTORY/, 'The modal has no local release-data fallback.');
-  assert.equal(manifest.version, '1.3.0', 'The release manifest is bumped for the online release notes update.');
-  assert.match(readme, /GitHub Releases[^\n]*在线|online[^\n]*GitHub Releases/i, 'README documents that update history is loaded online from GitHub Releases.');
+  assert.equal(manifest.version, '1.3.1', 'The release manifest is bumped for the release-note cache and switching fix.');
+  assert.match(readme, /一次加载全部 GitHub Releases|Loads all GitHub Releases once/i, 'README documents that update history is loaded online from GitHub Releases.');
 
   console.log('Release notes checks passed');
 })().catch((error) => {

@@ -51,12 +51,13 @@ class CockpitReleaseNotesModal extends obsidian.Modal {
     }
     const card = this._releasePanel.createDiv({ cls:PLUGIN_ID + '-release-card' });
     const head = card.createDiv({ cls:PLUGIN_ID + '-release-head' });
+    const headMeta = head.createDiv({ cls:PLUGIN_ID + '-release-head-meta' });
     const versionLabel = 'v' + release.version + (release.prerelease ? ' · ' + this._t('releases.prerelease') : '');
-    head.createDiv({ cls:PLUGIN_ID + '-release-version', text:versionLabel });
-    head.createDiv({ cls:PLUGIN_ID + '-release-date', text:release.date });
-    if (release.title && normalizeReleaseVersion(release.title) !== release.version) {
-      card.createDiv({ cls:PLUGIN_ID + '-release-title', text:release.title });
-    }
+    headMeta.createDiv({ cls:PLUGIN_ID + '-release-version', text:versionLabel });
+    headMeta.createDiv({ cls:PLUGIN_ID + '-release-date', text:release.date });
+    const versionPrefix = release.version + ' · ';
+    const displayTitle = release.title.startsWith(versionPrefix) ? release.title.slice(versionPrefix.length) : release.title;
+    if (displayTitle && normalizeReleaseVersion(displayTitle) !== release.version) head.createDiv({ cls:PLUGIN_ID + '-release-title', text:displayTitle });
     const body = card.createDiv({ cls:PLUGIN_ID + '-release-markdown markdown-rendered' });
     if (!release.body.trim()) {
       body.createDiv({ cls:PLUGIN_ID + '-release-body-empty', text:this._t('releases.bodyEmpty') });
@@ -90,17 +91,23 @@ class CockpitReleaseNotesModal extends obsidian.Modal {
     this._onlineReleases = model.releases;
     this._renderRelease(model.selected);
     versionSelect.onchange = () => {
-      const next = getOnlineReleaseNotesModel(this._onlineReleases, versionSelect.value);
+      const next = selectOnlineReleaseNotes(this._onlineReleases, versionSelect.value);
       this._renderRelease(next.selected);
     };
   }
 
   async _loadReleases() {
     const generation = ++this._requestGeneration;
+    const cached = getCachedReleaseNotesModel(this._plugin._releaseNotesCache);
+    if (cached) {
+      this._renderModel(cached);
+      return;
+    }
     this._renderLoading();
     try {
       const model = await loadGitHubReleaseNotes(obsidian.requestUrl);
       if (this._closed || generation !== this._requestGeneration) return;
+      this._plugin._releaseNotesCache = createReleaseNotesCache(model);
       this._renderModel(model);
     } catch (e) {
       if (this._closed || generation !== this._requestGeneration) return;

@@ -1,7 +1,8 @@
 // release-notes-core.js — GitHub Releases 在线更新记录的纯数据与请求逻辑。
 
 const GITHUB_REPOSITORY = 'ZephyrHaven/Cockpit-Dashboard';
-const GITHUB_RELEASES_LIMIT = 10;
+const GITHUB_RELEASES_LIMIT = 100;
+const RELEASE_NOTES_CACHE_TTL_MS = 30 * 60 * 1000;
 const GITHUB_RELEASES_API_URL = 'https://api.github.com/repos/' + GITHUB_REPOSITORY + '/releases';
 const GITHUB_RELEASES_URL = 'https://github.com/' + GITHUB_REPOSITORY + '/releases';
 
@@ -26,16 +27,36 @@ function normalizeGitHubRelease(rawRelease) {
   };
 }
 
+function selectOnlineReleaseNotes(releases, requestedVersion) {
+  const available = Array.isArray(releases)
+    ? releases.filter((release) => release && normalizeReleaseVersion(release.version))
+    : [];
+  if (!available.length) return { releases:[], selected:null };
+  const requested = normalizeReleaseVersion(requestedVersion);
+  return {
+    releases:available,
+    selected:(requested && available.find((release) => release.version === requested)) || available[0]
+  };
+}
+
 function getOnlineReleaseNotesModel(rawReleases, requestedVersion, limit = GITHUB_RELEASES_LIMIT) {
   if (!Array.isArray(rawReleases)) return { releases:[], selected:null };
   const count = Number.isFinite(limit) ? Math.max(1, Math.min(GITHUB_RELEASES_LIMIT, Math.floor(limit))) : GITHUB_RELEASES_LIMIT;
   const releases = rawReleases.map(normalizeGitHubRelease).filter(Boolean).slice(0, count);
-  if (!releases.length) return { releases:[], selected:null };
-  const requested = normalizeReleaseVersion(requestedVersion);
-  return {
-    releases,
-    selected:(requested && releases.find((release) => release.version === requested)) || releases[0]
-  };
+  return selectOnlineReleaseNotes(releases, requestedVersion);
+}
+
+function getCachedReleaseNotesModel(cache, requestedVersion, nowValue = Date.now()) {
+  if (!cache || !Number.isFinite(cache.fetchedAt)) return null;
+  const age = Math.max(0, Number(nowValue) - cache.fetchedAt);
+  if (age >= RELEASE_NOTES_CACHE_TTL_MS) return null;
+  const model = selectOnlineReleaseNotes(cache.releases, requestedVersion);
+  return model.selected ? model : null;
+}
+
+function createReleaseNotesCache(model, fetchedAt = Date.now()) {
+  if (!model?.selected || !Array.isArray(model.releases)) return null;
+  return { releases:model.releases, fetchedAt:Number(fetchedAt) };
 }
 
 async function loadGitHubReleaseNotes(requestUrl, requestedVersion) {
@@ -58,11 +79,15 @@ if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'und
   module.exports = {
     GITHUB_REPOSITORY,
     GITHUB_RELEASES_LIMIT,
+    RELEASE_NOTES_CACHE_TTL_MS,
     GITHUB_RELEASES_API_URL,
     GITHUB_RELEASES_URL,
     normalizeReleaseVersion,
     normalizeGitHubRelease,
     getOnlineReleaseNotesModel,
+    selectOnlineReleaseNotes,
+    getCachedReleaseNotesModel,
+    createReleaseNotesCache,
     loadGitHubReleaseNotes
   };
 }

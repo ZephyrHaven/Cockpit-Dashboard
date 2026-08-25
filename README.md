@@ -43,7 +43,7 @@ Cockpit Dashboard is a local-first Obsidian workspace for tasks, calendar, RSS, 
 | 🍅 专注趋势 | 默认隐藏、可在编辑模式启用；从 `_data/focus.md` 汇总近 7 / 30 天专注时长，并支持平滑折线与柱状图切换 |
 | 📂 分类卡片 | 展示顶层目录，优先打开概览/MOC 类文件；没有概览时打开分类中的第一篇笔记，空目录会明确提示 |
 | ✏️ 最近更新 | 按最近修改时间展示笔记，支持一键打开 |
-| 📝 更新记录 | 打开弹窗时从 GitHub Releases 在线读取内容，默认展示最新版本，并可通过下拉切换近期发布记录；源码中不再内置更新文案 |
+| 📝 更新记录 | 一次加载全部 GitHub Releases 并缓存 30 分钟，默认展示最新版本；下拉切换只读取内存缓存，源码中不再内置更新文案 |
 | ⭐ 收藏文件 | 收藏/取消收藏重要笔记，与最近更新区联动；支持折叠、固定排序、上下调整及一键在分栏打开 |
 | ⚡ 闪念胶囊 | 快速记录想法到 `_daily/YYYY-MM-DD.md` |
 | 📈 编辑热力图 | 展示近 30 天编辑频率 |
@@ -183,15 +183,14 @@ bash deploy.sh --min
 
 ### 当前版本
 
-- Manifest version: `1.3.0`
+- Manifest version: `1.3.1`
 - Latest update date: `2026-08-13`
 
-### 1.3.0 最近更新
+### 1.3.1 最近更新
 
-- 新增插件级全局闹钟，支持全屏响铃、稍后提醒、重复计划，以及待办列表和日历待办的关联提醒。
-- 番茄钟全屏提醒可直接开始休息，并可独立控制休息结束后的工作提醒。
-- 通知设置支持添加、删除和选择多个推送时间点，并修复键盘编辑串改与修改时误触发推送的问题。
-- 最近更新弹窗不再打包本地文案，改为从 GitHub Releases 在线读取，默认展示最新版本并支持下拉切换。
+- 修复切换更新版本后内容消失、再次切换仍为空的问题。
+- GitHub Releases 改为一次全量加载并在插件内缓存 30 分钟，版本切换与重复打开弹窗不再重复请求。
+- 重做更新弹窗的信息层级、版本标题、正文排版和窄屏布局，并统一整理全部历史 Release 文案。
 
 ### 赞助作者
 
@@ -239,7 +238,7 @@ Cockpit Dashboard is designed to be more than a visual landing page. It centrali
 | 🍅 Focus Trend | Hidden by default and enabled from Edit Mode; summarizes 7/30-day focus history from `_data/focus.md` with smooth line and bar chart views |
 | 📂 Category Cards | Top-level folder cards that prefer overview/MOC notes, fall back to the first note, and clearly report empty folders |
 | ✏️ Recent Files | Recently modified notes with one-click open |
-| 📝 Release Notes | Loads GitHub Releases online when opened, shows the latest release by default, and switches recent releases from a dropdown without bundling update copy in source |
+| 📝 Release Notes | Loads all GitHub Releases once and caches them for 30 minutes; version switching reads only the in-memory cache, with no bundled update copy in source |
 | ⭐ Bookmarks | Bookmark important files, keep them synced with recent files, collapse the section, persist ordering, move items, and open a note in a split pane |
 | ⚡ Flash Notes | Quick capture into `_daily/YYYY-MM-DD.md` |
 | 📈 Heatmap | 30-day edit activity heatmap |
@@ -377,15 +376,14 @@ Build notes:
 
 ### Current Version
 
-- Manifest version: `1.3.0`
+- Manifest version: `1.3.1`
 - Latest update date: `2026-08-13`
 
-### What’s New in 1.3.0
+### What’s New in 1.3.1
 
-- Added plugin-wide alarms with full-screen ringing, snooze, repeat schedules, and linked reminders from todo and Calendar rows.
-- Full-screen Pomodoro completion can start the break directly, with an optional return-to-work reminder after the break.
-- Notification settings now support multiple visual delivery times and fix keyboard edits affecting another time or triggering an immediate push.
-- Recent updates now load from GitHub Releases online, default to the latest release, and switch versions from a dropdown without bundled release copy.
+- Fixed release content disappearing after switching versions and remaining empty on subsequent selections.
+- GitHub Releases are loaded once and cached in memory for 30 minutes, so switching versions or reopening the modal avoids repeated requests.
+- Refined the release modal hierarchy, titles, Markdown typography, and narrow-screen layout, and standardized every historical GitHub Release description.
 
 ### Sponsor
 
