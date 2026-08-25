@@ -1,9 +1,9 @@
 {
   "id": "cockpit-dashboard",
   "name": "Cockpit Dashboard",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "minAppVersion": "0.15.0",
-  "description": "A customizable cockpit-style dashboard homepage for your vault. Features task management, Pomodoro timer, calendar view, bookmarks, note statistics, and more.",
+  "description": "A customizable, local-first dashboard for tasks, calendar, RSS, focus, automation, and an optional multi-model AI assistant.",
   "author": "hang",
   "isDesktopOnly": false
 }

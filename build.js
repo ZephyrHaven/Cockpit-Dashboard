@@ -13,6 +13,9 @@ const CSS_FILE = path.join(ROOT, 'styles.css');
 const MODULES = [
   'constants.js',
   'data-store.js',
+  'ai.js',
+  'ai-view.js',
+  'ai-launcher.js',
   'daily-tips.js',
   'tip-store.js',
   'utils.js',

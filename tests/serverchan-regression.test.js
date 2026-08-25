@@ -6,6 +6,7 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'src/serverchan.js'), 'utf8');
+const styles = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 
 assert.match(source, /this\._config = null/, 'ServerChan configuration is cached in memory.');
 assert.match(source, /if \(this\._config\) return normalizeServerChanConfig\(this\._config\)/, 'Scheduler reuses the cached configuration.');
@@ -19,5 +20,12 @@ assert.match(source, /notification-time-list[\s\S]*type:'time'[\s\S]*addTime/, '
 assert.doesNotMatch(source, /setValue\(config\.time\)/, 'Settings no longer expose one legacy time input.');
 assert.doesNotMatch(source, /next\[index\] = normalized; await persistTimes\(next\); renderTimes\(\);/, 'Keyboard edits do not rebuild the list and move focus to the first row.');
 assert.match(source, /saveConfig\(next, options\)[\s\S]*suppressElapsedNotificationSlots/, 'Saving edited delivery times suppresses elapsed slots for the current day.');
+assert.match(source, /role:'tablist'/, 'Settings expose a semantic module tab list.');
+assert.match(source, /role:'tab'[\s\S]*aria-selected/, 'Settings tabs expose their selected state to assistive technology.');
+assert.match(source, /role:'tabpanel'/, 'Each settings module renders into its own tab panel.');
+assert.match(source, /renderAiSettings\(panels\.ai/, 'AI settings render only inside the AI module panel.');
+assert.doesNotMatch(source, /renderAiSettings\(containerEl/, 'AI and notification controls are no longer stacked directly in one page.');
+assert.match(styles, /cockpit-dashboard-settings-tabs/, 'Module tabs have dedicated scoped styles.');
+assert.match(styles, /overflow-x:\s*auto/, 'The settings tab bar remains usable in narrow panes.');
 
 console.log('ServerChan regression checks passed');

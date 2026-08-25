@@ -188,6 +188,21 @@ async function getServerChanSettingsLanguage(plugin) {
   return String(navigator.language || '').toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
 }
 
+function getCockpitSettingsSections(language) {
+  const en = language === 'en';
+  return [
+    { id:'ai', label:en ? 'AI models' : 'AI 模型', icon:'bot-message-square' },
+    { id:'channels', label:en ? 'Channels' : '推送渠道', icon:'send' },
+    { id:'schedule', label:en ? 'Schedule' : '提醒计划', icon:'calendar-clock' },
+    { id:'scope', label:en ? 'Message' : '消息内容', icon:'list-checks' }
+  ];
+}
+
+function normalizeCockpitSettingsSection(value) {
+  const id = String(value || '');
+  return ['ai','channels','schedule','scope'].includes(id) ? id : 'ai';
+}
+
 class ServerChanService {
   constructor(plugin) { this.plugin = plugin; this._reminderPromise = null; this._schedulerRunning = false; this._config = null; }
   startScheduler() { const check = () => this._runScheduledCheck().catch((e) => console.warn('Cockpit notification scheduler failed', e)); check(); this.plugin.registerInterval(window.setInterval(check, 1000)); }
@@ -238,38 +253,94 @@ class ServerChanService {
 }
 
 class CockpitServerChanSettingTab extends obsidian.PluginSettingTab {
-  constructor(app, plugin) { super(app, plugin); this.plugin = plugin; this._displayVersion = 0; }
+  constructor(app, plugin) { super(app, plugin); this.plugin = plugin; this._displayVersion = 0; this._activeSection = 'ai'; }
   async display() {
     const { containerEl } = this; const renderVersion = ++this._displayVersion; containerEl.empty();
     const [config, language] = await Promise.all([this.plugin.serverChan.getConfig(), getServerChanSettingsLanguage(this.plugin)]);
-    if (renderVersion !== this._displayVersion) return; containerEl.empty(); const copy = getServerChanSettingsCopy(language); const save = async (options) => {
+    if (renderVersion !== this._displayVersion) return; containerEl.empty();
+    const en = language === 'en';
+    containerEl.addClass(PLUGIN_ID + '-settings-root');
+    const shell = containerEl.createDiv({ cls:PLUGIN_ID + '-settings-shell' });
+    const hero = shell.createDiv({ cls:PLUGIN_ID + '-settings-hero' });
+    hero.createEl('h1', { text:en ? 'Cockpit settings' : 'Cockpit 设置' });
+    hero.createEl('p', { text:en ? 'Manage each capability separately. Changes are saved as you edit.' : '按模块管理插件能力，修改后会自动保存。' });
+    const sections = getCockpitSettingsSections(language);
+    const tabs = shell.createDiv({ cls:PLUGIN_ID + '-settings-tabs', attr:{ role:'tablist', 'aria-label':en ? 'Cockpit settings modules' : 'Cockpit 设置模块' } });
+    const panelsHost = shell.createDiv({ cls:PLUGIN_ID + '-settings-panels' });
+    const panels = {};
+    const buttons = {};
+    const activate = (requestedId, focus = false) => {
+      const id = normalizeCockpitSettingsSection(requestedId);
+      this._activeSection = id;
+      sections.forEach((section) => {
+        const selected = section.id === id;
+        buttons[section.id].classList.toggle('is-active', selected);
+        buttons[section.id].setAttribute('aria-selected', selected ? 'true' : 'false');
+        buttons[section.id].tabIndex = selected ? 0 : -1;
+        panels[section.id].hidden = !selected;
+      });
+      if (focus) buttons[id].focus();
+    };
+    sections.forEach((section, index) => {
+      const panelId = PLUGIN_ID + '-settings-panel-' + section.id;
+      const tabId = PLUGIN_ID + '-settings-tab-' + section.id;
+      const button = tabs.createEl('button', { cls:PLUGIN_ID + '-settings-tab', attr:{ type:'button', id:tabId, role:'tab', 'aria-controls':panelId, 'aria-selected':'false', tabindex:'-1' } });
+      const icon = button.createSpan({ cls:PLUGIN_ID + '-settings-tab-icon', attr:{ 'aria-hidden':'true' } });
+      obsidian.setIcon(icon, section.icon);
+      button.createSpan({ text:section.label });
+      button.onclick = () => activate(section.id);
+      button.onkeydown = (event) => {
+        const move = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+        if (!move && event.key !== 'Home' && event.key !== 'End') return;
+        event.preventDefault();
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? sections.length - 1 : (index + move + sections.length) % sections.length;
+        activate(sections[next].id, true);
+      };
+      buttons[section.id] = button;
+      panels[section.id] = panelsHost.createDiv({ cls:PLUGIN_ID + '-settings-panel', attr:{ id:panelId, role:'tabpanel', 'aria-labelledby':tabId } });
+    });
+    activate(this._activeSection);
+
+    await renderAiSettings(panels.ai, this.plugin, language);
+    if (renderVersion !== this._displayVersion) return;
+    const copy = getServerChanSettingsCopy(language); const save = async (options) => {
       const saved = await this.plugin.serverChan.saveConfig(config, options);
       config.time = saved.time; config.times = saved.times; config.sentReminders = saved.sentReminders;
       return saved;
     };
-    containerEl.createEl('h2', { text:copy.heading }); containerEl.createEl('p', { text:copy.intro });
-    new obsidian.Setting(containerEl).setName(copy.enabled).setDesc(copy.enabledDesc).addToggle((toggle) => toggle.setValue(config.enabled).onChange(async (value) => { config.enabled = value; await save(); }));
-    containerEl.createEl('h3', { text:copy.channels });
-    const addChannel = (id, fields) => {
-      const channel = config.channels[id]; containerEl.createEl('h4', { text:copy[id] });
-      new obsidian.Setting(containerEl).setName(copy.enableChannel).setDesc(copy[id]).addToggle((toggle) => toggle.setValue(channel.enabled).onChange(async (value) => { channel.enabled = value; await save(); }));
-      fields(channel, save);
-      new obsidian.Setting(containerEl).setName(copy.test).setDesc(copy.testDesc).addButton((button) => button.setButtonText(copy.sendTest).onClick(async () => { button.setDisabled(true); try { await this.plugin.serverChan.sendChannel(id, copy.sent, formatServerChanDateTime(window.moment()) + '\n\n' + copy.sent); new obsidian.Notice(copy.sent); } catch (e) { new obsidian.Notice(copy.failed + (e?.message || 'unknown error')); } finally { button.setDisabled(false); } }));
+    const addPanelIntro = (panel, title, intro) => {
+      const header = panel.createDiv({ cls:PLUGIN_ID + '-settings-panel-header' });
+      header.createEl('h2', { text:title });
+      header.createEl('p', { text:intro });
     };
-    addChannel('serverChan', (channel, save) => {
-      new obsidian.Setting(containerEl).setName(copy.apiUrl).setDesc(copy.apiUrlDesc).addText((text) => text.setPlaceholder('https://…push.ft07.com/send/….send').setValue(channel.apiUrl).onChange(async (value) => { channel.apiUrl = safeText(value, 500); await save(); }));
-      new obsidian.Setting(containerEl).setName(copy.uid).addText((text) => text.setValue(channel.uid).onChange(async (value) => { channel.uid = safeText(value, 32); await save(); }));
-      new obsidian.Setting(containerEl).setName(copy.sendKey).addText((text) => { text.inputEl.type = 'password'; return text.setValue(channel.sendKey).onChange(async (value) => { channel.sendKey = safeText(value, 240); await save(); }); });
+
+    addPanelIntro(panels.channels, copy.channels, en ? 'Choose one or more delivery services and test each connection independently.' : '选择一个或多个推送服务，并可分别测试连接。');
+    const masterSetting = new obsidian.Setting(panels.channels).setName(copy.enabled).setDesc(copy.enabledDesc).addToggle((toggle) => toggle.setValue(config.enabled).onChange(async (value) => { config.enabled = value; await save(); }));
+    masterSetting.settingEl.addClass(PLUGIN_ID + '-settings-master-toggle');
+    const channelGrid = panels.channels.createDiv({ cls:PLUGIN_ID + '-settings-channel-grid' });
+    const addChannel = (id, fields) => {
+      const channel = config.channels[id];
+      const card = channelGrid.createDiv({ cls:PLUGIN_ID + '-settings-channel-card' });
+      card.createEl('h3', { text:copy[id] });
+      new obsidian.Setting(card).setName(copy.enableChannel).setDesc(copy[id]).addToggle((toggle) => toggle.setValue(channel.enabled).onChange(async (value) => { channel.enabled = value; await save(); }));
+      fields(channel, save, card);
+      new obsidian.Setting(card).setName(copy.test).setDesc(copy.testDesc).addButton((button) => button.setButtonText(copy.sendTest).onClick(async () => { button.setDisabled(true); try { await this.plugin.serverChan.sendChannel(id, copy.sent, formatServerChanDateTime(window.moment()) + '\n\n' + copy.sent); new obsidian.Notice(copy.sent); } catch (e) { new obsidian.Notice(copy.failed + (e?.message || 'unknown error')); } finally { button.setDisabled(false); } }));
+    };
+    addChannel('serverChan', (channel, save, card) => {
+      new obsidian.Setting(card).setName(copy.apiUrl).setDesc(copy.apiUrlDesc).addText((text) => text.setPlaceholder('https://…push.ft07.com/send/….send').setValue(channel.apiUrl).onChange(async (value) => { channel.apiUrl = safeText(value, 500); await save(); }));
+      new obsidian.Setting(card).setName(copy.uid).addText((text) => text.setValue(channel.uid).onChange(async (value) => { channel.uid = safeText(value, 32); await save(); }));
+      new obsidian.Setting(card).setName(copy.sendKey).addText((text) => { text.inputEl.type = 'password'; return text.setValue(channel.sendKey).onChange(async (value) => { channel.sendKey = safeText(value, 240); await save(); }); });
     });
-    addChannel('bark', (channel, save) => {
-      new obsidian.Setting(containerEl).setName(copy.barkServer).setDesc('HTTPS only').addText((text) => text.setValue(channel.serverUrl).onChange(async (value) => { channel.serverUrl = safeHttpsBase(value, 'https://api.day.app'); await save(); }));
-      new obsidian.Setting(containerEl).setName(copy.barkKey).addText((text) => { text.inputEl.type = 'password'; return text.setValue(channel.deviceKey).onChange(async (value) => { channel.deviceKey = safeText(value, 240); await save(); }); });
-      new obsidian.Setting(containerEl).setName(copy.barkGroup).addText((text) => text.setValue(channel.group).onChange(async (value) => { channel.group = safeText(value, 64) || 'cockpit'; await save(); }));
+    addChannel('bark', (channel, save, card) => {
+      new obsidian.Setting(card).setName(copy.barkServer).setDesc('HTTPS only').addText((text) => text.setValue(channel.serverUrl).onChange(async (value) => { channel.serverUrl = safeHttpsBase(value, 'https://api.day.app'); await save(); }));
+      new obsidian.Setting(card).setName(copy.barkKey).addText((text) => { text.inputEl.type = 'password'; return text.setValue(channel.deviceKey).onChange(async (value) => { channel.deviceKey = safeText(value, 240); await save(); }); });
+      new obsidian.Setting(card).setName(copy.barkGroup).addText((text) => text.setValue(channel.group).onChange(async (value) => { channel.group = safeText(value, 64) || 'cockpit'; await save(); }));
     });
-    addChannel('meow', (channel, save) => new obsidian.Setting(containerEl).setName(copy.meowName).addText((text) => text.setValue(channel.nickname).onChange(async (value) => { channel.nickname = safeText(value, 64).replace(/\//g, ''); await save(); })));
-    containerEl.createEl('h3', { text:copy.schedule });
-    new obsidian.Setting(containerEl).setName(copy.schedule).setDesc(copy.scheduleDesc).addDropdown((dropdown) => dropdown.addOptions({ daily:copy.daily, weekly:copy.weekly, monthly:copy.monthly }).setValue(config.schedule).onChange(async (value) => { config.schedule = value; await save(); this.display(); }));
-    const timeSetting = new obsidian.Setting(containerEl).setName(copy.time).setDesc(copy.timeDesc);
+    addChannel('meow', (channel, save, card) => new obsidian.Setting(card).setName(copy.meowName).addText((text) => text.setValue(channel.nickname).onChange(async (value) => { channel.nickname = safeText(value, 64).replace(/\//g, ''); await save(); })));
+
+    addPanelIntro(panels.schedule, copy.schedule, copy.scheduleDesc);
+    new obsidian.Setting(panels.schedule).setName(copy.schedule).setDesc(copy.scheduleDesc).addDropdown((dropdown) => dropdown.addOptions({ daily:copy.daily, weekly:copy.weekly, monthly:copy.monthly }).setValue(config.schedule).onChange(async (value) => { config.schedule = value; await save(); this._activeSection = 'schedule'; this.display(); }));
+    const timeSetting = new obsidian.Setting(panels.schedule).setName(copy.time).setDesc(copy.timeDesc);
     timeSetting.settingEl.addClass(PLUGIN_ID + '-notification-time-setting');
     const timeList = timeSetting.controlEl.createDiv({ cls:PLUGIN_ID + '-notification-time-list' });
     const persistTimes = async (next) => { config.times = normalizeNotificationTimes(next); config.time = config.times[0]; await save({ suppressElapsedSlots:true }); };
@@ -296,11 +367,12 @@ class CockpitServerChanSettingTab extends obsidian.PluginSettingTab {
       add.onclick = async () => { if (config.times.length >= 24) return; await persistTimes([...config.times, suggestNotificationTime(config.times)]); renderTimes(); };
     };
     renderTimes();
-    if (config.schedule === 'weekly') new obsidian.Setting(containerEl).setName(copy.weekdays).setDesc(copy.weekdaysDesc).addText((text) => text.setValue(config.weekdays.join(',')).onChange(async (value) => { config.weekdays = normalizeNumberList(value,1,7,SERVERCHAN_DEFAULTS.weekdays); await save(); }));
-    if (config.schedule === 'monthly') new obsidian.Setting(containerEl).setName(copy.monthDays).setDesc(copy.monthDaysDesc).addText((text) => text.setValue(config.monthDays.join(',')).onChange(async (value) => { config.monthDays = normalizeNumberList(value,1,31,SERVERCHAN_DEFAULTS.monthDays); await save(); }));
-    containerEl.createEl('h3', { text:copy.scope });
-    new obsidian.Setting(containerEl).setName(copy.today).setDesc(copy.todayDesc).addToggle((toggle) => toggle.setValue(config.notifyToday).onChange(async (value) => { config.notifyToday = value; await save(); }));
-    new obsidian.Setting(containerEl).setName(copy.overdue).setDesc(copy.overdueDesc).addToggle((toggle) => toggle.setValue(config.notifyOverdue).onChange(async (value) => { config.notifyOverdue = value; await save(); }));
-    new obsidian.Setting(containerEl).setName(copy.custom).setDesc(copy.customDesc).addTextArea((text) => text.setPlaceholder(copy.customPlaceholder).setValue(config.messageTemplate).onChange(async (value) => { config.messageTemplate = safeText(value,4000); await save(); }));
+    if (config.schedule === 'weekly') new obsidian.Setting(panels.schedule).setName(copy.weekdays).setDesc(copy.weekdaysDesc).addText((text) => text.setValue(config.weekdays.join(',')).onChange(async (value) => { config.weekdays = normalizeNumberList(value,1,7,SERVERCHAN_DEFAULTS.weekdays); await save(); }));
+    if (config.schedule === 'monthly') new obsidian.Setting(panels.schedule).setName(copy.monthDays).setDesc(copy.monthDaysDesc).addText((text) => text.setValue(config.monthDays.join(',')).onChange(async (value) => { config.monthDays = normalizeNumberList(value,1,31,SERVERCHAN_DEFAULTS.monthDays); await save(); }));
+
+    addPanelIntro(panels.scope, copy.scope, en ? 'Choose which tasks are included and optionally add a custom message.' : '选择提醒包含的待办范围，也可以附加自定义消息。');
+    new obsidian.Setting(panels.scope).setName(copy.today).setDesc(copy.todayDesc).addToggle((toggle) => toggle.setValue(config.notifyToday).onChange(async (value) => { config.notifyToday = value; await save(); }));
+    new obsidian.Setting(panels.scope).setName(copy.overdue).setDesc(copy.overdueDesc).addToggle((toggle) => toggle.setValue(config.notifyOverdue).onChange(async (value) => { config.notifyOverdue = value; await save(); }));
+    new obsidian.Setting(panels.scope).setName(copy.custom).setDesc(copy.customDesc).addTextArea((text) => text.setPlaceholder(copy.customPlaceholder).setValue(config.messageTemplate).onChange(async (value) => { config.messageTemplate = safeText(value,4000); await save(); }));
   }
 }

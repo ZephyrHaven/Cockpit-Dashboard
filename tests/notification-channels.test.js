@@ -18,8 +18,21 @@ const context = vm.createContext({
     requestUrl: async (request) => { requests.push(request); return { status: 200, json: { code: 0, status: 200 } }; }
   }
 });
-vm.runInContext(source + ';globalThis.channelTestApi = { normalizeServerChanConfig, normalizeNotificationTimes, getServerChanScheduleSlot, suppressElapsedNotificationSlots, safeHttpsBase, sendNotificationChannel, NOTIFICATION_CHANNELS };', context);
+vm.runInContext(source + ';globalThis.channelTestApi = { normalizeServerChanConfig, normalizeNotificationTimes, getServerChanScheduleSlot, suppressElapsedNotificationSlots, safeHttpsBase, sendNotificationChannel, NOTIFICATION_CHANNELS, getCockpitSettingsSections, normalizeCockpitSettingsSection };', context);
 const api = context.channelTestApi;
+
+assert.deepEqual(
+  JSON.parse(JSON.stringify(api.getCockpitSettingsSections('zh-CN'))),
+  [
+    { id:'ai', label:'AI 模型', icon:'bot-message-square' },
+    { id:'channels', label:'推送渠道', icon:'send' },
+    { id:'schedule', label:'提醒计划', icon:'calendar-clock' },
+    { id:'scope', label:'消息内容', icon:'list-checks' }
+  ],
+  'Settings are grouped into clear user-facing modules.'
+);
+assert.equal(api.normalizeCockpitSettingsSection('schedule'), 'schedule');
+assert.equal(api.normalizeCockpitSettingsSection('unknown'), 'ai', 'Invalid remembered tabs safely fall back to the AI module.');
 
 assert.deepEqual(Object.keys(api.NOTIFICATION_CHANNELS), ['serverChan', 'bark', 'meow']);
 assert.equal(api.normalizeServerChanConfig({ apiUrl: 'https://5923.push.ft07.com/send/key.send' }).channels.serverChan.enabled, true, 'Legacy ServerChan config migrates to the shared channel shape.');

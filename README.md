@@ -5,9 +5,9 @@
 
 中文 | [English](#english)
 
-Cockpit Dashboard 是一个本地优先的 Obsidian 驾驶舱首页：把待办、日历、RSS、搜索、统计、收藏、专注计时与本地自动化集中在一个可自由编排的工作台中。
+Cockpit Dashboard 是一个本地优先的 Obsidian 驾驶舱首页：把待办、日历、RSS、搜索、AI 助手、统计、收藏、专注计时与本地自动化集中在一个可自由编排的工作台中。
 
-Cockpit Dashboard is a local-first Obsidian workspace for tasks, calendar, RSS, search, statistics, bookmarks, focus tracking, and trusted local automation, with persistent layout scenes.
+Cockpit Dashboard is a local-first Obsidian workspace for tasks, calendar, RSS, search, an optional AI assistant, statistics, bookmarks, focus tracking, and trusted local automation, with persistent layout scenes.
 
 ## 中文
 
@@ -17,6 +17,7 @@ Cockpit Dashboard is a local-first Obsidian workspace for tasks, calendar, RSS, 
 
 - 看今天和本月的待办节奏
 - 快速搜索和打开笔记
+- 使用可选的 AI 助手总结当前笔记、提取待办或继续追问
 - 查看知识库统计和最近更新
 - 按自己的习惯调整模块顺序与可见性
 - 为工作、阅读、回顾等场景保存不同布局，并按时间或文件夹自动切换
@@ -33,6 +34,7 @@ Cockpit Dashboard is a local-first Obsidian workspace for tasks, calendar, RSS, 
 | 💡 每日一语 | 内置提示每天轮换；编辑模式下可按当前语言维护、排序并选择轮询方式 |
 | 🧰 工具栏 | 新建笔记、全局搜索、标签、图谱、命令、Hermes、驾驶舱 H5、工作日志、番茄钟；编辑模式支持拖拽排序、显示/隐藏和自定义按钮，保存时局部更新工具栏 |
 | 🔍 全局搜索 | Spotlight 风格悬浮搜索，支持文件名、路径和笔记正文，带输入防抖、键盘选择和可拖动窗口；也可通过 Obsidian 命令快捷呼出 |
+| 🤖 AI 助手 | 可拖动的全局悬浮入口与可关闭侧栏；支持最近 Markdown 笔记上下文、总结、提取待办、自由问答、流式正文与可展开的思考过程 |
 | 🧩 编辑模式 | 所有仪表盘模块统一支持上下拖动排序、显示/隐藏、修改标题和折叠状态持久化；统计卡片和 Toolbar 按钮也可分别排序、隐藏 |
 | ◈ 情景布局 | 保存多套模块与 Toolbar 布局；支持手动切换，也可按工作日、时间段或当前打开文件夹自动进入指定情景 |
 | 🖱️ 右键菜单 | 在首页空白区域弹出快捷菜单，支持刷新页面、新建笔记、搜索、命令面板、图谱、番茄钟、最近更新记录、进入编辑模式 |
@@ -54,6 +56,7 @@ Cockpit Dashboard is a local-first Obsidian workspace for tasks, calendar, RSS, 
 | 🌐 多语言界面 | 支持 `中文 / EN` 一键切换，覆盖首页主要文案并持久化语言设置，且语言开关会适配深浅色模式 |
 | ✨ 交互动效 | 语言切换、工具栏、筛选和卡片增加 hover / press 反馈，让点击更有层次 |
 | 🧭 首次引导 | 首次打开显示分步引导，可跳过并记住状态 |
+| ⚙️ 模块化设置 | AI 模型、推送渠道、提醒计划和消息内容按页签归类，避免所有配置堆在一个长页面中 |
 | 📦 折叠面板 | 分类、统计、待办、专注趋势、最近更新、收藏、闪念、热力图等区块支持折叠状态持久化 |
 
 ### 安装方式
@@ -84,7 +87,7 @@ Cockpit Dashboard 已上架 Obsidian 社区插件市场：
 
 ### 本地优先与用户数据权利
 
-你的数据归你：插件不收集或上传 Vault 数据，也没有遥测。数据迁移、清理和本地命令都需要你主动操作；插件产生的数据尽量使用 Markdown 和 JSON，便于查看、备份与删除。第三方推送或自定义命令仅在你自行启用时才会访问外部服务；打开“最近更新记录”时，插件会向 GitHub Releases 公共 API 请求公开发布信息，不会发送 Vault 内容或用户配置。
+你的数据归你：插件没有遥测，也不会在后台收集或上传 Vault 数据。只有你主动向 AI 助手发送问题、总结或提取待办时，所选笔记的截断上下文和问题才会直接发送到你配置的模型服务；API Key 使用 Obsidian SecretStorage 保存，不写入插件 `data.json`。数据迁移、清理和本地命令都需要你主动操作；第三方推送仅在自行启用时访问对应服务。打开“最近更新记录”时，插件只会请求 GitHub Releases 的公开信息，不会发送 Vault 内容或用户配置。
 
 ### 数据文件
 
@@ -93,7 +96,8 @@ Cockpit Dashboard 已上架 Obsidian 社区插件市场：
 | 文件 | 作用 |
 |---|---|
 | `_data/todos.md` | 待办数据 |
-| `data.json` | Storage V2 设置、自定义按钮、收藏、排序、Toolbar 命令、RSS 配置，以及番茄钟会话与按任务聚合的专注统计 |
+| `data.json` | Storage V2 设置、自定义按钮、收藏、排序、Toolbar 命令、RSS 配置、AI 模型配置（不含 API Key），以及番茄钟会话与按任务聚合的专注统计 |
+| Obsidian SecretStorage | AI 服务 API Key；由 Obsidian 安全存储接口管理，不写入源码或 `data.json` |
 | IndexedDB | 当前设备的 RSS 正文摘要、已读状态和受限缓存；不参与 Obsidian Sync，可随时在 RSS 菜单清除 |
 | `_data/bookmarks.md` | 未完成数据迁移时的收藏存储；迁移后停止写入，可由用户主动清理 |
 | `_data/focus.md` | 按日期累计的专注历史记录 |
@@ -114,6 +118,15 @@ Cockpit Dashboard 已上架 Obsidian 社区插件市场：
 3. 左侧顶部只有三个固定队列：`当天`、`未读`、`稍后读`；来源和标签统一放在下拉筛选中，避免页签过多。
 4. 阅读文章会保存本机已读状态与阅读进度；点击“稍后读”可跨日期保留文章，再次点击可移除。
 5. 订阅配置保存在 `data.json`，文章缓存、已读与稍后读状态保存在当前设备 IndexedDB；RSS 菜单可以随时清空本机缓存。
+
+### AI 助手使用说明
+
+1. 在 **设置 → Cockpit Dashboard → AI 模型** 中新增模型配置，选择预设服务或填写 OpenAI 兼容接口地址、模型 ID 与 API Key。
+2. 内置预设包括 OpenAI、DeepSeek、Kimi、智谱 GLM、通义千问、MiniMax、硅基流动、OpenRouter、Ollama、OmniRouter，并支持自定义 OpenAI 兼容服务。
+3. 每个配置卡片都可以独立测试连接；修改名称、模型或当前配置后，已打开的 AI 侧栏会立即同步模型下拉框。
+4. 点击可拖动的全局 AI 按钮打开或关闭侧栏。按钮位置会保存，并会在窗口尺寸变化时保持在可见范围内。
+5. 侧栏可以选择最近打开的 Markdown 笔记，执行总结、提取待办或自由问答。回答采用流式输出；兼容模型返回的思考过程会单独展示。
+6. 当前版本只读取所选笔记，不会自动修改 Vault、笔记或待办。发送前请确认所选模型服务及其数据处理政策符合你的要求。
 
 ### 情景布局与编辑布局
 
@@ -183,14 +196,15 @@ bash deploy.sh --min
 
 ### 当前版本
 
-- Manifest version: `1.3.1`
-- Latest update date: `2026-08-13`
+- Manifest version: `1.4.0`
+- Latest update date: `2026-08-19`
 
-### 1.3.1 最近更新
+### 1.4.0 最近更新
 
-- 修复切换更新版本后内容消失、再次切换仍为空的问题。
-- GitHub Releases 改为一次全量加载并在插件内缓存 30 分钟，版本切换与重复打开弹窗不再重复请求。
-- 重做更新弹窗的信息层级、版本标题、正文排版和窄屏布局，并统一整理全部历史 Release 文案。
+- 新增只读 Cockpit AI 侧栏，支持最近笔记上下文、总结、提取待办、自由问答以及流式正文与思考过程。
+- 新增多模型配置，内置国内外主流服务和本地 OpenAI 兼容接口；API Key 使用 Obsidian SecretStorage 保存，每个配置可独立测试并实时同步到侧栏。
+- 新增可拖动并记忆位置的全局 AI 悬浮按钮，侧栏可随时打开、关闭和切换模型。
+- 设置页按 AI 模型、推送渠道、提醒计划和消息内容分为独立页签，配置结构更清晰。
 
 ### 赞助作者
 
@@ -212,6 +226,7 @@ Cockpit Dashboard is designed to be more than a visual landing page. It centrali
 
 - Track today’s and this month’s tasks
 - Search and open notes quickly
+- Summarize the current note, extract tasks, or ask follow-up questions with the optional AI assistant
 - Check vault stats and recent edits
 - Reorder and hide dashboard modules based on your own workflow
 - Save separate layouts for work, reading, and review, with optional time/folder automation
@@ -228,6 +243,7 @@ Cockpit Dashboard is designed to be more than a visual landing page. It centrali
 | 💡 Daily Note | Built-in tips rotate daily; Edit Mode supports per-language editing, sorting, and rotation modes |
 | 🧰 Toolbar | New note, global search, tags, graph, command palette, Hermes, Cockpit H5, work log, and Pomodoro; Edit Mode supports sorting, visibility controls, custom buttons, and local Toolbar updates on save |
 | 🔍 Global Search | Draggable Spotlight-style search across note names, paths, and content, with input debouncing, keyboard navigation, and an Obsidian command entry point |
+| 🤖 AI Assistant | Draggable global launcher and closable sidebar with recent Markdown-note context, summarization, task extraction, free-form questions, streamed answers, and expandable reasoning output |
 | 🧩 Edit Mode | Dashboard modules can be reordered, hidden, renamed, and collapsed; stat cards and Toolbar actions have their own ordering and visibility controls |
 | ◈ Layout Scenes | Save multiple module/Toolbar layouts and switch manually or automatically by weekday, time range, or active folder |
 | 🖱️ Context Menu | Right-click in blank dashboard space for refresh, new note, search, command palette, graph, Pomodoro, recent updates, and Edit Mode |
@@ -249,6 +265,7 @@ Cockpit Dashboard is designed to be more than a visual landing page. It centrali
 | 🌐 Multi-language UI | One-tap `中文 / EN` switching with persisted preference and better light/dark readability |
 | ✨ Interaction Polish | Hover and press feedback for language toggle, toolbar actions, filters, and cards |
 | 🧭 Onboarding | First-run guided tour with persistent completion state |
+| ⚙️ Modular Settings | AI models, delivery channels, notification schedules, and message content are organized into focused tabs instead of one long page |
 | 📦 Collapsible Sections | Persistent collapsed state for categories, stats, todos, Focus Trend, recent files, bookmarks, flash notes, heatmap, and other registered modules |
 
 ### Installation
@@ -279,14 +296,15 @@ Cockpit Dashboard is available in the Obsidian Community Plugins marketplace:
 
 ### Local-first and user data rights
 
-Your data stays yours: the plugin does not collect or upload Vault data and includes no telemetry. Migration, cleanup, and local commands require your action. Plugin data uses readable Markdown and JSON where possible, and third-party services are contacted only when you enable them. Opening Recent updates requests public release metadata from the GitHub Releases API; no Vault content or user configuration is sent.
+Your data stays yours: the plugin includes no telemetry and does not collect or upload Vault data in the background. Note context is sent only when you explicitly ask the AI assistant to answer, summarize, or extract tasks; the selected note is truncated to the configured limit and sent directly to your chosen model service with your question. API keys are stored through Obsidian SecretStorage, not in plugin `data.json`. Third-party notification services are contacted only when enabled. Recent updates requests only public GitHub Releases metadata and sends no Vault content or user configuration.
 
 ### Runtime Files
 
 | File | Purpose |
 |---|---|
 | `_data/todos.md` | Todo storage |
-| `data.json` | Storage V2 settings, custom buttons, bookmarks, ordering, Toolbar commands, RSS configuration, Pomodoro sessions, per-task focus aggregates, and scheduled-task configuration/status |
+| `data.json` | Storage V2 settings, custom buttons, bookmarks, ordering, Toolbar commands, RSS configuration, AI model metadata (never API keys), Pomodoro sessions, per-task focus aggregates, and scheduled-task configuration/status |
+| Obsidian SecretStorage | API keys for AI services, managed by Obsidian and excluded from source code and `data.json` |
 | IndexedDB | Device-local RSS summaries, read states, and bounded cache; excluded from Obsidian Sync and removable from the RSS menu |
 | `_data/bookmarks.md` | Bookmark storage before migration; no longer written after migration and removable by the user |
 | `_data/focus.md` | Focus history accumulated by date |
@@ -310,6 +328,15 @@ New modules and features do not create additional Markdown files under `_data`. 
 3. Use the three fixed queues—Today, Unread, and Later—then narrow results with one source/tag dropdown.
 4. Reading saves local progress. Read Later keeps an article across dates and can be toggled off again.
 5. Feed configuration lives in `data.json`; cached articles and reading state stay in device-local IndexedDB and can be cleared from the RSS menu.
+
+### AI assistant workflow
+
+1. Open **Settings → Cockpit Dashboard → AI models**, add a profile, then choose a preset or enter an OpenAI-compatible endpoint, model ID, and API key.
+2. Presets include OpenAI, DeepSeek, Kimi, Zhipu GLM, Qwen, MiniMax, SiliconFlow, OpenRouter, Ollama, and OmniRouter, plus custom OpenAI-compatible services.
+3. Test each profile independently. Editing a profile or changing the active model updates the model picker in an already-open AI sidebar immediately.
+4. Use the draggable global AI button to open or close the sidebar. Its position is persisted and clamped into view when the window changes size.
+5. Select a recent Markdown note, then summarize it, extract tasks, or ask a free-form question. Answers stream as they arrive, with compatible reasoning output shown separately.
+6. This release is read-only and never edits the Vault, notes, or tasks automatically. Review the privacy and data-processing terms of the model service you select before sending note context.
 
 ### Layout scenes and Edit Mode
 
@@ -376,14 +403,15 @@ Build notes:
 
 ### Current Version
 
-- Manifest version: `1.3.1`
-- Latest update date: `2026-08-13`
+- Manifest version: `1.4.0`
+- Latest update date: `2026-08-19`
 
-### What’s New in 1.3.1
+### What’s New in 1.4.0
 
-- Fixed release content disappearing after switching versions and remaining empty on subsequent selections.
-- GitHub Releases are loaded once and cached in memory for 30 minutes, so switching versions or reopening the modal avoids repeated requests.
-- Refined the release modal hierarchy, titles, Markdown typography, and narrow-screen layout, and standardized every historical GitHub Release description.
+- Added a read-only Cockpit AI sidebar with recent-note context, summarization, task extraction, free-form questions, streamed answers, and reasoning output.
+- Added multi-model profiles for major hosted and local OpenAI-compatible services. API keys use Obsidian SecretStorage, each profile can be tested independently, and open sidebars update immediately.
+- Added a draggable, position-persistent global AI launcher with reliable open, close, and model switching behavior.
+- Reorganized settings into separate tabs for AI models, delivery channels, notification schedules, and message content.
 
 ### Sponsor
 

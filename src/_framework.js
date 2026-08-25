@@ -2894,6 +2894,7 @@ class CockpitPlugin extends obsidian.Plugin {
     return mutatePluginData(this, mutator);
   }
   async onload() {
+    this.ai = new CockpitAIService(this);
     this.alarms = new AlarmService(this);
     await this.alarms.start();
     this.scheduledTasks = new ScheduledTaskService(this);
@@ -2902,10 +2903,22 @@ class CockpitPlugin extends obsidian.Plugin {
     this.serverChan.startScheduler();
     this.addSettingTab(new CockpitServerChanSettingTab(this.app, this));
     this.registerView(VIEW_TYPE, l=>new CockpitView(l, this));
+    this.registerView(AI_VIEW_TYPE, l=>new CockpitAIView(l, this));
     this.addRibbonIcon('layout-dashboard','Cockpit',()=>this._open());
+    this._aiLauncherCleanup = mountAiLauncher(this);
     this.addCommand({id:'open-cockpit',name:'打开 Cockpit 驾驶舱',callback:()=>this._open()});
+    this.addCommand({id:'open-cockpit-ai',name:'打开 Cockpit AI 助手',callback:()=>this.openAI()});
     this.addCommand({ id:'global-search', name:'打开 Cockpit 全局搜索', callback:() => openGlobalSearch(this.app) });
     this.addCommand({ id:'open-data-migration', name:'打开 Cockpit 数据迁移', callback:async () => { await this._open(); const view = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view; if (view) openStorageMigration(view); } });
+    const initialActiveFile = this.app.workspace.getActiveFile?.();
+    this._lastActiveMarkdownFile = initialActiveFile?.extension === 'md' ? initialActiveFile : null;
+    this.registerEvent(this.app.workspace.on('file-open', (file) => {
+      if (file?.extension === 'md') this._lastActiveMarkdownFile = file;
+    }));
+    this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
+      const file = leaf?.view?.file;
+      if (file?.extension === 'md') this._lastActiveMarkdownFile = file;
+    }));
     this.app.workspace.onLayoutReady(()=>this._open());
   }
   async _open() {
@@ -2914,6 +2927,25 @@ class CockpitPlugin extends obsidian.Plugin {
     this.app.workspace.revealLeaf(leaf);
     return leaf;
   }
-  async onunload() { this.alarms?.stop(); this.scheduledTasks?.stop(); this.app.workspace.detachLeavesOfType(VIEW_TYPE); }
+  async openAI() {
+    let leaf = this.app.workspace.getLeavesOfType(AI_VIEW_TYPE)[0];
+    if (!leaf) {
+      leaf = this.app.isMobile ? this.app.workspace.getLeaf('tab') : this.app.workspace.getRightLeaf(false);
+      if (!leaf) leaf = this.app.workspace.getLeaf('split','vertical');
+      await leaf.setViewState({ type:AI_VIEW_TYPE, active:true });
+    }
+    this.app.workspace.revealLeaf(leaf);
+    this._syncAiLauncher?.();
+    return leaf;
+  }
+  async closeAI() {
+    this.app.workspace.detachLeavesOfType(AI_VIEW_TYPE);
+    window.setTimeout(() => this._syncAiLauncher?.(), 0);
+  }
+  async toggleAI() {
+    if (this.app.workspace.getLeavesOfType(AI_VIEW_TYPE).length) return this.closeAI();
+    return this.openAI();
+  }
+  async onunload() { this.alarms?.stop(); this.scheduledTasks?.stop(); this._aiLauncherCleanup?.(); this._aiLauncherCleanup = null; this.app.workspace.detachLeavesOfType(AI_VIEW_TYPE); this.app.workspace.detachLeavesOfType(VIEW_TYPE); }
 }
 module.exports = CockpitPlugin;

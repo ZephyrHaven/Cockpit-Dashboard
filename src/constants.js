@@ -1,6 +1,7 @@
 // constants.js — 全局常量（纯数据，无函数）
 
 const VIEW_TYPE = 'cockpit-dashboard';
+const AI_VIEW_TYPE = 'cockpit-dashboard-ai';
 const PLUGIN_ID = 'cockpit-dashboard';
 const TODO_FILE = '_data/todos.md';
 const BOOKMARK_FILE = '_data/bookmarks.md';
@@ -54,6 +55,7 @@ const I18N = {
       tag: '标签',
       graph: '图谱',
       command: '命令',
+      ai: 'AI 助手',
       more: '更多',
       hermes: 'Hermes',
       cockpit: '驾驶舱',
@@ -317,6 +319,7 @@ const I18N = {
       tag: 'Tags',
       graph: 'Graph',
       command: 'Commands',
+      ai: 'AI assistant',
       more: 'More',
       hermes: 'Hermes',
       cockpit: 'Dashboard',
