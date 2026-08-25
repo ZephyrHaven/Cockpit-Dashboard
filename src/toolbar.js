@@ -158,6 +158,6 @@ function buildToolbar(view, root, allFiles, t) {
   logs.onclick = () => openCustomToolbarLogs(view);
 
   view._applyToolbarButtonEditState(root);
-  const toggleSearch = buildSearch(root, toolbar, allFiles, view.app, { placeholder:t('search.placeholder'), language:view._lang() });
+  const toggleSearch = buildSearch(root, toolbar, allFiles, view.app, { placeholder:t('search.placeholder'), language:view._lang() }, view);
   return { toolbar, toggleSearch };
 }

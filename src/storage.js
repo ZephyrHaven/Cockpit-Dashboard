@@ -46,19 +46,21 @@ class CockpitStorage {
   constructor(plugin, app) { this.plugin = plugin; this.app = app; }
 
   async _readData() { return await this.plugin.loadData() || {}; }
-  async _writeData(data) { await this.plugin.saveData(data); return data; }
 
   async initialize(defaultToolbarCommands) {
-    const data = await this._readData();
+    let data = await this._readData();
     if (typeof data.storageMigrationCompleted !== 'boolean') {
-      data.storageMigrationCompleted = false;
-      data.storageMigration = { ...(data.storageMigration || {}), offeredAt:new Date().toISOString() };
-      await this._writeData(data);
-    }
-    // 未迁移用户继续使用旧文件；缺少旧 Toolbar 文件时按旧格式创建默认配置。
-    if (!data.storageMigrationCompleted && !this.app.vault.getAbstractFileByPath('_data/toolbar.md')) {
-      if (!this.app.vault.getAbstractFileByPath('_data')) await this.app.vault.createFolder('_data');
-      await this.app.vault.create('_data/toolbar.md', serializeToolbarConfig(defaultToolbarCommands));
+      data = await this.plugin.mutateData((latest) => {
+        if (typeof latest.storageMigrationCompleted === 'boolean') return;
+        const hasLegacyStorage = !!this.app.vault.getAbstractFileByPath(BOOKMARK_FILE)
+          || !!this.app.vault.getAbstractFileByPath('_data/toolbar.md');
+        latest.storageMigrationCompleted = !hasLegacyStorage;
+        latest.storageVersion = hasLegacyStorage ? (latest.storageVersion || 1) : COCKPIT_STORAGE_VERSION;
+        if (hasLegacyStorage) latest.storageMigration = { ...(latest.storageMigration || {}), offeredAt:new Date().toISOString() };
+        else latest.toolbarCommands = Object.keys(normalizeToolbarCommands(latest.toolbarCommands)).length
+          ? normalizeToolbarCommands(latest.toolbarCommands)
+          : normalizeToolbarCommands(defaultToolbarCommands);
+      });
     }
     return data;
   }
@@ -74,15 +76,16 @@ class CockpitStorage {
     if (legacyToolbar) {
       try { commands = normalizeToolbarCommands(parseToolbarConfig(await this.app.vault.read(legacyToolbar))); } catch (e) {}
     }
-    // 兼容上一版曾经预复制但未正式完成迁移的用户：旧文件优先，缺失时保留 data.json 中已有副本。
-    data.bookmarks = legacyBookmarks.size ? Array.from(legacyBookmarks) : (Array.isArray(data.bookmarks) ? data.bookmarks : []);
-    data.toolbarCommands = Object.keys(commands).length ? commands : (Object.keys(normalizeToolbarCommands(data.toolbarCommands)).length ? normalizeToolbarCommands(data.toolbarCommands) : normalizeToolbarCommands(defaultToolbarCommands));
-    data.storageVersion = COCKPIT_STORAGE_VERSION;
-    data.storageMigration = { ...(data.storageMigration || {}), completedAt:new Date().toISOString(), source:'legacy-copy' };
-    // 完成标记最后写入；此前任何异常都会保持旧存储模式。
-    data.storageMigrationCompleted = true;
-    await this._writeData(data);
-    return data;
+    return await this.plugin.mutateData((latest) => {
+      if (latest.storageMigrationCompleted === true) return;
+      // 兼容上一版曾经预复制但未正式完成迁移的用户：旧文件优先，缺失时保留 data.json 中已有副本。
+      latest.bookmarks = legacyBookmarks.size ? Array.from(legacyBookmarks) : (Array.isArray(latest.bookmarks) ? latest.bookmarks : []);
+      latest.toolbarCommands = Object.keys(commands).length ? commands : (Object.keys(normalizeToolbarCommands(latest.toolbarCommands)).length ? normalizeToolbarCommands(latest.toolbarCommands) : normalizeToolbarCommands(defaultToolbarCommands));
+      latest.storageVersion = COCKPIT_STORAGE_VERSION;
+      latest.storageMigration = { ...(latest.storageMigration || {}), completedAt:new Date().toISOString(), source:'legacy-copy' };
+      // 完成标记最后写入；此前任何异常都会保持旧存储模式。
+      latest.storageMigrationCompleted = true;
+    });
   }
 
   async loadBookmarks() {
@@ -95,9 +98,10 @@ class CockpitStorage {
     const data = await this._readData();
     const values = Array.from(bookmarks || []).map(String).filter(Boolean);
     if (data.storageMigrationCompleted === true) {
-      data.bookmarks = values;
-      data.storageVersion = COCKPIT_STORAGE_VERSION;
-      await this._writeData(data);
+      await this.plugin.mutateData((latest) => {
+        latest.bookmarks = values;
+        latest.storageVersion = COCKPIT_STORAGE_VERSION;
+      });
     } else {
       await saveBookmarks(this.app.vault, new Set(values));
     }
@@ -123,16 +127,23 @@ class CockpitStorage {
     const normalized = normalizeToolbarCommands(commands);
     const data = await this._readData();
     if (data.storageMigrationCompleted === true) {
-      data.toolbarCommands = normalized;
-      data.storageVersion = COCKPIT_STORAGE_VERSION;
-      await this._writeData(data);
+      await this.plugin.mutateData((latest) => {
+        latest.toolbarCommands = normalized;
+        latest.storageVersion = COCKPIT_STORAGE_VERSION;
+      });
       return;
     }
-    if (!this.app.vault.getAbstractFileByPath('_data')) await this.app.vault.createFolder('_data');
-    const content = serializeToolbarConfig(normalized);
     const file = this.app.vault.getAbstractFileByPath('_data/toolbar.md');
-    if (file) await this.app.vault.modify(file, content);
-    else await this.app.vault.create('_data/toolbar.md', content);
+    if (file) {
+      await this.app.vault.modify(file, serializeToolbarConfig(normalized));
+      return;
+    }
+    // 新环境不再创建 _data/toolbar.md；旧文件不存在时直接使用私有 data.json。
+    await this.plugin.mutateData((latest) => {
+      latest.toolbarCommands = normalized;
+      latest.storageVersion = COCKPIT_STORAGE_VERSION;
+      latest.storageMigrationCompleted = true;
+    });
   }
 
   async exportData() {
@@ -146,6 +157,7 @@ class CockpitStorage {
         customToolbarButtons: Array.isArray(data.customToolbarButtons) ? data.customToolbarButtons : [],
         toolbarOrder: Array.isArray(data.toolbarOrder) ? data.toolbarOrder : [],
         bookmarkOrder: Array.isArray(data.bookmarkOrder) ? data.bookmarkOrder : [],
+        pomodoroTaskStats: normalizePomodoroTaskStats(data.pomodoroTaskStats),
         username: data.username || '', language: data.language || DEFAULT_LANG,
         collapsed: data.collapsed || {}, moduleOrder: data.moduleOrder || [],
         hiddenModules: data.hiddenModules || [], hiddenToolbarActions: data.hiddenToolbarActions || [],
@@ -159,42 +171,41 @@ class CockpitStorage {
       throw new Error('invalid-format');
     }
     const incoming = payload.data;
-    const data = await this._readData();
-    if (Array.isArray(incoming.bookmarks)) data.bookmarks = incoming.bookmarks.map(String).filter(Boolean).slice(0, 5000);
-    if (incoming.toolbarCommands) data.toolbarCommands = normalizeToolbarCommands(incoming.toolbarCommands);
-    if (Array.isArray(incoming.customToolbarButtons)) data.customToolbarButtons = normalizeCustomToolbarButtons(incoming.customToolbarButtons);
-    ['bookmarkOrder','toolbarOrder','moduleOrder','hiddenModules','hiddenToolbarActions','deletedToolbarActions'].forEach((key) => {
-      if (Array.isArray(incoming[key])) data[key] = incoming[key].map(String).slice(0, 5000);
-    });
-    if (incoming.collapsed && typeof incoming.collapsed === 'object' && !Array.isArray(incoming.collapsed)) {
-      data.collapsed = {};
-      Object.entries(incoming.collapsed).slice(0, 100).forEach(([key, value]) => {
-        const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 60);
-        if (safeKey && !['__proto__','prototype','constructor'].includes(safeKey)) data.collapsed[safeKey] = !!value;
+    await this.plugin.mutateData((data) => {
+      if (Array.isArray(incoming.bookmarks)) data.bookmarks = incoming.bookmarks.map(String).filter(Boolean).slice(0, 5000);
+      if (incoming.toolbarCommands) data.toolbarCommands = normalizeToolbarCommands(incoming.toolbarCommands);
+      if (Array.isArray(incoming.customToolbarButtons)) data.customToolbarButtons = normalizeCustomToolbarButtons(incoming.customToolbarButtons);
+      if (incoming.pomodoroTaskStats && typeof incoming.pomodoroTaskStats === 'object') data.pomodoroTaskStats = normalizePomodoroTaskStats(incoming.pomodoroTaskStats);
+      ['bookmarkOrder','toolbarOrder','moduleOrder','hiddenModules','hiddenToolbarActions','deletedToolbarActions'].forEach((key) => {
+        if (Array.isArray(incoming[key])) data[key] = incoming[key].map(String).slice(0, 5000);
       });
-    }
-    if (typeof incoming.username === 'string') data.username = incoming.username.slice(0, 80);
-    if (typeof incoming.language === 'string') data.language = normalizeLang(incoming.language);
-    data.storageVersion = COCKPIT_STORAGE_VERSION;
-    data.storageMigrationCompleted = true;
-    data.storageMigration = { ...(data.storageMigration || {}), importedAt: new Date().toISOString(), completedAt:new Date().toISOString(), source:'import' };
-    await this._writeData(data);
+      if (incoming.collapsed && typeof incoming.collapsed === 'object' && !Array.isArray(incoming.collapsed)) {
+        data.collapsed = {};
+        Object.entries(incoming.collapsed).slice(0, 100).forEach(([key, value]) => {
+          const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 60);
+          if (safeKey && !['__proto__','prototype','constructor'].includes(safeKey)) data.collapsed[safeKey] = !!value;
+        });
+      }
+      if (typeof incoming.username === 'string') data.username = incoming.username.slice(0, 80);
+      if (typeof incoming.language === 'string') data.language = normalizeLang(incoming.language);
+      data.storageVersion = COCKPIT_STORAGE_VERSION;
+      data.storageMigrationCompleted = true;
+      data.storageMigration = { ...(data.storageMigration || {}), importedAt: new Date().toISOString(), completedAt:new Date().toISOString(), source:'import' };
+    });
   }
 
   async cleanupLegacy() {
-    const data = await this._readData();
-    if (data.storageMigrationCompleted !== true) {
-      throw new Error('migration-incomplete');
-    }
     const removed = [];
-    for (const path of LEGACY_STORAGE_FILES) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (!file) continue;
-      await this.app.vault.delete(file);
-      removed.push(path);
-    }
-    data.storageMigration = { ...data.storageMigration, legacyCleanedAt: new Date().toISOString(), removedLegacyFiles: removed };
-    await this._writeData(data);
+    await this.plugin.mutateData(async (data) => {
+      if (data.storageMigrationCompleted !== true) throw new Error('migration-incomplete');
+      for (const path of LEGACY_STORAGE_FILES) {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (!file) continue;
+        await this.app.vault.delete(file);
+        removed.push(path);
+      }
+      data.storageMigration = { ...data.storageMigration, legacyCleanedAt: new Date().toISOString(), removedLegacyFiles: removed };
+    });
     return removed;
   }
 
@@ -221,6 +232,7 @@ function openStorageMigration(view) {
   head.createDiv({ cls: PID + '-storage-title', text: en ? 'Data migration' : '数据迁移' });
   const close = head.createEl('button', { cls: PID + '-storage-close', attr:{type:'button'} });
   obsidian.setIcon(close, 'x'); close.onclick = () => overlay.remove();
+  makeCockpitDialogDraggable(panel, head, { label:en ? 'Drag data migration window' : '拖动数据迁移窗口' });
   const hero = panel.createDiv({ cls:PID + '-storage-guide' });
   const badge = hero.createDiv({ cls:PID + '-storage-badge', text:en?'Checking…':'正在检查…' });
   hero.createDiv({ cls:PID + '-storage-guide-title', text:en?'Move internal settings out of visible _data files':'把内部设置从可见的 _data 文件迁移出去' });

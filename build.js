@@ -12,10 +12,12 @@ const CSS_FILE = path.join(ROOT, 'styles.css');
 
 const MODULES = [
   'constants.js',
+  'data-store.js',
   'daily-tips.js',
   'tip-store.js',
   'utils.js',
   'todos.js',
+  'todo-focus.js',
   'serverchan.js',
   'bookmarks.js',
   'storage.js',
@@ -26,6 +28,7 @@ const MODULES = [
   'toolbar-custom.js',
   'toolbar.js',
   'scenes.js',
+  'scheduled-tasks.js',
   'pomodoro.js',
   'focus-chart.js',
   '_framework.js'

@@ -132,7 +132,7 @@ class ServerChanService {
   constructor(plugin) { this.plugin = plugin; this._reminderPromise = null; this._schedulerRunning = false; this._config = null; }
   startScheduler() { const check = () => this._runScheduledCheck().catch((e) => console.warn('Cockpit notification scheduler failed', e)); check(); this.plugin.registerInterval(window.setInterval(check, 1000)); }
   async getConfig() { if (this._config) return normalizeServerChanConfig(this._config); const data = await this.plugin.loadData() || {}; this._config = normalizeServerChanConfig(data.serverChan); return normalizeServerChanConfig(this._config); }
-  async saveConfig(next) { const data = await this.plugin.loadData() || {}; data.serverChan = normalizeServerChanConfig(next); await this.plugin.saveData(data); this._config = data.serverChan; return normalizeServerChanConfig(this._config); }
+  async saveConfig(next) { const normalized = normalizeServerChanConfig(next); await this.plugin.mutateData((data) => { data.serverChan = normalized; }); this._config = normalized; return normalizeServerChanConfig(this._config); }
   async _runScheduledCheck() {
     if (this._schedulerRunning) return;
     this._schedulerRunning = true;

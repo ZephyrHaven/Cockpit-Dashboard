@@ -19,6 +19,7 @@ function openPomodoroToolbarConfigEditor(view, root) {
   head.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-title', text:en ? 'Pomodoro settings' : '番茄钟设置' });
   const close = head.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-close', attr:{type:'button'} });
   obsidian.setIcon(close, 'x'); close.onclick = () => overlay.remove();
+  makeCockpitDialogDraggable(panel, head, { label:en ? 'Drag Pomodoro settings' : '拖动番茄钟设置窗口' });
   const field = panel.createEl('label', { cls:PLUGIN_ID + '-custom-toolbar-consent' });
   const autoShow = field.createEl('input', { attr:{type:'checkbox'} });
   autoShow.checked = view._pomodoroAutoShow !== false;
@@ -65,6 +66,7 @@ function openBuiltinToolbarConfigEditor(view, root, action) {
   head.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-title', text:en?spec.titleEn:spec.titleCn });
   const close = head.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-close', attr:{type:'button'} });
   obsidian.setIcon(close, 'x'); close.onclick = () => overlay.remove();
+  makeCockpitDialogDraggable(panel, head, { label:en ? 'Drag toolbar settings' : '拖动工具栏设置窗口' });
   panel.createDiv({ cls:PLUGIN_ID + '-toolbar-config-warning', text:en?'This command runs with your local user permissions and is stored as plain text. Do not include passwords or tokens.':'该命令会以当前本机用户权限运行并以明文保存，请勿写入密码或令牌。' });
   const labelField = panel.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-field' });
   labelField.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-label', text:en?'Button label':'按钮名称' });

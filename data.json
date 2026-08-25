@@ -1,6 +1,7 @@
 {
   "username": "点击修改名称",
   "language": "zh-CN",
+  "calendarViewMode": "month",
   "cockpit-todos": [
     {
       "text": "Obsidian vault 创建和分类",

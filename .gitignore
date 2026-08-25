@@ -16,6 +16,7 @@ reasonix.toml
 release.sh
 main.js
 main.min.js
+implementation-dashboard.png
 
 # 个人脚本（不随插件发布）
 oaAtuoLogin_obsidian.py

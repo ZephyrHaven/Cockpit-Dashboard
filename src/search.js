@@ -24,9 +24,10 @@ function rankSearchFiles(files, rawQuery) {
 }
 
 class CockpitGlobalSearchModal extends obsidian.Modal {
-  constructor(app, language) {
+  constructor(app, language, view) {
     super(app);
     this.language = language || DEFAULT_LANG;
+    this.view = view || null;
     this._cursor = 0;
     this._results = [];
     this._timer = null;
@@ -50,7 +51,7 @@ class CockpitGlobalSearchModal extends obsidian.Modal {
       cls: PLUGIN_ID + '-spotlight-input',
       attr: { type: 'text', placeholder: this._text('搜索笔记内容、文件名或路径…', 'Search notes, content, or paths…') }
     });
-    this.hint = box.createDiv({ cls: PLUGIN_ID + '-spotlight-hint', text: this._text('输入关键词 · ↑↓ 选择 · Enter 打开 · Esc 关闭', 'Type to search · ↑↓ select · Enter open · Esc close') });
+    this.hint = box.createDiv({ cls: PLUGIN_ID + '-spotlight-hint', text: this._text('↑↓ 选择 · Enter 打开 · ⌘↵ 分栏 · ⌘⇧C 复制 · ⌘P 收藏', '↑↓ select · Enter open · ⌘↵ split · ⌘⇧C copy · ⌘P pin') });
     this.resultsEl = box.createDiv({ cls: PLUGIN_ID + '-spotlight-results' });
     this.input.addEventListener('input', () => {
       clearTimeout(this._timer);
@@ -112,7 +113,7 @@ class CockpitGlobalSearchModal extends obsidian.Modal {
     }
     const named = rankSearchFiles(files, query);
     const seen = new Set(named.map((file) => file.path));
-    const results = named.slice(0, 20).map((file, index) => ({ file, match: '', score: 120 - index }));
+    const results = named.slice(0, 20).map((file, index) => ({ file, match: '', count:1, kind:'name', score: 120 - index }));
     this.hint.setText(this._text('正在搜索笔记内容…', 'Searching note content…'));
     this._results = results;
     this._cursor = 0;
@@ -130,11 +131,14 @@ class CockpitGlobalSearchModal extends obsidian.Modal {
             content = await this.app.vault.cachedRead(file);
             this._contentCache.set(cacheKey, content);
           }
-          const pos = content.toLowerCase().indexOf(query);
+          const lowered = content.toLowerCase();
+          const pos = lowered.indexOf(query);
           if (pos >= 0) {
             const start = Math.max(0, pos - 42);
             const end = Math.min(content.length, pos + query.length + 72);
-            results.push({ file, match: content.slice(start, end).replace(/\s+/g, ' ').trim(), score: 1 });
+            let count = 0, cursor = 0;
+            while ((cursor = lowered.indexOf(query, cursor)) >= 0 && count < 999) { count++; cursor += Math.max(1, query.length); }
+            results.push({ file, match: content.slice(start, end).replace(/\s+/g, ' ').trim(), count, kind:'body', score: 1 });
             seen.add(file.path);
           }
         } catch (e) {}
@@ -164,13 +168,35 @@ class CockpitGlobalSearchModal extends obsidian.Modal {
       this.resultsEl.createDiv({ cls: PLUGIN_ID + '-spotlight-empty', text: this._text('没有找到匹配的笔记', 'No matching notes found') });
       return;
     }
+    let previousKind = '';
+    const query = normalizeSearchQuery(this.input?.value);
     this._results.forEach((result, index) => {
+      const kind = result.kind || (result.match ? 'body' : 'name');
+      if (kind !== previousKind) {
+        const count = this._results.filter((item) => (item.kind || (item.match ? 'body' : 'name')) === kind).length;
+        this.resultsEl.createDiv({ cls:PLUGIN_ID + '-spotlight-group', text:(kind === 'name' ? this._text('文件名命中', 'Filename matches') : this._text('正文命中', 'Content matches')) + ' · ' + count });
+        previousKind = kind;
+      }
       const row = this.resultsEl.createDiv({ cls: PLUGIN_ID + '-spotlight-result' + (index === this._cursor ? ' selected' : '') });
       const copy = row.createDiv({ cls: PLUGIN_ID + '-spotlight-copy' });
-      copy.createDiv({ cls: PLUGIN_ID + '-spotlight-name', text: result.file.basename });
-      copy.createDiv({ cls: PLUGIN_ID + '-spotlight-path', text: result.match || result.file.path });
+      this._appendHighlighted(copy.createDiv({ cls: PLUGIN_ID + '-spotlight-name' }), result.file.basename, query);
+      this._appendHighlighted(copy.createDiv({ cls: PLUGIN_ID + '-spotlight-path' }), result.match || result.file.path, query);
+      row.createSpan({ cls:PLUGIN_ID + '-spotlight-match-count', text:String(result.count || 1) });
       row.onclick = () => this._openResult(result);
     });
+  }
+
+  _appendHighlighted(target, text, query) {
+    const value = String(text || '');
+    if (!query) { target.setText(value); return; }
+    let cursor = 0; const lower = value.toLowerCase();
+    while (cursor < value.length) {
+      const index = lower.indexOf(query, cursor);
+      if (index < 0) { target.appendText(value.slice(cursor)); break; }
+      if (index > cursor) target.appendText(value.slice(cursor, index));
+      target.createEl('mark', { text:value.slice(index, index + query.length) });
+      cursor = index + query.length;
+    }
   }
 
   _onKeydown(evt) {
@@ -180,23 +206,41 @@ class CockpitGlobalSearchModal extends obsidian.Modal {
       this._cursor = (this._cursor + (evt.key === 'ArrowDown' ? 1 : -1) + this._results.length) % this._results.length;
       this._renderResults();
     } else if (evt.key === 'Enter' && this._results[this._cursor]) {
-      evt.preventDefault(); this._openResult(this._results[this._cursor]);
+      evt.preventDefault(); this._openResult(this._results[this._cursor], evt.metaKey || evt.ctrlKey);
+    } else if ((evt.metaKey || evt.ctrlKey) && evt.shiftKey && evt.key.toLowerCase() === 'c' && this._results[this._cursor]) {
+      evt.preventDefault(); this._copyResult(this._results[this._cursor]);
+    } else if ((evt.metaKey || evt.ctrlKey) && evt.key.toLowerCase() === 'p' && this._results[this._cursor]) {
+      evt.preventDefault(); this._toggleBookmark(this._results[this._cursor]);
     }
   }
 
-  _openResult(result) {
-    this.app.workspace.getUnpinnedLeaf().setViewState({ type: 'markdown', state: { file: result.file.path } });
+  async _copyResult(result) {
+    try { await navigator.clipboard.writeText(`[[${result.file.path.replace(/\.md$/i, '')}]]`); new obsidian.Notice(this._text('已复制笔记链接', 'Note link copied')); } catch (e) { new obsidian.Notice(this._text('复制失败', 'Could not copy')); }
+  }
+
+  async _toggleBookmark(result) {
+    if (!this.view?._storage) { new obsidian.Notice(this._text('请从驾驶舱内打开搜索以使用收藏', 'Open search from Cockpit to pin files')); return; }
+    if (this.view._bookmarks.has(result.file.path)) this.view._bookmarks.delete(result.file.path); else this.view._bookmarks.add(result.file.path);
+    await this.view._storage.saveBookmarks(this.view._bookmarks);
+    await this.view._saveBookmarkOrder?.();
+    new obsidian.Notice(this.view._bookmarks.has(result.file.path) ? this._text('已收藏', 'Pinned') : this._text('已取消收藏', 'Unpinned'));
+  }
+
+  _openResult(result, split = false) {
+    const leaf = split ? this.app.workspace.getLeaf('split', 'vertical') : this.app.workspace.getUnpinnedLeaf();
+    leaf.setViewState({ type: 'markdown', state: { file: result.file.path }, active:true });
+    if (split) this.app.workspace.revealLeaf(leaf);
     this.close();
   }
 
   onClose() { clearTimeout(this._timer); this._queryVersion++; this.contentEl.empty(); }
 }
 
-function openGlobalSearch(app, language) { new CockpitGlobalSearchModal(app, language).open(); }
+function openGlobalSearch(app, language, view) { const dashboardView = view || app.workspace.getLeavesOfType?.(VIEW_TYPE)?.[0]?.view || null; new CockpitGlobalSearchModal(app, language, dashboardView).open(); }
 
 // 保留旧入口，工具栏按钮现在打开同一套全局搜索。
-function buildSearch(root, toolbar, allFiles, app, texts) {
+function buildSearch(root, toolbar, allFiles, app, texts, view) {
   const searchBtn = toolbar.querySelector('.' + PLUGIN_ID + '-toolbtn[data-action="search"]');
-  if (searchBtn) searchBtn.onclick = () => openGlobalSearch(app, texts && texts.language);
-  return () => openGlobalSearch(app, texts && texts.language);
+  if (searchBtn) searchBtn.onclick = () => openGlobalSearch(app, texts && texts.language, view);
+  return () => openGlobalSearch(app, texts && texts.language, view);
 }

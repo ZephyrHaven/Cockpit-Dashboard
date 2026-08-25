@@ -35,12 +35,13 @@ class CockpitTipStore {
     const editable = {};
     const display = {};
     let migratedRotationStart = false;
+    const rotationStartUpdates = {};
     TIP_LANGUAGES.forEach((lang) => {
       const custom = cleanTipList(rawTips[lang]);
       editable[lang] = custom.length ? custom : [...defaults[lang]];
       const sequence = rotationMode === 'defaults-only' || !custom.length ? defaults[lang] : rotationMode === 'custom-only' ? custom : [...custom, ...defaults[lang]];
       const startDay = Number.isInteger(rotationStarts[lang]) ? rotationStarts[lang] : window.moment().dayOfYear();
-      if (custom.length && !Number.isInteger(rotationStarts[lang])) { rotationStarts[lang] = startDay; migratedRotationStart = true; }
+      if (custom.length && !Number.isInteger(rotationStarts[lang])) { rotationStarts[lang] = startDay; rotationStartUpdates[lang] = startDay; migratedRotationStart = true; }
       display[lang] = custom.length && rotationMode !== 'defaults-only' ? rotateTipLibrary(sequence, startDay % sequence.length) : [...defaults[lang]];
       const featured = featuredTips[lang];
       if (custom.length && rotationMode !== 'defaults-only' && featured?.date === window.moment().format('YYYY-MM-DD') && typeof featured.text === 'string') {
@@ -48,35 +49,43 @@ class CockpitTipStore {
       }
     });
     if (migratedRotationStart) {
-      data.tipLibrary = { ...data.tipLibrary, rotationStarts };
-      await this.plugin.saveData(data);
+      await this.plugin.mutateData((latest) => {
+        if (latest.tipLibrary?.mode !== 'custom') return;
+        const latestTips = latest.tipLibrary.tips && typeof latest.tipLibrary.tips === 'object' ? latest.tipLibrary.tips : {};
+        const latestStarts = latest.tipLibrary.rotationStarts && typeof latest.tipLibrary.rotationStarts === 'object' ? latest.tipLibrary.rotationStarts : {};
+        const mergedStarts = { ...latestStarts };
+        Object.entries(rotationStartUpdates).forEach(([lang, startDay]) => {
+          if (cleanTipList(latestTips[lang]).length && !Number.isInteger(mergedStarts[lang])) mergedStarts[lang] = startDay;
+        });
+        latest.tipLibrary = { ...latest.tipLibrary, rotationStarts:mergedStarts };
+      });
     }
     return { display, editable, rotationMode };
   }
 
   async saveLanguage(lang, tips, rotationMode, featuredTip) {
-    const data = await this.plugin.loadData() || {};
-    const existing = data.tipLibrary?.mode === 'custom' && data.tipLibrary.tips && typeof data.tipLibrary.tips === 'object' ? data.tipLibrary.tips : {};
-    const rotationStarts = data.tipLibrary?.mode === 'custom' && data.tipLibrary.rotationStarts && typeof data.tipLibrary.rotationStarts === 'object' ? data.tipLibrary.rotationStarts : {};
-    const featuredTips = data.tipLibrary?.mode === 'custom' && data.tipLibrary.featuredTips && typeof data.tipLibrary.featuredTips === 'object' ? data.tipLibrary.featuredTips : {};
     const cleaned = cleanTipList(tips);
     if (!cleaned.length) throw new Error('empty-tip-library');
     const featured = String(featuredTip || '').trim();
-    data.tipLibrary = { mode:'custom', version:TIP_LIBRARY_VERSION, tips:{ ...existing, [lang]:cleaned }, rotationStarts:{ ...rotationStarts, [lang]:window.moment().dayOfYear() }, rotationMode:normalizeTipRotationMode(rotationMode), featuredTips:featured ? { ...featuredTips, [lang]:{ date:window.moment().format('YYYY-MM-DD'), text:featured } } : featuredTips };
-    await this.plugin.saveData(data);
+    await this.plugin.mutateData((data) => {
+      const existing = data.tipLibrary?.mode === 'custom' && data.tipLibrary.tips && typeof data.tipLibrary.tips === 'object' ? data.tipLibrary.tips : {};
+      const rotationStarts = data.tipLibrary?.mode === 'custom' && data.tipLibrary.rotationStarts && typeof data.tipLibrary.rotationStarts === 'object' ? data.tipLibrary.rotationStarts : {};
+      const featuredTips = data.tipLibrary?.mode === 'custom' && data.tipLibrary.featuredTips && typeof data.tipLibrary.featuredTips === 'object' ? data.tipLibrary.featuredTips : {};
+      data.tipLibrary = { mode:'custom', version:TIP_LIBRARY_VERSION, tips:{ ...existing, [lang]:cleaned }, rotationStarts:{ ...rotationStarts, [lang]:window.moment().dayOfYear() }, rotationMode:normalizeTipRotationMode(rotationMode), featuredTips:featured ? { ...featuredTips, [lang]:{ date:window.moment().format('YYYY-MM-DD'), text:featured } } : featuredTips };
+    });
     return this.load();
   }
 
   async resetLanguage(lang) {
-    const data = await this.plugin.loadData() || {};
-    const existing = data.tipLibrary?.mode === 'custom' && data.tipLibrary.tips && typeof data.tipLibrary.tips === 'object' ? { ...data.tipLibrary.tips } : {};
-    const rotationStarts = data.tipLibrary?.mode === 'custom' && data.tipLibrary.rotationStarts && typeof data.tipLibrary.rotationStarts === 'object' ? { ...data.tipLibrary.rotationStarts } : {};
-    const featuredTips = data.tipLibrary?.mode === 'custom' && data.tipLibrary.featuredTips && typeof data.tipLibrary.featuredTips === 'object' ? { ...data.tipLibrary.featuredTips } : {};
-    delete existing[lang];
-    delete rotationStarts[lang];
-    delete featuredTips[lang];
-    data.tipLibrary = Object.keys(existing).length ? { mode:'custom', version:TIP_LIBRARY_VERSION, tips:existing, rotationStarts, rotationMode:normalizeTipRotationMode(data.tipLibrary?.rotationMode), featuredTips } : { mode:'default', version:TIP_LIBRARY_VERSION };
-    await this.plugin.saveData(data);
+    await this.plugin.mutateData((data) => {
+      const existing = data.tipLibrary?.mode === 'custom' && data.tipLibrary.tips && typeof data.tipLibrary.tips === 'object' ? { ...data.tipLibrary.tips } : {};
+      const rotationStarts = data.tipLibrary?.mode === 'custom' && data.tipLibrary.rotationStarts && typeof data.tipLibrary.rotationStarts === 'object' ? { ...data.tipLibrary.rotationStarts } : {};
+      const featuredTips = data.tipLibrary?.mode === 'custom' && data.tipLibrary.featuredTips && typeof data.tipLibrary.featuredTips === 'object' ? { ...data.tipLibrary.featuredTips } : {};
+      delete existing[lang];
+      delete rotationStarts[lang];
+      delete featuredTips[lang];
+      data.tipLibrary = Object.keys(existing).length ? { mode:'custom', version:TIP_LIBRARY_VERSION, tips:existing, rotationStarts, rotationMode:normalizeTipRotationMode(data.tipLibrary?.rotationMode), featuredTips } : { mode:'default', version:TIP_LIBRARY_VERSION };
+    });
     return this.load();
   }
 }
@@ -96,6 +105,7 @@ class CockpitTipLibraryModal extends obsidian.Modal {
   onOpen() {
     this.modalEl.addClass(PLUGIN_ID + '-tip-library-modal');
     this.render();
+    this._dragCleanup = makeCockpitModalDraggable(this, this.titleEl, this.view._lang() === 'en' ? 'Drag tip library' : '拖动每日提示库');
   }
 
   render() {
@@ -157,5 +167,5 @@ class CockpitTipLibraryModal extends obsidian.Modal {
     };
   }
 
-  onClose() { this.contentEl.empty(); }
+  onClose() { this._dragCleanup?.(); this._dragCleanup = null; this.contentEl.empty(); }
 }

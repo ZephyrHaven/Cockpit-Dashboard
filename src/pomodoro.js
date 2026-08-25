@@ -1,15 +1,15 @@
 // pomodoro.js — 番茄钟的唯一公共入口。
 // 视图只负责提供运行时依赖；浮窗复用和绑定都从这里进入，避免调用方耦合内部实现。
 
-function buildPomodoro(view, root) {
+function buildPomodoro(view, root, initialTodo) {
   if (!view) {
     console.warn('Cockpit: buildPomodoro failed, view is unavailable');
     return;
   }
-  return createPomodoro(view, root);
+  return createPomodoro(view, root, initialTodo);
 }
 
-function createPomodoro(view, root) {
+function createPomodoro(view, root, initialTodo) {
     const PID = PLUGIN_ID;
     let self = view;
     const isMobile = !!(self._isMobile && self._isMobile());
@@ -18,8 +18,14 @@ function createPomodoro(view, root) {
     // 全局单例：如果已存在则复用，不重建
     const existing = document.querySelector('.' + PID + '-pomodoro');
     if (existing) {
+      // 即使是旧浮窗，也先把闭包里的 view 切到当前插件实例，避免热升级后继续用旧的直写路径。
       if (typeof existing._cockpitBindPomodoroView === 'function') {
         existing._cockpitBindPomodoroView(view);
+      }
+      // 旧版浮窗没有可安全调用的销毁钩子；保留本轮计时并要求用户主动关闭后再打开。
+      if (existing._cockpitPomodoroFeatureVersion !== 2) {
+        new obsidian.Notice(view._lang() === 'en' ? 'Close the existing timer, then reopen it to enable task linking.' : '请关闭当前旧番茄钟，再重新打开以关联待办。');
+        return existing;
       }
       if (typeof existing._cockpitSyncLanguage === 'function') {
         existing._cockpitSyncLanguage();
@@ -27,14 +33,15 @@ function createPomodoro(view, root) {
       if (typeof existing._cockpitSyncTheme === 'function') {
         existing._cockpitSyncTheme();
       }
-      return;
+      if (initialTodo && typeof existing._cockpitSelectTask === 'function') existing._cockpitSelectTask(initialTodo);
+      return existing;
     }
 
     // 创建浮动容器
     const floatEl = document.createElement('div');
     floatEl.className = PID + '-pomodoro';
     if (isMobile) floatEl.classList.add(PID + '-pomodoro-mobile');
-    floatEl.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:999;width:198px;max-width:calc(100vw - 24px);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;border-radius:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:box-shadow 0.25s,border-color 0.25s,transform 0.25s,background 0.25s;';
+    floatEl.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:999;width:218px;max-width:calc(100vw - 24px);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;border-radius:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:box-shadow 0.25s,border-color 0.25s,transform 0.25s,background 0.25s;';
 
     // 标题栏（拖拽区域）
     const header = floatEl.createDiv({ cls: PID + '-pomo-header' });
@@ -44,14 +51,19 @@ function createPomodoro(view, root) {
     const titleSpan = headerLeft.createSpan({ text: t('pomodoro.title'), attr: { style: 'display:none;font-size:1.05em;font-weight:800;color:var(--text-normal);line-height:1.05;' } });
     const dragHint = headerLeft.createSpan({ text: t('pomodoro.dragHint'), attr: { style: 'display:none;font-size:0.62em;color:var(--text-muted);line-height:1;' } });
     const btnGroup = header.createDiv({ attr: { style: 'display:flex;gap:6px;align-items:center;flex-shrink:0;' } });
-    const toggleBtn = btnGroup.createSpan({ text: '−', attr: { style: 'width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:var(--text-normal);cursor:pointer;touch-action:manipulation;font-size:1em;font-weight:700;', title: t('pomodoro.minimize') } });
-    const closeBtn = btnGroup.createSpan({ text: '×', attr: { style: 'width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:var(--text-normal);cursor:pointer;touch-action:manipulation;font-size:1.05em;font-weight:700;', title: t('pomodoro.close') } });
+    const toggleBtn = btnGroup.createEl('button', { text: '−', attr: { type:'button', style: 'width:24px;height:24px;padding:0;border:0;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:var(--text-normal);cursor:pointer;touch-action:manipulation;font-size:1em;font-weight:700;', title: t('pomodoro.minimize'), 'aria-label':t('pomodoro.minimize') } });
+    const closeBtn = btnGroup.createEl('button', { text: '×', attr: { type:'button', style: 'width:24px;height:24px;padding:0;border:0;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:var(--text-normal);cursor:pointer;touch-action:manipulation;font-size:1.05em;font-weight:700;', title: t('pomodoro.close'), 'aria-label':t('pomodoro.close') } });
 
     // 内容区
     const body = floatEl.createDiv({ cls: PID + '-pomo-body' });
     body.style.cssText = 'padding:6px 10px 10px;text-align:center;';
 
-    const statusEl = body.createDiv({ text: t('pomodoro.ready'), attr: { style: 'display:none;align-items:center;justify-content:center;min-height:22px;padding:4px 9px;border-radius:999px;font-size:0.64em;font-weight:700;color:var(--text-muted);margin-bottom:0;' } });
+    const statusEl = body.createDiv({ text: t('pomodoro.ready'), attr: { 'aria-live':'polite', style: 'display:none;align-items:center;justify-content:center;min-height:22px;padding:4px 9px;border-radius:999px;font-size:0.64em;font-weight:700;color:var(--text-muted);margin-bottom:0;' } });
+
+    const taskRow = body.createDiv({ cls: PID + '-pomodoro-task' });
+    obsidian.setIcon(taskRow.createSpan({ cls:PID + '-pomodoro-task-icon' }), 'list-checks');
+    const taskSelect = taskRow.createEl('select', { cls:PID + '-pomodoro-task-select', attr:{ 'aria-label':t('pomodoro.selectTask') } });
+    const taskMeta = taskRow.createSpan({ cls:PID + '-pomodoro-task-meta' });
 
     const dialWrap = body.createDiv({ attr: { style: 'display:flex;justify-content:center;margin-bottom:6px;' } });
     const dialEl = dialWrap.createDiv({ attr: { style: 'position:relative;width:112px;height:112px;border-radius:50%;padding:7px;display:flex;align-items:center;justify-content:center;' } });
@@ -60,12 +72,18 @@ function createPomodoro(view, root) {
     const timerEl = timerStack.createDiv({ text: '25:00', attr: { style: 'font-size:1.75em;font-weight:800;color:var(--text-normal);font-variant-numeric:tabular-nums;letter-spacing:1px;line-height:1;' } });
     const timerSub = timerStack.createDiv({ text: t('pomodoro.backToWork'), attr: { style: 'display:none;font-size:0.62em;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;color:var(--text-muted);opacity:0.82;' } });
 
-    const cueEl = body.createDiv({ attr: { style: 'display:none;min-height:16px;margin:0 auto 6px;padding:0 6px;font-size:0.62em;font-weight:700;line-height:1.25;' } });
+    const cueEl = body.createDiv({ attr: { 'aria-live':'polite', style: 'display:none;min-height:16px;margin:0 auto 6px;padding:0 6px;font-size:0.62em;font-weight:700;line-height:1.25;' } });
 
     const metricsRow = body.createDiv({ attr: { style: 'display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:8px;padding:6px 10px;border-radius:12px;font-size:0.62em;font-weight:700;color:var(--text-muted);line-height:1;white-space:nowrap;' } });
     const todayFocus = metricsRow.createSpan({ text: t('pomodoro.focusToday', { minutes: 0 }) });
     const metricsSep = metricsRow.createSpan({ text: '·', attr: { style: 'opacity:0.45;' } });
     const countEl = metricsRow.createSpan({ text: '🍅 × 0' });
+
+    const taskActions = body.createDiv({ cls:PID + '-pomodoro-task-actions', attr:{ role:'group', 'aria-live':'polite', 'aria-label':t('pomodoro.taskNextAction') } });
+    const taskActionAnnouncement = taskActions.createSpan({ attr:{ style:'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;' } });
+    const completeTaskBtn = taskActions.createEl('button', { attr:{type:'button'} });
+    const keepTaskBtn = taskActions.createEl('button', { attr:{type:'button'} });
+    const deferTaskBtn = taskActions.createEl('button', { attr:{type:'button'} });
 
     const btnRow = body.createDiv({ attr: { style: 'display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,0.85fr);gap:8px;' } });
     const startBtn = btnRow.createEl('button', { text: t('pomodoro.start'), attr: { style: 'min-height:32px;padding:7px 10px;border-radius:11px;border:1px solid transparent;color:white;font-size:0.7em;font-weight:800;cursor:pointer;transition:transform 0.15s,box-shadow 0.2s,background 0.2s;' } });
@@ -81,7 +99,7 @@ function createPomodoro(view, root) {
       remaining = Math.max(1, Math.ceil((restoredSession.endAt - Date.now()) / 1000));
     }
     let isRunning = false;
-    let isBreak = false;
+    let isBreak = !!restoredSession?.isBreak;
     let timerInterval = null;
     let minimized = !!restoredSession?.minimized;
     let reminderResetTimer = null;
@@ -91,20 +109,34 @@ function createPomodoro(view, root) {
     let startLabelKey = 'pomodoro.start';
     let cueText = '';
     let cueKey = '';
+    let boundTask = restoredSession?.task ? pomodoroTaskRef({ ...restoredSession.task, done:false }) : null;
+    let taskActionsVisible = !!restoredSession?.awaitingTaskAction && !!boundTask;
+    let pendingCompletion = restoredSession?.pendingCompletion || null;
 
-    function persistSession() {
+    function currentSession() {
       const session = {
         active: true,
         isBreak,
         isRunning,
         remaining,
         endAt: isRunning ? Date.now() + remaining * 1000 : null,
-        minimized
+        minimized,
+        task:boundTask ? { id:boundTask.id, text:boundTask.text } : null,
+        awaitingTaskAction:taskActionsVisible,
+        pendingCompletion
       };
-      self._savePomodoroSession(session).catch((e) => console.warn('Cockpit: save pomodoro session failed', e));
+      return session;
+    }
+
+    function persistSession() {
+      return self._savePomodoroSession(currentSession()).catch((e) => {
+        console.warn('Cockpit: save pomodoro session failed', e);
+        return null;
+      });
     }
 
     function clearSession() {
+      if (pendingCompletion) return persistSession();
       self._savePomodoroSession(null).catch((e) => console.warn('Cockpit: clear pomodoro session failed', e));
     }
 
@@ -113,6 +145,45 @@ function createPomodoro(view, root) {
 
     function getPomodoroCount() {
       return Math.max(0, Math.floor((self._focusMinutes || 0) / 25));
+    }
+
+    function getPendingTaskOptions() {
+      const pending = (self._todos || []).filter((todo) => !todo.done && pomodoroTaskRef(todo));
+      const todayKey = window.moment().format('YYYY-MM-DD');
+      const priority = groupTodayTodos(pending, todayKey).flatMap((group) => group.items);
+      const seen = new Set(priority.map((todo) => todo.id));
+      return priority.concat(pending.filter((todo) => !seen.has(todo.id))).slice(0, 50);
+    }
+
+    function syncTaskMeta() {
+      const stat = boundTask ? getTodoFocusStat(self._pomodoroTaskStats, boundTask) : null;
+      taskMeta.textContent = stat ? t('pomodoro.taskMinutes', { minutes:stat.totalMinutes }) : '';
+      taskMeta.style.display = stat ? 'inline-flex' : 'none';
+    }
+
+    function renderTaskPicker() {
+      const options = getPendingTaskOptions();
+      const taskLocked = isRunning || (!isBreak && remaining < totalSeconds);
+      if (boundTask && !options.some((todo) => todo.id === boundTask.id)) {
+        boundTask = null;
+        setTaskActionsVisible(false);
+        if (taskLocked) {
+          new obsidian.Notice(self._lang() === 'en' ? 'The linked task was completed or removed. This focus session will stay unlinked.' : '关联待办已完成或删除，本轮专注将不再关联任务。');
+        }
+      }
+      taskSelect.empty();
+      taskSelect.createEl('option', { text:t('pomodoro.noTask'), attr:{value:''} });
+      options.forEach((todo) => taskSelect.createEl('option', { text:todo.text, attr:{value:todo.id} }));
+      taskSelect.value = boundTask?.id || '';
+      taskSelect.title = boundTask?.text || t('pomodoro.noTask');
+      syncTaskMeta();
+    }
+
+    function setTaskActionsVisible(visible) {
+      taskActionsVisible = !!visible && !!boundTask;
+      taskActions.style.display = !minimized && taskActionsVisible ? 'grid' : 'none';
+      taskActions.setAttribute('aria-hidden', taskActionsVisible ? 'false' : 'true');
+      taskActionAnnouncement.textContent = taskActionsVisible ? t('pomodoro.taskNextAction') : '';
     }
 
     function getThemeTokens() {
@@ -185,6 +256,8 @@ function createPomodoro(view, root) {
       statusEl.style.background = tokens.metricBg;
       metricsRow.style.background = tokens.metricBg;
       metricsRow.style.border = '1px solid ' + tokens.borderSoft;
+      taskRow.style.background = tokens.metricBg;
+      taskRow.style.border = '1px solid ' + tokens.borderSoft;
       resetBtn.style.background = tokens.buttonGhost;
       dialEl.style.background = 'conic-gradient(' + accent + ' ' + progress + '%, ' + tokens.ringTrack + ' ' + progress + '% 100%)';
       dialInner.style.background = 'linear-gradient(180deg,' + tokens.dialInnerTop + ',' + tokens.dialInnerBottom + ')';
@@ -224,26 +297,42 @@ function createPomodoro(view, root) {
       dragHint.textContent = t('pomodoro.dragHint');
       toggleBtn.title = minimized ? t('pomodoro.expand') : t('pomodoro.minimize');
       closeBtn.title = t('pomodoro.close');
+      toggleBtn.setAttribute('aria-label', minimized ? t('pomodoro.expand') : t('pomodoro.minimize'));
+      closeBtn.setAttribute('aria-label', t('pomodoro.close'));
       statusEl.textContent = t(statusKey);
       startBtn.textContent = t(startLabelKey);
       resetBtn.textContent = t('pomodoro.reset');
+      taskSelect.setAttribute('aria-label', t('pomodoro.selectTask'));
+      if (taskSelect.options[0]) taskSelect.options[0].textContent = t('pomodoro.noTask');
+      completeTaskBtn.textContent = t('pomodoro.completeTask');
+      keepTaskBtn.textContent = t('pomodoro.keepTask');
+      deferTaskBtn.textContent = t('pomodoro.deferTask');
+      taskActions.setAttribute('aria-label', t('pomodoro.taskNextAction'));
+      taskActions.setAttribute('aria-hidden', taskActionsVisible ? 'false' : 'true');
+      if (taskActionsVisible) taskActionAnnouncement.textContent = t('pomodoro.taskNextAction');
       todayFocus.textContent = t('pomodoro.focusToday', { minutes: self._focusMinutes || 0 });
       if (cueKey) {
         cueText = t(cueKey);
         cueEl.textContent = cueText;
       }
       countEl.textContent = '🍅 × ' + getPomodoroCount();
+      syncTaskMeta();
+      taskSelect.disabled = isRunning || (!isBreak && remaining < totalSeconds);
       if (minimized) {
         modeChip.style.display = 'none';
         titleSpan.style.display = 'block';
         titleSpan.textContent = fmtTime(remaining);
         metricsRow.style.display = 'none';
+        taskRow.style.display = 'none';
+        taskActions.style.display = 'none';
         btnRow.style.display = 'none';
         cueEl.style.display = 'none';
       } else {
         modeChip.style.display = 'inline-flex';
         titleSpan.style.display = 'none';
         metricsRow.style.display = 'flex';
+        taskRow.style.display = 'grid';
+        taskActions.style.display = taskActionsVisible ? 'grid' : 'none';
         btnRow.style.display = 'grid';
         if (!cueText) cueEl.style.display = 'none';
       }
@@ -252,6 +341,31 @@ function createPomodoro(view, root) {
 
     floatEl._cockpitBindPomodoroView = (nextView) => {
       if (nextView) self = nextView;
+      renderTaskPicker();
+    };
+    floatEl._cockpitPomodoroFeatureVersion = 2;
+    floatEl._cockpitSelectTask = (todo) => {
+      const ref = pomodoroTaskRef(todo);
+      if (!ref) return false;
+      const hasProgress = !isBreak && remaining < totalSeconds;
+      if (!canChangePomodoroTask(isRunning, hasProgress, boundTask, ref)) {
+        new obsidian.Notice(self._lang() === 'en' ? 'Reset this focus session before switching tasks.' : '当前专注轮已有进度，请重置后再切换待办。');
+        return false;
+      }
+      boundTask = ref;
+      setTaskActionsVisible(false);
+      if (minimized) {
+        minimized = false;
+        body.style.display = 'block';
+        floatEl.classList.remove(PID + '-pomodoro-minimized');
+        toggleBtn.textContent = '−';
+        if (!isMobile) floatEl.style.width = '218px';
+      }
+      renderTaskPicker();
+      setCue(t('pomodoro.taskBound', { task:ref.text }), '');
+      syncPomodoroText();
+      persistSession();
+      return true;
     };
     floatEl._cockpitSyncLanguage = syncPomodoroText;
     floatEl._cockpitSyncTheme = () => applyVisualState();
@@ -261,19 +375,68 @@ function createPomodoro(view, root) {
     });
     themeObserver.observe(document.body, { attributes:true, attributeFilter:['class'] });
 
+    taskSelect.onchange = () => {
+      const todo = (self._todos || []).find((item) => item.id === taskSelect.value && !item.done);
+      const nextTask = todo ? pomodoroTaskRef(todo) : null;
+      const hasProgress = !isBreak && remaining < totalSeconds;
+      if (!canChangePomodoroTask(isRunning, hasProgress, boundTask, nextTask)) {
+        new obsidian.Notice(self._lang() === 'en' ? 'Reset this focus session before switching tasks.' : '当前专注轮已有进度，请重置后再切换待办。');
+        renderTaskPicker();
+        return;
+      }
+      boundTask = nextTask;
+      setTaskActionsVisible(false);
+      renderTaskPicker();
+      persistSession();
+    };
+    keepTaskBtn.onclick = () => { setTaskActionsVisible(false); persistSession(); };
+    completeTaskBtn.onclick = async () => {
+      if (!boundTask) return;
+      const taskId = boundTask.id;
+      if (await self._applyPomodoroTaskAction(taskId, 'complete')) {
+        boundTask = null;
+        setTaskActionsVisible(false);
+        renderTaskPicker();
+        persistSession();
+      } else new obsidian.Notice(self._lang() === 'en' ? 'This task no longer exists or could not be saved.' : '这个待办已不存在或保存失败。');
+    };
+    deferTaskBtn.onclick = async () => {
+      if (!boundTask) return;
+      if (await self._applyPomodoroTaskAction(boundTask.id, 'tomorrow')) {
+        setTaskActionsVisible(false);
+        renderTaskPicker();
+        persistSession();
+      } else new obsidian.Notice(self._lang() === 'en' ? 'This task no longer exists or could not be saved.' : '这个待办已不存在或保存失败。');
+    };
+
     // 最小化
     toggleBtn.onclick = () => {
       minimized = !minimized;
       body.style.display = minimized ? 'none' : 'block';
       floatEl.classList.toggle(PID + '-pomodoro-minimized', minimized);
       toggleBtn.textContent = minimized ? '+' : '−';
-      if (!isMobile) floatEl.style.width = minimized ? '126px' : '198px';
+      if (!isMobile) floatEl.style.width = minimized ? '126px' : '218px';
       syncPomodoroText();
       persistSession();
     };
 
-    // 关闭
-    closeBtn.onclick = () => { clearInterval(timerInterval); clearTimeout(reminderResetTimer); clearTimeout(cueTimer); if (themeObserver) themeObserver.disconnect(); finishDrag(dragPointerId); floatEl.remove(); self._pomodoroTimer = null; clearSession(); };
+    // 关闭；同时暴露幂等销毁钩子，供后续热升级安全清理 interval / observer。
+    let destroyed = false;
+    function destroyPomodoro(options = {}) {
+      if (destroyed) return;
+      destroyed = true;
+      clearInterval(timerInterval);
+      clearTimeout(reminderResetTimer);
+      clearTimeout(cueTimer);
+      if (themeObserver) themeObserver.disconnect();
+      finishDrag(dragPointerId);
+      floatEl.remove();
+      self._pomodoroTimer = null;
+      if (options.preserveSession) persistSession();
+      else clearSession();
+    }
+    floatEl._cockpitDestroy = destroyPomodoro;
+    closeBtn.onclick = () => destroyPomodoro();
 
     // 拖拽
     let dragOffsetX = 0, dragOffsetY = 0;
@@ -389,13 +552,25 @@ function createPomodoro(view, root) {
         persistSession();
       } else {
         // 开始
+        if (!isBreak && remaining === totalSeconds && boundTask) {
+          const liveTodo = (self._todos || []).find((todo) => todo.id === boundTask.id && !todo.done);
+          if (!liveTodo) {
+            boundTask = null;
+            setTaskActionsVisible(false);
+            renderTaskPicker();
+            persistSession();
+            new obsidian.Notice(self._lang() === 'en' ? 'The linked task is no longer pending. Choose another task.' : '关联待办已完成或不存在，请重新选择。');
+            return;
+          }
+          boundTask = pomodoroTaskRef(liveTodo);
+        }
         isRunning = true;
         startLabelKey = 'pomodoro.pause';
         statusKey = isBreak ? 'pomodoro.resting' : 'pomodoro.focusing';
         statusEl.style.color = isBreak ? '#22c55e' : '#ef4444';
         syncPomodoroText();
         persistSession();
-        timerInterval = setInterval(() => {
+        timerInterval = setInterval(async () => {
           remaining--;
           updateDisplay();
           if (remaining <= 0) {
@@ -403,15 +578,9 @@ function createPomodoro(view, root) {
             isRunning = false;
             if (!isBreak) {
               // 专注完成
-              self._focusMinutes = (self._focusMinutes || 0) + 25;
-              // 持久化到文件
-              (async () => {
-                try {
-                  const today = window.moment().format('YYYY-MM-DD');
-                  await self._saveFocusHistory(today, self._focusMinutes);
-                  if (self._focusHistory) self._focusHistory.set(today, self._focusMinutes);
-                } catch(e) { console.warn('save focus', e); }
-              })();
+              if (boundTask) {
+                setTaskActionsVisible(true);
+              }
               statusKey = 'pomodoro.completedOne';
               statusEl.style.color = '#22c55e';
               startLabelKey = 'pomodoro.startBreak';
@@ -419,7 +588,28 @@ function createPomodoro(view, root) {
               totalSeconds = 5 * 60;
               remaining = totalSeconds;
               flashCue(t('pomodoro.readyForBreak'), '#22c55e', 3600, false, 'pomodoro.readyForBreak');
-              // 刷新统计
+              const completion = {
+                id:'focus-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
+                day:window.moment().format('YYYY-MM-DD'),
+                minutes:25,
+                currentFocusMinutes:self._focusMinutes || 0,
+                task:boundTask ? { id:boundTask.id, text:boundTask.text } : null,
+                completedAt:new Date().toISOString()
+              };
+              pendingCompletion = completion;
+              try {
+                // data.json 中的任务统计与“已切到休息”状态一次提交；focus.md 失败时会在下次启动补写。
+                pendingCompletion = null;
+                const outcome = await self._commitPomodoroCompletion(completion, currentSession());
+                await self._applyPomodoroCompletionToFocusHistory(outcome.entry);
+                syncTaskMeta();
+              } catch (e) {
+                console.warn('Cockpit: commit focus completion failed', e);
+                // 若首次 data.json 提交失败，把同一个 completion ID 放进会话；恢复时仍按幂等键补记。
+                pendingCompletion = completion;
+                new obsidian.Notice(self._lang() === 'en' ? 'Focus was completed, but saving failed. Cockpit will retry on next launch.' : '专注已完成，但保存失败；Cockpit 会在下次启动时重试。');
+                await persistSession();
+              }
               if (self._updateStatsRef) self._updateStatsRef();
             } else {
               // 休息完成
@@ -431,7 +621,7 @@ function createPomodoro(view, root) {
               remaining = totalSeconds;
               flashCue(t('pomodoro.readyForFocus'), BREAK_ACCENT, 5200, minimized || document.hidden, 'pomodoro.readyForFocus');
             }
-            persistSession();
+            if (isBreak === false) await persistSession();
             updateDisplay();
           }
         }, 1000);
@@ -455,7 +645,6 @@ function createPomodoro(view, root) {
 
     // 保存引用
     self._pomodoroTimer = timerInterval;
-    self._updateStatsRef = null; // 将在 _buildAll 中设置
 
     startBtn.onmouseenter = () => { startBtn.style.transform = 'translateY(-1px)'; };
     startBtn.onmouseleave = () => { startBtn.style.transform = 'translateY(0)'; };
@@ -468,6 +657,9 @@ function createPomodoro(view, root) {
       toggleBtn.textContent = '+';
       if (!isMobile) floatEl.style.width = '126px';
     }
+    renderTaskPicker();
+    if (initialTodo) floatEl._cockpitSelectTask(initialTodo);
     updateDisplay();
     if (restoredSession?.isRunning) startBtn.onclick();
+    return floatEl;
 }

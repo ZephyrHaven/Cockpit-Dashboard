@@ -20,4 +20,9 @@ assert.deepEqual(ranked.map((file) => file.path), ['work/project/weekly-plan.md'
 assert.equal(context.rankSearchFiles(files, '   ').length, 0);
 assert.match(source, /_contentCache/, 'Content reads are cached while the modal remains open.');
 assert.match(source, /_queryCache/, 'Repeated queries reuse completed results.');
+assert.match(source, /Filename matches|文件名命中/, 'Search results are grouped by filename and content matches.');
+assert.match(source, /createEl\('mark'/, 'Matched terms are highlighted.');
+assert.match(source, /evt\.metaKey[\s\S]*split/, 'Command-Enter opens a result in a split.');
+assert.match(source, /clipboard\.writeText/, 'Search can copy a note link directly.');
+assert.match(source, /_toggleBookmark/, 'Search can pin or unpin the selected result.');
 console.log('Search ranking checks passed');

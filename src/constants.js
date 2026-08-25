@@ -15,6 +15,30 @@ const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f9
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
 const RELEASE_HISTORY = [
   {
+    version: '1.2.0',
+    date: '2026-08-12',
+    title: {
+      'zh-CN': '时间流与自动化',
+      en: 'Timeline and Automation'
+    },
+    highlights: {
+      'zh-CN': [
+        '首页新增“今天”行动队列，可集中处理逾期、今日到期、高优先级和待安排任务，并支持批量完成、延期和日历排期。',
+        '番茄钟可绑定具体待办，专注结束后可直接完成、继续或延期，并按任务累计专注时间。',
+        '日历提供会记住选择的月视图、周视图和更紧凑的今日时间流；RSS 增加未读、稍后读、来源筛选与阅读进度。',
+        '新增可选的定时任务模块，可运行 Toolbar 动作、Obsidian 命令或桌面端 Shell 命令，并查看、清除成功与失败审计记录。',
+        '情景布局支持自动切换，统计卡片可在编辑布局时排序和隐藏，首页模块标题也可以按情景自定义。'
+      ],
+      en: [
+        'Added a Today action queue for overdue, due-today, high-priority, and unscheduled tasks, including batch completion, deferral, and calendar scheduling.',
+        'Pomodoro can link to a todo, offer complete, continue, or defer actions afterward, and accumulate focus time per task.',
+        'Calendar now remembers the selected month or week view and offers a compact daily timeline; RSS adds unread, read-later, source filters, and reading progress.',
+        'Added an optional scheduled-task module for Toolbar actions, Obsidian commands, or desktop Shell commands with success/failure audit history and log clearing.',
+        'Layout scenes support automatic switching; stat cards can be reordered or hidden, and module titles can be customized per scene.'
+      ]
+    }
+  },
+  {
     version: '1.1.4',
     date: '2026-07-27',
     title: {
@@ -189,6 +213,7 @@ const I18N = {
       bookmarks: '⭐ 收藏文件',
       flash: '⚡ 闪念胶囊',
       focusChart: '🍅 专注趋势',
+      scheduledTasks: '⏱ 定时任务',
       heatmap: '📈 编辑热力图（近30天）'
     },
     greetings: {
@@ -201,7 +226,11 @@ const I18N = {
     hero: {
       defaultName: '点击修改名称',
       today: ({ date }) => '今天是 ' + date,
-      dueTodos: ({ count, icon }) => '您有 ' + count + ' 件' + icon + '截止待办',
+      dueTodos: ({ overdue, today, tomorrow }) => [
+        overdue ? '已逾期 ' + overdue + ' 项' : '',
+        today ? '今日到期 ' + today + ' 项' : '',
+        tomorrow ? '明日到期 ' + tomorrow + ' 项' : ''
+      ].filter(Boolean).join(' · '),
       vaultDays: ({ days }) => '• 知识库已陪伴你 ' + days + ' 天',
       language: '界面语言'
     },
@@ -291,11 +320,21 @@ const I18N = {
     todo: {
       add: '新增待办',
       refresh: '刷新待办',
+      today: '今天行动',
       all: '全部',
       todo: '待办',
       done: '已办',
       stateDone: '已完成',
       stateDoing: '进行中',
+      todaySummary: ({ count }) => '今天行动 · ' + count + ' 项',
+      groupOverdue: '已逾期',
+      groupToday: '今天到期',
+      groupPriority: '高优先级',
+      groupInbox: '待安排',
+      deferOverdue: '逾期全部移到明天',
+      todayEmpty: '今天已经清空了，做点真正重要的事吧 ✦',
+      filterEmpty: '当前筛选下没有待办',
+      focusTask: '专注此任务',
       placeholder: '输入待办标题...',
       overdue: ({ date }) => '⚠️ 已过期: ' + date,
       dueToday: '⏰ 今天到期',
@@ -321,7 +360,7 @@ const I18N = {
       cancel: '取消',
       saveNew: '创建',
       saveEdit: '保存',
-      legacyHint: '也兼容 #标签 due:YYYY-MM-DD p:high'
+      legacyHint: '也兼容 #标签 due:YYYY-MM-DDTHH:mm p:high'
     },
     recent: {
       star: '收藏',
@@ -369,7 +408,15 @@ const I18N = {
       breakEnd: '休息结束',
       readyForFocus: '休息完成，继续工作',
       backToWork: '回到专注',
-      focusLogTitle: '专注记录'
+      focusLogTitle: '专注记录',
+      selectTask: '关联待办',
+      noTask: '不关联任务',
+      taskMinutes: ({ minutes }) => minutes + ' min',
+      taskBound: ({ task }) => '已关联：' + task,
+      completeTask: '完成任务',
+      keepTask: '继续任务',
+      deferTask: '移到明天',
+      taskNextAction: '本轮专注后的任务操作'
     },
     onboarding: {
       stepName: '✏️ 这里可以切换界面语言，也可以点击昵称直接修改名字',
@@ -403,6 +450,7 @@ const I18N = {
       bookmarks: '⭐ Starred Notes',
       flash: '⚡ Quick Capture',
       focusChart: '🍅 Focus Trend',
+      scheduledTasks: '⏱ Scheduled Tasks',
       heatmap: '📈 Edit Heatmap (30d)'
     },
     greetings: {
@@ -415,7 +463,11 @@ const I18N = {
     hero: {
       defaultName: 'Click to rename',
       today: ({ date }) => 'Today is ' + date,
-      dueTodos: ({ count, icon }) => 'You have ' + count + ' ' + icon + ' tasks due soon',
+      dueTodos: ({ overdue, today, tomorrow }) => [
+        overdue ? overdue + ' overdue' : '',
+        today ? today + ' due today' : '',
+        tomorrow ? tomorrow + ' due tomorrow' : ''
+      ].filter(Boolean).join(' · '),
       vaultDays: ({ days }) => '• Your vault has been with you for ' + days + ' days',
       language: 'Interface language'
     },
@@ -505,11 +557,21 @@ const I18N = {
     todo: {
       add: 'Add task',
       refresh: 'Refresh tasks',
+      today: 'Today',
       all: 'All',
       todo: 'Open',
       done: 'Done',
       stateDone: 'Done',
       stateDoing: 'In progress',
+      todaySummary: ({ count }) => 'Today · ' + count + ' actions',
+      groupOverdue: 'Overdue',
+      groupToday: 'Due today',
+      groupPriority: 'High priority',
+      groupInbox: 'Unscheduled',
+      deferOverdue: 'Move overdue to tomorrow',
+      todayEmpty: 'Today is clear. Make room for what matters ✦',
+      filterEmpty: 'No tasks match this filter',
+      focusTask: 'Focus on this task',
       placeholder: 'Type a task title...',
       overdue: ({ date }) => '⚠️ Overdue: ' + date,
       dueToday: '⏰ Due today',
@@ -535,7 +597,7 @@ const I18N = {
       cancel: 'Cancel',
       saveNew: 'Create',
       saveEdit: 'Save',
-      legacyHint: 'Also supports #tags due:YYYY-MM-DD p:high'
+      legacyHint: 'Also supports #tags due:YYYY-MM-DDTHH:mm p:high'
     },
     recent: {
       star: 'Star',
@@ -583,7 +645,15 @@ const I18N = {
       breakEnd: 'Break finished',
       readyForFocus: 'Break over, back to focus',
       backToWork: 'Back to focus',
-      focusLogTitle: 'Focus Log'
+      focusLogTitle: 'Focus Log',
+      selectTask: 'Linked task',
+      noTask: 'No linked task',
+      taskMinutes: ({ minutes }) => minutes + ' min',
+      taskBound: ({ task }) => 'Linked: ' + task,
+      completeTask: 'Complete task',
+      keepTask: 'Keep working',
+      deferTask: 'Move to tomorrow',
+      taskNextAction: 'Task actions after this focus session'
     },
     onboarding: {
       stepName: '✏️ Use this area to switch interface language and rename yourself quickly.',
