@@ -13,6 +13,148 @@ const LANG_OPTIONS = [
 const E = { wave:'👋', search:'🔍', tag:'🏷️', graph:'🕸️', bolt:'⚡', folder:'📂', rule:'📋', gear:'⚙️', robot:'🤖', box:'📦', chart:'📊', pencil:'✏️', check:'✅', save:'💾', edit:'✏️', del:'✕', cal:'📅' };
 const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f97316','#6366f1'];
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
+const RELEASE_HISTORY = [
+  {
+    version: '1.0.8',
+    date: '2026-07-06',
+    title: {
+      'zh-CN': '编辑模式、更新记录与日历体验升级',
+      en: 'Edit Mode, Release Notes, and Calendar Refresh'
+    },
+    highlights: {
+      'zh-CN': [
+        '新增编辑模式，支持模块拖拽排序、隐藏与持久化布局。',
+        '右键菜单新增最近更新记录，内置本地版本历史弹窗。',
+        '重做日历看板，优化深浅色观感与语言切换可读性。'
+      ],
+      en: [
+        'Added Edit Mode with drag-to-reorder, hide/show controls, and persistent layout state.',
+        'Added Recent Updates to the context menu with a built-in local release-notes modal.',
+        'Refreshed the calendar board with better light/dark visuals and improved language-toggle legibility.'
+      ]
+    }
+  },
+  {
+    version: '1.0.7',
+    date: '2026-07-04',
+    title: {
+      'zh-CN': '语言切换与交互细节优化',
+      en: 'Language Toggle and Interaction Polish'
+    },
+    highlights: {
+      'zh-CN': [
+        '新增中英文界面切换。',
+        '增强按钮按压、悬停和动效反馈。',
+        '整体交互细节更顺手。'
+      ],
+      en: [
+        'Added Chinese and English UI switching.',
+        'Improved hover, press, and motion feedback for key actions.',
+        'Polished interaction details across the dashboard.'
+      ]
+    }
+  },
+  {
+    version: '1.0.6',
+    date: '2026-07-04',
+    title: {
+      'zh-CN': '界面打磨与 README 双语化',
+      en: 'Dashboard Polish and Bilingual README'
+    },
+    highlights: {
+      'zh-CN': [
+        '优化 Dashboard 视觉细节。',
+        '补充并整理双语 README。',
+        '发布流程说明更完整。'
+      ],
+      en: [
+        'Refined the visual details of the dashboard.',
+        'Expanded and organized the bilingual README.',
+        'Made the release workflow documentation more complete.'
+      ]
+    }
+  },
+  {
+    version: '1.0.4',
+    date: '2026-06-13',
+    title: {
+      'zh-CN': '修复配置解析异常',
+      en: 'Fix Configuration Parsing Errors'
+    },
+    highlights: {
+      'zh-CN': [
+        '修复模板字面量中的正则反斜杠转义问题。',
+        '修复换行解析错误导致的配置读取失败。',
+        '重新构建主入口文件。'
+      ],
+      en: [
+        'Fixed regex backslash escaping inside template literals.',
+        'Fixed config loading failures caused by newline parsing issues.',
+        'Rebuilt the main bundled entry file.'
+      ]
+    }
+  },
+  {
+    version: '1.0.3',
+    date: '2026-06-13',
+    title: {
+      'zh-CN': '支持工具栏命令自定义',
+      en: 'Custom Toolbar Command Support'
+    },
+    highlights: {
+      'zh-CN': [
+        '新增 `_data/toolbar.md` 作为工具栏配置源。',
+        '驾驶舱和工作日志命令可按需修改。',
+        '首次加载时自动生成默认配置文件。'
+      ],
+      en: [
+        'Added `_data/toolbar.md` as the toolbar configuration source.',
+        'Made Cockpit and work-log commands customizable.',
+        'Generated default config automatically on first load.'
+      ]
+    }
+  },
+  {
+    version: '1.0.2',
+    date: '2026-06-11',
+    title: {
+      'zh-CN': '插件商店描述与样式修正',
+      en: 'Marketplace Copy and Style Cleanup'
+    },
+    highlights: {
+      'zh-CN': [
+        '修正插件描述文案。',
+        '去除不必要的 `!important`。',
+        '清理样式兼容性问题。'
+      ],
+      en: [
+        'Revised plugin marketplace copy.',
+        'Removed unnecessary `!important` rules.',
+        'Cleaned up style compatibility issues.'
+      ]
+    }
+  },
+  {
+    version: '1.0.1',
+    date: '2026-06-11',
+    title: {
+      'zh-CN': '通过插件商店审核准备',
+      en: 'Marketplace Review Preparation'
+    },
+    highlights: {
+      'zh-CN': [
+        '调整 manifest 与 README 以满足审核要求。',
+        '统一 CSS 注释格式。',
+        '补充 MIT LICENSE。'
+      ],
+      en: [
+        'Adjusted the manifest and README for marketplace review requirements.',
+        'Unified CSS comment formatting.',
+        'Added the MIT LICENSE.'
+      ]
+    }
+  }
+];
 
 const I18N = {
   'zh-CN': {
@@ -62,7 +204,27 @@ const I18N = {
       searchNotes: '搜索笔记',
       commandPalette: '命令面板',
       openGraph: '打开图谱',
-      startPomodoro: '启动番茄钟'
+      startPomodoro: '启动番茄钟',
+      releaseNotes: '最近更新记录'
+    },
+    layout: {
+      edit: '编辑模式',
+      done: '完成编辑',
+      editHint: '进入编辑模式后可上下拖动模块排序',
+      doneHint: '退出编辑模式',
+      dragHandle: ({ module }) => '拖动排序：' + module,
+      hide: '隐藏',
+      show: '显示',
+      hiddenTag: '已隐藏',
+      hideModule: ({ module }) => '隐藏模块：' + module,
+      showModule: ({ module }) => '显示模块：' + module,
+      modules: {
+        hero: '欢迎区',
+        tip: '每日小贴士',
+        toolbar: '快捷工具栏',
+        calendar: '日历看板',
+        footer: '页脚'
+      }
     },
     notices: {
       cockpitMissing: '🛩️ 驾驶舱未配置',
@@ -120,6 +282,11 @@ const I18N = {
     },
     footer: {
       text: '💾 h 持续维护 · 知识库是活的'
+    },
+    releases: {
+      title: '最近更新记录',
+      current: '当前版本',
+      empty: '暂时没有可展示的更新记录。'
     },
     pomodoro: {
       title: '🍅 番茄钟',
@@ -201,7 +368,27 @@ const I18N = {
       searchNotes: 'Search notes',
       commandPalette: 'Command palette',
       openGraph: 'Open graph view',
-      startPomodoro: 'Start Pomodoro'
+      startPomodoro: 'Start Pomodoro',
+      releaseNotes: 'Recent updates'
+    },
+    layout: {
+      edit: 'Edit Mode',
+      done: 'Done',
+      editHint: 'Turn on layout editing to drag modules up or down',
+      doneHint: 'Exit layout editing',
+      dragHandle: ({ module }) => 'Drag to reorder: ' + module,
+      hide: 'Hide',
+      show: 'Show',
+      hiddenTag: 'Hidden',
+      hideModule: ({ module }) => 'Hide module: ' + module,
+      showModule: ({ module }) => 'Show module: ' + module,
+      modules: {
+        hero: 'Hero',
+        tip: 'Daily Tip',
+        toolbar: 'Toolbar',
+        calendar: 'Calendar',
+        footer: 'Footer'
+      }
     },
     notices: {
       cockpitMissing: '🛩️ Dashboard command is not configured',
@@ -259,6 +446,11 @@ const I18N = {
     },
     footer: {
       text: '💾 Maintained continuously · Keep the vault alive'
+    },
+    releases: {
+      title: 'Recent updates',
+      current: 'Current version',
+      empty: 'No update records are available yet.'
     },
     pomodoro: {
       title: '🍅 Pomodoro',

@@ -2,7 +2,7 @@
 var obsidian = require('obsidian');
 
 // ===== styles.css =====
-const CSS = "/* styles.css — Cockpit Dashboard v2 */\n/* Note: ${PLUGIN_ID} has been replaced with cockpit-dashboard */\n\n:root {\n  --cockpit-accent: #48b4ff;\n  --cockpit-accent-light: rgba(72,180,255,0.12);\n  --cockpit-accent-glow: rgba(72,180,255,0.25);\n}\n\n.cockpit-dashboard-root { \n  padding: 16px 24px; \n  max-width: 960px; \n  margin: 0 auto; \n  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;\n  --accent: var(--cockpit-accent);\n  --accent-light: var(--cockpit-accent-light);\n}\n.cockpit-dashboard-root ::selection {\n  background: rgba(72,180,255,0.18);\n  color: var(--text-normal);\n}\n.cockpit-dashboard-hero { \n  text-align: center; \n  padding: 20px 20px 14px; \n  background: linear-gradient(135deg, rgba(72,180,255,0.06), rgba(167,139,250,0.03));\n  border-radius: 16px;\n  margin: 8px 0 12px;\n  border: 1px solid rgba(72,180,255,0.08);\n  position: relative;\n}\n.cockpit-dashboard-hero-controls {\n  position: absolute;\n  top: 14px;\n  right: 14px;\n  display: flex;\n  justify-content: flex-end;\n  z-index: 3;\n}\n.cockpit-dashboard-lang-switch {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  padding: 4px;\n  border-radius: 999px;\n  background: linear-gradient(180deg, rgba(255,255,255,0.78), rgba(235,243,255,0.82));\n  border: 1px solid rgba(72,180,255,0.1);\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);\n  backdrop-filter: blur(14px) saturate(1.1);\n  user-select: none;\n  -webkit-user-select: none;\n  touch-action: manipulation;\n  pointer-events: auto;\n}\n.cockpit-dashboard-lang-btn {\n  border: none;\n  background: transparent;\n  color: var(--text-muted);\n  font-size: 0.7em;\n  font-weight: 700;\n  letter-spacing: 0.03em;\n  padding: 5px 10px;\n  border-radius: 999px;\n  cursor: pointer;\n  position: relative;\n  overflow: hidden;\n  user-select: none;\n  -webkit-user-select: none;\n  transition: transform 0.18s ease, filter 0.18s ease, color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;\n}\n.cockpit-dashboard-lang-btn:hover {\n  color: var(--text-normal);\n  background: rgba(72,180,255,0.08);\n  filter: saturate(1.08) brightness(1.02);\n  transform: translateY(-1px);\n}\n.cockpit-dashboard-lang-btn.active {\n  color: white;\n  background: linear-gradient(135deg, #48b4ff, #6bc8ff);\n  box-shadow: 0 6px 16px rgba(72,180,255,0.22);\n}\n.cockpit-dashboard-lang-btn::after {\n  content: '';\n  position: absolute;\n  inset: 0;\n  background: radial-gradient(circle at center, rgba(255,255,255,0.42), rgba(255,255,255,0));\n  opacity: 0;\n  transform: scale(0.6);\n  transition: opacity 0.18s ease, transform 0.22s ease;\n}\n.cockpit-dashboard-lang-btn:hover::after {\n  opacity: 0.5;\n  transform: scale(1);\n}\n.cockpit-dashboard-lang-btn.pressing {\n  transform: scale(0.96);\n  filter: saturate(1.12) brightness(0.98);\n}\n.cockpit-dashboard-lang-btn.pressing::after {\n  opacity: 0.68;\n  transform: scale(1.08);\n}\n.cockpit-dashboard-greeting { \n  font-size: 1.5em; \n  font-weight: 800; \n  background: linear-gradient(135deg, #48b4ff, #60c0ff, #a78bfa);\n  -webkit-background-clip: text;\n  -webkit-text-fill-color: transparent;\n  background-clip: text;\n  padding: 0 88px;\n}\n.cockpit-dashboard-sub { \n  color: var(--text-muted); \n  font-size: 0.78em; \n  margin-top: 4px;\n  letter-spacing: 0.02em;\n}\n.cockpit-dashboard-toolbar { \n  display: flex; \n  gap: 10px; \n  justify-content: center; \n  flex-wrap: wrap; \n  margin: 16px 0;\n}\n.cockpit-dashboard-toolbtn { \n  display: flex; \n  align-items: center; \n  gap: 6px; \n  padding: 8px 16px; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 12px; \n  color: var(--text-normal); \n  font-size: 0.82em; \n  font-weight: 600; \n  cursor: pointer; \n  position: relative;\n  overflow: hidden;\n  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s ease;\n}\n.cockpit-dashboard-toolbtn:hover { \n  border-color: var(--interactive-accent); \n  box-shadow: 0 4px 16px rgba(72,180,255,0.15); \n  transform: translateY(-2px);\n  filter: saturate(1.06) brightness(1.01);\n}\n.cockpit-dashboard-toolbtn.primary { \n  background: var(--interactive-accent); \n  border-color: var(--interactive-accent); \n  color: white;\n  box-shadow: 0 2px 8px rgba(72,180,255,0.2);\n}\n.cockpit-dashboard-toolbtn.primary:hover {\n  box-shadow: 0 6px 20px rgba(72,180,255,0.3);\n  transform: translateY(-3px);\n}\n.cockpit-dashboard-toolbtn:active,\n.cockpit-dashboard-status-btn:active,\n.cockpit-dashboard-todo-tab:active,\n.cockpit-dashboard-cal-nav-btn:active,\n.cockpit-dashboard-todo-add:active,\n.cockpit-dashboard-todo-btn:active,\n.cockpit-dashboard-bookmark-btn:active,\n.cockpit-dashboard-cat:active,\n.cockpit-dashboard-stat:active,\n.cockpit-dashboard-recent-item:active {\n  transform: scale(0.98);\n  filter: saturate(1.08) brightness(0.98);\n}\n.cockpit-dashboard-icon { font-size: 1.1em; }\n.cockpit-dashboard-section-title { \n  position: relative;\n  font-size: 0.92em; \n  font-weight: 700; \n  color: var(--text-normal); \n  margin: 22px 0 12px; \n  padding: 0 0 10px 2px;\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n.cockpit-dashboard-section-title::before {\n  content: '';\n  position: absolute;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  height: 1px;\n  background: linear-gradient(90deg, rgba(72,180,255,0.16), rgba(72,180,255,0.08) 34%, rgba(72,180,255,0) 74%);\n}\n.cockpit-dashboard-section-title::after {\n  content: '';\n  position: absolute;\n  left: 2px;\n  bottom: -1px;\n  width: 44px;\n  height: 3px;\n  border-radius: 999px;\n  background: linear-gradient(90deg, rgba(72,180,255,0.9), rgba(167,139,250,0.55));\n  box-shadow: 0 0 12px rgba(72,180,255,0.16);\n}\n.cockpit-dashboard-cats { \n  display: grid; \n  grid-template-columns: repeat(4, 1fr); \n  gap: 12px;\n}\n.cockpit-dashboard-cat { \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 14px; \n  padding: 14px; \n  cursor: pointer; \n  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); \n  border-left: 4px solid var(--cat-clr, var(--interactive-accent));\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-cat::before {\n  content: '';\n  position: absolute;\n  top: 0;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  background: linear-gradient(135deg, var(--cat-clr), transparent);\n  opacity: 0.04;\n  transition: opacity 0.25s;\n}\n.cockpit-dashboard-cat:hover { \n  border-color: var(--cat-clr, var(--interactive-accent)); \n  box-shadow: 0 6px 24px rgba(72,180,255,0.12); \n  transform: translateY(-3px);\n}\n.cockpit-dashboard-cat:hover::before { opacity: 0.08; }\n.cockpit-dashboard-cat-icon { font-size: 1.5em; margin-bottom: 6px; }\n.cockpit-dashboard-cat-name { font-weight: 600; font-size: 0.86em; }\n.cockpit-dashboard-cat-count { font-size: 0.72em; color: var(--text-muted); margin-top: 2px; }\n.cockpit-dashboard-todo-header { display:flex; align-items:center; gap:6px; margin:16px 0 8px; padding-bottom:6px; border-bottom:1px solid var(--background-modifier-border); }\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title { margin:0; padding:0; border:none; flex:1; }\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title::before,\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title::after { display:none; }\n.cockpit-dashboard-todo-add { \n  width: 26px; \n  height: 26px; \n  display: flex; \n  align-items: center; \n  justify-content: center; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 8px; \n  color: var(--text-muted); \n  font-size: 1.15em; \n  font-weight: 700; \n  cursor: pointer; \n  transition: all 0.2s; \n  line-height: 1;\n}\n.cockpit-dashboard-todo-add:hover { \n  border-color: var(--interactive-accent); \n  color: var(--interactive-accent); \n  box-shadow: 0 0 12px rgba(72,180,255,0.2);\n  transform: scale(1.1);\n}\n.cockpit-dashboard-todos { \n  display: flex; \n  flex-direction: column; \n  gap: 6px; \n  margin-bottom: 16px;\n}\n.cockpit-dashboard-todo { \n  display: flex; \n  align-items: center; \n  gap: 10px; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 12px; \n  padding: 10px 12px; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);\n}\n.cockpit-dashboard-todo:hover { \n  border-color: var(--interactive-accent);\n  box-shadow: 0 2px 12px rgba(72,180,255,0.08);\n  transform: translateX(2px);\n}\n.cockpit-dashboard-todo-chk { \n  width: 22px; \n  height: 22px; \n  border: 2px solid var(--background-modifier-border); \n  border-radius: 7px; \n  flex-shrink: 0; \n  display: flex; \n  align-items: center; \n  justify-content: center; \n  font-size: 0.75em; \n  color: white; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); \n  cursor: pointer;\n}\n.cockpit-dashboard-todo-chk:hover { \n  border-color: var(--interactive-accent); \n  box-shadow: 0 0 6px rgba(72,180,255,0.2);\n}\n.cockpit-dashboard-todo.done .cockpit-dashboard-todo-chk { background:#22c55e; border-color:#22c55e; }\n.cockpit-dashboard-todo-main { flex:1; min-width:0; }\n.cockpit-dashboard-todo-text { font-size:0.84em; cursor:pointer; }\n.cockpit-dashboard-todo.done .cockpit-dashboard-todo-text { text-decoration:line-through; color:var(--text-muted); }\n.cockpit-dashboard-todo-meta { font-size:0.68em; color:var(--text-muted); margin-top:2px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }\n.cockpit-dashboard-todo-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }\n.cockpit-dashboard-todo-btn { width:22px; height:22px; border-radius:5px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.8em; color:var(--text-muted); transition:all 0.15s; border:1px solid transparent; }\n.cockpit-dashboard-todo-btn:hover { border-color:var(--interactive-accent); color:var(--interactive-accent); }\n.cockpit-dashboard-todo-btn.del:hover { border-color:#ef4444; color:#ef4444; }\n.cockpit-dashboard-todo-tag { font-size:0.64em; padding:1px 7px; border-radius:8px; flex-shrink:0; }\n.tag-todo { background:rgba(72,180,255,0.15); color:#48b4ff; }\n.tag-done { background:rgba(34,197,94,0.12); color:#4ade80; }\n.cockpit-dashboard-todo-input-row { display:flex; align-items:center; gap:6px; background:var(--background-secondary); border:1px solid var(--background-modifier-border); border-radius:9px; padding:6px 8px; margin-bottom:4px; animation:dashFadeIn 0.15s ease; }\n@keyframes dashFadeIn { \n  from {opacity:0;transform:translateY(-6px)} \n  to {opacity:1;transform:translateY(0)} \n}\n@keyframes dashSlideUp {\n  from {opacity:0;transform:translateY(8px)}\n  to {opacity:1;transform:translateY(0)}\n}\n.cockpit-dashboard-todo-input-field { flex:1; border:none; outline:none; background:transparent; color:var(--text-normal); font-size:0.84em; padding:2px 4px; }\n.cockpit-dashboard-todo-input-field::placeholder { color:var(--text-muted); opacity:0.7; }\n.cockpit-dashboard-todo-input-ok, .cockpit-dashboard-todo-input-cancel { width:24px; height:24px; border-radius:5px; border:1px solid var(--background-modifier-border); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.75em; color:var(--text-muted); background:var(--background-secondary); transition:all 0.15s; flex-shrink:0; }\n.cockpit-dashboard-todo-input-ok:hover { border-color:#22c55e; color:#22c55e; }\n.cockpit-dashboard-todo-input-cancel:hover { border-color:#ef4444; color:#ef4444; }\n.cockpit-dashboard-stats { \n  display: grid; \n  grid-template-columns: repeat(5, 1fr); \n  gap: 12px;\n}\n.cockpit-dashboard-stat { \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 14px; \n  padding: 12px 14px; \n  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-stat::after {\n  content: '';\n  position: absolute;\n  top: 0;\n  right: 0;\n  width: 60px;\n  height: 60px;\n  background: radial-gradient(circle at top right, var(--stat-clr, var(--interactive-accent)), transparent 70%);\n  opacity: 0.08;\n  transition: opacity 0.25s;\n}\n.cockpit-dashboard-stat:hover {\n  box-shadow: 0 4px 20px rgba(72,180,255,0.1);\n  transform: translateY(-2px);\n}\n.cockpit-dashboard-stat:hover::after { opacity: 0.15; }\n.cockpit-dashboard-stat-label { font-size:0.64em; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:3px; }\n.cockpit-dashboard-stat-val { font-size:1.3em; font-weight:700; color:var(--stat-clr,var(--interactive-accent)); }\n.cockpit-dashboard-stat-bar { height:3px; background:var(--background-modifier-border); border-radius:2px; margin-top:5px; overflow:hidden; }\n.cockpit-dashboard-stat-fill { height:100%; border-radius:2px; background:var(--stat-clr,var(--interactive-accent)); transition:width 0.5s ease; }\n.cockpit-dashboard-recent { display:flex; flex-direction:column; gap:3px; }\n.cockpit-dashboard-recent-item { display:flex; align-items:center; justify-content:space-between; background:var(--background-secondary); border-radius:7px; padding:6px 10px; }\n.cockpit-dashboard-recent-link { color:var(--text-accent); text-decoration:none; font-size:0.84em; cursor:pointer; }\n.cockpit-dashboard-recent-link:hover { color:var(--text-accent-hover); }\n.cockpit-dashboard-recent-time { font-size:0.7em; color:var(--text-muted); flex-shrink:0; }\n.cockpit-dashboard-footer { \n  text-align: center; \n  color: var(--text-muted); \n  font-size: 0.68em; \n  padding: 16px 0 8px;\n  border-top: 1px solid var(--background-modifier-border);\n  margin-top: 16px;\n}\n/* 待办页签 */\n.cockpit-dashboard-todo-tabs-wrap { margin:4px 0 8px; }\n.cockpit-dashboard-todo-tabs { display:flex; gap:4px; flex-wrap:wrap; }\n.cockpit-dashboard-todo-tab { padding:4px 12px; border-radius:14px; border:1px solid var(--background-modifier-border); background:var(--background-secondary); color:var(--text-muted); font-size:0.76em; font-weight:500; cursor:pointer; transition:all 0.15s; }\n.cockpit-dashboard-todo-tab:hover { border-color:var(--interactive-accent); color:var(--interactive-accent); }\n.cockpit-dashboard-todo-tab.active { background:var(--interactive-accent); border-color:var(--interactive-accent); color:white; }\n/* 标签胶囊 */\n.cockpit-dashboard-todo-tag-pill { \n  display: inline-block; \n  font-size: 0.62em; \n  padding: 1px 6px; \n  margin: 0 3px; \n  border-radius: 7px; \n  background: rgba(72,180,255,0.13); \n  color: #48b4ff; \n  cursor: pointer; \n  font-weight: 500; \n  transition: all 0.12s;\n}\n.cockpit-dashboard-todo-tag-pill:hover { \n  background: rgba(72,180,255,0.28); \n  color: #1a5a1a;\n}\n/* 优先级圆点 */\n.cockpit-dashboard-todo-pdot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }\n.p-high { background:#ef4444; box-shadow:0 0 4px rgba(239,68,68,0.5); }\n.p-mid { background:#f59e0b; }\n.p-low { background:#22c55e; }\n/* 截止日期 */\n.cockpit-dashboard-todo-due { font-size:0.64em; margin-left:4px; padding:1px 5px; border-radius:4px; }\n.due-overdue { background:rgba(239,68,68,0.15); color:#ef4444; }\n.due-today { background:rgba(245,158,11,0.15); color:#f59e0b; }\n.due-future { color:var(--text-muted); }\n/* 优先级选择 */\n.cockpit-dashboard-prio-picker { display:flex; gap:3px; margin-left:6px; }\n.cockpit-dashboard-prio-opt { width:18px; height:18px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:all 0.12s; }\n.cockpit-dashboard-prio-opt:hover { transform:scale(1.2); }\n.cockpit-dashboard-prio-opt.sel { border-color:var(--text-normal); }\n/* 热力图 */\n.cockpit-dashboard-heatmap-wrap { padding:8px 0 4px; }\n.cockpit-dashboard-heatmap { display:grid; grid-template-columns:repeat(10,1fr); gap:4px; }\n.cockpit-dashboard-hm-cell { \n  width: 100%; \n  padding-bottom: 100%; \n  border-radius: 6px; \n  background: var(--background-modifier-border); \n  cursor: default; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); \n  position: relative;\n}\n.cockpit-dashboard-hm-cell:hover { \n  transform: scale(1.25); \n  box-shadow: 0 0 8px rgba(72,180,255,0.4); \n  z-index: 2;\n}\n.cockpit-dashboard-hm-cell[title]:hover::after { content:attr(title); position:absolute; bottom:120%; left:50%; transform:translateX(-50%); background:var(--background-secondary); color:var(--text-normal); font-size:0.6em; padding:3px 7px; border-radius:5px; white-space:nowrap; z-index:10; border:1px solid var(--background-modifier-border); box-shadow:0 2px 8px rgba(0,0,0,0.12); }\n.cockpit-dashboard-hm-legend { display:flex; align-items:center; gap:4px; margin-top:6px; justify-content:flex-end; }\n.cockpit-dashboard-hm-legend-label { font-size:0.6em; color:var(--text-muted); }\n.cockpit-dashboard-hm-legend-cell { width:12px; height:12px; border-radius:3px; }\n/* 迷你搜索 */\n.cockpit-dashboard-search-row { display:flex; gap:6px; margin:8px 0; }\n.cockpit-dashboard-search-input { flex:1; padding:6px 10px; border:1px solid var(--background-modifier-border); border-radius:7px; background:var(--background-secondary); color:var(--text-normal); font-size:0.82em; outline:none; }\n.cockpit-dashboard-search-input:focus { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px rgba(72,180,255,0.1); }\n.cockpit-dashboard-search-results { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; }\n.cockpit-dashboard-search-item { display:flex; align-items:center; justify-content:space-between; padding:5px 8px; border-radius:6px; cursor:pointer; transition:background 0.12s; }\n.cockpit-dashboard-search-item:hover { \n  background: var(--background-secondary);\n  transform: translateX(2px);\n  filter: saturate(1.03);\n}\n.cockpit-dashboard-search-name { font-size:0.8em; color:var(--text-accent); }\n.cockpit-dashboard-search-path { font-size:0.64em; color:var(--text-muted); }\n/* 收藏 */\n.cockpit-dashboard-bookmark-btn { cursor:pointer; font-size:0.85em; color:var(--text-muted); transition:all 0.12s; padding:2px 4px; border-radius:4px; }\n.cockpit-dashboard-bookmark-btn:hover { \n  color: #f59e0b; \n  background: rgba(245,158,11,0.1);\n  transform: scale(1.1);\n  filter: saturate(1.08);\n}\n.cockpit-dashboard-bookmark-btn.starred { color:#f59e0b; }\n/* 闪念胶囊 */\n.cockpit-dashboard-flash-row { display:flex; gap:6px; margin:4px 0 8px; }\n.cockpit-dashboard-flash-input { flex:1; padding:6px 10px; border:1px solid var(--background-modifier-border); border-radius:7px; background:var(--background-secondary); color:var(--text-normal); font-size:0.82em; outline:none; }\n.cockpit-dashboard-flash-input:focus { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px rgba(72,180,255,0.1); }\n.cockpit-dashboard-flash-ok { font-size:0.72em; color:#22c55e; padding:4px 8px; border-radius:5px; }\n/* 每日小贴士 */\n.cockpit-dashboard-tip { \n  background: linear-gradient(135deg, rgba(72,180,255,0.08), rgba(72,180,255,0.03)); \n  border: 1px solid rgba(72,180,255,0.15); \n  border-radius: 12px; \n  padding: 12px 16px; \n  margin: 12px 0;\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-tip::before {\n  content: '';\n  position: absolute;\n  top: 0;\n  left: 0;\n  width: 4px;\n  height: 100%;\n  background: linear-gradient(180deg, #48b4ff, #a78bfa);\n  border-radius: 4px 0 0 4px;\n}\n.cockpit-dashboard-tip-label { font-size:0.64em; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:4px; }\n.cockpit-dashboard-tip-text { font-size:0.82em; color:var(--text-normal); line-height:1.5; }\n/* 状态筛选 */\n.cockpit-dashboard-status-tabs { display:flex; gap:4px; margin:0; align-items:center; }\n.cockpit-dashboard-status-btn { padding:3px 10px; border-radius:12px; border:1px solid var(--background-modifier-border); background:var(--background-secondary); color:var(--text-muted); font-size:0.72em; font-weight:500; cursor:pointer; transition:all 0.15s; }\n.cockpit-dashboard-status-btn:hover { \n  border-color: var(--interactive-accent); \n  color: var(--interactive-accent); \n  box-shadow: 0 2px 6px rgba(72,180,255,0.1);\n  filter: saturate(1.05);\n}\n.cockpit-dashboard-status-btn.active { background:var(--interactive-accent); border-color:var(--interactive-accent); color:white; }\n/* 日历看板 */\n.cockpit-dashboard-cal-wrap { margin:10px 0; }\n.cockpit-dashboard-cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }\n.cockpit-dashboard-cal-title { font-size:0.88em; font-weight:700; color:var(--text-normal); }\n.cockpit-dashboard-cal-nav { display:flex; gap:4px; }\n.cockpit-dashboard-cal-nav-btn { width:24px; height:24px; display:flex; align-items:center; justify-content:center; border:1px solid var(--background-modifier-border); border-radius:5px; background:var(--background-secondary); color:var(--text-muted); cursor:pointer; font-size:0.85em; transition:all 0.15s; }\n.cockpit-dashboard-cal-nav-btn:hover { \n  border-color: var(--interactive-accent); \n  color: var(--interactive-accent); \n  transform: scale(1.15);\n  box-shadow: 0 2px 6px rgba(72,180,255,0.15);\n  filter: saturate(1.08);\n}\n.cockpit-dashboard-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; transition:transform 0.3s ease, opacity 0.3s ease; }\n.cockpit-dashboard-cal-grid.slide-out-left { transform:translateX(-12px); opacity:0; }\n.cockpit-dashboard-cal-grid.slide-out-right { transform:translateX(12px); opacity:0; }\n.cockpit-dashboard-cal-grid.slide-in { animation:calSlideIn 0.25s ease forwards; }\n@keyframes calSlideIn { from{opacity:0;transform:translateX(12px)} to{opacity:1;transform:translateX(0)} }\n.cockpit-dashboard-cal-dow { text-align:center; font-size:0.6em; font-weight:600; color:var(--text-muted); padding:3px 0; text-transform:uppercase; letter-spacing:0.05em; }\n.cockpit-dashboard-cal-cell { \n  display: flex; \n  flex-direction: column; \n  align-items: center; \n  justify-content: center; \n  border-radius: 8px; \n  cursor: pointer; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); \n  font-size: 0.84em; \n  color: var(--text-muted); \n  border: 2px solid transparent; \n  min-height: 32px; \n  padding: 2px 0; \n  position: relative;\n}\n.cockpit-dashboard-cal-cell.cockpit-dashboard-cal-cell:hover { \n  background: var(--background-secondary); \n  border-color: var(--interactive-accent); \n  transform: scale(1.1); \n  box-shadow: 0 3px 10px rgba(72,180,255,0.15);\n}\n.cockpit-dashboard-cal-cell.today { \n  font-weight: 800; \n  color: var(--interactive-accent); \n  border-color: rgba(72,180,255,0.3); \n  background: rgba(72,180,255,0.1);\n}\n.cockpit-dashboard-cal-cell.selected { \n  border-color: var(--interactive-accent); \n  background: rgba(72,180,255,0.15); \n  box-shadow: 0 0 12px rgba(72,180,255,0.25);\n}\n.cockpit-dashboard-cal-cell.dim { opacity:0.3; pointer-events:none; }\n.cockpit-dashboard-cal-dots { display:flex; gap:2px; margin-top:2px; }\n.cockpit-dashboard-cal-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }\n.cockpit-dashboard-cal-detail { \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 12px; \n  padding: 12px 16px; \n  margin-top: 8px; \n  transition: all 0.2s;\n}\n@keyframes calDetailIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }\n.cockpit-dashboard-cal-detail-title { font-size:0.85em; font-weight:700; color:var(--text-normal); margin-bottom:6px; }\n.cockpit-dashboard-cal-detail-item { display:flex; align-items:center; gap:6px; padding:4px 0; font-size:0.78em; transition:background 0.1s; border-radius:4px; cursor:pointer; }\n.cockpit-dashboard-cal-detail-item:hover { background:rgba(129,140,248,0.06); }\n.cockpit-dashboard-cal-detail-empty { font-size:0.74em; color:var(--text-muted); text-align:center; padding:8px 0; }\n.cockpit-dashboard-cal-detail-check { width:16px; height:16px; border:2px solid var(--background-modifier-border); border-radius:4px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.6em; color:white; cursor:pointer; transition:all 0.15s; }\n.cockpit-dashboard-cal-detail-check:hover { border-color:#22c55e; }\n.cockpit-dashboard-cal-detail-check.done { background:#22c55e; border-color:#22c55e; }\n.cockpit-dashboard-cal-detail-text { flex:1; }\n.cockpit-dashboard-cal-detail-text.done { text-decoration:line-through; color:var(--text-muted); }\n\n/* 可编辑名称 */\n.cockpit-dashboard-greeting { position:relative; }\n.cockpit-dashboard-name { cursor:pointer; }\n.cockpit-dashboard-name:hover { opacity:0.85; }\n.cockpit-dashboard-name-input { font-size:0.7em; font-weight:800; font-family:inherit; background:transparent; border:none; border-bottom:2px solid var(--cockpit-accent); color:var(--text-normal); outline:none; padding:0 2px; width:auto; min-width:3em; -webkit-text-fill-color:var(--text-normal); }\n\n@media (max-width: 720px) {\n  .cockpit-dashboard-root {\n    padding: 14px 16px;\n  }\n  .cockpit-dashboard-hero {\n    padding: 16px 14px 14px;\n  }\n  .cockpit-dashboard-hero-controls {\n    position: static;\n    justify-content: center;\n    margin-bottom: 10px;\n  }\n  .cockpit-dashboard-greeting {\n    padding: 0;\n  }\n  .cockpit-dashboard-lang-switch {\n    background: rgba(72,180,255,0.06);\n  }\n}\n\n\n/* 首次使用引导 — 高亮脉波动画 */\n@keyframes cockpit-onboarding-pulse {\n  0%, 100% { box-shadow: 0 0 0 0 rgba(72,180,255,0.5), 0 0 0 0 rgba(72,180,255,0.2); }\n  50% { box-shadow: 0 0 0 4px rgba(72,180,255,0.4), 0 0 0 14px rgba(72,180,255,0.08); }\n}\n.cockpit-dashboard-onboarding-highlight {\n  animation: cockpit-onboarding-pulse 1.6s ease-in-out infinite;\n  border-radius: var(--radius-m, 10px);\n  outline: 2.5px solid rgba(72,180,255,0.35);\n  outline-offset: 4px;\n  position: relative;\n  transition: outline-color 0.3s;\n}\n";
+const CSS = "/* styles.css — Cockpit Dashboard v2 */\n/* Note: ${PLUGIN_ID} has been replaced with cockpit-dashboard */\n\n:root {\n  --cockpit-accent: #48b4ff;\n  --cockpit-accent-light: rgba(72,180,255,0.12);\n  --cockpit-accent-glow: rgba(72,180,255,0.25);\n}\n\n.cockpit-dashboard-root { \n  padding: 16px 24px; \n  max-width: 960px; \n  margin: 0 auto; \n  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;\n  position: relative;\n  --accent: var(--cockpit-accent);\n  --accent-light: var(--cockpit-accent-light);\n}\n.cockpit-dashboard-root ::selection {\n  background: rgba(72,180,255,0.18);\n  color: var(--text-normal);\n}\n.cockpit-dashboard-hero { \n  text-align: center; \n  padding: 20px 20px 14px; \n  background: linear-gradient(135deg, rgba(72,180,255,0.06), rgba(167,139,250,0.03));\n  border-radius: 16px;\n  margin: 8px 0 12px;\n  border: 1px solid rgba(72,180,255,0.08);\n  position: relative;\n}\n.cockpit-dashboard-hero-controls {\n  position: absolute;\n  top: 14px;\n  right: 14px;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  justify-content: flex-end;\n  z-index: 3;\n}\n.cockpit-dashboard-layout-done {\n  width: 36px;\n  height: 36px;\n  display: none;\n  align-items: center;\n  justify-content: center;\n  position: fixed;\n  top: 22px;\n  right: 22px;\n  border: 1px solid rgba(72,180,255,0.2);\n  border-radius: 999px;\n  background: linear-gradient(135deg, #48b4ff, #7c9cff);\n  color: white;\n  font-size: 1em;\n  font-weight: 800;\n  cursor: pointer;\n  box-shadow: 0 10px 24px rgba(72,180,255,0.24);\n  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;\n  z-index: 120;\n}\n.cockpit-dashboard-layout-done:hover {\n  transform: translateY(-1px) scale(1.03);\n  box-shadow: 0 14px 28px rgba(72,180,255,0.28);\n  filter: saturate(1.06);\n}\n.cockpit-dashboard-lang-switch {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  padding: 4px;\n  border-radius: 999px;\n  border: 1px solid rgba(72,180,255,0.12);\n  backdrop-filter: blur(14px) saturate(1.1);\n  user-select: none;\n  -webkit-user-select: none;\n  touch-action: manipulation;\n  pointer-events: auto;\n}\n.theme-dark .cockpit-dashboard-lang-switch {\n  background: linear-gradient(180deg, rgba(37, 45, 58, 0.96), rgba(29, 36, 48, 0.94));\n  border-color: rgba(72,180,255,0.2);\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 20px rgba(0,0,0,0.2);\n}\n.theme-light .cockpit-dashboard-lang-switch {\n  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,246,252,0.96));\n  border-color: rgba(72,180,255,0.18);\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 18px rgba(72,180,255,0.08);\n}\n.cockpit-dashboard-lang-btn {\n  border: none;\n  background: transparent;\n  color: var(--text-normal);\n  font-size: 0.7em;\n  font-weight: 700;\n  letter-spacing: 0.03em;\n  padding: 5px 10px;\n  border-radius: 999px;\n  cursor: pointer;\n  position: relative;\n  overflow: hidden;\n  user-select: none;\n  -webkit-user-select: none;\n  transition: transform 0.18s ease, filter 0.18s ease, color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;\n}\n.theme-dark .cockpit-dashboard-lang-btn {\n  color: rgba(226,232,240,0.72);\n}\n.theme-light .cockpit-dashboard-lang-btn {\n  color: rgba(15,23,42,0.62);\n}\n.cockpit-dashboard-lang-btn:hover {\n  color: var(--text-normal);\n  background: rgba(72,180,255,0.1);\n  filter: saturate(1.08) brightness(1.02);\n  transform: translateY(-1px);\n}\n.cockpit-dashboard-lang-btn.active {\n  color: white;\n  background: linear-gradient(135deg, #48b4ff, #6bc8ff);\n  box-shadow: 0 6px 16px rgba(72,180,255,0.22);\n}\n.theme-light .cockpit-dashboard-lang-btn.active {\n  box-shadow: 0 6px 16px rgba(72,180,255,0.18);\n}\n.cockpit-dashboard-lang-btn::after {\n  content: '';\n  position: absolute;\n  inset: 0;\n  background: radial-gradient(circle at center, rgba(255,255,255,0.42), rgba(255,255,255,0));\n  opacity: 0;\n  transform: scale(0.6);\n  transition: opacity 0.18s ease, transform 0.22s ease;\n}\n.cockpit-dashboard-lang-btn:hover::after {\n  opacity: 0.5;\n  transform: scale(1);\n}\n.cockpit-dashboard-lang-btn.pressing {\n  transform: scale(0.96);\n  filter: saturate(1.12) brightness(0.98);\n}\n.cockpit-dashboard-lang-btn.pressing::after {\n  opacity: 0.68;\n  transform: scale(1.08);\n}\n.cockpit-dashboard-greeting { \n  font-size: 1.5em; \n  font-weight: 800; \n  background: linear-gradient(135deg, #48b4ff, #60c0ff, #a78bfa);\n  -webkit-background-clip: text;\n  -webkit-text-fill-color: transparent;\n  background-clip: text;\n  padding: 0 88px;\n}\n.cockpit-dashboard-sub { \n  color: var(--text-muted); \n  font-size: 0.78em; \n  margin-top: 4px;\n  letter-spacing: 0.02em;\n}\n.cockpit-dashboard-toolbar { \n  display: flex; \n  gap: 10px; \n  justify-content: center; \n  flex-wrap: wrap; \n  margin: 16px 0;\n}\n.cockpit-dashboard-toolbtn { \n  display: flex; \n  align-items: center; \n  gap: 6px; \n  padding: 8px 16px; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 12px; \n  color: var(--text-normal); \n  font-size: 0.82em; \n  font-weight: 600; \n  cursor: pointer; \n  position: relative;\n  overflow: hidden;\n  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s ease;\n}\n.cockpit-dashboard-toolbtn:hover { \n  border-color: var(--interactive-accent); \n  box-shadow: 0 4px 16px rgba(72,180,255,0.15); \n  transform: translateY(-2px);\n  filter: saturate(1.06) brightness(1.01);\n}\n.cockpit-dashboard-toolbtn.primary { \n  background: var(--interactive-accent); \n  border-color: var(--interactive-accent); \n  color: white;\n  box-shadow: 0 2px 8px rgba(72,180,255,0.2);\n}\n.cockpit-dashboard-toolbtn.primary:hover {\n  box-shadow: 0 6px 20px rgba(72,180,255,0.3);\n  transform: translateY(-3px);\n}\n.cockpit-dashboard-toolbtn:active,\n.cockpit-dashboard-status-btn:active,\n.cockpit-dashboard-todo-tab:active,\n.cockpit-dashboard-cal-nav-btn:active,\n.cockpit-dashboard-todo-add:active,\n.cockpit-dashboard-todo-btn:active,\n.cockpit-dashboard-bookmark-btn:active,\n.cockpit-dashboard-cat:active,\n.cockpit-dashboard-stat:active,\n.cockpit-dashboard-recent-item:active {\n  transform: scale(0.98);\n  filter: saturate(1.08) brightness(0.98);\n}\n.cockpit-dashboard-icon { font-size: 1.1em; }\n.cockpit-dashboard-module {\n  position: relative;\n}\n.cockpit-dashboard-module-tools {\n  position: absolute;\n  top: -10px;\n  right: 10px;\n  display: none;\n  align-items: center;\n  gap: 6px;\n  z-index: 12;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module {\n  margin: 12px 0;\n  padding: 10px 12px 12px;\n  border-radius: 18px;\n  border: 1px dashed rgba(72,180,255,0.22);\n  background: linear-gradient(180deg, rgba(72,180,255,0.045), rgba(72,180,255,0.015));\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module-tools {\n  display: inline-flex;\n}\n.cockpit-dashboard-module-badge {\n  display: inline-flex;\n  align-items: center;\n  padding: 4px 10px;\n  border-radius: 999px;\n  background: rgba(15, 23, 42, 0.86);\n  color: white;\n  font-size: 0.66em;\n  font-weight: 700;\n  letter-spacing: 0.04em;\n  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.22);\n}\n.cockpit-dashboard-module-visibility {\n  border: 1px solid rgba(72,180,255,0.16);\n  background: rgba(15, 23, 42, 0.82);\n  color: rgba(255,255,255,0.88);\n  font-size: 0.66em;\n  font-weight: 700;\n  letter-spacing: 0.03em;\n  padding: 5px 9px;\n  border-radius: 999px;\n  cursor: pointer;\n  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;\n}\n.cockpit-dashboard-module-visibility:hover {\n  transform: translateY(-1px);\n  border-color: rgba(72,180,255,0.32);\n  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.18);\n}\n.cockpit-dashboard-module-visibility.is-hidden {\n  background: linear-gradient(135deg, rgba(239,68,68,0.82), rgba(245,158,11,0.82));\n  border-color: rgba(255,255,255,0.14);\n  color: white;\n}\n.cockpit-dashboard-module-handle {\n  width: 28px;\n  height: 28px;\n  border: none;\n  border-radius: 999px;\n  background: linear-gradient(135deg, #48b4ff, #7c9cff);\n  color: white;\n  font-size: 0.96em;\n  font-weight: 800;\n  cursor: grab;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  box-shadow: 0 8px 18px rgba(72,180,255,0.2);\n}\n.cockpit-dashboard-module-handle:active {\n  cursor: grabbing;\n}\n.cockpit-dashboard-root:not(.cockpit-dashboard-layout-editing) .cockpit-dashboard-module-handle,\n.cockpit-dashboard-root:not(.cockpit-dashboard-layout-editing) .cockpit-dashboard-module-badge,\n.cockpit-dashboard-root:not(.cockpit-dashboard-layout-editing) .cockpit-dashboard-module-visibility {\n  display: none;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.dragging {\n  opacity: 0.52;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.is-hidden {\n  opacity: 0.88;\n  border-color: rgba(245,158,11,0.3);\n  background: linear-gradient(180deg, rgba(245,158,11,0.08), rgba(72,180,255,0.015));\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-before::before,\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-after::after {\n  content: '';\n  position: absolute;\n  left: 16px;\n  right: 16px;\n  height: 3px;\n  border-radius: 999px;\n  background: linear-gradient(90deg, #48b4ff, #7c9cff);\n  box-shadow: 0 0 12px rgba(72,180,255,0.3);\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-before::before {\n  top: -2px;\n}\n.cockpit-dashboard-root.cockpit-dashboard-layout-editing .cockpit-dashboard-module.drop-after::after {\n  bottom: -2px;\n}\n.cockpit-dashboard-section-title { \n  position: relative;\n  font-size: 0.92em; \n  font-weight: 700; \n  color: var(--text-normal); \n  margin: 22px 0 12px; \n  padding: 0 0 10px 2px;\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n.cockpit-dashboard-section-title::before {\n  content: '';\n  position: absolute;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  height: 1px;\n  background: linear-gradient(90deg, rgba(72,180,255,0.16), rgba(72,180,255,0.08) 34%, rgba(72,180,255,0) 74%);\n}\n.cockpit-dashboard-section-title::after {\n  content: '';\n  position: absolute;\n  left: 2px;\n  bottom: -1px;\n  width: 44px;\n  height: 3px;\n  border-radius: 999px;\n  background: linear-gradient(90deg, rgba(72,180,255,0.9), rgba(167,139,250,0.55));\n  box-shadow: 0 0 12px rgba(72,180,255,0.16);\n}\n.cockpit-dashboard-cats { \n  display: grid; \n  grid-template-columns: repeat(4, 1fr); \n  gap: 12px;\n}\n.cockpit-dashboard-cat { \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 14px; \n  padding: 14px; \n  cursor: pointer; \n  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); \n  border-left: 4px solid var(--cat-clr, var(--interactive-accent));\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-cat::before {\n  content: '';\n  position: absolute;\n  top: 0;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  background: linear-gradient(135deg, var(--cat-clr), transparent);\n  opacity: 0.04;\n  transition: opacity 0.25s;\n}\n.cockpit-dashboard-cat:hover { \n  border-color: var(--cat-clr, var(--interactive-accent)); \n  box-shadow: 0 6px 24px rgba(72,180,255,0.12); \n  transform: translateY(-3px);\n}\n.cockpit-dashboard-cat:hover::before { opacity: 0.08; }\n.cockpit-dashboard-cat-icon { font-size: 1.5em; margin-bottom: 6px; }\n.cockpit-dashboard-cat-name { font-weight: 600; font-size: 0.86em; }\n.cockpit-dashboard-cat-count { font-size: 0.72em; color: var(--text-muted); margin-top: 2px; }\n.cockpit-dashboard-todo-header { display:flex; align-items:center; gap:6px; margin:16px 0 8px; padding-bottom:6px; border-bottom:1px solid var(--background-modifier-border); }\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title { margin:0; padding:0; border:none; flex:1; }\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title::before,\n.cockpit-dashboard-todo-header .cockpit-dashboard-section-title::after { display:none; }\n.cockpit-dashboard-todo-add { \n  width: 26px; \n  height: 26px; \n  display: flex; \n  align-items: center; \n  justify-content: center; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 8px; \n  color: var(--text-muted); \n  font-size: 1.15em; \n  font-weight: 700; \n  cursor: pointer; \n  transition: all 0.2s; \n  line-height: 1;\n}\n.cockpit-dashboard-todo-add:hover { \n  border-color: var(--interactive-accent); \n  color: var(--interactive-accent); \n  box-shadow: 0 0 12px rgba(72,180,255,0.2);\n  transform: scale(1.1);\n}\n.cockpit-dashboard-todos { \n  display: flex; \n  flex-direction: column; \n  gap: 6px; \n  margin-bottom: 16px;\n}\n.cockpit-dashboard-todo { \n  display: flex; \n  align-items: center; \n  gap: 10px; \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 12px; \n  padding: 10px 12px; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);\n}\n.cockpit-dashboard-todo:hover { \n  border-color: var(--interactive-accent);\n  box-shadow: 0 2px 12px rgba(72,180,255,0.08);\n  transform: translateX(2px);\n}\n.cockpit-dashboard-todo-chk { \n  width: 22px; \n  height: 22px; \n  border: 2px solid var(--background-modifier-border); \n  border-radius: 7px; \n  flex-shrink: 0; \n  display: flex; \n  align-items: center; \n  justify-content: center; \n  font-size: 0.75em; \n  color: white; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); \n  cursor: pointer;\n}\n.cockpit-dashboard-todo-chk:hover { \n  border-color: var(--interactive-accent); \n  box-shadow: 0 0 6px rgba(72,180,255,0.2);\n}\n.cockpit-dashboard-todo.done .cockpit-dashboard-todo-chk { background:#22c55e; border-color:#22c55e; }\n.cockpit-dashboard-todo-main { flex:1; min-width:0; }\n.cockpit-dashboard-todo-text { font-size:0.84em; cursor:pointer; }\n.cockpit-dashboard-todo.done .cockpit-dashboard-todo-text { text-decoration:line-through; color:var(--text-muted); }\n.cockpit-dashboard-todo-meta { font-size:0.68em; color:var(--text-muted); margin-top:2px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }\n.cockpit-dashboard-todo-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }\n.cockpit-dashboard-todo-btn { width:22px; height:22px; border-radius:5px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.8em; color:var(--text-muted); transition:all 0.15s; border:1px solid transparent; }\n.cockpit-dashboard-todo-btn:hover { border-color:var(--interactive-accent); color:var(--interactive-accent); }\n.cockpit-dashboard-todo-btn.del:hover { border-color:#ef4444; color:#ef4444; }\n.cockpit-dashboard-todo-tag { font-size:0.64em; padding:1px 7px; border-radius:8px; flex-shrink:0; }\n.tag-todo { background:rgba(72,180,255,0.15); color:#48b4ff; }\n.tag-done { background:rgba(34,197,94,0.12); color:#4ade80; }\n.cockpit-dashboard-todo-input-row { display:flex; align-items:center; gap:6px; background:var(--background-secondary); border:1px solid var(--background-modifier-border); border-radius:9px; padding:6px 8px; margin-bottom:4px; animation:dashFadeIn 0.15s ease; }\n@keyframes dashFadeIn { \n  from {opacity:0;transform:translateY(-6px)} \n  to {opacity:1;transform:translateY(0)} \n}\n@keyframes dashSlideUp {\n  from {opacity:0;transform:translateY(8px)}\n  to {opacity:1;transform:translateY(0)}\n}\n.cockpit-dashboard-todo-input-field { flex:1; border:none; outline:none; background:transparent; color:var(--text-normal); font-size:0.84em; padding:2px 4px; }\n.cockpit-dashboard-todo-input-field::placeholder { color:var(--text-muted); opacity:0.7; }\n.cockpit-dashboard-todo-input-ok, .cockpit-dashboard-todo-input-cancel { width:24px; height:24px; border-radius:5px; border:1px solid var(--background-modifier-border); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.75em; color:var(--text-muted); background:var(--background-secondary); transition:all 0.15s; flex-shrink:0; }\n.cockpit-dashboard-todo-input-ok:hover { border-color:#22c55e; color:#22c55e; }\n.cockpit-dashboard-todo-input-cancel:hover { border-color:#ef4444; color:#ef4444; }\n.cockpit-dashboard-stats { \n  display: grid; \n  grid-template-columns: repeat(5, 1fr); \n  gap: 12px;\n}\n.cockpit-dashboard-stat { \n  background: var(--background-secondary); \n  border: 1px solid var(--background-modifier-border); \n  border-radius: 14px; \n  padding: 12px 14px; \n  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-stat::after {\n  content: '';\n  position: absolute;\n  top: 0;\n  right: 0;\n  width: 60px;\n  height: 60px;\n  background: radial-gradient(circle at top right, var(--stat-clr, var(--interactive-accent)), transparent 70%);\n  opacity: 0.08;\n  transition: opacity 0.25s;\n}\n.cockpit-dashboard-stat:hover {\n  box-shadow: 0 4px 20px rgba(72,180,255,0.1);\n  transform: translateY(-2px);\n}\n.cockpit-dashboard-stat:hover::after { opacity: 0.15; }\n.cockpit-dashboard-stat-label { font-size:0.64em; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:3px; }\n.cockpit-dashboard-stat-val { font-size:1.3em; font-weight:700; color:var(--stat-clr,var(--interactive-accent)); }\n.cockpit-dashboard-stat-bar { height:3px; background:var(--background-modifier-border); border-radius:2px; margin-top:5px; overflow:hidden; }\n.cockpit-dashboard-stat-fill { height:100%; border-radius:2px; background:var(--stat-clr,var(--interactive-accent)); transition:width 0.5s ease; }\n.cockpit-dashboard-recent { display:flex; flex-direction:column; gap:3px; }\n.cockpit-dashboard-recent-item { display:flex; align-items:center; justify-content:space-between; background:var(--background-secondary); border-radius:7px; padding:6px 10px; }\n.cockpit-dashboard-recent-link { color:var(--text-accent); text-decoration:none; font-size:0.84em; cursor:pointer; }\n.cockpit-dashboard-recent-link:hover { color:var(--text-accent-hover); }\n.cockpit-dashboard-recent-time { font-size:0.7em; color:var(--text-muted); flex-shrink:0; }\n.cockpit-dashboard-footer { \n  text-align: center; \n  color: var(--text-muted); \n  font-size: 0.68em; \n  padding: 16px 0 8px;\n  border-top: 1px solid var(--background-modifier-border);\n  margin-top: 16px;\n}\n/* 待办页签 */\n.cockpit-dashboard-todo-tabs-wrap { margin:4px 0 8px; }\n.cockpit-dashboard-todo-tabs { display:flex; gap:4px; flex-wrap:wrap; }\n.cockpit-dashboard-todo-tab { padding:4px 12px; border-radius:14px; border:1px solid var(--background-modifier-border); background:var(--background-secondary); color:var(--text-muted); font-size:0.76em; font-weight:500; cursor:pointer; transition:all 0.15s; }\n.cockpit-dashboard-todo-tab:hover { border-color:var(--interactive-accent); color:var(--interactive-accent); }\n.cockpit-dashboard-todo-tab.active { background:var(--interactive-accent); border-color:var(--interactive-accent); color:white; }\n/* 标签胶囊 */\n.cockpit-dashboard-todo-tag-pill { \n  display: inline-block; \n  font-size: 0.62em; \n  padding: 1px 6px; \n  margin: 0 3px; \n  border-radius: 7px; \n  background: rgba(72,180,255,0.13); \n  color: #48b4ff; \n  cursor: pointer; \n  font-weight: 500; \n  transition: all 0.12s;\n}\n.cockpit-dashboard-todo-tag-pill:hover { \n  background: rgba(72,180,255,0.28); \n  color: #1a5a1a;\n}\n/* 优先级圆点 */\n.cockpit-dashboard-todo-pdot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }\n.p-high { background:#ef4444; box-shadow:0 0 4px rgba(239,68,68,0.5); }\n.p-mid { background:#f59e0b; }\n.p-low { background:#22c55e; }\n/* 截止日期 */\n.cockpit-dashboard-todo-due { font-size:0.64em; margin-left:4px; padding:1px 5px; border-radius:4px; }\n.due-overdue { background:rgba(239,68,68,0.15); color:#ef4444; }\n.due-today { background:rgba(245,158,11,0.15); color:#f59e0b; }\n.due-future { color:var(--text-muted); }\n/* 优先级选择 */\n.cockpit-dashboard-prio-picker { display:flex; gap:3px; margin-left:6px; }\n.cockpit-dashboard-prio-opt { width:18px; height:18px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:all 0.12s; }\n.cockpit-dashboard-prio-opt:hover { transform:scale(1.2); }\n.cockpit-dashboard-prio-opt.sel { border-color:var(--text-normal); }\n/* 热力图 */\n.cockpit-dashboard-heatmap-wrap { padding:8px 0 4px; }\n.cockpit-dashboard-heatmap { display:grid; grid-template-columns:repeat(10,1fr); gap:4px; }\n.cockpit-dashboard-hm-cell { \n  width: 100%; \n  padding-bottom: 100%; \n  border-radius: 6px; \n  background: var(--background-modifier-border); \n  cursor: default; \n  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); \n  position: relative;\n}\n.cockpit-dashboard-hm-cell:hover { \n  transform: scale(1.25); \n  box-shadow: 0 0 8px rgba(72,180,255,0.4); \n  z-index: 2;\n}\n.cockpit-dashboard-hm-cell[title]:hover::after { content:attr(title); position:absolute; bottom:120%; left:50%; transform:translateX(-50%); background:var(--background-secondary); color:var(--text-normal); font-size:0.6em; padding:3px 7px; border-radius:5px; white-space:nowrap; z-index:10; border:1px solid var(--background-modifier-border); box-shadow:0 2px 8px rgba(0,0,0,0.12); }\n.cockpit-dashboard-hm-legend { display:flex; align-items:center; gap:4px; margin-top:6px; justify-content:flex-end; }\n.cockpit-dashboard-hm-legend-label { font-size:0.6em; color:var(--text-muted); }\n.cockpit-dashboard-hm-legend-cell { width:12px; height:12px; border-radius:3px; }\n/* 迷你搜索 */\n.cockpit-dashboard-search-row { display:flex; gap:6px; margin:8px 0; }\n.cockpit-dashboard-search-input { flex:1; padding:6px 10px; border:1px solid var(--background-modifier-border); border-radius:7px; background:var(--background-secondary); color:var(--text-normal); font-size:0.82em; outline:none; }\n.cockpit-dashboard-search-input:focus { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px rgba(72,180,255,0.1); }\n.cockpit-dashboard-search-results { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; }\n.cockpit-dashboard-search-item { display:flex; align-items:center; justify-content:space-between; padding:5px 8px; border-radius:6px; cursor:pointer; transition:background 0.12s; }\n.cockpit-dashboard-search-item:hover { \n  background: var(--background-secondary);\n  transform: translateX(2px);\n  filter: saturate(1.03);\n}\n.cockpit-dashboard-search-name { font-size:0.8em; color:var(--text-accent); }\n.cockpit-dashboard-search-path { font-size:0.64em; color:var(--text-muted); }\n/* 收藏 */\n.cockpit-dashboard-bookmark-btn { cursor:pointer; font-size:0.85em; color:var(--text-muted); transition:all 0.12s; padding:2px 4px; border-radius:4px; }\n.cockpit-dashboard-bookmark-btn:hover { \n  color: #f59e0b; \n  background: rgba(245,158,11,0.1);\n  transform: scale(1.1);\n  filter: saturate(1.08);\n}\n.cockpit-dashboard-bookmark-btn.starred { color:#f59e0b; }\n/* 闪念胶囊 */\n.cockpit-dashboard-flash-row { display:flex; gap:6px; margin:4px 0 8px; }\n.cockpit-dashboard-flash-input { flex:1; padding:6px 10px; border:1px solid var(--background-modifier-border); border-radius:7px; background:var(--background-secondary); color:var(--text-normal); font-size:0.82em; outline:none; }\n.cockpit-dashboard-flash-input:focus { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px rgba(72,180,255,0.1); }\n.cockpit-dashboard-flash-ok { font-size:0.72em; color:#22c55e; padding:4px 8px; border-radius:5px; }\n/* 每日小贴士 */\n.cockpit-dashboard-tip { \n  background: linear-gradient(135deg, rgba(72,180,255,0.08), rgba(72,180,255,0.03)); \n  border: 1px solid rgba(72,180,255,0.15); \n  border-radius: 12px; \n  padding: 12px 16px; \n  margin: 12px 0;\n  position: relative;\n  overflow: hidden;\n}\n.cockpit-dashboard-tip::before {\n  content: '';\n  position: absolute;\n  top: 0;\n  left: 0;\n  width: 4px;\n  height: 100%;\n  background: linear-gradient(180deg, #48b4ff, #a78bfa);\n  border-radius: 4px 0 0 4px;\n}\n.cockpit-dashboard-tip-label { font-size:0.64em; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:4px; }\n.cockpit-dashboard-tip-text { font-size:0.82em; color:var(--text-normal); line-height:1.5; }\n/* 状态筛选 */\n.cockpit-dashboard-status-tabs { display:flex; gap:4px; margin:0; align-items:center; }\n.cockpit-dashboard-status-btn { padding:3px 10px; border-radius:12px; border:1px solid var(--background-modifier-border); background:var(--background-secondary); color:var(--text-muted); font-size:0.72em; font-weight:500; cursor:pointer; transition:all 0.15s; }\n.cockpit-dashboard-status-btn:hover { \n  border-color: var(--interactive-accent); \n  color: var(--interactive-accent); \n  box-shadow: 0 2px 6px rgba(72,180,255,0.1);\n  filter: saturate(1.05);\n}\n.cockpit-dashboard-status-btn.active { background:var(--interactive-accent); border-color:var(--interactive-accent); color:white; }\n/* 日历看板 */\n.cockpit-dashboard-cal-wrap { margin:10px 0 14px; }\n.cockpit-dashboard-cal-surface {\n  background:\n    radial-gradient(circle at top left, rgba(72,180,255,0.09), transparent 30%),\n    linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.005));\n  border: 1px solid rgba(72,180,255,0.08);\n  border-radius: 18px;\n  padding: 12px 12px 10px;\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 24px rgba(0,0,0,0.1);\n}\n.cockpit-dashboard-cal-header {\n  display:flex;\n  align-items:center;\n  justify-content:space-between;\n  gap: 14px;\n  margin-bottom:6px;\n}\n.cockpit-dashboard-cal-title-wrap {\n  display:flex;\n  flex-direction:column;\n  gap: 2px;\n}\n.cockpit-dashboard-cal-title { font-size:0.94em; font-weight:800; color:var(--text-normal); letter-spacing:0.01em; }\n.cockpit-dashboard-cal-subtitle { font-size:0.66em; color:var(--text-muted); letter-spacing:0.02em; }\n.cockpit-dashboard-cal-nav { display:flex; gap:6px; }\n.cockpit-dashboard-cal-nav-btn {\n  width:28px;\n  height:28px;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  border:1px solid rgba(255,255,255,0.06);\n  border-radius:10px;\n  background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));\n  color:var(--text-muted);\n  cursor:pointer;\n  font-size:0.84em;\n  transition:transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease, border-color 0.2s ease, color 0.2s ease, background 0.2s ease;\n}\n.cockpit-dashboard-cal-nav-btn:hover { \n  border-color: rgba(72,180,255,0.28); \n  color: #7fd2ff; \n  transform: translateY(-1px) scale(1.04);\n  box-shadow: 0 8px 18px rgba(72,180,255,0.12);\n  background: linear-gradient(180deg, rgba(72,180,255,0.08), rgba(72,180,255,0.03));\n}\n.cockpit-dashboard-cal-stage {\n  overflow: hidden;\n  border-radius: 14px;\n}\n.cockpit-dashboard-cal-grid {\n  display:grid;\n  grid-template-columns:repeat(7, minmax(0, 1fr));\n  gap:4px;\n  transition:transform 0.34s cubic-bezier(0.22,1,0.36,1), opacity 0.34s ease, filter 0.34s ease;\n}\n.cockpit-dashboard-cal-grid.slide-out-left { transform:translateX(-18px) scale(0.985); opacity:0; filter:blur(4px); }\n.cockpit-dashboard-cal-grid.slide-out-right { transform:translateX(18px) scale(0.985); opacity:0; filter:blur(4px); }\n.cockpit-dashboard-cal-grid.slide-in { animation:calSlideIn 0.34s cubic-bezier(0.22,1,0.36,1) forwards; }\n@keyframes calSlideIn {\n  from { opacity:0; transform:translateX(18px) scale(0.985); filter:blur(4px); }\n  to { opacity:1; transform:translateX(0) scale(1); filter:blur(0); }\n}\n.cockpit-dashboard-cal-dow {\n  text-align:center;\n  font-size:0.62em;\n  font-weight:700;\n  color:var(--text-faint, var(--text-muted));\n  padding:4px 0 5px;\n  text-transform:uppercase;\n  letter-spacing:0.08em;\n}\n.cockpit-dashboard-cal-cell { \n  display:flex;\n  flex-direction:column;\n  align-items:stretch;\n  justify-content:flex-start;\n  border-radius:12px; \n  cursor:pointer; \n  transition:transform 0.22s cubic-bezier(0.22,1,0.36,1), box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease, opacity 0.22s ease; \n  color: var(--text-muted); \n  border: 1px solid transparent; \n  min-height: 44px; \n  padding: 6px 6px 5px; \n  position: relative;\n  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));\n}\n.cockpit-dashboard-cal-cell:hover { \n  background: linear-gradient(180deg, rgba(72,180,255,0.09), rgba(72,180,255,0.03)); \n  border-color: rgba(72,180,255,0.22); \n  transform: translateY(-2px); \n  box-shadow: 0 10px 24px rgba(72,180,255,0.1);\n}\n.cockpit-dashboard-cal-cell.today { \n  color: #7ed0ff; \n  background: linear-gradient(180deg, rgba(72,180,255,0.1), rgba(72,180,255,0.03));\n}\n.cockpit-dashboard-cal-cell.selected { \n  border-color: rgba(72,180,255,0.34); \n  background: linear-gradient(180deg, rgba(72,180,255,0.16), rgba(72,180,255,0.05)); \n  box-shadow: 0 12px 28px rgba(72,180,255,0.12);\n}\n.cockpit-dashboard-cal-cell.dim {\n  opacity:0.28;\n  pointer-events:none;\n  background: transparent;\n}\n.cockpit-dashboard-cal-cell-inner {\n  display:flex;\n  align-items:flex-start;\n  justify-content:space-between;\n  min-height: 16px;\n}\n.cockpit-dashboard-cal-num {\n  font-size:0.84em;\n  font-weight:700;\n  color:inherit;\n}\n.cockpit-dashboard-cal-today-mark {\n  width:6px;\n  height:6px;\n  border-radius:999px;\n  background:linear-gradient(135deg, #48b4ff, #a78bfa);\n  box-shadow:0 0 10px rgba(72,180,255,0.35);\n  margin-top:2px;\n}\n.cockpit-dashboard-cal-badge {\n  position:absolute;\n  top:6px;\n  right:6px;\n  min-width:16px;\n  height:16px;\n  padding:0 4px;\n  border-radius:999px;\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  background:rgba(72,180,255,0.16);\n  color:#8ed7ff;\n  font-size:0.56em;\n  font-weight:800;\n  letter-spacing:0.03em;\n}\n.cockpit-dashboard-cal-dots {\n  display:flex;\n  gap:3px;\n  margin-top:auto;\n  padding-top:5px;\n}\n.cockpit-dashboard-cal-dot {\n  width:5px;\n  height:5px;\n  border-radius:50%;\n  flex-shrink:0;\n  box-shadow:0 0 8px rgba(0,0,0,0.18);\n}\n.cockpit-dashboard-cal-detail { \n  background:\n    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)),\n    rgba(0,0,0,0.06);\n  border: 1px solid rgba(255,255,255,0.06); \n  border-radius: 14px; \n  padding: 10px 12px; \n  margin-top: 8px; \n  animation: calDetailIn 0.22s cubic-bezier(0.22,1,0.36,1);\n  box-shadow: 0 8px 18px rgba(0,0,0,0.08);\n}\n@keyframes calDetailIn { from{opacity:0;transform:translateY(8px) scale(0.992)} to{opacity:1;transform:translateY(0) scale(1)} }\n.cockpit-dashboard-cal-detail-head {\n  display:flex;\n  align-items:center;\n  justify-content:space-between;\n  gap:10px;\n  margin-bottom:6px;\n}\n.cockpit-dashboard-cal-detail-title { font-size:0.82em; font-weight:800; color:var(--text-normal); }\n.cockpit-dashboard-cal-detail-count {\n  min-width:20px;\n  height:20px;\n  padding:0 6px;\n  border-radius:999px;\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  font-size:0.62em;\n  font-weight:800;\n  background:rgba(72,180,255,0.12);\n  color:#8ed7ff;\n}\n.cockpit-dashboard-cal-detail-item {\n  display:flex;\n  align-items:center;\n  gap:8px;\n  padding:6px 8px;\n  font-size:0.74em;\n  transition:background 0.15s ease, transform 0.15s ease;\n  border-radius:8px;\n  cursor:pointer;\n}\n.cockpit-dashboard-cal-detail-item:hover { background:rgba(72,180,255,0.08); transform:translateX(2px); }\n.cockpit-dashboard-cal-detail-empty {\n  min-height:42px;\n  display:flex;\n  flex-direction:row;\n  align-items:center;\n  justify-content:center;\n  gap:6px;\n  color:var(--text-muted);\n  text-align:center;\n}\n.cockpit-dashboard-cal-detail-empty-icon {\n  width:20px;\n  height:20px;\n  border-radius:999px;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  background:rgba(72,180,255,0.08);\n  color:#8ed7ff;\n  font-size:0.68em;\n}\n.cockpit-dashboard-cal-detail-empty-text { font-size:0.72em; }\n.cockpit-dashboard-cal-detail-check { width:16px; height:16px; border:2px solid var(--background-modifier-border); border-radius:5px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.56em; color:white; cursor:pointer; transition:all 0.16s ease; }\n.cockpit-dashboard-cal-detail-check:hover { border-color:#22c55e; transform:scale(1.05); }\n.cockpit-dashboard-cal-detail-check.done { background:#22c55e; border-color:#22c55e; }\n.cockpit-dashboard-cal-detail-text { flex:1; line-height:1.45; }\n.cockpit-dashboard-cal-detail-text.done { text-decoration:line-through; color:var(--text-muted); }\n\n.theme-dark .cockpit-dashboard-cal-surface {\n  background:\n    radial-gradient(circle at top left, rgba(72,180,255,0.05), transparent 28%),\n    linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.004));\n  border-color: rgba(72,180,255,0.06);\n  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 8px 18px rgba(0,0,0,0.08);\n}\n.theme-dark .cockpit-dashboard-cal-grid {\n  gap: 2px;\n}\n.theme-dark .cockpit-dashboard-cal-cell {\n  background: transparent;\n  border-color: transparent;\n  box-shadow: none;\n  border-radius: 10px;\n}\n.theme-dark .cockpit-dashboard-cal-cell:hover {\n  background: rgba(72,180,255,0.035);\n  border-color: rgba(72,180,255,0.08);\n  transform: none;\n  box-shadow: none;\n}\n.theme-dark .cockpit-dashboard-cal-cell.has-todos {\n  background: linear-gradient(180deg, rgba(72,180,255,0.018), rgba(72,180,255,0.008));\n}\n.theme-dark .cockpit-dashboard-cal-cell.today {\n  background: rgba(72,180,255,0.04);\n  color: #8fd7ff;\n}\n.theme-dark .cockpit-dashboard-cal-cell.selected {\n  background: rgba(72,180,255,0.06);\n  border-color: rgba(72,180,255,0.26);\n  box-shadow: inset 0 0 0 1px rgba(72,180,255,0.14);\n}\n.theme-dark .cockpit-dashboard-cal-badge {\n  background: rgba(72,180,255,0.12);\n  color: #8fd7ff;\n}\n.theme-dark .cockpit-dashboard-cal-detail {\n  background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.006));\n  border-color: rgba(255,255,255,0.04);\n  box-shadow: none;\n}\n\n@media (max-width: 720px) {\n  .cockpit-dashboard-layout-done {\n    top: 16px;\n    right: 16px;\n    width: 34px;\n    height: 34px;\n  }\n}\n\n.cockpit-dashboard-release-modal .modal {\n  width: min(720px, calc(100vw - 32px));\n}\n.cockpit-dashboard-release-top {\n  margin-bottom: 12px;\n}\n.cockpit-dashboard-release-current {\n  display: inline-flex;\n  align-items: center;\n  padding: 6px 10px;\n  border-radius: 999px;\n  background: rgba(72,180,255,0.1);\n  color: var(--text-muted);\n  font-size: 0.76em;\n  font-weight: 700;\n  letter-spacing: 0.03em;\n}\n.cockpit-dashboard-release-empty {\n  padding: 24px 0;\n  color: var(--text-muted);\n  text-align: center;\n}\n.cockpit-dashboard-release-card {\n  background: linear-gradient(180deg, rgba(72,180,255,0.05), rgba(72,180,255,0.015));\n  border: 1px solid rgba(72,180,255,0.12);\n  border-radius: 16px;\n  padding: 14px 16px;\n  margin-bottom: 12px;\n}\n.cockpit-dashboard-release-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  margin-bottom: 6px;\n}\n.cockpit-dashboard-release-version {\n  font-size: 1em;\n  font-weight: 800;\n  color: var(--text-normal);\n}\n.cockpit-dashboard-release-date {\n  color: var(--text-muted);\n  font-size: 0.76em;\n  white-space: nowrap;\n}\n.cockpit-dashboard-release-title {\n  font-size: 0.82em;\n  font-weight: 700;\n  color: var(--text-normal);\n  margin-bottom: 8px;\n}\n.cockpit-dashboard-release-list {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--text-muted);\n}\n.cockpit-dashboard-release-list li {\n  margin: 4px 0;\n  line-height: 1.5;\n}\n\n/* 可编辑名称 */\n.cockpit-dashboard-greeting { position:relative; }\n.cockpit-dashboard-name { cursor:pointer; }\n.cockpit-dashboard-name:hover { opacity:0.85; }\n.cockpit-dashboard-name-input { font-size:0.7em; font-weight:800; font-family:inherit; background:transparent; border:none; border-bottom:2px solid var(--cockpit-accent); color:var(--text-normal); outline:none; padding:0 2px; width:auto; min-width:3em; -webkit-text-fill-color:var(--text-normal); }\n\n@media (max-width: 720px) {\n  .cockpit-dashboard-root {\n    padding: 14px 16px;\n  }\n  .cockpit-dashboard-hero {\n    padding: 16px 14px 14px;\n  }\n  .cockpit-dashboard-hero-controls {\n    position: static;\n    justify-content: center;\n    margin-bottom: 10px;\n  }\n  .cockpit-dashboard-greeting {\n    padding: 0;\n  }\n  .cockpit-dashboard-lang-switch {\n    background: rgba(72,180,255,0.06);\n  }\n}\n\n\n/* 首次使用引导 — 高亮脉波动画 */\n@keyframes cockpit-onboarding-pulse {\n  0%, 100% { box-shadow: 0 0 0 0 rgba(72,180,255,0.5), 0 0 0 0 rgba(72,180,255,0.2); }\n  50% { box-shadow: 0 0 0 4px rgba(72,180,255,0.4), 0 0 0 14px rgba(72,180,255,0.08); }\n}\n.cockpit-dashboard-onboarding-highlight {\n  animation: cockpit-onboarding-pulse 1.6s ease-in-out infinite;\n  border-radius: var(--radius-m, 10px);\n  outline: 2.5px solid rgba(72,180,255,0.35);\n  outline-offset: 4px;\n  position: relative;\n  transition: outline-color 0.3s;\n}\n";
 
 // ===== modules =====
 // ===== constants.js =====
@@ -21,6 +21,148 @@ const LANG_OPTIONS = [
 const E = { wave:'👋', search:'🔍', tag:'🏷️', graph:'🕸️', bolt:'⚡', folder:'📂', rule:'📋', gear:'⚙️', robot:'🤖', box:'📦', chart:'📊', pencil:'✏️', check:'✅', save:'💾', edit:'✏️', del:'✕', cal:'📅' };
 const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f97316','#6366f1'];
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
+const RELEASE_HISTORY = [
+  {
+    version: '1.0.8',
+    date: '2026-07-06',
+    title: {
+      'zh-CN': '编辑模式、更新记录与日历体验升级',
+      en: 'Edit Mode, Release Notes, and Calendar Refresh'
+    },
+    highlights: {
+      'zh-CN': [
+        '新增编辑模式，支持模块拖拽排序、隐藏与持久化布局。',
+        '右键菜单新增最近更新记录，内置本地版本历史弹窗。',
+        '重做日历看板，优化深浅色观感与语言切换可读性。'
+      ],
+      en: [
+        'Added Edit Mode with drag-to-reorder, hide/show controls, and persistent layout state.',
+        'Added Recent Updates to the context menu with a built-in local release-notes modal.',
+        'Refreshed the calendar board with better light/dark visuals and improved language-toggle legibility.'
+      ]
+    }
+  },
+  {
+    version: '1.0.7',
+    date: '2026-07-04',
+    title: {
+      'zh-CN': '语言切换与交互细节优化',
+      en: 'Language Toggle and Interaction Polish'
+    },
+    highlights: {
+      'zh-CN': [
+        '新增中英文界面切换。',
+        '增强按钮按压、悬停和动效反馈。',
+        '整体交互细节更顺手。'
+      ],
+      en: [
+        'Added Chinese and English UI switching.',
+        'Improved hover, press, and motion feedback for key actions.',
+        'Polished interaction details across the dashboard.'
+      ]
+    }
+  },
+  {
+    version: '1.0.6',
+    date: '2026-07-04',
+    title: {
+      'zh-CN': '界面打磨与 README 双语化',
+      en: 'Dashboard Polish and Bilingual README'
+    },
+    highlights: {
+      'zh-CN': [
+        '优化 Dashboard 视觉细节。',
+        '补充并整理双语 README。',
+        '发布流程说明更完整。'
+      ],
+      en: [
+        'Refined the visual details of the dashboard.',
+        'Expanded and organized the bilingual README.',
+        'Made the release workflow documentation more complete.'
+      ]
+    }
+  },
+  {
+    version: '1.0.4',
+    date: '2026-06-13',
+    title: {
+      'zh-CN': '修复配置解析异常',
+      en: 'Fix Configuration Parsing Errors'
+    },
+    highlights: {
+      'zh-CN': [
+        '修复模板字面量中的正则反斜杠转义问题。',
+        '修复换行解析错误导致的配置读取失败。',
+        '重新构建主入口文件。'
+      ],
+      en: [
+        'Fixed regex backslash escaping inside template literals.',
+        'Fixed config loading failures caused by newline parsing issues.',
+        'Rebuilt the main bundled entry file.'
+      ]
+    }
+  },
+  {
+    version: '1.0.3',
+    date: '2026-06-13',
+    title: {
+      'zh-CN': '支持工具栏命令自定义',
+      en: 'Custom Toolbar Command Support'
+    },
+    highlights: {
+      'zh-CN': [
+        '新增 `_data/toolbar.md` 作为工具栏配置源。',
+        '驾驶舱和工作日志命令可按需修改。',
+        '首次加载时自动生成默认配置文件。'
+      ],
+      en: [
+        'Added `_data/toolbar.md` as the toolbar configuration source.',
+        'Made Cockpit and work-log commands customizable.',
+        'Generated default config automatically on first load.'
+      ]
+    }
+  },
+  {
+    version: '1.0.2',
+    date: '2026-06-11',
+    title: {
+      'zh-CN': '插件商店描述与样式修正',
+      en: 'Marketplace Copy and Style Cleanup'
+    },
+    highlights: {
+      'zh-CN': [
+        '修正插件描述文案。',
+        '去除不必要的 `!important`。',
+        '清理样式兼容性问题。'
+      ],
+      en: [
+        'Revised plugin marketplace copy.',
+        'Removed unnecessary `!important` rules.',
+        'Cleaned up style compatibility issues.'
+      ]
+    }
+  },
+  {
+    version: '1.0.1',
+    date: '2026-06-11',
+    title: {
+      'zh-CN': '通过插件商店审核准备',
+      en: 'Marketplace Review Preparation'
+    },
+    highlights: {
+      'zh-CN': [
+        '调整 manifest 与 README 以满足审核要求。',
+        '统一 CSS 注释格式。',
+        '补充 MIT LICENSE。'
+      ],
+      en: [
+        'Adjusted the manifest and README for marketplace review requirements.',
+        'Unified CSS comment formatting.',
+        'Added the MIT LICENSE.'
+      ]
+    }
+  }
+];
 
 const I18N = {
   'zh-CN': {
@@ -70,7 +212,27 @@ const I18N = {
       searchNotes: '搜索笔记',
       commandPalette: '命令面板',
       openGraph: '打开图谱',
-      startPomodoro: '启动番茄钟'
+      startPomodoro: '启动番茄钟',
+      releaseNotes: '最近更新记录'
+    },
+    layout: {
+      edit: '编辑模式',
+      done: '完成编辑',
+      editHint: '进入编辑模式后可上下拖动模块排序',
+      doneHint: '退出编辑模式',
+      dragHandle: ({ module }) => '拖动排序：' + module,
+      hide: '隐藏',
+      show: '显示',
+      hiddenTag: '已隐藏',
+      hideModule: ({ module }) => '隐藏模块：' + module,
+      showModule: ({ module }) => '显示模块：' + module,
+      modules: {
+        hero: '欢迎区',
+        tip: '每日小贴士',
+        toolbar: '快捷工具栏',
+        calendar: '日历看板',
+        footer: '页脚'
+      }
     },
     notices: {
       cockpitMissing: '🛩️ 驾驶舱未配置',
@@ -128,6 +290,11 @@ const I18N = {
     },
     footer: {
       text: '💾 h 持续维护 · 知识库是活的'
+    },
+    releases: {
+      title: '最近更新记录',
+      current: '当前版本',
+      empty: '暂时没有可展示的更新记录。'
     },
     pomodoro: {
       title: '🍅 番茄钟',
@@ -209,7 +376,27 @@ const I18N = {
       searchNotes: 'Search notes',
       commandPalette: 'Command palette',
       openGraph: 'Open graph view',
-      startPomodoro: 'Start Pomodoro'
+      startPomodoro: 'Start Pomodoro',
+      releaseNotes: 'Recent updates'
+    },
+    layout: {
+      edit: 'Edit Mode',
+      done: 'Done',
+      editHint: 'Turn on layout editing to drag modules up or down',
+      doneHint: 'Exit layout editing',
+      dragHandle: ({ module }) => 'Drag to reorder: ' + module,
+      hide: 'Hide',
+      show: 'Show',
+      hiddenTag: 'Hidden',
+      hideModule: ({ module }) => 'Hide module: ' + module,
+      showModule: ({ module }) => 'Show module: ' + module,
+      modules: {
+        hero: 'Hero',
+        tip: 'Daily Tip',
+        toolbar: 'Toolbar',
+        calendar: 'Calendar',
+        footer: 'Footer'
+      }
     },
     notices: {
       cockpitMissing: '🛩️ Dashboard command is not configured',
@@ -267,6 +454,11 @@ const I18N = {
     },
     footer: {
       text: '💾 Maintained continuously · Keep the vault alive'
+    },
+    releases: {
+      title: 'Recent updates',
+      current: 'Current version',
+      empty: 'No update records are available yet.'
     },
     pomodoro: {
       title: '🍅 Pomodoro',
@@ -817,12 +1009,263 @@ function buildPomodoro(view, root) {
 
 // ===== _framework.js =====
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._editMode = false; this._dragModuleId = null; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
   _lang() { return normalizeLang(this._language); }
   _t(key, vars) { return getText(this._language, key, vars); }
+  _defaultModuleOrder() {
+    return ['hero', 'tip', 'toolbar', 'calendar', 'cats', 'stats', 'todos', 'recent', 'bookmarks', 'flash', 'heatmap', 'footer'];
+  }
+  _normalizeModuleOrder(order) {
+    const defaults = this._defaultModuleOrder();
+    const seen = new Set();
+    const next = Array.isArray(order)
+      ? order.filter((id) => defaults.includes(id) && !seen.has(id) && (seen.add(id), true))
+      : [];
+    defaults.forEach((id) => {
+      if (!seen.has(id)) next.push(id);
+    });
+    return next;
+  }
+  _moduleLabel(id) {
+    const labels = {
+      hero: this._t('layout.modules.hero'),
+      tip: this._t('layout.modules.tip'),
+      toolbar: this._t('layout.modules.toolbar'),
+      calendar: this._t('layout.modules.calendar'),
+      cats: this._t('sections.cats'),
+      stats: this._t('sections.stats'),
+      todos: this._t('sections.todos'),
+      recent: this._t('sections.recent'),
+      bookmarks: this._t('sections.bookmarks'),
+      flash: this._t('sections.flash'),
+      heatmap: this._t('sections.heatmap'),
+      footer: this._t('layout.modules.footer')
+    };
+    return labels[id] || id;
+  }
+  _normalizeModuleSubset(list) {
+    const defaults = new Set(this._defaultModuleOrder());
+    const seen = new Set();
+    return Array.isArray(list)
+      ? list.filter((id) => defaults.has(id) && !seen.has(id) && (seen.add(id), true))
+      : [];
+  }
+  _isModuleHidden(moduleId) {
+    return this._hiddenModules.has(moduleId);
+  }
+  async _saveModuleOrder(order) {
+    const next = this._normalizeModuleOrder(order);
+    this._moduleOrder = next;
+    try {
+      const data = await this._plugin.loadData() || {};
+      data.moduleOrder = next;
+      await this._plugin.saveData(data);
+    } catch (e) {
+      console.warn('Cockpit: save module order failed', e);
+    }
+  }
+  async _saveHiddenModules(hiddenModules) {
+    const next = this._normalizeModuleSubset(hiddenModules);
+    this._hiddenModules = new Set(next);
+    try {
+      const data = await this._plugin.loadData() || {};
+      data.hiddenModules = next;
+      await this._plugin.saveData(data);
+    } catch (e) {
+      console.warn('Cockpit: save hidden modules failed', e);
+    }
+  }
+  _getModuleIdForElement(el) {
+    if (!(el instanceof HTMLElement)) return null;
+    if (el.tagName === 'STYLE') return null;
+    if (el.classList.contains(PLUGIN_ID + '-hero')) return 'hero';
+    if (el.classList.contains(PLUGIN_ID + '-tip')) return 'tip';
+    if (
+      el.classList.contains(PLUGIN_ID + '-toolbar') ||
+      el.classList.contains(PLUGIN_ID + '-search-row') ||
+      el.classList.contains(PLUGIN_ID + '-search-results')
+    ) return 'toolbar';
+    if (
+      el.classList.contains(PLUGIN_ID + '-cal-wrap') ||
+      el.classList.contains(PLUGIN_ID + '-cal-detail')
+    ) return 'calendar';
+    if (el.dataset.section === 'cats-title' || el.classList.contains(PLUGIN_ID + '-cats')) return 'cats';
+    if (el.dataset.section === 'stats-title' || el.classList.contains(PLUGIN_ID + '-stats')) return 'stats';
+    if (el.classList.contains(PLUGIN_ID + '-todo-header') || el.dataset.section === 'todos-body') return 'todos';
+    if (el.dataset.section === 'recent-title') return 'recent';
+    if (el.dataset.section === 'bookmarks-title' || el.dataset.section === 'bookmarks-list') return 'bookmarks';
+    if (el.classList.contains(PLUGIN_ID + '-recent')) return 'recent';
+    if (el.dataset.section === 'flash-title' || el.dataset.section === 'flash-content') return 'flash';
+    if (el.dataset.section === 'heatmap-title' || el.classList.contains(PLUGIN_ID + '-heatmap')) return 'heatmap';
+    if (el.classList.contains(PLUGIN_ID + '-footer')) return 'footer';
+    return null;
+  }
+  _clearModuleDropHints(root) {
+    root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
+      wrapper.classList.remove('dragging', 'drop-before', 'drop-after');
+    });
+  }
+  _applyModuleEditState(root) {
+    root.classList.toggle(PLUGIN_ID + '-layout-editing', this._editMode);
+    const quickDoneBtn = root.querySelector('.' + PLUGIN_ID + '-layout-done');
+    if (quickDoneBtn) {
+      quickDoneBtn.style.display = this._editMode ? 'inline-flex' : 'none';
+      quickDoneBtn.title = this._t('layout.done');
+      quickDoneBtn.setAttribute('aria-label', this._t('layout.done'));
+    }
+    root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
+      const moduleId = wrapper.dataset.moduleId;
+      const hidden = this._isModuleHidden(moduleId);
+      wrapper.classList.toggle('is-editing', this._editMode);
+      wrapper.classList.toggle('is-hidden', hidden);
+      wrapper.style.display = !this._editMode && hidden ? 'none' : '';
+      const handle = wrapper.querySelector('.' + PLUGIN_ID + '-module-handle');
+      const badge = wrapper.querySelector('.' + PLUGIN_ID + '-module-badge');
+      const visibilityBtn = wrapper.querySelector('.' + PLUGIN_ID + '-module-visibility');
+      const label = this._moduleLabel(moduleId);
+      if (badge) badge.textContent = hidden ? label + ' · ' + this._t('layout.hiddenTag') : label;
+      if (handle) {
+        handle.draggable = this._editMode;
+        handle.tabIndex = this._editMode ? 0 : -1;
+        handle.setAttribute('aria-hidden', this._editMode ? 'false' : 'true');
+      }
+      if (visibilityBtn) {
+        visibilityBtn.textContent = hidden ? this._t('layout.show') : this._t('layout.hide');
+        visibilityBtn.title = hidden
+          ? this._t('layout.showModule', { module: label })
+          : this._t('layout.hideModule', { module: label });
+        visibilityBtn.tabIndex = this._editMode ? 0 : -1;
+        visibilityBtn.classList.toggle('is-hidden', hidden);
+      }
+    });
+  }
+  _wireModuleDnD(root) {
+    root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
+      const moduleId = wrapper.dataset.moduleId;
+      const label = this._moduleLabel(moduleId);
+      let tools = wrapper.querySelector(':scope > .' + PLUGIN_ID + '-module-tools');
+      let badge;
+      let handle;
+      let visibilityBtn;
+      if (!tools) {
+        tools = document.createElement('div');
+        tools.className = PLUGIN_ID + '-module-tools';
+        badge = document.createElement('span');
+        badge.className = PLUGIN_ID + '-module-badge';
+        visibilityBtn = document.createElement('button');
+        visibilityBtn.type = 'button';
+        visibilityBtn.className = PLUGIN_ID + '-module-visibility';
+        handle = document.createElement('button');
+        handle.type = 'button';
+        handle.className = PLUGIN_ID + '-module-handle';
+        handle.textContent = '↕';
+        tools.appendChild(badge);
+        tools.appendChild(visibilityBtn);
+        tools.appendChild(handle);
+        wrapper.prepend(tools);
+      } else {
+        badge = tools.querySelector('.' + PLUGIN_ID + '-module-badge');
+        visibilityBtn = tools.querySelector('.' + PLUGIN_ID + '-module-visibility');
+        handle = tools.querySelector('.' + PLUGIN_ID + '-module-handle');
+      }
+      if (badge) badge.textContent = label;
+      if (visibilityBtn) {
+        visibilityBtn.onclick = async (evt) => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          const nextHidden = !this._isModuleHidden(moduleId);
+          const hiddenModules = new Set(this._hiddenModules);
+          if (nextHidden) hiddenModules.add(moduleId);
+          else hiddenModules.delete(moduleId);
+          await this._saveHiddenModules(Array.from(hiddenModules));
+          this._applyModuleEditState(root);
+        };
+      }
+      if (handle) {
+        handle.title = this._t('layout.dragHandle', { module: label });
+        handle.draggable = this._editMode;
+        handle.tabIndex = this._editMode ? 0 : -1;
+        handle.ondragstart = (evt) => {
+          if (!this._editMode) {
+            evt.preventDefault();
+            return;
+          }
+          this._dragModuleId = moduleId;
+          wrapper.classList.add('dragging');
+          evt.dataTransfer.effectAllowed = 'move';
+          evt.dataTransfer.setData('text/plain', moduleId);
+        };
+        handle.ondragend = () => {
+          this._dragModuleId = null;
+          this._clearModuleDropHints(root);
+        };
+      }
+      wrapper.ondragover = (evt) => {
+        const draggedId = this._dragModuleId || evt.dataTransfer.getData('text/plain');
+        if (!this._editMode || !draggedId || draggedId === moduleId) return;
+        evt.preventDefault();
+        const rect = wrapper.getBoundingClientRect();
+        const before = evt.clientY < rect.top + rect.height / 2;
+        wrapper.classList.toggle('drop-before', before);
+        wrapper.classList.toggle('drop-after', !before);
+      };
+      wrapper.ondragleave = () => {
+        wrapper.classList.remove('drop-before', 'drop-after');
+      };
+      wrapper.ondrop = async (evt) => {
+        const draggedId = this._dragModuleId || evt.dataTransfer.getData('text/plain');
+        if (!this._editMode || !draggedId || draggedId === moduleId) return;
+        evt.preventDefault();
+        const dragged = root.querySelector('.' + PLUGIN_ID + '-module[data-module-id="' + draggedId + '"]');
+        if (!dragged) return;
+        const rect = wrapper.getBoundingClientRect();
+        const before = evt.clientY < rect.top + rect.height / 2;
+        if (before) root.insertBefore(dragged, wrapper);
+        else root.insertBefore(dragged, wrapper.nextSibling);
+        this._clearModuleDropHints(root);
+        await this._saveModuleOrder(Array.from(root.querySelectorAll('.' + PLUGIN_ID + '-module')).map((el) => el.dataset.moduleId));
+      };
+    });
+    this._applyModuleEditState(root);
+  }
+  _applyModuleLayout(root) {
+    Array.from(root.querySelectorAll(':scope > .' + PLUGIN_ID + '-module')).forEach((wrapper) => {
+      while (wrapper.firstChild) {
+        const child = wrapper.firstChild;
+        if (child.classList && child.classList.contains(PLUGIN_ID + '-module-tools')) {
+          child.remove();
+          continue;
+        }
+        root.insertBefore(child, wrapper);
+      }
+      wrapper.remove();
+    });
+    const groups = new Map(this._defaultModuleOrder().map((id) => [id, []]));
+    const unclassified = [];
+    Array.from(root.children).forEach((child) => {
+      if (child.tagName === 'STYLE') return;
+      const moduleId = this._getModuleIdForElement(child);
+      if (moduleId && groups.has(moduleId)) groups.get(moduleId).push(child);
+      else unclassified.push(child);
+    });
+    const fragment = document.createDocumentFragment();
+    this._normalizeModuleOrder(this._moduleOrder).forEach((moduleId) => {
+      const nodes = groups.get(moduleId) || [];
+      if (!nodes.length) return;
+      const wrapper = document.createElement('section');
+      wrapper.className = PLUGIN_ID + '-module';
+      wrapper.dataset.moduleId = moduleId;
+      wrapper.dataset.moduleLabel = this._moduleLabel(moduleId);
+      nodes.forEach((node) => wrapper.appendChild(node));
+      fragment.appendChild(wrapper);
+    });
+    unclassified.forEach((node) => fragment.appendChild(node));
+    root.appendChild(fragment);
+    this._wireModuleDnD(root);
+  }
   async _setLanguage(language) {
     const next = normalizeLang(language);
     if (next === this._language) return;
@@ -858,10 +1301,12 @@ class CockpitView extends obsidian.ItemView {
       this._language = normalizeLang(pluginData?.language);
       this._username = pluginData?.username || this._t('hero.defaultName');
       this._collapsed = pluginData?.collapsed || {};
+      this._moduleOrder = this._normalizeModuleOrder(pluginData?.moduleOrder);
+      this._hiddenModules = new Set(this._normalizeModuleSubset(pluginData?.hiddenModules));
       if (!pluginData.startDate) { pluginData.startDate = window.moment().format('YYYY-MM-DD'); await this._plugin.saveData(pluginData); }
       this._startDate = pluginData.startDate;
       this._onboardingDone = pluginData?.onboardingDone || false;
-    } catch(e) { this._language = DEFAULT_LANG; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; }
+    } catch(e) { this._language = DEFAULT_LANG; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -938,6 +1383,22 @@ class CockpitView extends obsidian.ItemView {
       const menu = new obsidian.Menu();
       const items = [
         ...this._blankContextMenuItems,
+        {
+          title: this._t('contextMenu.releaseNotes'),
+          icon: 'history',
+          onClick: () => {
+            new CockpitReleaseNotesModal(this.app, this._plugin, this._language).open();
+          }
+        },
+        {
+          title: this._editMode ? this._t('layout.done') : this._t('layout.edit'),
+          icon: 'grip-vertical',
+          onClick: () => {
+            this._editMode = !this._editMode;
+            const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
+            if (root) this._applyModuleEditState(root);
+          }
+        },
         {
           title: this._t('contextMenu.refreshPage'),
           icon: 'refresh-cw',
@@ -1175,10 +1636,17 @@ class CockpitView extends obsidian.ItemView {
         const det      = document.createElement('div');
         det.className  = PLUGIN_ID + '-cal-detail';
         calRoot.parentNode.insertBefore(det, calRoot.nextSibling);
-        det.createDiv({ cls: PLUGIN_ID + '-cal-detail-title',
+        const detailHead = det.createDiv({ cls: PLUGIN_ID + '-cal-detail-head' });
+        detailHead.createDiv({ cls: PLUGIN_ID + '-cal-detail-title',
           text: formatCalendarDetailHeading(selDate, lang) });
+        detailHead.createDiv({
+          cls: PLUGIN_ID + '-cal-detail-count',
+          text: items.length ? String(items.length) : '0'
+        });
         if (!items.length) {
-          det.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty', text: t('calendar.emptyDay') });
+          const empty = det.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty' });
+          empty.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty-icon', text: '✦' });
+          empty.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty-text', text: t('calendar.emptyDay') });
         } else {
           items.forEach(td => {
             const item = det.createDiv({ cls: PLUGIN_ID + '-cal-detail-item' });
@@ -1203,21 +1671,30 @@ class CockpitView extends obsidian.ItemView {
       const renderAll = () => {
         const todoMap = buildTodoMap();
         ensureRoot();
-        const header = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-header' });
-        header.createDiv({ cls: PLUGIN_ID + '-cal-title', text: formatMonthTitle(calYear, calMonth, lang) });
+        const surface = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-surface' });
+        const header = surface.createDiv({ cls: PLUGIN_ID + '-cal-header' });
+        const titleWrap = header.createDiv({ cls: PLUGIN_ID + '-cal-title-wrap' });
+        titleWrap.createDiv({ cls: PLUGIN_ID + '-cal-title', text: formatMonthTitle(calYear, calMonth, lang) });
+        titleWrap.createDiv({
+          cls: PLUGIN_ID + '-cal-subtitle',
+          text: formatCalendarDetailHeading(window.moment([calYear, calMonth, selDay]), lang)
+        });
         const nav = header.createDiv({ cls: PLUGIN_ID + '-cal-nav' });
         const prevBtn  = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '‹' });
         const todayBtn = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '●', attr:{ title:t('calendar.backToToday') } });
         const nextBtn  = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '›' });
-        gridEl = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-grid' });
+        const stage = surface.createDiv({ cls: PLUGIN_ID + '-cal-stage' });
+        gridEl = stage.createDiv({ cls: PLUGIN_ID + '-cal-grid' });
         DOW_LABELS.forEach(d => gridEl.createDiv({ cls: PLUGIN_ID + '-cal-dow', text: d }));
         const firstDay    = window.moment([calYear, calMonth, 1]);
         const startDow    = firstDay.day();
         const offset      = startDow === 0 ? 6 : startDow - 1;
         const daysInMonth = firstDay.daysInMonth();
         const prevDays    = window.moment([calYear, calMonth, 1]).subtract(1,'month').daysInMonth();
-        for (let i = offset - 1; i >= 0; i--)
-          gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell dim', text: String(prevDays - i) });
+        for (let i = offset - 1; i >= 0; i--) {
+          const dimCell = gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell dim' });
+          dimCell.createSpan({ cls: PLUGIN_ID + '-cal-num', text: String(prevDays - i) });
+        }
         for (let d = 1; d <= daysInMonth; d++) {
           const cellDate = window.moment([calYear, calMonth, d]);
           const dateKey  = cellDate.format('YYYY-MM-DD');
@@ -1229,8 +1706,11 @@ class CockpitView extends obsidian.ItemView {
                     + (dayTodos.length ? ' has-todos' : '')
                     + (isSel   ? ' selected' : '');
           const cell = gridEl.createDiv({ cls });
-          cell.createSpan({ text: String(d) });
+          const inner = cell.createDiv({ cls: PLUGIN_ID + '-cal-cell-inner' });
+          inner.createSpan({ cls: PLUGIN_ID + '-cal-num', text: String(d) });
+          if (isToday) inner.createDiv({ cls: PLUGIN_ID + '-cal-today-mark' });
           if (dayTodos.length) {
+            cell.createSpan({ cls: PLUGIN_ID + '-cal-badge', text: dayTodos.length > 3 ? '3+' : String(dayTodos.length) });
             const dots = cell.createDiv({ cls: PLUGIN_ID + '-cal-dots' });
             const pc = { high:'#ef4444', mid:'#f59e0b', low:'#22c55e' };
             dayTodos.slice(0,3).forEach(t => {
@@ -1243,8 +1723,10 @@ class CockpitView extends obsidian.ItemView {
         const total = offset + daysInMonth;
         const needTrail = (7 - (total % 7)) % 7;
         const fill = Math.max(0, 42 - total - needTrail) + needTrail;
-        for (let i = 1; i <= fill; i++)
-          gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell dim', text: String(i) });
+        for (let i = 1; i <= fill; i++) {
+          const dimCell = gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell dim' });
+          dimCell.createSpan({ cls: PLUGIN_ID + '-cal-num', text: String(i) });
+        }
         const goMonth = (dir) => {
           gridEl.classList.remove('slide-in');
           gridEl.classList.add(dir > 0 ? 'slide-out-left' : 'slide-out-right');
@@ -1367,6 +1849,7 @@ class CockpitView extends obsidian.ItemView {
     const addBtn = todoHeader.createEl('button', { cls: PLUGIN_ID+'-todo-add', text:'+', attr:{title:t('todo.add')} });
     const refreshBtn = todoHeader.createEl('button', { cls: PLUGIN_ID+'-todo-add', text:'↻', attr:{title:t('todo.refresh')} });
     const todoWrap = root.createDiv();
+    todoWrap.dataset.section = 'todos-body';
     const todosEl = todoWrap.createDiv({ cls: PLUGIN_ID+'-todos' });
 
     // 状态筛选（全部/待办/已办）—— 放在 header 行右侧
@@ -1698,6 +2181,7 @@ class CockpitView extends obsidian.ItemView {
     const flashTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: t('sections.flash') });
     flashTitle.dataset.section = 'flash-title';
     const flashContent = root.createDiv();
+    flashContent.dataset.section = 'flash-content';
     const flashWrap = flashContent.createDiv({ cls: PLUGIN_ID+'-flash-row' });
     const flashInput = flashWrap.createEl('input', { cls: PLUGIN_ID+'-flash-input', attr:{placeholder:t('flash.placeholder'), type:'text'} });
     const flashOk = flashWrap.createEl('button', { cls: PLUGIN_ID+'-todo-input-ok', text:'✓' });
@@ -1772,6 +2256,21 @@ class CockpitView extends obsidian.ItemView {
     makeCollapsible(hmTitle, heatmapEl, 'heatmap');
 
     root.createDiv({ cls: PLUGIN_ID+'-footer', text: t('footer.text') });
+
+    this._applyModuleLayout(root);
+
+    const quickDoneBtn = root.createEl('button', {
+      cls: PLUGIN_ID+'-layout-done',
+      attr: { type: 'button', title: t('layout.done'), 'aria-label': t('layout.done') },
+      text: '✓'
+    });
+    quickDoneBtn.onclick = (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this._editMode = false;
+      this._applyModuleEditState(root);
+    };
+    this._applyModuleEditState(root);
 
     // ===== 番茄钟浮动组件 =====
     this._buildPomodoro(root);
@@ -1989,6 +2488,7 @@ class CockpitView extends obsidian.ItemView {
       // 没有收藏了，移除整个 section
       if (bmTitle) bmTitle.remove();
       if (bmEl) bmEl.remove();
+      this._applyModuleLayout(root);
       return;
     }
 
@@ -2035,6 +2535,7 @@ class CockpitView extends obsidian.ItemView {
     if (!hasVisible) {
       bmTitle.remove(); bmEl.remove();
     }
+    this._applyModuleLayout(root);
   }
 
   _doAction(a) {
@@ -2270,6 +2771,60 @@ class CockpitView extends obsidian.ItemView {
     };
 
     buildCard(0);
+  }
+}
+
+class CockpitReleaseNotesModal extends obsidian.Modal {
+  constructor(app, plugin, language) {
+    super(app);
+    this._plugin = plugin;
+    this._language = language;
+  }
+
+  _t(key, vars) {
+    return getText(this._language, key, vars);
+  }
+
+  _pickLocalizedReleaseField(field, fallback) {
+    if (!field) return fallback;
+    if (typeof field === 'string') return field;
+    const lang = normalizeLang(this._language);
+    return field[lang] || field.en || field['zh-CN'] || fallback;
+  }
+
+  onOpen() {
+    const { contentEl, modalEl, titleEl } = this;
+    modalEl.addClass(PLUGIN_ID + '-release-modal');
+    titleEl.setText(this._t('releases.title'));
+    contentEl.empty();
+
+    const top = contentEl.createDiv({ cls: PLUGIN_ID + '-release-top' });
+    top.createDiv({ cls: PLUGIN_ID + '-release-current', text: this._t('releases.current') + ' · v' + (this._plugin.manifest?.version || 'unknown') });
+
+    if (!RELEASE_HISTORY.length) {
+      contentEl.createDiv({ cls: PLUGIN_ID + '-release-empty', text: this._t('releases.empty') });
+      return;
+    }
+
+    RELEASE_HISTORY.forEach((release) => {
+      const card = contentEl.createDiv({ cls: PLUGIN_ID + '-release-card' });
+      const head = card.createDiv({ cls: PLUGIN_ID + '-release-head' });
+      head.createDiv({ cls: PLUGIN_ID + '-release-version', text: 'v' + release.version });
+      head.createDiv({ cls: PLUGIN_ID + '-release-date', text: release.date });
+      card.createDiv({
+        cls: PLUGIN_ID + '-release-title',
+        text: this._pickLocalizedReleaseField(release.title, release.version)
+      });
+      const list = card.createEl('ul', { cls: PLUGIN_ID + '-release-list' });
+      const highlights = this._pickLocalizedReleaseField(release.highlights, []);
+      (Array.isArray(highlights) ? highlights : []).forEach((item) => {
+        list.createEl('li', { text: item });
+      });
+    });
+  }
+
+  onClose() {
+    this.contentEl.empty();
   }
 }
 

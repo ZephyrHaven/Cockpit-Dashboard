@@ -1,10 +1,261 @@
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._editMode = false; this._dragModuleId = null; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
   _lang() { return normalizeLang(this._language); }
   _t(key, vars) { return getText(this._language, key, vars); }
+  _defaultModuleOrder() {
+    return ['hero', 'tip', 'toolbar', 'calendar', 'cats', 'stats', 'todos', 'recent', 'bookmarks', 'flash', 'heatmap', 'footer'];
+  }
+  _normalizeModuleOrder(order) {
+    const defaults = this._defaultModuleOrder();
+    const seen = new Set();
+    const next = Array.isArray(order)
+      ? order.filter((id) => defaults.includes(id) && !seen.has(id) && (seen.add(id), true))
+      : [];
+    defaults.forEach((id) => {
+      if (!seen.has(id)) next.push(id);
+    });
+    return next;
+  }
+  _moduleLabel(id) {
+    const labels = {
+      hero: this._t('layout.modules.hero'),
+      tip: this._t('layout.modules.tip'),
+      toolbar: this._t('layout.modules.toolbar'),
+      calendar: this._t('layout.modules.calendar'),
+      cats: this._t('sections.cats'),
+      stats: this._t('sections.stats'),
+      todos: this._t('sections.todos'),
+      recent: this._t('sections.recent'),
+      bookmarks: this._t('sections.bookmarks'),
+      flash: this._t('sections.flash'),
+      heatmap: this._t('sections.heatmap'),
+      footer: this._t('layout.modules.footer')
+    };
+    return labels[id] || id;
+  }
+  _normalizeModuleSubset(list) {
+    const defaults = new Set(this._defaultModuleOrder());
+    const seen = new Set();
+    return Array.isArray(list)
+      ? list.filter((id) => defaults.has(id) && !seen.has(id) && (seen.add(id), true))
+      : [];
+  }
+  _isModuleHidden(moduleId) {
+    return this._hiddenModules.has(moduleId);
+  }
+  async _saveModuleOrder(order) {
+    const next = this._normalizeModuleOrder(order);
+    this._moduleOrder = next;
+    try {
+      const data = await this._plugin.loadData() || {};
+      data.moduleOrder = next;
+      await this._plugin.saveData(data);
+    } catch (e) {
+      console.warn('Cockpit: save module order failed', e);
+    }
+  }
+  async _saveHiddenModules(hiddenModules) {
+    const next = this._normalizeModuleSubset(hiddenModules);
+    this._hiddenModules = new Set(next);
+    try {
+      const data = await this._plugin.loadData() || {};
+      data.hiddenModules = next;
+      await this._plugin.saveData(data);
+    } catch (e) {
+      console.warn('Cockpit: save hidden modules failed', e);
+    }
+  }
+  _getModuleIdForElement(el) {
+    if (!(el instanceof HTMLElement)) return null;
+    if (el.tagName === 'STYLE') return null;
+    if (el.classList.contains(PLUGIN_ID + '-hero')) return 'hero';
+    if (el.classList.contains(PLUGIN_ID + '-tip')) return 'tip';
+    if (
+      el.classList.contains(PLUGIN_ID + '-toolbar') ||
+      el.classList.contains(PLUGIN_ID + '-search-row') ||
+      el.classList.contains(PLUGIN_ID + '-search-results')
+    ) return 'toolbar';
+    if (
+      el.classList.contains(PLUGIN_ID + '-cal-wrap') ||
+      el.classList.contains(PLUGIN_ID + '-cal-detail')
+    ) return 'calendar';
+    if (el.dataset.section === 'cats-title' || el.classList.contains(PLUGIN_ID + '-cats')) return 'cats';
+    if (el.dataset.section === 'stats-title' || el.classList.contains(PLUGIN_ID + '-stats')) return 'stats';
+    if (el.classList.contains(PLUGIN_ID + '-todo-header') || el.dataset.section === 'todos-body') return 'todos';
+    if (el.dataset.section === 'recent-title') return 'recent';
+    if (el.dataset.section === 'bookmarks-title' || el.dataset.section === 'bookmarks-list') return 'bookmarks';
+    if (el.classList.contains(PLUGIN_ID + '-recent')) return 'recent';
+    if (el.dataset.section === 'flash-title' || el.dataset.section === 'flash-content') return 'flash';
+    if (el.dataset.section === 'heatmap-title' || el.classList.contains(PLUGIN_ID + '-heatmap')) return 'heatmap';
+    if (el.classList.contains(PLUGIN_ID + '-footer')) return 'footer';
+    return null;
+  }
+  _clearModuleDropHints(root) {
+    root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
+      wrapper.classList.remove('dragging', 'drop-before', 'drop-after');
+    });
+  }
+  _applyModuleEditState(root) {
+    root.classList.toggle(PLUGIN_ID + '-layout-editing', this._editMode);
+    const quickDoneBtn = root.querySelector('.' + PLUGIN_ID + '-layout-done');
+    if (quickDoneBtn) {
+      quickDoneBtn.style.display = this._editMode ? 'inline-flex' : 'none';
+      quickDoneBtn.title = this._t('layout.done');
+      quickDoneBtn.setAttribute('aria-label', this._t('layout.done'));
+    }
+    root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
+      const moduleId = wrapper.dataset.moduleId;
+      const hidden = this._isModuleHidden(moduleId);
+      wrapper.classList.toggle('is-editing', this._editMode);
+      wrapper.classList.toggle('is-hidden', hidden);
+      wrapper.style.display = !this._editMode && hidden ? 'none' : '';
+      const handle = wrapper.querySelector('.' + PLUGIN_ID + '-module-handle');
+      const badge = wrapper.querySelector('.' + PLUGIN_ID + '-module-badge');
+      const visibilityBtn = wrapper.querySelector('.' + PLUGIN_ID + '-module-visibility');
+      const label = this._moduleLabel(moduleId);
+      if (badge) badge.textContent = hidden ? label + ' · ' + this._t('layout.hiddenTag') : label;
+      if (handle) {
+        handle.draggable = this._editMode;
+        handle.tabIndex = this._editMode ? 0 : -1;
+        handle.setAttribute('aria-hidden', this._editMode ? 'false' : 'true');
+      }
+      if (visibilityBtn) {
+        visibilityBtn.textContent = hidden ? this._t('layout.show') : this._t('layout.hide');
+        visibilityBtn.title = hidden
+          ? this._t('layout.showModule', { module: label })
+          : this._t('layout.hideModule', { module: label });
+        visibilityBtn.tabIndex = this._editMode ? 0 : -1;
+        visibilityBtn.classList.toggle('is-hidden', hidden);
+      }
+    });
+  }
+  _wireModuleDnD(root) {
+    root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
+      const moduleId = wrapper.dataset.moduleId;
+      const label = this._moduleLabel(moduleId);
+      let tools = wrapper.querySelector(':scope > .' + PLUGIN_ID + '-module-tools');
+      let badge;
+      let handle;
+      let visibilityBtn;
+      if (!tools) {
+        tools = document.createElement('div');
+        tools.className = PLUGIN_ID + '-module-tools';
+        badge = document.createElement('span');
+        badge.className = PLUGIN_ID + '-module-badge';
+        visibilityBtn = document.createElement('button');
+        visibilityBtn.type = 'button';
+        visibilityBtn.className = PLUGIN_ID + '-module-visibility';
+        handle = document.createElement('button');
+        handle.type = 'button';
+        handle.className = PLUGIN_ID + '-module-handle';
+        handle.textContent = '↕';
+        tools.appendChild(badge);
+        tools.appendChild(visibilityBtn);
+        tools.appendChild(handle);
+        wrapper.prepend(tools);
+      } else {
+        badge = tools.querySelector('.' + PLUGIN_ID + '-module-badge');
+        visibilityBtn = tools.querySelector('.' + PLUGIN_ID + '-module-visibility');
+        handle = tools.querySelector('.' + PLUGIN_ID + '-module-handle');
+      }
+      if (badge) badge.textContent = label;
+      if (visibilityBtn) {
+        visibilityBtn.onclick = async (evt) => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          const nextHidden = !this._isModuleHidden(moduleId);
+          const hiddenModules = new Set(this._hiddenModules);
+          if (nextHidden) hiddenModules.add(moduleId);
+          else hiddenModules.delete(moduleId);
+          await this._saveHiddenModules(Array.from(hiddenModules));
+          this._applyModuleEditState(root);
+        };
+      }
+      if (handle) {
+        handle.title = this._t('layout.dragHandle', { module: label });
+        handle.draggable = this._editMode;
+        handle.tabIndex = this._editMode ? 0 : -1;
+        handle.ondragstart = (evt) => {
+          if (!this._editMode) {
+            evt.preventDefault();
+            return;
+          }
+          this._dragModuleId = moduleId;
+          wrapper.classList.add('dragging');
+          evt.dataTransfer.effectAllowed = 'move';
+          evt.dataTransfer.setData('text/plain', moduleId);
+        };
+        handle.ondragend = () => {
+          this._dragModuleId = null;
+          this._clearModuleDropHints(root);
+        };
+      }
+      wrapper.ondragover = (evt) => {
+        const draggedId = this._dragModuleId || evt.dataTransfer.getData('text/plain');
+        if (!this._editMode || !draggedId || draggedId === moduleId) return;
+        evt.preventDefault();
+        const rect = wrapper.getBoundingClientRect();
+        const before = evt.clientY < rect.top + rect.height / 2;
+        wrapper.classList.toggle('drop-before', before);
+        wrapper.classList.toggle('drop-after', !before);
+      };
+      wrapper.ondragleave = () => {
+        wrapper.classList.remove('drop-before', 'drop-after');
+      };
+      wrapper.ondrop = async (evt) => {
+        const draggedId = this._dragModuleId || evt.dataTransfer.getData('text/plain');
+        if (!this._editMode || !draggedId || draggedId === moduleId) return;
+        evt.preventDefault();
+        const dragged = root.querySelector('.' + PLUGIN_ID + '-module[data-module-id="' + draggedId + '"]');
+        if (!dragged) return;
+        const rect = wrapper.getBoundingClientRect();
+        const before = evt.clientY < rect.top + rect.height / 2;
+        if (before) root.insertBefore(dragged, wrapper);
+        else root.insertBefore(dragged, wrapper.nextSibling);
+        this._clearModuleDropHints(root);
+        await this._saveModuleOrder(Array.from(root.querySelectorAll('.' + PLUGIN_ID + '-module')).map((el) => el.dataset.moduleId));
+      };
+    });
+    this._applyModuleEditState(root);
+  }
+  _applyModuleLayout(root) {
+    Array.from(root.querySelectorAll(':scope > .' + PLUGIN_ID + '-module')).forEach((wrapper) => {
+      while (wrapper.firstChild) {
+        const child = wrapper.firstChild;
+        if (child.classList && child.classList.contains(PLUGIN_ID + '-module-tools')) {
+          child.remove();
+          continue;
+        }
+        root.insertBefore(child, wrapper);
+      }
+      wrapper.remove();
+    });
+    const groups = new Map(this._defaultModuleOrder().map((id) => [id, []]));
+    const unclassified = [];
+    Array.from(root.children).forEach((child) => {
+      if (child.tagName === 'STYLE') return;
+      const moduleId = this._getModuleIdForElement(child);
+      if (moduleId && groups.has(moduleId)) groups.get(moduleId).push(child);
+      else unclassified.push(child);
+    });
+    const fragment = document.createDocumentFragment();
+    this._normalizeModuleOrder(this._moduleOrder).forEach((moduleId) => {
+      const nodes = groups.get(moduleId) || [];
+      if (!nodes.length) return;
+      const wrapper = document.createElement('section');
+      wrapper.className = PLUGIN_ID + '-module';
+      wrapper.dataset.moduleId = moduleId;
+      wrapper.dataset.moduleLabel = this._moduleLabel(moduleId);
+      nodes.forEach((node) => wrapper.appendChild(node));
+      fragment.appendChild(wrapper);
+    });
+    unclassified.forEach((node) => fragment.appendChild(node));
+    root.appendChild(fragment);
+    this._wireModuleDnD(root);
+  }
   async _setLanguage(language) {
     const next = normalizeLang(language);
     if (next === this._language) return;
@@ -40,10 +291,12 @@ class CockpitView extends obsidian.ItemView {
       this._language = normalizeLang(pluginData?.language);
       this._username = pluginData?.username || this._t('hero.defaultName');
       this._collapsed = pluginData?.collapsed || {};
+      this._moduleOrder = this._normalizeModuleOrder(pluginData?.moduleOrder);
+      this._hiddenModules = new Set(this._normalizeModuleSubset(pluginData?.hiddenModules));
       if (!pluginData.startDate) { pluginData.startDate = window.moment().format('YYYY-MM-DD'); await this._plugin.saveData(pluginData); }
       this._startDate = pluginData.startDate;
       this._onboardingDone = pluginData?.onboardingDone || false;
-    } catch(e) { this._language = DEFAULT_LANG; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; }
+    } catch(e) { this._language = DEFAULT_LANG; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -120,6 +373,22 @@ class CockpitView extends obsidian.ItemView {
       const menu = new obsidian.Menu();
       const items = [
         ...this._blankContextMenuItems,
+        {
+          title: this._t('contextMenu.releaseNotes'),
+          icon: 'history',
+          onClick: () => {
+            new CockpitReleaseNotesModal(this.app, this._plugin, this._language).open();
+          }
+        },
+        {
+          title: this._editMode ? this._t('layout.done') : this._t('layout.edit'),
+          icon: 'grip-vertical',
+          onClick: () => {
+            this._editMode = !this._editMode;
+            const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
+            if (root) this._applyModuleEditState(root);
+          }
+        },
         {
           title: this._t('contextMenu.refreshPage'),
           icon: 'refresh-cw',
@@ -357,10 +626,17 @@ class CockpitView extends obsidian.ItemView {
         const det      = document.createElement('div');
         det.className  = PLUGIN_ID + '-cal-detail';
         calRoot.parentNode.insertBefore(det, calRoot.nextSibling);
-        det.createDiv({ cls: PLUGIN_ID + '-cal-detail-title',
+        const detailHead = det.createDiv({ cls: PLUGIN_ID + '-cal-detail-head' });
+        detailHead.createDiv({ cls: PLUGIN_ID + '-cal-detail-title',
           text: formatCalendarDetailHeading(selDate, lang) });
+        detailHead.createDiv({
+          cls: PLUGIN_ID + '-cal-detail-count',
+          text: items.length ? String(items.length) : '0'
+        });
         if (!items.length) {
-          det.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty', text: t('calendar.emptyDay') });
+          const empty = det.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty' });
+          empty.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty-icon', text: '✦' });
+          empty.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty-text', text: t('calendar.emptyDay') });
         } else {
           items.forEach(td => {
             const item = det.createDiv({ cls: PLUGIN_ID + '-cal-detail-item' });
@@ -385,21 +661,30 @@ class CockpitView extends obsidian.ItemView {
       const renderAll = () => {
         const todoMap = buildTodoMap();
         ensureRoot();
-        const header = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-header' });
-        header.createDiv({ cls: PLUGIN_ID + '-cal-title', text: formatMonthTitle(calYear, calMonth, lang) });
+        const surface = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-surface' });
+        const header = surface.createDiv({ cls: PLUGIN_ID + '-cal-header' });
+        const titleWrap = header.createDiv({ cls: PLUGIN_ID + '-cal-title-wrap' });
+        titleWrap.createDiv({ cls: PLUGIN_ID + '-cal-title', text: formatMonthTitle(calYear, calMonth, lang) });
+        titleWrap.createDiv({
+          cls: PLUGIN_ID + '-cal-subtitle',
+          text: formatCalendarDetailHeading(window.moment([calYear, calMonth, selDay]), lang)
+        });
         const nav = header.createDiv({ cls: PLUGIN_ID + '-cal-nav' });
         const prevBtn  = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '‹' });
         const todayBtn = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '●', attr:{ title:t('calendar.backToToday') } });
         const nextBtn  = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '›' });
-        gridEl = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-grid' });
+        const stage = surface.createDiv({ cls: PLUGIN_ID + '-cal-stage' });
+        gridEl = stage.createDiv({ cls: PLUGIN_ID + '-cal-grid' });
         DOW_LABELS.forEach(d => gridEl.createDiv({ cls: PLUGIN_ID + '-cal-dow', text: d }));
         const firstDay    = window.moment([calYear, calMonth, 1]);
         const startDow    = firstDay.day();
         const offset      = startDow === 0 ? 6 : startDow - 1;
         const daysInMonth = firstDay.daysInMonth();
         const prevDays    = window.moment([calYear, calMonth, 1]).subtract(1,'month').daysInMonth();
-        for (let i = offset - 1; i >= 0; i--)
-          gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell dim', text: String(prevDays - i) });
+        for (let i = offset - 1; i >= 0; i--) {
+          const dimCell = gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell dim' });
+          dimCell.createSpan({ cls: PLUGIN_ID + '-cal-num', text: String(prevDays - i) });
+        }
         for (let d = 1; d <= daysInMonth; d++) {
           const cellDate = window.moment([calYear, calMonth, d]);
           const dateKey  = cellDate.format('YYYY-MM-DD');
@@ -411,8 +696,11 @@ class CockpitView extends obsidian.ItemView {
                     + (dayTodos.length ? ' has-todos' : '')
                     + (isSel   ? ' selected' : '');
           const cell = gridEl.createDiv({ cls });
-          cell.createSpan({ text: String(d) });
+          const inner = cell.createDiv({ cls: PLUGIN_ID + '-cal-cell-inner' });
+          inner.createSpan({ cls: PLUGIN_ID + '-cal-num', text: String(d) });
+          if (isToday) inner.createDiv({ cls: PLUGIN_ID + '-cal-today-mark' });
           if (dayTodos.length) {
+            cell.createSpan({ cls: PLUGIN_ID + '-cal-badge', text: dayTodos.length > 3 ? '3+' : String(dayTodos.length) });
             const dots = cell.createDiv({ cls: PLUGIN_ID + '-cal-dots' });
             const pc = { high:'#ef4444', mid:'#f59e0b', low:'#22c55e' };
             dayTodos.slice(0,3).forEach(t => {
@@ -425,8 +713,10 @@ class CockpitView extends obsidian.ItemView {
         const total = offset + daysInMonth;
         const needTrail = (7 - (total % 7)) % 7;
         const fill = Math.max(0, 42 - total - needTrail) + needTrail;
-        for (let i = 1; i <= fill; i++)
-          gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell dim', text: String(i) });
+        for (let i = 1; i <= fill; i++) {
+          const dimCell = gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell dim' });
+          dimCell.createSpan({ cls: PLUGIN_ID + '-cal-num', text: String(i) });
+        }
         const goMonth = (dir) => {
           gridEl.classList.remove('slide-in');
           gridEl.classList.add(dir > 0 ? 'slide-out-left' : 'slide-out-right');
@@ -549,6 +839,7 @@ class CockpitView extends obsidian.ItemView {
     const addBtn = todoHeader.createEl('button', { cls: PLUGIN_ID+'-todo-add', text:'+', attr:{title:t('todo.add')} });
     const refreshBtn = todoHeader.createEl('button', { cls: PLUGIN_ID+'-todo-add', text:'↻', attr:{title:t('todo.refresh')} });
     const todoWrap = root.createDiv();
+    todoWrap.dataset.section = 'todos-body';
     const todosEl = todoWrap.createDiv({ cls: PLUGIN_ID+'-todos' });
 
     // 状态筛选（全部/待办/已办）—— 放在 header 行右侧
@@ -880,6 +1171,7 @@ class CockpitView extends obsidian.ItemView {
     const flashTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: t('sections.flash') });
     flashTitle.dataset.section = 'flash-title';
     const flashContent = root.createDiv();
+    flashContent.dataset.section = 'flash-content';
     const flashWrap = flashContent.createDiv({ cls: PLUGIN_ID+'-flash-row' });
     const flashInput = flashWrap.createEl('input', { cls: PLUGIN_ID+'-flash-input', attr:{placeholder:t('flash.placeholder'), type:'text'} });
     const flashOk = flashWrap.createEl('button', { cls: PLUGIN_ID+'-todo-input-ok', text:'✓' });
@@ -954,6 +1246,21 @@ class CockpitView extends obsidian.ItemView {
     makeCollapsible(hmTitle, heatmapEl, 'heatmap');
 
     root.createDiv({ cls: PLUGIN_ID+'-footer', text: t('footer.text') });
+
+    this._applyModuleLayout(root);
+
+    const quickDoneBtn = root.createEl('button', {
+      cls: PLUGIN_ID+'-layout-done',
+      attr: { type: 'button', title: t('layout.done'), 'aria-label': t('layout.done') },
+      text: '✓'
+    });
+    quickDoneBtn.onclick = (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this._editMode = false;
+      this._applyModuleEditState(root);
+    };
+    this._applyModuleEditState(root);
 
     // ===== 番茄钟浮动组件 =====
     this._buildPomodoro(root);
@@ -1171,6 +1478,7 @@ class CockpitView extends obsidian.ItemView {
       // 没有收藏了，移除整个 section
       if (bmTitle) bmTitle.remove();
       if (bmEl) bmEl.remove();
+      this._applyModuleLayout(root);
       return;
     }
 
@@ -1217,6 +1525,7 @@ class CockpitView extends obsidian.ItemView {
     if (!hasVisible) {
       bmTitle.remove(); bmEl.remove();
     }
+    this._applyModuleLayout(root);
   }
 
   _doAction(a) {
@@ -1452,6 +1761,60 @@ class CockpitView extends obsidian.ItemView {
     };
 
     buildCard(0);
+  }
+}
+
+class CockpitReleaseNotesModal extends obsidian.Modal {
+  constructor(app, plugin, language) {
+    super(app);
+    this._plugin = plugin;
+    this._language = language;
+  }
+
+  _t(key, vars) {
+    return getText(this._language, key, vars);
+  }
+
+  _pickLocalizedReleaseField(field, fallback) {
+    if (!field) return fallback;
+    if (typeof field === 'string') return field;
+    const lang = normalizeLang(this._language);
+    return field[lang] || field.en || field['zh-CN'] || fallback;
+  }
+
+  onOpen() {
+    const { contentEl, modalEl, titleEl } = this;
+    modalEl.addClass(PLUGIN_ID + '-release-modal');
+    titleEl.setText(this._t('releases.title'));
+    contentEl.empty();
+
+    const top = contentEl.createDiv({ cls: PLUGIN_ID + '-release-top' });
+    top.createDiv({ cls: PLUGIN_ID + '-release-current', text: this._t('releases.current') + ' · v' + (this._plugin.manifest?.version || 'unknown') });
+
+    if (!RELEASE_HISTORY.length) {
+      contentEl.createDiv({ cls: PLUGIN_ID + '-release-empty', text: this._t('releases.empty') });
+      return;
+    }
+
+    RELEASE_HISTORY.forEach((release) => {
+      const card = contentEl.createDiv({ cls: PLUGIN_ID + '-release-card' });
+      const head = card.createDiv({ cls: PLUGIN_ID + '-release-head' });
+      head.createDiv({ cls: PLUGIN_ID + '-release-version', text: 'v' + release.version });
+      head.createDiv({ cls: PLUGIN_ID + '-release-date', text: release.date });
+      card.createDiv({
+        cls: PLUGIN_ID + '-release-title',
+        text: this._pickLocalizedReleaseField(release.title, release.version)
+      });
+      const list = card.createEl('ul', { cls: PLUGIN_ID + '-release-list' });
+      const highlights = this._pickLocalizedReleaseField(release.highlights, []);
+      (Array.isArray(highlights) ? highlights : []).forEach((item) => {
+        list.createEl('li', { text: item });
+      });
+    });
+  }
+
+  onClose() {
+    this.contentEl.empty();
   }
 }
 
