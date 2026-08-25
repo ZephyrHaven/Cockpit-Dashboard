@@ -1,5 +1,5 @@
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = '行'; this._collapsed = {}; this._toolbarCmds = {}; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = '点击修改名称'; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -20,11 +20,12 @@ class CockpitView extends obsidian.ItemView {
     // 加载用户自定义名称 + 初始化首次使用日期
     try {
       const pluginData = await this._plugin.loadData() || {};
-      this._username = pluginData?.username || '行';
+      this._username = pluginData?.username || '点击修改名称';
       this._collapsed = pluginData?.collapsed || {};
       if (!pluginData.startDate) { pluginData.startDate = window.moment().format('YYYY-MM-DD'); await this._plugin.saveData(pluginData); }
       this._startDate = pluginData.startDate;
-    } catch(e) { this._username = '行'; this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; }
+      this._onboardingDone = pluginData?.onboardingDone || false;
+    } catch(e) { this._username = '点击修改名称'; this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -70,6 +71,7 @@ class CockpitView extends obsidian.ItemView {
     } catch(e) { console.warn('Cockpit: toolbar config error', e); }
 
     await this._buildAll(root);
+    setTimeout(() => this._showOnboarding(root), 600);
 
     // 每 2 小时静默刷新一次数据（问候语、时间、统计、最近文件、待办）
     this._refreshTimer = setInterval(async () => {
@@ -114,7 +116,7 @@ class CockpitView extends obsidian.ItemView {
           if (saved) return;
           saved = true;
           if (cancel) { const ns = greetLine.createSpan({ cls: PLUGIN_ID+'-name', text: this._username }); inp.replaceWith(ns); ns.onclick = () => startEdit(ns); return; }
-          const v = inp.value.trim() || '行';
+          const v = inp.value.trim() || '点击修改名称';
           this._username = v;
           try { const d = await this._plugin.loadData() || {}; d.username = v; await this._plugin.saveData(d); } catch(e) { console.warn('Cockpit: save username failed', e); }
           const ns = greetLine.createSpan({ cls: PLUGIN_ID+'-name', text: v });
@@ -1217,6 +1219,118 @@ class CockpitView extends obsidian.ItemView {
     // 番茄钟是全局单例，不随驾驶舱关闭而销毁
     // 只清理引用，不移除 DOM
     this._pomodoroTimer = null;
+  }
+        // ========== 首次使用引导 — 区域引导卡片 ==========
+  _showOnboarding(root) {
+    if (this._onboardingDone) return;
+    const PID = PLUGIN_ID;
+
+    const steps = [
+      { sel: '.'+PID+'-name', text: '✏️ 点击上方昵称可直接修改，试试点击「点击修改名称」输入你的名字', pos: 'below' },
+      { sel: '.'+PID+'-toolbar', text: '⚡ 工具栏一键操作：新建笔记、搜索、标签、图谱、番茄钟等', pos: 'below' },
+      { sel: '.'+PID+'-cal-wrap', text: '📅 日历看板显示每日待办，左右箭头切换月份，点击日期查看详情', pos: 'above' },
+      { sel: '.'+PID+'-todo-header', text: '✅ 待办支持标签分类、红黄绿优先级、截止日期提醒，点击复选框完成', pos: 'above' },
+      { sel: '.'+PID+'-stats', text: '📊 统计卡片实时展示数据，各区域标题可点击折叠收起', pos: 'above' },
+    ];
+    const pomoEl = document.querySelector('.'+PID+'-pomodoro');
+    if (pomoEl) steps.push({ el: pomoEl, text: '🍅 番茄钟 25 分专注 + 5 分休息，右下角浮动可拖拽', pos: 'pomo' });
+
+    let cur = 0, hlEl = null, card = null;
+
+    const highlight = (s) => {
+      if (hlEl) { hlEl.classList.remove(PID+'-onboarding-highlight'); hlEl = null; }
+      const a = s.el || root.querySelector(s.sel);
+      if (a) { hlEl = a; a.classList.add(PID+'-onboarding-highlight'); if (s.pos !== 'pomo') a.scrollIntoView({behavior:'smooth',block:'center'}); }
+    };
+
+    const positionCard = (s) => {
+      if (!card) return;
+      const a = s.el || root.querySelector(s.sel);
+      if (!a || s.pos === 'pomo') {
+        // fallback: bottom-right
+        card.style.bottom = '80px';
+        card.style.right = '220px';
+        card.style.top = 'auto';
+        card.style.left = 'auto';
+        return;
+      }
+      const rect = a.getBoundingClientRect();
+      const pad = 12;
+      let top, left;
+      if (s.pos === 'below') {
+        top = rect.bottom + pad;
+        left = Math.max(12, Math.min(rect.left, window.innerWidth - 360));
+      } else {
+        top = rect.top - pad - (card.firstChild ? card.offsetHeight || 120 : 120);
+        left = Math.max(12, Math.min(rect.left, window.innerWidth - 360));
+      }
+      // clamp
+      top = Math.max(8, Math.min(top, window.innerHeight - 160));
+      card.style.top = top + 'px';
+      card.style.left = left + 'px';
+      card.style.bottom = 'auto';
+      card.style.right = 'auto';
+    };
+
+    const buildCard = (i) => {
+      if (i >= steps.length) { finish(); return; }
+      const s = steps[i];
+      if (!card) {
+        card = document.createElement('div');
+        card.id = PID+'-tour';
+        card.style.cssText = 'position:fixed;z-index:9998;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:14px;padding:14px 16px;max-width:340px;width:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18);transition:opacity 0.3s;font-size:0.85em;line-height:1.5;';
+        document.body.appendChild(card);
+      }
+      card.innerHTML = '';
+      card.style.opacity = '1';
+      // header
+      const top = document.createElement('div');
+      top.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;';
+      const num = document.createElement('span');
+      num.textContent = (i+1)+'/'+steps.length;
+      num.style.cssText = 'font-size:0.72em;color:var(--text-muted);font-weight:600;';
+      top.appendChild(num);
+      const cl = document.createElement('span');
+      cl.textContent = '✕ 关闭';
+      cl.style.cssText = 'font-size:0.7em;color:var(--text-muted);cursor:pointer;padding:2px 6px;border-radius:6px;';
+      cl.onclick = finish;
+      top.appendChild(cl);
+      card.appendChild(top);
+      // body
+      const body = document.createElement('div');
+      body.textContent = s.text;
+      body.style.cssText = 'color:var(--text-normal);margin-bottom:12px;';
+      card.appendChild(body);
+      // buttons
+      const btnRow = document.createElement('div');
+      btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+      if (i > 0) {
+        const pb = document.createElement('button');
+        pb.textContent = '← 上一步';
+        pb.style.cssText = 'padding:4px 14px;border-radius:8px;border:1px solid var(--background-modifier-border);background:var(--background-secondary);color:var(--text-muted);font-size:0.78em;cursor:pointer;';
+        pb.onclick = () => { cur = i-1; buildCard(cur); };
+        btnRow.appendChild(pb);
+      }
+      const nb = document.createElement('button');
+      nb.textContent = i < steps.length-1 ? '下一步 →' : '✓ 完成';
+      nb.style.cssText = 'padding:4px 16px;border-radius:8px;border:none;background:var(--interactive-accent);color:white;font-size:0.78em;font-weight:600;cursor:pointer;';
+      nb.onclick = () => { cur = i+1; buildCard(cur); };
+      btnRow.appendChild(nb);
+      card.appendChild(btnRow);
+      highlight(s);
+      requestAnimationFrame(() => { positionCard(s); });
+      cur = i;
+    };
+
+    const finish = () => {
+      if (hlEl) hlEl.classList.remove(PID+'-onboarding-highlight');
+      const c = document.getElementById(PID+'-tour');
+      if (c) { c.style.opacity = '0'; setTimeout(() => c.remove(), 300); }
+      this._onboardingDone = true;
+      (async () => { try { const d = await this._plugin.loadData() || {}; d.onboardingDone = true; await this._plugin.saveData(d); } catch(e) { console.warn('save onboard', e); } })();
+    };
+
+    buildCard(0);
   }
 }
 

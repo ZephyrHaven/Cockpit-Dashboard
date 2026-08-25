@@ -449,3 +449,18 @@
 .cockpit-dashboard-name { cursor:pointer; }
 .cockpit-dashboard-name:hover { opacity:0.85; }
 .cockpit-dashboard-name-input { font-size:0.7em; font-weight:800; font-family:inherit; background:transparent; border:none; border-bottom:2px solid var(--cockpit-accent); color:var(--text-normal); outline:none; padding:0 2px; width:auto; min-width:3em; -webkit-text-fill-color:var(--text-normal); }
+
+
+/* 首次使用引导 — 高亮脉波动画 */
+@keyframes cockpit-onboarding-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(72,180,255,0.5), 0 0 0 0 rgba(72,180,255,0.2); }
+  50% { box-shadow: 0 0 0 4px rgba(72,180,255,0.4), 0 0 0 14px rgba(72,180,255,0.08); }
+}
+.cockpit-dashboard-onboarding-highlight {
+  animation: cockpit-onboarding-pulse 1.6s ease-in-out infinite;
+  border-radius: var(--radius-m, 10px);
+  outline: 2.5px solid rgba(72,180,255,0.35);
+  outline-offset: 4px;
+  position: relative;
+  transition: outline-color 0.3s;
+}

@@ -1,5 +1,5 @@
 {
-  "username": "h",
+  "username": "点击修改名称",
   "cockpit-todos": [
     {
       "text": "Obsidian vault 创建和分类",
@@ -14,5 +14,6 @@
     "recent": false,
     "flash": false,
     "heatmap": false
-  }
+  },
+  "onboardingDone": true
 }
