@@ -15,6 +15,32 @@ const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f9
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
 const RELEASE_HISTORY = [
   {
+    version: '1.1.1',
+    date: '2026-07-21',
+    title: {
+      'zh-CN': '情景布局、模块化与专注趋势',
+      en: 'Layout Scenes, Modular Dashboard, and Focus Trends'
+    },
+    highlights: {
+      'zh-CN': [
+        '新增情景布局：可复制当前布局并分别保存模块与 Toolbar 状态。',
+        '“每日一语”支持按当前语言维护提示、拖拽排序与选择轮询方式。',
+        '编辑模式下 Toolbar 改为局部更新；完成编辑时统一应用最终布局。',
+        '新增默认隐藏的“专注趋势”模块，可查看近 7 / 30 天专注记录，并切换平滑折线或柱状图。',
+        '专注趋势和其他区块一样，支持折叠并记住展开状态。',
+        '番茄钟会跟随 Obsidian 自动切换深浅主题。'
+      ],
+      en: [
+        'Added layout scenes that copy the current layout and save module and Toolbar state independently.',
+        'Daily Note now supports per-language editing, drag sorting, and selectable rotation modes.',
+        'Toolbar changes in Edit Mode update locally; leaving Edit Mode applies the final layout.',
+        'Added a hidden-by-default Focus Trend module with 7/30-day history and smooth line or bar charts.',
+        'Focus Trend can collapse like other dashboard sections and remembers its state.',
+        'Pomodoro follows Obsidian’s automatic light/dark theme changes.'
+      ]
+    }
+  },
+  {
     version: '1.1.0',
     date: '2026-07-19',
     title: {
@@ -23,16 +49,12 @@ const RELEASE_HISTORY = [
     },
     highlights: {
       'zh-CN': [
-        '消息推送支持 Server酱³、Bark 与 MEOW，可同时启用，并分别测试。',
-        '支持每天、指定星期或指定月日，并可设置精确到秒的自动推送时间。',
-        '抽取统一的排程、消息组装、渠道适配与逐渠道去重逻辑，单个渠道失败不会阻断其他渠道。',
-        'Bark 支持 HTTPS 服务地址、Device Key 与分组；MEOW 使用昵称和 Markdown 消息接口。'
+        '支持 Server酱³、Bark 与 MEOW 多渠道待办消息推送。',
+        '可设置每天、指定星期或指定月日的推送时间。'
       ],
       en: [
-        'Added ServerChan³, Bark, and MEOW delivery; channels can be enabled and tested independently.',
-        'Supports daily, selected weekday, or selected day-of-month schedules with second-level delivery time.',
-        'Shared scheduling, message composition, adapters, and per-channel de-duplication so one delivery failure does not block another.',
-        'Bark supports an HTTPS server URL, Device Key, and group; MEOW uses its nickname and Markdown API.'
+        'Added multi-channel task notifications through ServerChan³, Bark, and MEOW.',
+        'Choose daily, selected weekday, or selected month-day delivery times.'
       ]
     }
   },
@@ -45,24 +67,14 @@ const RELEASE_HISTORY = [
     },
     highlights: {
       'zh-CN': [
-        '新增 Spotlight 风格 Vault 全局搜索，支持文件名、路径和正文匹配、输入防抖、键盘操作与拖动窗口。',
-        '待办状态筛选改为紧凑下拉框；“优先处理”聚合高优先级或明天到期的未完成任务，并支持一键延期。',
-        '日历详情与待办列表统一编辑图标和操作风格。',
-        '收藏支持折叠、固定顺序、上下调整，并可一键在分栏中打开笔记。',
-        'Toolbar 编辑模式支持新增、编辑、隐藏和删除自定义网址或 Shell 脚本按钮；后台脚本提供日志，交互命令统一使用 macOS 系统终端。',
-        '新增带通俗引导的显式数据迁移；storageMigrationCompleted 完成前继续旧文件读写，完成后才切换 Storage V2。',
-        'Toolbar 编辑态改为疏朗布局与统一文字显示/隐藏；自定义按钮及 Hermes、驾驶舱、工作日志均支持直接删除，三个预制按钮也可修改名称和命令。',
-        '修复知识分类卡片在缺少概览/MOC 文件时无法点击的问题；现在会自动打开分类中的第一篇笔记，空目录会显示提示。'
+        '新增可拖动的全局搜索，支持按文件名、路径和正文查找笔记。',
+        '优化待办优先处理、收藏排序和日历编辑体验。',
+        'Toolbar 支持更完整的自定义与管理。'
       ],
       en: [
-        'Added draggable Spotlight-style Vault search across note names, paths, and content, with debounced input and keyboard navigation.',
-        'Changed task status filtering to a compact dropdown; Next includes unfinished high-priority tasks or tasks due tomorrow, with one-click deferral.',
-        'Unified edit icons and action styling between calendar details and the main todo list.',
-        'Added collapsible bookmarks with persistent ordering, move controls, and one-click split-pane opening.',
-        'Toolbar Edit Mode can add, edit, hide, and delete custom URL or Shell-script buttons; background scripts expose logs and interactive commands always use macOS Terminal.',
-        'Added an explicit guided data migration: legacy files remain active until storageMigrationCompleted is true, then Storage V2 becomes the only write target.',
-        'Toolbar Edit Mode now uses a cleaner layout and consistent text Show/Hide controls; custom buttons and the seeded Hermes, Cockpit, and Work Log buttons can all be deleted, while seeded buttons remain editable.',
-        'Fixed category cards that did nothing when no overview/MOC note existed; they now open the first note in the category or explain that the folder is empty.'
+        'Added draggable global search across note names, paths, and content.',
+        'Improved priority tasks, bookmark ordering, and calendar editing.',
+        'Expanded Toolbar customization and management.'
       ]
     }
   },
@@ -75,16 +87,12 @@ const RELEASE_HISTORY = [
     },
     highlights: {
       'zh-CN': [
-        '新增局部静默刷新，问候语与首页关键区块会按周期更新，并尽量避开用户输入与编辑状态。',
-        '番茄钟专注数据改为按日期累计写入 `_data/focus.md`，保留历史记录而不再只覆盖当天。',
-        '重做番茄钟浮窗，强化深浅色适配，精简大小视图信息负载，并在休息结束后提示继续专注。',
-        '修复 Hermes 启动链路，编辑模式下支持自定义隐藏 Toolbar 按钮。'
+        '首页关键数据支持静默刷新，尽量不打断当前操作。',
+        '优化番茄钟体验，并支持按日期保留专注历史。'
       ],
       en: [
-        'Added partial silent refresh so the greeting and key dashboard sections update on a schedule while avoiding active input and edit states.',
-        'Changed Pomodoro focus persistence to accumulate by date in `_data/focus.md`, preserving history instead of overwriting only today.',
-        'Refined the floating Pomodoro with better light/dark support, leaner compact and expanded views, and a reminder when breaks end.',
-        'Fixed the Hermes launch flow and added per-button Toolbar visibility controls in Edit Mode.'
+        'Added silent refresh for key dashboard data while avoiding active work.',
+        'Improved Pomodoro and preserved focus history by date.'
       ]
     }
   },
@@ -97,14 +105,12 @@ const RELEASE_HISTORY = [
     },
     highlights: {
       'zh-CN': [
-        '新增编辑模式，支持模块拖拽排序、隐藏与持久化布局。',
-        '右键菜单新增最近更新记录，内置本地版本历史弹窗。',
-        '重做日历看板，优化深浅色观感与语言切换可读性。'
+        '新增编辑模式，可拖拽排序和隐藏模块。',
+        '新增本地更新记录与优化后的日历看板。'
       ],
       en: [
-        'Added Edit Mode with drag-to-reorder, hide/show controls, and persistent layout state.',
-        'Added Recent Updates to the context menu with a built-in local release-notes modal.',
-        'Refreshed the calendar board with better light/dark visuals and improved language-toggle legibility.'
+        'Added Edit Mode for reordering and hiding dashboard modules.',
+        'Added local release notes and refreshed the calendar board.'
       ]
     }
   },
@@ -117,57 +123,15 @@ const RELEASE_HISTORY = [
     },
     highlights: {
       'zh-CN': [
-        '新增中英文界面切换。',
-        '增强按钮按压、悬停和动效反馈。',
-        '整体交互细节更顺手。'
+        '新增中英文界面切换，并优化主要交互反馈。'
       ],
       en: [
-        'Added Chinese and English UI switching.',
-        'Improved hover, press, and motion feedback for key actions.',
-        'Polished interaction details across the dashboard.'
+        'Added Chinese and English UI switching with improved interaction feedback.'
       ]
     }
   },
-  {
-    version: '1.0.6',
-    date: '2026-07-04',
-    title: {
-      'zh-CN': '界面打磨与 README 双语化',
-      en: 'Dashboard Polish and Bilingual README'
-    },
-    highlights: {
-      'zh-CN': [
-        '优化 Dashboard 视觉细节。',
-        '补充并整理双语 README。',
-        '发布流程说明更完整。'
-      ],
-      en: [
-        'Refined the visual details of the dashboard.',
-        'Expanded and organized the bilingual README.',
-        'Made the release workflow documentation more complete.'
-      ]
-    }
-  },
-  {
-    version: '1.0.4',
-    date: '2026-06-13',
-    title: {
-      'zh-CN': '修复配置解析异常',
-      en: 'Fix Configuration Parsing Errors'
-    },
-    highlights: {
-      'zh-CN': [
-        '修复模板字面量中的正则反斜杠转义问题。',
-        '修复换行解析错误导致的配置读取失败。',
-        '重新构建主入口文件。'
-      ],
-      en: [
-        'Fixed regex backslash escaping inside template literals.',
-        'Fixed config loading failures caused by newline parsing issues.',
-        'Rebuilt the main bundled entry file.'
-      ]
-    }
-  },
+
+
   {
     version: '1.0.3',
     date: '2026-06-13',
@@ -177,57 +141,14 @@ const RELEASE_HISTORY = [
     },
     highlights: {
       'zh-CN': [
-        '新增 `_data/toolbar.md` 作为工具栏配置源。',
-        '驾驶舱和工作日志命令可按需修改。',
-        '首次加载时自动生成默认配置文件。'
+        '支持按需自定义驾驶舱和工作日志等 Toolbar 命令。'
       ],
       en: [
-        'Added `_data/toolbar.md` as the toolbar configuration source.',
-        'Made Cockpit and work-log commands customizable.',
-        'Generated default config automatically on first load.'
+        'Added customizable Toolbar commands for Cockpit, work log, and more.'
       ]
     }
   },
-  {
-    version: '1.0.2',
-    date: '2026-06-11',
-    title: {
-      'zh-CN': '插件商店描述与样式修正',
-      en: 'Marketplace Copy and Style Cleanup'
-    },
-    highlights: {
-      'zh-CN': [
-        '修正插件描述文案。',
-        '去除不必要的 `!important`。',
-        '清理样式兼容性问题。'
-      ],
-      en: [
-        'Revised plugin marketplace copy.',
-        'Removed unnecessary `!important` rules.',
-        'Cleaned up style compatibility issues.'
-      ]
-    }
-  },
-  {
-    version: '1.0.1',
-    date: '2026-06-11',
-    title: {
-      'zh-CN': '通过插件商店审核准备',
-      en: 'Marketplace Review Preparation'
-    },
-    highlights: {
-      'zh-CN': [
-        '调整 manifest 与 README 以满足审核要求。',
-        '统一 CSS 注释格式。',
-        '补充 MIT LICENSE。'
-      ],
-      en: [
-        'Adjusted the manifest and README for marketplace review requirements.',
-        'Unified CSS comment formatting.',
-        'Added the MIT LICENSE.'
-      ]
-    }
-  }
+
 ];
 
 const I18N = {
@@ -239,6 +160,7 @@ const I18N = {
       recent: '✏️ 最近更新',
       bookmarks: '⭐ 收藏文件',
       flash: '⚡ 闪念胶囊',
+      focusChart: '🍅 专注趋势',
       heatmap: '📈 编辑热力图（近30天）'
     },
     greetings: {
@@ -256,7 +178,7 @@ const I18N = {
       language: '界面语言'
     },
     tip: {
-      label: '💡 今日运维技巧'
+      label: '每日一语'
     },
     toolbar: {
       new: '新建笔记',
@@ -300,6 +222,7 @@ const I18N = {
         tip: '每日小贴士',
         toolbar: '快捷工具栏',
         calendar: '日历看板',
+        focusChart: '专注趋势',
         footer: '页脚'
       }
     },
@@ -319,6 +242,11 @@ const I18N = {
       emptyDay: '这一天没有待办 🎉',
       backToToday: '回到今天',
       addTodo: '新增待办'
+    },
+    focusChart: {
+      range: '统计范围', chartType: '图表类型', week: '近 7 天', month: '近 30 天', line: '折线', bar: '柱状',
+      total: ({ minutes }) => minutes + ' min', activeDays: ({ count, days }) => days + ' 天内专注 ' + count + ' 天',
+      peak: ({ minutes, date }) => '最高：' + date + ' · ' + minutes + ' min', empty: '还没有专注记录，完成一个番茄钟后这里会亮起来。'
     },
     categories: {
       noteCount: ({ count }) => count + ' 篇笔记',
@@ -446,6 +374,7 @@ const I18N = {
       recent: '✏️ Recent Updates',
       bookmarks: '⭐ Starred Notes',
       flash: '⚡ Quick Capture',
+      focusChart: '🍅 Focus Trend',
       heatmap: '📈 Edit Heatmap (30d)'
     },
     greetings: {
@@ -463,7 +392,7 @@ const I18N = {
       language: 'Interface language'
     },
     tip: {
-      label: '💡 Daily Ops Tip'
+      label: 'Daily Note'
     },
     toolbar: {
       new: 'New Note',
@@ -507,6 +436,7 @@ const I18N = {
         tip: 'Daily Tip',
         toolbar: 'Toolbar',
         calendar: 'Calendar',
+        focusChart: 'Focus Trend',
         footer: 'Footer'
       }
     },
@@ -526,6 +456,11 @@ const I18N = {
       emptyDay: 'No tasks on this day 🎉',
       backToToday: 'Back to today',
       addTodo: 'Add task'
+    },
+    focusChart: {
+      range: 'Time range', chartType: 'Chart type', week: '7 days', month: '30 days', line: 'Line', bar: 'Bars',
+      total: ({ minutes }) => minutes + ' min', activeDays: ({ count, days }) => count + ' active days in ' + days + ' days',
+      peak: ({ minutes, date }) => 'Peak: ' + date + ' · ' + minutes + ' min', empty: 'No focus records yet. Complete a Pomodoro to light up this chart.'
     },
     categories: {
       noteCount: ({ count }) => count + ' notes',
@@ -648,42 +583,6 @@ const I18N = {
 };
 const T = I18N[DEFAULT_LANG].sections;
 
-const DAILY_TIPS = {
-  'zh-CN': [
-    '💡 Linux: `lsof -i :端口号` 快速查看哪个进程占用了端口',
-    '💡 SQL: 大表加索引时用 `CREATE INDEX CONCURRENTLY`（PG）或 `ALTER TABLE ... ALGORITHM=INPLACE`（MySQL），避免锁表',
-    '💡 Git: `git reflog` 可以找回被 reset/drop 的 commit，HEAD@{n} 定位',
-    '💡 网络: `ss -tlnp` 比 netstat 更快，查看监听端口首选',
-    '💡 Docker: `docker system prune -a --volumes` 一键清理悬空镜像和卷（慎用）',
-    '💡 Nginx: `nginx -t` 测试配置语法，reload 前先跑一遍',
-    '💡 低代码: 表单联动用 watch/effect 比 onChange 更可控，避免回调地狱',
-    '💡 Oracle: `SELECT * FROM v$locked_object` 查锁表，`ALTER SYSTEM KILL SESSION` 解锁',
-    '💡 内网穿透: frp 的 `transport.tls.enable = true` 加密流量，公网暴露必备',
-    '💡 AI工具: Claude Code 的 CLAUDE.md 放项目根目录，每次会话自动加载上下文',
-    '💡 运维: `journalctl -u 服务名 --since "1 hour ago"` 快速查最近日志',
-    '💡 数据库: EXPLAIN ANALYZE 比 EXPLAIN 更准，会实际执行并返回真实耗时',
-    '💡 Linux: `watch -n 1 命令` 每秒刷新执行，监控神器',
-    '💡 Git: `git stash push -m "描述"` 给 stash 加注释，找起来不迷路',
-    '💡 网络: `mtr 目标IP` 结合 ping + traceroute，定位网络抖动神器'
-  ],
-  en: [
-    '💡 Linux: use `lsof -i :PORT` to see which process is holding a port.',
-    '💡 SQL: build big-table indexes online with `CREATE INDEX CONCURRENTLY` or in-place alter options.',
-    '💡 Git: `git reflog` can recover commits after a reset or dropped branch.',
-    '💡 Network: `ss -tlnp` is usually faster than netstat for listening ports.',
-    '💡 Docker: `docker system prune -a --volumes` clears dangling images and volumes. Use carefully.',
-    '💡 Nginx: always run `nginx -t` before reloading config.',
-    '💡 Low-code: watch/effect chains are easier to control than nested onChange callbacks.',
-    '💡 Oracle: `SELECT * FROM v$locked_object` helps inspect table locks quickly.',
-    '💡 Tunneling: enable `transport.tls.enable = true` in frp when exposing services publicly.',
-    '💡 AI tools: keep `CLAUDE.md` at repo root so each session loads project context automatically.',
-    '💡 Ops: `journalctl -u service --since \"1 hour ago\"` is a fast way to inspect fresh logs.',
-    '💡 Databases: `EXPLAIN ANALYZE` is more truthful than `EXPLAIN` because it really runs the query.',
-    '💡 Linux: `watch -n 1 <cmd>` is still one of the best lightweight monitors.',
-    '💡 Git: annotate stashes with `git stash push -m \"desc\"` so you can find them later.',
-    '💡 Network: `mtr <host>` is great for locating packet loss or routing jitter.'
-  ]
-};
 
 function normalizeLang(lang) {
   return lang === 'en' ? 'en' : DEFAULT_LANG;

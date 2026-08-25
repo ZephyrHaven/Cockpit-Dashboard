@@ -17,9 +17,16 @@ function normalizeToolbarOrder(view, rawOrder) {
 async function saveToolbarOrder(view, order) {
   const normalized = normalizeToolbarOrder(view, order);
   view._toolbarOrder = normalized;
-  const data = await view._plugin.loadData() || {};
-  data.toolbarOrder = normalized;
-  await view._plugin.saveData(data);
+  await view._saveActiveSceneLayout();
+}
+
+function refreshToolbar(view, root) {
+  const previous = root.querySelector('.' + PLUGIN_ID + '-toolbar');
+  if (!previous) return;
+  const anchor = document.createComment('cockpit-toolbar');
+  previous.replaceWith(anchor);
+  const { toolbar } = buildToolbar(view, root, view.app.vault.getMarkdownFiles(), (key, vars) => view._t(key, vars));
+  anchor.replaceWith(toolbar);
 }
 
 function clearToolbarDropHints(toolbar) {
@@ -73,7 +80,9 @@ function createToolbarDeleteTool(view, root, tools, button) {
     if (!window.confirm(view._lang()==='en' ? `Delete “${label}”?` : `确定删除“${label}”吗？`)) return;
     if (button.builtin) await view._deletePresetToolbarAction(button.action);
     else await view._saveCustomToolbarButtons(view._customToolbarButtons.filter((item) => item.id !== button.id));
-    await view._renderDashboard(false);
+    const slot = tools.closest('.' + PLUGIN_ID + '-toolslot');
+    if (slot) slot.remove();
+    await saveToolbarOrder(view, Array.from(root.querySelectorAll('.' + PLUGIN_ID + '-toolslot')).map((item) => item.dataset.action));
   };
 }
 
@@ -126,6 +135,11 @@ function buildToolbar(view, root, allFiles, t) {
       const editConfig = createToolbarTool(tools, 'square-pen', view._lang()==='en'?'Edit button':'编辑按钮');
       editConfig.onclick = (evt) => { evt.preventDefault(); evt.stopPropagation(); openBuiltinToolbarConfigEditor(view, root, button.action); };
       createToolbarDeleteTool(view, root, tools, button);
+    }
+    if (button.builtin && button.action === 'pomodoro') {
+      tools = slot.createDiv({ cls:PLUGIN_ID+'-custom-toolbar-tools' });
+      const editConfig = createToolbarTool(tools, 'settings-2', view._lang()==='en'?'Pomodoro settings':'番茄钟设置');
+      editConfig.onclick = (evt) => { evt.preventDefault(); evt.stopPropagation(); openPomodoroToolbarConfigEditor(view, root); };
     }
     if (!button.builtin) {
       tools = slot.createDiv({ cls:PLUGIN_ID+'-custom-toolbar-tools' });

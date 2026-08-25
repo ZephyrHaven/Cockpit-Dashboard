@@ -31,9 +31,9 @@ function extractTags(text) {
   return { cleanText, tags, dueDate, priority };
 }
 
-function getDailyTip(lang = DEFAULT_LANG) {
+function getDailyTip(lang = DEFAULT_LANG, tipLibrary = DEFAULT_DAILY_TIPS) {
   const dayOfYear = window.moment().dayOfYear();
-  const tips = DAILY_TIPS[normalizeLang(lang)] || DAILY_TIPS[DEFAULT_LANG];
+  const tips = tipLibrary[normalizeLang(lang)] || tipLibrary[DEFAULT_LANG] || DEFAULT_DAILY_TIPS[DEFAULT_LANG];
   return tips[dayOfYear % tips.length];
 }
 

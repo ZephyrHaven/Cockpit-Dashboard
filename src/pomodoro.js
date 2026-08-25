@@ -23,6 +23,9 @@ function createPomodoro(view, root) {
       if (typeof existing._cockpitSyncLanguage === 'function') {
         existing._cockpitSyncLanguage();
       }
+      if (typeof existing._cockpitSyncTheme === 'function') {
+        existing._cockpitSyncTheme();
+      }
       return;
     }
 
@@ -68,19 +71,40 @@ function createPomodoro(view, root) {
 
     document.body.appendChild(floatEl);
 
-    // 状态变量
-    let totalSeconds = 25 * 60;
-    let remaining = totalSeconds;
+    // 状态变量：会话独立于“是否自动显示”保存，避免正在使用时被设置误伤。
+    const restoredSession = view._pomodoroSession?.active ? view._pomodoroSession : null;
+    let totalSeconds = restoredSession?.isBreak ? 5 * 60 : 25 * 60;
+    let remaining = Number.isFinite(restoredSession?.remaining) ? Math.max(0, Math.min(totalSeconds, restoredSession.remaining)) : totalSeconds;
+    if (restoredSession?.isRunning && Number.isFinite(restoredSession.endAt)) {
+      remaining = Math.max(1, Math.ceil((restoredSession.endAt - Date.now()) / 1000));
+    }
     let isRunning = false;
     let isBreak = false;
     let timerInterval = null;
-    let minimized = false;
+    let minimized = !!restoredSession?.minimized;
     let reminderResetTimer = null;
     let cueTimer = null;
+    let themeObserver = null;
     let statusKey = 'pomodoro.ready';
     let startLabelKey = 'pomodoro.start';
     let cueText = '';
     let cueKey = '';
+
+    function persistSession() {
+      const session = {
+        active: true,
+        isBreak,
+        isRunning,
+        remaining,
+        endAt: isRunning ? Date.now() + remaining * 1000 : null,
+        minimized
+      };
+      self._savePomodoroSession(session).catch((e) => console.warn('Cockpit: save pomodoro session failed', e));
+    }
+
+    function clearSession() {
+      self._savePomodoroSession(null).catch((e) => console.warn('Cockpit: clear pomodoro session failed', e));
+    }
 
     const FOCUS_ACCENT = '#ff6b57';
     const BREAK_ACCENT = '#48b4ff';
@@ -228,6 +252,12 @@ function createPomodoro(view, root) {
       if (nextView) self = nextView;
     };
     floatEl._cockpitSyncLanguage = syncPomodoroText;
+    floatEl._cockpitSyncTheme = () => applyVisualState();
+    // Obsidian 会在定时主题切换时替换 body 的 theme-light/theme-dark class；运行中的浮窗不重建，也要同步重绘。
+    themeObserver = new MutationObserver(() => {
+      if (floatEl.isConnected) applyVisualState();
+    });
+    themeObserver.observe(document.body, { attributes:true, attributeFilter:['class'] });
 
     // 最小化
     toggleBtn.onclick = () => {
@@ -236,10 +266,11 @@ function createPomodoro(view, root) {
       toggleBtn.textContent = minimized ? '+' : '−';
       floatEl.style.width = minimized ? '126px' : '198px';
       syncPomodoroText();
+      persistSession();
     };
 
     // 关闭
-    closeBtn.onclick = () => { clearInterval(timerInterval); clearTimeout(reminderResetTimer); clearTimeout(cueTimer); finishDrag(dragPointerId); floatEl.remove(); self._pomodoroTimer = null; };
+    closeBtn.onclick = () => { clearInterval(timerInterval); clearTimeout(reminderResetTimer); clearTimeout(cueTimer); if (themeObserver) themeObserver.disconnect(); finishDrag(dragPointerId); floatEl.remove(); self._pomodoroTimer = null; clearSession(); };
 
     // 拖拽
     let dragOffsetX = 0, dragOffsetY = 0;
@@ -351,6 +382,7 @@ function createPomodoro(view, root) {
         statusKey = isBreak ? 'pomodoro.breakPaused' : 'pomodoro.focusPaused';
         statusEl.style.color = '#f59e0b';
         syncPomodoroText();
+        persistSession();
       } else {
         // 开始
         isRunning = true;
@@ -358,6 +390,7 @@ function createPomodoro(view, root) {
         statusKey = isBreak ? 'pomodoro.resting' : 'pomodoro.focusing';
         statusEl.style.color = isBreak ? '#22c55e' : '#ef4444';
         syncPomodoroText();
+        persistSession();
         timerInterval = setInterval(() => {
           remaining--;
           updateDisplay();
@@ -372,6 +405,7 @@ function createPomodoro(view, root) {
                 try {
                   const today = window.moment().format('YYYY-MM-DD');
                   await self._saveFocusHistory(today, self._focusMinutes);
+                  if (self._focusHistory) self._focusHistory.set(today, self._focusMinutes);
                 } catch(e) { console.warn('save focus', e); }
               })();
               statusKey = 'pomodoro.completedOne';
@@ -393,6 +427,7 @@ function createPomodoro(view, root) {
               remaining = totalSeconds;
               flashCue(t('pomodoro.readyForFocus'), BREAK_ACCENT, 5200, minimized || document.hidden, 'pomodoro.readyForFocus');
             }
+            persistSession();
             updateDisplay();
           }
         }, 1000);
@@ -411,6 +446,7 @@ function createPomodoro(view, root) {
       statusEl.style.color = 'var(--text-muted)';
       setCue('', '');
       updateDisplay();
+      clearSession();
     };
 
     // 保存引用
@@ -422,5 +458,11 @@ function createPomodoro(view, root) {
     resetBtn.onmouseenter = () => { resetBtn.style.transform = 'translateY(-1px)'; };
     resetBtn.onmouseleave = () => { resetBtn.style.transform = 'translateY(0)'; };
 
+    if (minimized) {
+      body.style.display = 'none';
+      toggleBtn.textContent = '+';
+      floatEl.style.width = '126px';
+    }
     updateDisplay();
+    if (restoredSession?.isRunning) startBtn.onclick();
 }

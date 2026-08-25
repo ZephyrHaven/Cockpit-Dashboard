@@ -12,6 +12,8 @@ const CSS_FILE = path.join(ROOT, 'styles.css');
 
 const MODULES = [
   'constants.js',
+  'daily-tips.js',
+  'tip-store.js',
   'utils.js',
   'todos.js',
   'serverchan.js',
@@ -22,7 +24,9 @@ const MODULES = [
   'toolbar-config.js',
   'toolbar-custom.js',
   'toolbar.js',
+  'scenes.js',
   'pomodoro.js',
+  'focus-chart.js',
   '_framework.js'
 ];
 
@@ -41,7 +45,17 @@ function loadModuleCode(mod) {
     console.error(`❌ 缺少模块: ${mod}`);
     process.exit(1);
   }
-  return readFileOrExit(filePath, mod).trim().replace(/^'use strict';\s*/gm, '');
+  let code = readFileOrExit(filePath, mod).trim().replace(/^'use strict';\s*/gm, '');
+  if (mod === 'daily-tips.js') {
+    const defaults = readFileOrExit(path.join(SRC_DIR, 'data', 'daily-tips.default.json'), 'daily tips defaults');
+    try {
+      code = code.replace('__DAILY_TIPS_DEFAULTS__', JSON.stringify(JSON.parse(defaults)));
+    } catch (e) {
+      console.error('❌ daily-tips.default.json 格式无效:', e.message);
+      process.exit(1);
+    }
+  }
+  return code;
 }
 
 function buildBundle(css, moduleBodies, mode) {

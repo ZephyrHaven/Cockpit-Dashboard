@@ -230,7 +230,7 @@ function openCustomToolbarButtonEditor(view, root, existing) {
       if (!window.confirm(en?'Delete this custom button?':'确定删除这个自定义按钮吗？')) return;
       await view._saveCustomToolbarButtons(view._customToolbarButtons.filter((button) => button.id !== existing.id));
       overlay.remove();
-      await view._renderDashboard(false);
+      refreshToolbar(view, root);
     };
   }
   const cancel = footer.createEl('button', { cls: PID + '-custom-toolbar-secondary', text: en ? 'Cancel' : '取消', attr: { type:'button' } });
@@ -249,7 +249,7 @@ function openCustomToolbarButtonEditor(view, root, existing) {
     const normalized = normalizeCustomToolbarButtons([...buttons, { id, ...next }]);
     await view._saveCustomToolbarButtons(normalized);
     overlay.remove();
-    await view._renderDashboard(false);
+    refreshToolbar(view, root);
   };
   panel.addEventListener('keydown', (evt) => { if (evt.key === 'Escape') overlay.remove(); });
   document.body.appendChild(overlay);

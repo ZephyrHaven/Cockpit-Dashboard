@@ -1,12 +1,31 @@
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._hiddenToolbarActions = new Set(); this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroSession = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart']); this._hiddenToolbarActions = new Set(); this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
   _lang() { return normalizeLang(this._language); }
   _t(key, vars) { return getText(this._language, key, vars); }
+  // 模块契约：新增模块必须在此注册 id、默认排序、编辑态显示名与 DOM 归属规则。
+  // 布局编辑、排序、隐藏和情景布局都只认这份注册表，避免新模块成为页面里的“例外”。
+  _moduleRegistry() {
+    return [
+      { id:'hero', label:this._t('layout.modules.hero'), matches:(el) => el.classList.contains(PLUGIN_ID + '-hero') },
+      { id:'tip', label:this._t('layout.modules.tip'), matches:(el) => el.classList.contains(PLUGIN_ID + '-tip') },
+      { id:'toolbar', label:this._t('layout.modules.toolbar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-toolbar') || el.classList.contains(PLUGIN_ID + '-search-row') || el.classList.contains(PLUGIN_ID + '-search-results') },
+      { id:'calendar', label:this._t('layout.modules.calendar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-cal-wrap') || el.classList.contains(PLUGIN_ID + '-cal-detail') },
+      { id:'cats', label:this._t('sections.cats'), collapsible:true, matches:(el) => el.dataset.section === 'cats-title' || el.classList.contains(PLUGIN_ID + '-cats') },
+      { id:'stats', label:this._t('sections.stats'), collapsible:true, matches:(el) => el.dataset.section === 'stats-title' || el.classList.contains(PLUGIN_ID + '-stats') },
+      { id:'todos', label:this._t('sections.todos'), collapsible:true, matches:(el) => el.classList.contains(PLUGIN_ID + '-todo-header') || el.dataset.section === 'todos-body' },
+      { id:'focusChart', label:this._t('layout.modules.focusChart'), collapsible:true, matches:(el) => el.dataset.section === 'focus-chart-title' || el.dataset.section === 'focus-chart' },
+      { id:'bookmarks', label:this._t('sections.bookmarks'), collapsible:true, matches:(el) => el.dataset.section === 'bookmarks-title' || el.dataset.section === 'bookmarks-list' },
+      { id:'recent', label:this._t('sections.recent'), collapsible:true, matches:(el) => el.dataset.section === 'recent-title' || el.classList.contains(PLUGIN_ID + '-recent') },
+      { id:'flash', label:this._t('sections.flash'), collapsible:true, matches:(el) => el.dataset.section === 'flash-title' || el.dataset.section === 'flash-content' },
+      { id:'heatmap', label:this._t('sections.heatmap'), collapsible:true, matches:(el) => el.dataset.section === 'heatmap-title' || el.classList.contains(PLUGIN_ID + '-heatmap') },
+      { id:'footer', label:this._t('layout.modules.footer'), matches:(el) => el.classList.contains(PLUGIN_ID + '-footer') }
+    ];
+  }
   _defaultModuleOrder() {
-    return ['hero', 'tip', 'toolbar', 'calendar', 'cats', 'stats', 'todos', 'recent', 'bookmarks', 'flash', 'heatmap', 'footer'];
+    return this._moduleRegistry().map((module) => module.id);
   }
   _normalizeModuleOrder(order) {
     const defaults = this._defaultModuleOrder();
@@ -20,21 +39,7 @@ class CockpitView extends obsidian.ItemView {
     return next;
   }
   _moduleLabel(id) {
-    const labels = {
-      hero: this._t('layout.modules.hero'),
-      tip: this._t('layout.modules.tip'),
-      toolbar: this._t('layout.modules.toolbar'),
-      calendar: this._t('layout.modules.calendar'),
-      cats: this._t('sections.cats'),
-      stats: this._t('sections.stats'),
-      todos: this._t('sections.todos'),
-      recent: this._t('sections.recent'),
-      bookmarks: this._t('sections.bookmarks'),
-      flash: this._t('sections.flash'),
-      heatmap: this._t('sections.heatmap'),
-      footer: this._t('layout.modules.footer')
-    };
-    return labels[id] || id;
+    return this._moduleRegistry().find((module) => module.id === id)?.label || id;
   }
   _toolbarButtons() {
     return [
@@ -77,13 +82,70 @@ class CockpitView extends obsidian.ItemView {
   _isToolbarActionHidden(action) {
     return this._hiddenToolbarActions.has(action);
   }
+  _sceneSnapshot() { return { moduleOrder:[...this._moduleOrder], hiddenModules:Array.from(this._hiddenModules), toolbarOrder:[...this._toolbarOrder], hiddenToolbarActions:Array.from(this._hiddenToolbarActions) }; }
+  _sceneLabel(scene) { return scene?.id === 'default' ? (this._lang() === 'en' ? 'Default layout' : '默认布局') : (scene?.name || (this._lang() === 'en' ? 'Untitled scene' : '未命名情景')); }
+  _sceneList() { return Object.values(this._sceneLayouts); }
+  _getActiveScene() { return this._sceneLayouts[this._activeSceneId] || this._sceneLayouts.default; }
+  _applySceneSnapshot(scene) {
+    const layout = scene?.layout || {};
+    this._moduleOrder = this._normalizeModuleOrder(layout.moduleOrder);
+    this._hiddenModules = new Set(this._normalizeModuleSubset(layout.hiddenModules));
+    this._toolbarOrder = normalizeToolbarOrder(this, layout.toolbarOrder);
+    this._hiddenToolbarActions = new Set(this._normalizeToolbarActionSubset(layout.hiddenToolbarActions));
+  }
+  async _saveActiveSceneLayout() {
+    const scene = this._getActiveScene();
+    if (!scene) return;
+    scene.layout = this._sceneSnapshot();
+    const data = await this._plugin.loadData() || {};
+    data.sceneLayouts = this._sceneLayouts;
+    data.activeSceneId = this._activeSceneId;
+    data.moduleOrder = this._moduleOrder; data.hiddenModules = Array.from(this._hiddenModules);
+    data.toolbarOrder = this._toolbarOrder; data.hiddenToolbarActions = Array.from(this._hiddenToolbarActions);
+    await this._plugin.saveData(data);
+  }
+  async _switchScene(id) {
+    const scene = this._sceneLayouts[id]; if (!scene || id === this._activeSceneId) return;
+    this._activeSceneId = id; this._editMode = false; this._applySceneSnapshot(scene);
+    await this._saveActiveSceneLayout();
+    await this._renderDashboard(false, true);
+  }
+  async _createScene(name) {
+    if (name === undefined) { new CockpitSceneNameModal(this.app, this).open(); return; }
+    const cleaned = name.trim(); if (!cleaned) return;
+    const id = 'scene-' + Date.now().toString(36);
+    this._sceneLayouts[id] = { id, name:cleaned.slice(0, 24), icon:'◈', layout:this._sceneSnapshot() };
+    this._activeSceneId = id;
+    await this._saveActiveSceneLayout();
+    if (this._sceneSwitcherRefresh) this._sceneSwitcherRefresh();
+  }
+  async _deleteActiveScene() {
+    if (this._activeSceneId === 'default') return;
+    const scene = this._getActiveScene();
+    if (!window.confirm(this._lang() === 'en' ? `Delete “${this._sceneLabel(scene)}”?` : `确定删除“${this._sceneLabel(scene)}”吗？`)) return;
+    delete this._sceneLayouts[this._activeSceneId]; this._activeSceneId = 'default'; this._applySceneSnapshot(this._sceneLayouts.default);
+    await this._saveActiveSceneLayout(); await this._renderDashboard(false);
+  }
+  _toggleLayoutEdit() {
+    this._editMode = !this._editMode;
+    if (!this._editMode) {
+      this._renderDashboard(false).catch((e) => console.warn('Cockpit: finalize layout edit failed', e));
+      return;
+    }
+    const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
+    if (root) this._applyModuleEditState(root);
+    if (this._sceneSwitcherRefresh) this._sceneSwitcherRefresh();
+  }
+  _refreshTipSection() {
+    const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
+    const tipText = root?.querySelector('.' + PLUGIN_ID + '-tip-text');
+    if (tipText) tipText.textContent = getDailyTip(this._language, this._dailyTips).replace(/^💡\s*/, '');
+  }
   async _saveModuleOrder(order) {
     const next = this._normalizeModuleOrder(order);
     this._moduleOrder = next;
     try {
-      const data = await this._plugin.loadData() || {};
-      data.moduleOrder = next;
-      await this._plugin.saveData(data);
+      await this._saveActiveSceneLayout();
     } catch (e) {
       console.warn('Cockpit: save module order failed', e);
     }
@@ -92,9 +154,7 @@ class CockpitView extends obsidian.ItemView {
     const next = this._normalizeModuleSubset(hiddenModules);
     this._hiddenModules = new Set(next);
     try {
-      const data = await this._plugin.loadData() || {};
-      data.hiddenModules = next;
-      await this._plugin.saveData(data);
+      await this._saveActiveSceneLayout();
     } catch (e) {
       console.warn('Cockpit: save hidden modules failed', e);
     }
@@ -103,12 +163,24 @@ class CockpitView extends obsidian.ItemView {
     const next = this._normalizeToolbarActionSubset(hiddenActions);
     this._hiddenToolbarActions = new Set(next);
     try {
-      const data = await this._plugin.loadData() || {};
-      data.hiddenToolbarActions = next;
-      await this._plugin.saveData(data);
+      await this._saveActiveSceneLayout();
     } catch (e) {
       console.warn('Cockpit: save hidden toolbar actions failed', e);
     }
+  }
+  async _setPomodoroAutoShow(enabled) {
+    this._pomodoroAutoShow = enabled !== false;
+    const data = await this._plugin.loadData() || {};
+    data.pomodoroAutoShow = this._pomodoroAutoShow;
+    await this._plugin.saveData(data);
+  }
+  _getFocusChartSettings() { return { range:this._focusChartSettings?.range === 'month' ? 'month' : 'week', type:this._focusChartSettings?.type === 'bar' ? 'bar' : 'line' }; }
+  async _setFocusChartSettings(patch) { this._focusChartSettings = { ...this._getFocusChartSettings(), ...patch }; const data = await this._plugin.loadData() || {}; data.focusChartSettings = this._focusChartSettings; await this._plugin.saveData(data); }
+  async _savePomodoroSession(session) {
+    this._pomodoroSession = session || null;
+    const data = await this._plugin.loadData() || {};
+    data.pomodoroSession = this._pomodoroSession;
+    await this._plugin.saveData(data);
   }
   async _deletePresetToolbarAction(action) {
     if (!['hermes', 'cockpit-h5', 'work-log'].includes(action)) return;
@@ -123,27 +195,7 @@ class CockpitView extends obsidian.ItemView {
   _getModuleIdForElement(el) {
     if (!(el instanceof HTMLElement)) return null;
     if (el.tagName === 'STYLE') return null;
-    if (el.classList.contains(PLUGIN_ID + '-hero')) return 'hero';
-    if (el.classList.contains(PLUGIN_ID + '-tip')) return 'tip';
-    if (
-      el.classList.contains(PLUGIN_ID + '-toolbar') ||
-      el.classList.contains(PLUGIN_ID + '-search-row') ||
-      el.classList.contains(PLUGIN_ID + '-search-results')
-    ) return 'toolbar';
-    if (
-      el.classList.contains(PLUGIN_ID + '-cal-wrap') ||
-      el.classList.contains(PLUGIN_ID + '-cal-detail')
-    ) return 'calendar';
-    if (el.dataset.section === 'cats-title' || el.classList.contains(PLUGIN_ID + '-cats')) return 'cats';
-    if (el.dataset.section === 'stats-title' || el.classList.contains(PLUGIN_ID + '-stats')) return 'stats';
-    if (el.classList.contains(PLUGIN_ID + '-todo-header') || el.dataset.section === 'todos-body') return 'todos';
-    if (el.dataset.section === 'recent-title') return 'recent';
-    if (el.dataset.section === 'bookmarks-title' || el.dataset.section === 'bookmarks-list') return 'bookmarks';
-    if (el.classList.contains(PLUGIN_ID + '-recent')) return 'recent';
-    if (el.dataset.section === 'flash-title' || el.dataset.section === 'flash-content') return 'flash';
-    if (el.dataset.section === 'heatmap-title' || el.classList.contains(PLUGIN_ID + '-heatmap')) return 'heatmap';
-    if (el.classList.contains(PLUGIN_ID + '-footer')) return 'footer';
-    return null;
+    return this._moduleRegistry().find((module) => module.matches(el))?.id || null;
   }
   _clearModuleDropHints(root) {
     root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
@@ -336,6 +388,7 @@ class CockpitView extends obsidian.ItemView {
     await this._reloadDashboardState();
     this._allFiles = this.app.vault.getMarkdownFiles();
     if (this._refreshCalendarRef) this._refreshCalendarRef();
+    if (this._refreshFocusChartRef) this._refreshFocusChartRef();
     if (this._refreshTodosRef) await this._refreshTodosRef({ persist: false });
     else if (this._updateStatsRef) this._updateStatsRef();
     this._refreshHeroSection();
@@ -375,6 +428,9 @@ class CockpitView extends obsidian.ItemView {
         visibilityBtn.tabIndex = this._editMode ? 0 : -1;
         visibilityBtn.classList.toggle('is-hidden', hidden);
       }
+    });
+    root.querySelectorAll('.' + PLUGIN_ID + '-tip-manage').forEach((button) => {
+      button.style.display = this._editMode ? 'inline-flex' : 'none';
     });
     this._applyToolbarButtonEditState(root);
   }
@@ -502,6 +558,28 @@ class CockpitView extends obsidian.ItemView {
     root.appendChild(fragment);
     this._wireModuleDnD(root);
   }
+  _makeModuleCollapsible(moduleId, titleEl, contentEl, defaultCollapsed) {
+    const module = this._moduleRegistry().find((entry) => entry.id === moduleId);
+    if (!module?.collapsible || !titleEl || !contentEl) return;
+    this._makeCollapsible(titleEl, contentEl, moduleId, defaultCollapsed);
+  }
+  _makeCollapsible(titleEl, contentEl, key, defaultCollapsed) {
+    if (titleEl.dataset.collapseBound === 'true') return;
+    const arrow = titleEl.createSpan({ cls: PLUGIN_ID+'-collapse-arrow', text: '▼', attr:{ style:'margin-left:6px;font-size:0.7em;opacity:0.45;transition:transform 0.2s;display:inline-block;' } });
+    titleEl.style.cursor = 'pointer';
+    let collapsed = this._collapsed && this._collapsed[key];
+    if (collapsed === undefined) collapsed = defaultCollapsed || false;
+    const apply = () => { contentEl.style.display = collapsed ? 'none' : ''; arrow.textContent = collapsed ? '▶' : '▼'; };
+    apply();
+    titleEl.dataset.collapseBound = 'true';
+    titleEl.addEventListener('click', (e) => {
+      if (e.target.closest('button,input,a,textarea,select')) return;
+      collapsed = !collapsed;
+      apply();
+      this._collapsed[key] = collapsed;
+      (async () => { try { const d = await this._plugin.loadData() || {}; d.collapsed = { ...this._collapsed }; await this._plugin.saveData(d); } catch(ex) { console.warn('save collapsed', ex); } })();
+    });
+  }
   async _setLanguage(language) {
     const next = normalizeLang(language);
     if (next === this._language) return;
@@ -521,6 +599,11 @@ class CockpitView extends obsidian.ItemView {
 
   async _reloadDashboardState() {
     if (!this._storage) this._storage = new CockpitStorage(this._plugin, this.app);
+    if (!this._tipStore) this._tipStore = new CockpitTipStore(this._plugin);
+    const tipState = await this._tipStore.load();
+    this._dailyTips = tipState.display;
+    this._editableTips = tipState.editable;
+    this._tipRotationMode = tipState.rotationMode;
     await this._storage.initialize(this._defaultToolbarCommands());
     const loaded = await loadTodos(this.app.vault);
     this._todos = loaded || DEFAULT_TODOS.map(t=>({...t}));
@@ -533,6 +616,9 @@ class CockpitView extends obsidian.ItemView {
     try {
       const pluginData = await this._plugin.loadData() || {};
       this._language = normalizeLang(pluginData?.language || DEFAULT_LANG);
+      this._pomodoroAutoShow = pluginData?.pomodoroAutoShow !== false;
+      this._pomodoroSession = pluginData?.pomodoroSession?.active ? pluginData.pomodoroSession : null;
+      this._focusChartSettings = { range:pluginData?.focusChartSettings?.range === 'month' ? 'month' : 'week', type:pluginData?.focusChartSettings?.type === 'bar' ? 'bar' : 'line' };
       this._username = pluginData?.username || this._t('hero.defaultName');
       this._collapsed = pluginData?.collapsed || {};
       this._moduleOrder = this._normalizeModuleOrder(pluginData?.moduleOrder);
@@ -541,23 +627,50 @@ class CockpitView extends obsidian.ItemView {
       this._hiddenToolbarActions = new Set(this._normalizeToolbarActionSubset(pluginData?.hiddenToolbarActions));
       this._customToolbarButtons = normalizeCustomToolbarButtons(pluginData?.customToolbarButtons);
       this._toolbarOrder = normalizeToolbarOrder(this, pluginData?.toolbarOrder);
+      const legacyLayout = this._sceneSnapshot();
+      const rawScenes = pluginData?.sceneLayouts;
+      if (rawScenes && typeof rawScenes === 'object' && !Array.isArray(rawScenes)) {
+        this._sceneLayouts = rawScenes;
+        if (!this._sceneLayouts.default) this._sceneLayouts.default = { id:'default', icon:'◈', layout:legacyLayout };
+      } else {
+        // 首次升级：把用户现有布局原样保留为默认布局。
+        this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:legacyLayout } };
+        pluginData.sceneLayouts = this._sceneLayouts;
+        pluginData.activeSceneId = 'default';
+        await this._plugin.saveData(pluginData);
+      }
+      this._activeSceneId = this._sceneLayouts[pluginData?.activeSceneId] ? pluginData.activeSceneId : 'default';
+      this._applySceneSnapshot(this._getActiveScene());
+      if (!pluginData.focusChartIntroduced) {
+        Object.values(this._sceneLayouts).forEach((scene) => {
+          const hidden = new Set(Array.isArray(scene?.layout?.hiddenModules) ? scene.layout.hiddenModules : []);
+          hidden.add('focusChart');
+          scene.layout = { ...(scene.layout || {}), hiddenModules:Array.from(hidden) };
+        });
+        pluginData.sceneLayouts = this._sceneLayouts;
+        pluginData.focusChartIntroduced = true;
+        await this._plugin.saveData(pluginData);
+        this._applySceneSnapshot(this._getActiveScene());
+      }
       this._bookmarkOrder = Array.isArray(pluginData?.bookmarkOrder) ? pluginData.bookmarkOrder.filter((path) => this._bookmarks.has(path)) : [];
       this._bookmarks.forEach((path) => { if (!this._bookmarkOrder.includes(path)) this._bookmarkOrder.push(path); });
       if (!pluginData.startDate) { pluginData.startDate = window.moment().format('YYYY-MM-DD'); await this._plugin.saveData(pluginData); }
       this._startDate = pluginData.startDate;
       this._onboardingDone = pluginData?.onboardingDone || false;
-    } catch(e) { this._language = DEFAULT_LANG; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); }
+    } catch(e) { this._language = DEFAULT_LANG; this._pomodoroAutoShow = true; this._pomodoroSession = null; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:this._sceneSnapshot() } }; this._activeSceneId = 'default'; }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
     this._focusMinutes = 0;
+    this._focusHistory = new Map();
     try {
       const f = this.app.vault.getAbstractFileByPath('_data/focus.md');
       if (f) {
         const content = await this.app.vault.read(f);
-        this._focusMinutes = this._parseFocusHistory(content).get(today) || 0;
+        this._focusHistory = this._parseFocusHistory(content);
+        this._focusMinutes = this._focusHistory.get(today) || 0;
       }
-    } catch(e) {}
+    } catch(e) { this._focusHistory = new Map(); }
 
     this._toolbarCmds = await this._storage.loadToolbarCommands(this._defaultToolbarCommands());
   }
@@ -610,9 +723,7 @@ class CockpitView extends obsidian.ItemView {
         title: this._editMode ? this._t('layout.done') : this._t('layout.edit'),
         icon: 'grip-vertical',
         onClick: () => {
-          this._editMode = !this._editMode;
-          const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
-          if (root) this._applyModuleEditState(root);
+          this._toggleLayoutEdit();
         }
       },
       {
@@ -656,7 +767,7 @@ class CockpitView extends obsidian.ItemView {
     });
   }
 
-  async _renderDashboard(reloadState) {
+  async _renderDashboard(reloadState, crossfadeScene) {
     if (reloadState) await this._reloadDashboardState();
     this._blankContextMenuItems = [];
     this._heroRefs = null;
@@ -669,11 +780,22 @@ class CockpitView extends obsidian.ItemView {
     this._closeWelcomeCover();
     this._closeOnboardingCard();
     const container = this.containerEl.children[1];
-    container.empty();
+    if (crossfadeScene) container.style.position = 'relative';
+    const previousRoot = crossfadeScene ? container.querySelector(':scope > .' + PLUGIN_ID + '-root') : null;
+    if (!previousRoot) container.empty();
     const root = container.createDiv({ cls: PLUGIN_ID+'-root' });
+    if (previousRoot) root.classList.add(PLUGIN_ID + '-scene-preparing');
     root.createEl('style', { text: CSS });
     this._attachRootContextMenu(container);
     await this._buildAll(root);
+    if (previousRoot) {
+      requestAnimationFrame(() => {
+        previousRoot.classList.add(PLUGIN_ID + '-scene-leaving');
+        root.classList.remove(PLUGIN_ID + '-scene-preparing');
+        root.classList.add(PLUGIN_ID + '-scene-entering');
+        setTimeout(() => previousRoot.remove(), 460);
+      });
+    }
     if (this._pendingOnboarding) {
       this._pendingOnboarding = false;
       setTimeout(() => {
@@ -748,6 +870,7 @@ class CockpitView extends obsidian.ItemView {
       langSwitch.addEventListener('pointerleave', () => {
         langSwitch.querySelectorAll('.' + PLUGIN_ID + '-lang-btn').forEach(elm => elm.classList.remove('pressing'));
       });
+      buildSceneSwitcher(this, heroControls);
       const greetLine = el.createDiv({ cls: PLUGIN_ID+'-greeting' });
       const greetingPrefixEl = greetLine.createSpan({ text: E.wave+' '+gr+'，' });
       let currNameSpan = greetLine.createSpan({ cls: PLUGIN_ID+'-name', text: this._username });
@@ -788,27 +911,8 @@ class CockpitView extends obsidian.ItemView {
 
     this._refreshHeroReminder = this._refreshHeroSection.bind(this);
     this._refreshHeroReminder();
-    // 折叠/展开工具
-    const makeCollapsible = (titleEl, contentEl, key, defaultCollapsed) => {
-      const arrow = titleEl.createSpan({ cls: PLUGIN_ID+'-collapse-arrow', text: '▼', attr:{ style:'margin-left:6px;font-size:0.7em;opacity:0.45;transition:transform 0.2s;display:inline-block;' } });
-      titleEl.style.cursor = 'pointer';
-      let collapsed = this._collapsed && this._collapsed[key];
-      if (collapsed === undefined) collapsed = defaultCollapsed || false;
-      const apply = () => {
-        contentEl.style.display = collapsed ? 'none' : '';
-        arrow.textContent = collapsed ? '▶' : '▼';
-      };
-      apply();
-      titleEl.addEventListener('click', (e) => {
-        if (e.target.closest('button,input,a,textarea,select')) return;
-        collapsed = !collapsed;
-        apply();
-        this._collapsed[key] = collapsed;
-        (async () => {
-          try { const d = await this._plugin.loadData() || {}; d.collapsed = { ...this._collapsed }; await this._plugin.saveData(d); } catch(ex) { console.warn('save collapsed', ex); }
-        })();
-      });
-    };
+    // 向后兼容现有构建代码；折叠实现统一由模块注册表校验和管理。
+    const makeCollapsible = (titleEl, contentEl, key, defaultCollapsed) => this._makeModuleCollapsible(key, titleEl, contentEl, defaultCollapsed);
     let refreshTodosRef = null;
     let refreshCalendarRef = null;
 
@@ -1065,9 +1169,12 @@ class CockpitView extends obsidian.ItemView {
     };
 
     // ===== 1.5 每日小贴士 =====
-    const tip = getDailyTip(lang);
+    const tip = getDailyTip(lang, this._dailyTips).replace(/^💡\s*/, '');
     root.createDiv({ cls: PLUGIN_ID+'-tip' }, el => {
       el.createDiv({ cls: PLUGIN_ID+'-tip-label', text: t('tip.label') });
+      const manage = el.createEl('button', { cls:PLUGIN_ID+'-tip-manage', text:lang === 'en' ? 'Manage tips' : '管理提示', attr:{ type:'button' } });
+      manage.style.display = this._editMode ? 'inline-flex' : 'none';
+      manage.onclick = (evt) => { evt.preventDefault(); evt.stopPropagation(); new CockpitTipLibraryModal(this.app, this).open(); };
       el.createDiv({ cls: PLUGIN_ID+'-tip-text', text: tip });
     });
 
@@ -1425,6 +1532,15 @@ class CockpitView extends obsidian.ItemView {
       openTodoEditor();
     };
 
+    // ===== 5.5 专注趋势 =====
+    // 图表是可选模块，绝不能阻断后面的模块布局、编辑模式或情景布局初始化。
+    try {
+      this._refreshFocusChartRef = buildFocusChart(this, root);
+    } catch (e) {
+      this._refreshFocusChartRef = null;
+      console.warn('Cockpit focus chart failed; dashboard layout remains available', e);
+    }
+
     // ===== 6. Recent =====
     const recentTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: t('sections.recent') });
     recentTitle.dataset.section = 'recent-title';
@@ -1574,11 +1690,12 @@ class CockpitView extends obsidian.ItemView {
       evt.stopPropagation();
       this._editMode = false;
       this._applyModuleEditState(root);
+      if (this._sceneSwitcherRefresh) this._sceneSwitcherRefresh();
     };
     this._applyModuleEditState(root);
 
     // ===== 番茄钟浮动组件 =====
-    buildPomodoro(this, root);
+    if (this._pomodoroAutoShow || this._pomodoroSession?.active) buildPomodoro(this, root);
   }
 
   // ========== 番茄钟 ==========
@@ -1617,30 +1734,7 @@ class CockpitView extends obsidian.ItemView {
     this.app.workspace.revealLeaf(leaf);
   }
   _bindBookmarkCollapse(titleEl, contentEl) {
-    if (!titleEl || !contentEl) return;
-    let arrow = titleEl.querySelector('.' + PLUGIN_ID + '-collapse-arrow');
-    if (!arrow) arrow = titleEl.createSpan({ cls: PLUGIN_ID + '-collapse-arrow', attr: { style:'margin-left:6px;font-size:0.7em;opacity:0.45;transition:transform 0.2s;display:inline-block;' } });
-    const apply = () => {
-      const collapsed = !!this._collapsed.bookmarks;
-      contentEl.style.display = collapsed ? 'none' : '';
-      arrow.textContent = collapsed ? '▶' : '▼';
-    };
-    titleEl.style.cursor = 'pointer';
-    apply();
-    if (titleEl.dataset.collapseBound === 'true') return;
-    titleEl.dataset.collapseBound = 'true';
-    titleEl.addEventListener('click', (evt) => {
-      if (evt.target.closest('button,input,a,textarea,select')) return;
-      this._collapsed.bookmarks = !this._collapsed.bookmarks;
-      apply();
-      (async () => {
-        try {
-          const data = await this._plugin.loadData() || {};
-          data.collapsed = { ...this._collapsed };
-          await this._plugin.saveData(data);
-        } catch (e) { console.warn('save bookmark collapsed', e); }
-      })();
-    });
+    this._makeModuleCollapsible('bookmarks', titleEl, contentEl);
   }
   _refreshRecentSection(root, allFiles) {
     const recentEl = this._recentEl || root.querySelector('.' + PLUGIN_ID + '-recent');

@@ -8,6 +8,31 @@ const BUILTIN_TOOLBAR_CONFIG = {
 
 function isConfigurableToolbarAction(action) { return !!BUILTIN_TOOLBAR_CONFIG[action]; }
 
+function openPomodoroToolbarConfigEditor(view, root) {
+  const en = view._lang() === 'en';
+  const overlay = document.createElement('div');
+  overlay.className = PLUGIN_ID + '-custom-toolbar-backdrop';
+  const panel = overlay.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-editor' });
+  overlay.onclick = (evt) => { if (evt.target === overlay) overlay.remove(); };
+  panel.onclick = (evt) => evt.stopPropagation();
+  const head = panel.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-head' });
+  head.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-title', text:en ? 'Pomodoro settings' : '番茄钟设置' });
+  const close = head.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-close', attr:{type:'button'} });
+  obsidian.setIcon(close, 'x'); close.onclick = () => overlay.remove();
+  const field = panel.createEl('label', { cls:PLUGIN_ID + '-custom-toolbar-consent' });
+  const autoShow = field.createEl('input', { attr:{type:'checkbox'} });
+  autoShow.checked = view._pomodoroAutoShow !== false;
+  field.createSpan({ text:en ? 'Automatically show Pomodoro when Cockpit opens.' : '打开驾驶舱时自动显示番茄钟' });
+  panel.createDiv({ cls:PLUGIN_ID + '-toolbar-config-warning', text:en ? 'Turning this off never stops a running or paused timer. It will still be restored after a refresh until you reset or close it.' : '关闭后不会中断正在运行或暂停中的番茄钟；在重置或关闭前，刷新后仍会恢复。' });
+  const footer = panel.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-footer' });
+  const cancel = footer.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-secondary', text:en?'Cancel':'取消', attr:{type:'button'} });
+  cancel.onclick = () => overlay.remove();
+  const save = footer.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-primary', text:en?'Save':'保存', attr:{type:'button'} });
+  save.onclick = async () => { await view._setPomodoroAutoShow(autoShow.checked); overlay.remove(); new obsidian.Notice(en?'Pomodoro settings saved.':'番茄钟设置已保存。'); };
+  panel.addEventListener('keydown', (evt) => { if (evt.key === 'Escape') overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
 function validateBuiltinToolbarConfig(command, url, spec, lang) {
   const en = lang === 'en';
   if (!String(command || '').trim()) return en ? 'Command cannot be empty.' : '命令不能为空。';
@@ -73,7 +98,7 @@ function openBuiltinToolbarConfigEditor(view, root, action) {
     view._toolbarCmds = commands;
     overlay.remove();
     new obsidian.Notice(en?'Toolbar configuration saved.':'Toolbar 配置已保存。');
-    await view._renderDashboard(false);
+    refreshToolbar(view, root);
   };
   panel.addEventListener('keydown', (evt) => { if (evt.key === 'Escape') overlay.remove(); });
   document.body.appendChild(overlay);

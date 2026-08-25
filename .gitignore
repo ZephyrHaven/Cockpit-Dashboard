@@ -14,12 +14,21 @@ reasonix.toml
 # 发布文件
 *.zip
 release.sh
+main.js
+main.min.js
 
 # 个人脚本（不随插件发布）
 oaAtuoLogin_obsidian.py
 
 # 项目档案（已和 README 合并）
 项目档案.md
+AGENTS.md
+
+# 本地开发与部署辅助脚本（不随插件发布）
+deploy.sh
+
+# 与插件无关的临时 Markdown 或会议纪要
+A7493263-F1FF-4389-B87E-6769580ACBEC.md
 
 # Node
 node_modules/
