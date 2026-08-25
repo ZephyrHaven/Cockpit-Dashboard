@@ -494,9 +494,9 @@ class CockpitView extends obsidian.ItemView {
   async _saveFocusHistory(date, minutes) {
     const previous = this._plugin._cockpitFocusHistoryWrite || Promise.resolve();
     const operation = previous.catch(() => {}).then(async () => {
-      const dir = '_data';
+      const dir = DATA_DIR;
       if (!this.app.vault.getAbstractFileByPath(dir)) await this.app.vault.createFolder(dir);
-      const filePath = '_data/focus.md';
+      const filePath = FOCUS_FILE;
       const existing = this.app.vault.getAbstractFileByPath(filePath);
       const history = existing
         ? this._parseFocusHistory(await this.app.vault.read(existing))
@@ -969,7 +969,7 @@ class CockpitView extends obsidian.ItemView {
     this._focusMinutes = 0;
     this._focusHistory = new Map();
     try {
-      const f = this.app.vault.getAbstractFileByPath('_data/focus.md');
+      const f = this.app.vault.getAbstractFileByPath(FOCUS_FILE);
       if (f) {
         const content = await this.app.vault.read(f);
         this._focusHistory = this._parseFocusHistory(content);
@@ -982,20 +982,13 @@ class CockpitView extends obsidian.ItemView {
   }
 
   _defaultToolbarCommands() {
+    // 通用默认值：不含任何本机路径。个人命令通过工具栏配置写入 data.json。
     if (this._isMobile()) return {};
-    try {
-      const homedir = require('os').homedir();
-      const vaultBase = this.app.vault.adapter.getBasePath();
-      const scriptPath = require('path').join(vaultBase, '.obsidian', 'plugins', 'cockpit-dashboard', 'oaAtuoLogin_obsidian.py');
-      return {
-        Hermes: { command:'hermes --tui', mode:'auto' },
-        '驾驶舱': { command:'cd ' + homedir + '/Downloads/cockpit && ' + homedir + '/.local/bin/node server.js', url:'http://localhost:3456' },
-        '工作日志': { command:'/Library/Frameworks/Python.framework/Versions/3.13/bin/python3 ' + scriptPath, url:'' }
-      };
-    } catch (e) {
-      console.warn('Cockpit: failed to build default toolbar commands', e);
-      return {};
-    }
+    return {
+      Hermes: { command:'hermes --tui', mode:'auto' },
+      '驾驶舱': { command:'', url:DEFAULT_COCKPIT_URL },
+      '工作日志': { command:'', url:'' }
+    };
   }
 
   _shouldOpenContextMenu(target) {
@@ -2292,12 +2285,12 @@ class CockpitView extends obsidian.ItemView {
       if (!v) return;
       const today = window.moment().format('YYYY-MM-DD');
       const timeStr = window.moment().format('HH:mm');
-      const filePath = `_daily/${today}.md`;
+      const filePath = `${DAILY_DIR}/${today}.md`;
       const prefix = `# ${today} ${t('flash.fileHeading')}\n\n`;
       const line = `- [${timeStr}] ${v}\n`;
       try {
-        const f = this.app.vault.getAbstractFileByPath('_daily');
-        if (!f) await this.app.createFolder('_daily');
+        const f = this.app.vault.getAbstractFileByPath(DAILY_DIR);
+        if (!f) await this.app.createFolder(DAILY_DIR);
         const ex = this.app.vault.getAbstractFileByPath(filePath);
         if (ex) {
           const old = await this.app.vault.read(ex);
@@ -2554,6 +2547,35 @@ class CockpitView extends obsidian.ItemView {
     }
     return null;
   }
+  _isBrokenLegacyDefaultCommand(command) {
+    // 旧版插件的默认命令写死了原作者本机路径，并随存储迁移写进了部分用户的 data.json。
+    // 仅当命令与旧默认值一致、且其引用的路径在当前电脑上不存在（必然执行失败）时才判定为失效；
+    // 路径仍然存在的机器（例如原作者本机）照常执行，不做任何拦截。
+    const cmd = String(command || '').trim();
+    if (!cmd) return false;
+    try {
+      const os = require('os');
+      const fs = require('fs');
+      const path = require('path');
+      const home = os.homedir();
+      const legacyCockpit = 'cd ' + path.join(home, 'Downloads', 'cockpit') + ' && ' + path.join(home, '.local', 'bin', 'node') + ' server.js';
+      if (cmd === legacyCockpit) {
+        return !fs.existsSync(path.join(home, 'Downloads', 'cockpit')) || !fs.existsSync(path.join(home, '.local', 'bin', 'node'));
+      }
+      const legacyWorkLog = cmd.match(/^(\/Library\/Frameworks\/Python\.framework\/Versions\/[\d.]+\/bin\/python3)\s+(\S*oaAtuoLogin_obsidian\.py)$/);
+      if (legacyWorkLog) {
+        return !fs.existsSync(legacyWorkLog[1]) || !fs.existsSync(legacyWorkLog[2]);
+      }
+    } catch (e) { console.warn('Cockpit: legacy default command check failed', e); }
+    return false;
+  }
+  _notifyLegacyDefaultConfig(action, sourceEl) {
+    new obsidian.Notice(this._t('notices.legacyDefaultConfig'));
+    try {
+      const toolbar = sourceEl && sourceEl.closest ? sourceEl.closest('.' + PLUGIN_ID + '-toolbar') : null;
+      openBuiltinToolbarConfigEditor(this, toolbar ? toolbar.parentElement : null, action);
+    } catch (e) { console.warn('Cockpit: failed to open legacy default config editor', e); }
+  }
   _launchInSystemTerminal(command) {
     if (this._isMobile()) return Promise.reject(new Error('desktop-only'));
     return new Promise((resolve, reject) => {
@@ -2601,11 +2623,12 @@ class CockpitView extends obsidian.ItemView {
     }
     if (a === 'cockpit-h5') {
       try {
-        const { exec } = require('child_process');
+        const { exec, execFile } = require('child_process');
         const cfg = this._toolbarCmds['驾驶舱'];
         const cmd = cfg && cfg.command;
         if (!cmd) { new obsidian.Notice(this._t('notices.cockpitMissing')); return; }
-        const url = cfg && cfg.url || 'http://localhost:3456';
+        if (this._isBrokenLegacyDefaultCommand(cmd)) { this._notifyLegacyDefaultConfig('cockpit-h5', sourceEl); return; }
+        const url = cfg && cfg.url || DEFAULT_COCKPIT_URL;
         exec(cmd, (err) => {
           if (err) {
             if (!err.message.includes('EADDRINUSE')) {
@@ -2614,7 +2637,7 @@ class CockpitView extends obsidian.ItemView {
               return;
             }
           }
-          setTimeout(() => { exec('open ' + url); }, 800);
+          setTimeout(() => { execFile('open', [url]); }, 800);
         });
         new obsidian.Notice(this._t('notices.cockpitStarting'));
       } catch(e) {
@@ -2628,6 +2651,7 @@ class CockpitView extends obsidian.ItemView {
         const cfg = this._toolbarCmds['工作日志'];
         const cmd = cfg && cfg.command;
         if (!cmd) { new obsidian.Notice(this._t('notices.workLogMissing')); return; }
+        if (this._isBrokenLegacyDefaultCommand(cmd)) { this._notifyLegacyDefaultConfig('work-log', sourceEl); return; }
         exec(cmd, (err, stdout, stderr) => {
           if (err) {
             console.warn('工作日志执行失败', err);

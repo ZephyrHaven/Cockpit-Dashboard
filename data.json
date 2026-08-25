@@ -2,20 +2,5 @@
   "username": "点击修改名称",
   "language": "zh-CN",
   "calendarViewMode": "month",
-  "cockpit-todos": [
-    {
-      "text": "Obsidian vault 创建和分类",
-      "done": true
-    }
-  ],
-  "startDate": "2026-06-09",
-  "collapsed": {
-    "cats": true,
-    "stats": false,
-    "todos": false,
-    "recent": false,
-    "flash": false,
-    "heatmap": false
-  },
-  "onboardingDone": true
+  "onboardingDone": false
 }

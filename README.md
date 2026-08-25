@@ -201,8 +201,13 @@ bash deploy.sh --min
 
 ### 当前版本
 
-- Manifest version: `1.5.0`
+- Manifest version: `1.5.1`
 - Latest update date: `2026-08-20`
+
+### 1.5.1 最近更新
+
+- 清理了旧版本内置的硬编码默认命令与个人示例数据：新安装不再带入指向特定电脑的路径或作者待办，开箱即用。
+- 升级到本版本后，若你的驾驶舱或工作日志命令仍是旧版写入的默认值、且在当前电脑上无法运行，点击对应按钮时会自动弹窗并打开配置窗口，引导你填写自己的命令；命令在本机仍可正常使用的用户不会受到任何影响。
 
 ### 1.5.0 最近更新
 
@@ -415,8 +420,13 @@ Build notes:
 
 ### Current Version
 
-- Manifest version: `1.5.0`
+- Manifest version: `1.5.1`
 - Latest update date: `2026-08-20`
+
+### What’s New in 1.5.1
+
+- Removed hardcoded default commands and personal sample data from earlier versions: fresh installs no longer ship paths tied to a specific machine or the author's todos, so the plugin works out of the box.
+- After upgrading, if your Cockpit or work-log command is still the legacy default and cannot run on this computer, clicking the button now opens a prompt and the configuration window so you can enter your own command; machines where the command still works are unaffected.
 
 ### What’s New in 1.5.0
 

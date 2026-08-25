@@ -5,6 +5,11 @@ const AI_VIEW_TYPE = 'cockpit-dashboard-ai';
 const PLUGIN_ID = 'cockpit-dashboard';
 const TODO_FILE = '_data/todos.md';
 const BOOKMARK_FILE = '_data/bookmarks.md';
+const FOCUS_FILE = '_data/focus.md';
+const DAILY_DIR = '_daily';
+const DATA_DIR = '_data';
+// 驾驶舱 H5 服务默认地址（可被工具栏配置覆盖）
+const DEFAULT_COCKPIT_URL = 'http://localhost:3456';
 const DEFAULT_LANG = 'zh-CN';
 const LANG_OPTIONS = [
   { code: 'zh-CN', label: '中文', short: '中文' },
@@ -107,7 +112,8 @@ const I18N = {
       cockpitFailed: ({ message }) => '🛩️ 驾驶舱启动失败: ' + message,
       workLogMissing: '📝 工作日志未配置',
       workLogFailed: ({ message }) => '📝 工作日志执行失败: ' + message,
-      workLogDone: '📝 工作日志已执行完毕'
+      workLogDone: '📝 工作日志已执行完毕',
+      legacyDefaultConfig: '⚙️ 这条命令是旧版插件的默认配置，在当前电脑上无法运行；请在弹出的窗口中改成你自己的命令。'
     },
     calendar: {
       emptyDay: '这一天没有待办 🎉',
@@ -193,7 +199,7 @@ const I18N = {
       files: ({ count }) => count + ' 个文件'
     },
     footer: {
-      text: '💾 h 持续维护 · 知识库是活的'
+      text: '💾 持续维护 · 知识库是活的'
     },
     releases: {
       title: '最近更新记录',
@@ -371,7 +377,8 @@ const I18N = {
       cockpitFailed: ({ message }) => '🛩️ Failed to launch dashboard: ' + message,
       workLogMissing: '📝 Work log command is not configured',
       workLogFailed: ({ message }) => '📝 Work log failed: ' + message,
-      workLogDone: '📝 Work log finished'
+      workLogDone: '📝 Work log finished',
+      legacyDefaultConfig: '⚙️ This command is a legacy default from an older version and cannot run on this computer. Replace it with your own command in the window that just opened.'
     },
     calendar: {
       emptyDay: 'No tasks on this day 🎉',
@@ -563,14 +570,12 @@ function getText(lang, key, vars) {
   return value == null ? key : String(value);
 }
 
-const HERMES_TODOS = [
-  { text: '📅 日历/日程看板', done: true, tags: ['obsidian'], priority: 'high', dueDate: '2026-06-02' },
-  { text: '🍅 番茄钟/专注计时器', done: true, tags: ['obsidian'], priority: 'low', dueDate: null },
-];
+// Hermes 待办同步：默认不注入任何内容。
+// 历史版本曾在这里硬编码作者个人的开发待办，会在其他用户的 vault 里凭空出现，已清空。
+const HERMES_TODOS = [];
 
 const DEFAULT_TODOS = [
-  { text:'完善 Dashboard 驾驶舱功能', tags:['工作'], priority:'high', dueDate:null, done:false, created:null, doneDate:null },
-  { text:'整理 gbrain 代码片段分类', tags:['工作'], priority:'mid', dueDate:null, done:false, created:null, doneDate:null },
-  { text:'Gateway 配置文档补充', tags:['运维'], priority:'mid', dueDate:null, done:false, created:null, doneDate:null },
-  { text:'Obsidian vault 创建和分类', tags:['工作'], priority:'low', dueDate:null, done:true, created:null, doneDate:null }
+  { text:'欢迎使用 Cockpit Dashboard，点击左侧圆圈即可完成这条待办', tags:['入门'], priority:'mid', dueDate:null, done:false, created:null, doneDate:null },
+  { text:'试试右键点击空白区域，可以打开快捷菜单', tags:['入门'], priority:'low', dueDate:null, done:false, created:null, doneDate:null },
+  { text:'点击标题栏可以把任意模块折叠或展开', tags:['入门'], priority:'low', dueDate:null, done:true, created:null, doneDate:null }
 ];

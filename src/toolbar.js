@@ -21,6 +21,7 @@ async function saveToolbarOrder(view, order) {
 }
 
 function refreshToolbar(view, root) {
+  if (!root) return;
   const previous = root.querySelector('.' + PLUGIN_ID + '-toolbar');
   if (!previous) return;
   const anchor = document.createComment('cockpit-toolbar');

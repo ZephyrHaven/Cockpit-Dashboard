@@ -1,6 +1,10 @@
 // pomodoro.js — 番茄钟的唯一公共入口。
 // 视图只负责提供运行时依赖；浮窗复用和绑定都从这里进入，避免调用方耦合内部实现。
 
+// 番茄钟时长（分钟）：专注轮 / 休息轮。统计、倒计时、番茄数换算都以此为唯一来源。
+const POMODORO_FOCUS_MINUTES = 25;
+const POMODORO_BREAK_MINUTES = 5;
+
 function buildPomodoro(view, root, initialTodo) {
   if (!view) {
     console.warn('Cockpit: buildPomodoro failed, view is unavailable');
@@ -104,7 +108,7 @@ function createPomodoro(view, root, initialTodo) {
 
     // 状态变量：会话独立于“是否自动显示”保存，避免正在使用时被设置误伤。
     const restoredSession = view._pomodoroSession?.active ? view._pomodoroSession : null;
-    let totalSeconds = restoredSession?.isBreak ? 5 * 60 : 25 * 60;
+    let totalSeconds = restoredSession?.isBreak ? POMODORO_BREAK_MINUTES * 60 : POMODORO_FOCUS_MINUTES * 60;
     let remaining = Number.isFinite(restoredSession?.remaining) ? Math.max(0, Math.min(totalSeconds, restoredSession.remaining)) : totalSeconds;
     if (restoredSession?.isRunning && Number.isFinite(restoredSession.endAt)) {
       remaining = Math.max(1, Math.ceil((restoredSession.endAt - Date.now()) / 1000));
@@ -155,7 +159,7 @@ function createPomodoro(view, root, initialTodo) {
     const BREAK_ACCENT = '#48b4ff';
 
     function getPomodoroCount() {
-      return Math.max(0, Math.floor((self._focusMinutes || 0) / 25));
+      return Math.max(0, Math.floor((self._focusMinutes || 0) / POMODORO_FOCUS_MINUTES));
     }
 
     function getPendingTaskOptions() {
@@ -624,7 +628,7 @@ function createPomodoro(view, root, initialTodo) {
               statusEl.style.color = '#22c55e';
               startLabelKey = 'pomodoro.startBreak';
               isBreak = true;
-              totalSeconds = 5 * 60;
+              totalSeconds = POMODORO_BREAK_MINUTES * 60;
               remaining = totalSeconds;
               flashCue(t('pomodoro.readyForBreak'), '#22c55e', 3600, false, 'pomodoro.readyForBreak');
               if (self._pomodoroFullscreen === true) {
@@ -640,7 +644,7 @@ function createPomodoro(view, root, initialTodo) {
               const completion = {
                 id:'focus-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
                 day:window.moment().format('YYYY-MM-DD'),
-                minutes:25,
+                minutes:POMODORO_FOCUS_MINUTES,
                 currentFocusMinutes:self._focusMinutes || 0,
                 task:boundTask ? { id:boundTask.id, text:boundTask.text } : null,
                 completedAt:new Date().toISOString()
@@ -666,7 +670,7 @@ function createPomodoro(view, root, initialTodo) {
               statusEl.style.color = BREAK_ACCENT;
               startLabelKey = 'pomodoro.start';
               isBreak = false;
-              totalSeconds = 25 * 60;
+              totalSeconds = POMODORO_FOCUS_MINUTES * 60;
               remaining = totalSeconds;
               flashCue(t('pomodoro.readyForFocus'), BREAK_ACCENT, 5200, minimized || document.hidden, 'pomodoro.readyForFocus');
               if (self._pomodoroFullscreen === true && self._pomodoroBreakReminder !== false) {
@@ -691,7 +695,7 @@ function createPomodoro(view, root, initialTodo) {
       clearInterval(timerInterval);
       isRunning = false;
       isBreak = false;
-      totalSeconds = 25 * 60;
+      totalSeconds = POMODORO_FOCUS_MINUTES * 60;
       remaining = totalSeconds;
       startLabelKey = 'pomodoro.start';
       statusKey = 'pomodoro.ready';

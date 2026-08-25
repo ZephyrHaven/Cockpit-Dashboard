@@ -30,7 +30,11 @@ deploy.sh
 
 # 与插件无关的临时 Markdown 或会议纪要
 A7493263-F1FF-4389-B87E-6769580ACBEC.md
+design-qa.md
 
 # Node
 node_modules/
 npm-debug.log*
+
+# WorkBuddy 项目记忆（仅本地）
+.workbuddy/

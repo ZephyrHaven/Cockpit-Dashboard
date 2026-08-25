@@ -80,7 +80,7 @@ function openBuiltinToolbarConfigEditor(view, root, action) {
   if (spec.hasUrl) {
     const urlField = panel.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-field' });
     urlField.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-label', text:en?'Target URL':'目标网址' });
-    urlInput = urlField.createEl('input', { cls:PLUGIN_ID + '-custom-toolbar-input', attr:{type:'url',placeholder:'http://localhost:3456'} });
+    urlInput = urlField.createEl('input', { cls:PLUGIN_ID + '-custom-toolbar-input', attr:{type:'url',placeholder:DEFAULT_COCKPIT_URL} });
     urlInput.value = current.url || '';
   }
   const consentWrap = panel.createEl('label', { cls:PLUGIN_ID + '-custom-toolbar-consent' });
