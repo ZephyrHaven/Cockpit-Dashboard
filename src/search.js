@@ -1,5 +1,28 @@
 // search.js — Spotlight 风格的 Vault 全局搜索
 
+function normalizeSearchQuery(rawQuery) {
+  return String(rawQuery || '').trim().toLowerCase();
+}
+
+function rankSearchFiles(files, rawQuery) {
+  const query = normalizeSearchQuery(rawQuery);
+  if (!query) return [];
+  return files
+    .map((file) => {
+      const name = file.basename.toLowerCase();
+      const path = file.path.toLowerCase();
+      let score = 0;
+      if (name === query) score = 120;
+      else if (name.startsWith(query)) score = 100;
+      else if (name.includes(query)) score = 80;
+      else if (path.includes(query)) score = 40;
+      return { file, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || b.file.stat.mtime - a.file.stat.mtime || a.file.path.localeCompare(b.file.path))
+    .map((item) => item.file);
+}
+
 class CockpitGlobalSearchModal extends obsidian.Modal {
   constructor(app, language) {
     super(app);
@@ -8,6 +31,8 @@ class CockpitGlobalSearchModal extends obsidian.Modal {
     this._results = [];
     this._timer = null;
     this._queryVersion = 0;
+    this._contentCache = new Map();
+    this._queryCache = new Map();
   }
 
   _text(cn, en) { return this.language === 'en' ? en : cn; }
@@ -73,13 +98,21 @@ class CockpitGlobalSearchModal extends obsidian.Modal {
   }
 
   async _search(rawQuery, version) {
-    const query = rawQuery.trim().toLowerCase();
+    const query = normalizeSearchQuery(rawQuery);
     if (version !== this._queryVersion) return;
     if (!query) { this._results = []; this._renderEmpty(); return; }
     const files = this.app.vault.getMarkdownFiles();
-    const named = files.filter((file) => (file.basename + ' ' + file.path).toLowerCase().includes(query));
+    const cached = this._queryCache.get(query);
+    if (cached) {
+      this._results = cached;
+      this._cursor = 0;
+      this.hint.setText(this._text('↑↓ 选择 · Enter 打开 · Esc 关闭', '↑↓ select · Enter open · Esc close'));
+      this._renderResults();
+      return;
+    }
+    const named = rankSearchFiles(files, query);
     const seen = new Set(named.map((file) => file.path));
-    const results = named.slice(0, 20).map((file) => ({ file, match: '', score: 3 }));
+    const results = named.slice(0, 20).map((file, index) => ({ file, match: '', score: 120 - index }));
     this.hint.setText(this._text('正在搜索笔记内容…', 'Searching note content…'));
     this._results = results;
     this._cursor = 0;
@@ -91,7 +124,12 @@ class CockpitGlobalSearchModal extends obsidian.Modal {
       const file = files[index];
       if (!seen.has(file.path)) {
         try {
-          const content = await this.app.vault.cachedRead(file);
+          const cacheKey = file.path + ':' + file.stat.mtime;
+          let content = this._contentCache.get(cacheKey);
+          if (content === undefined) {
+            content = await this.app.vault.cachedRead(file);
+            this._contentCache.set(cacheKey, content);
+          }
           const pos = content.toLowerCase().indexOf(query);
           if (pos >= 0) {
             const start = Math.max(0, pos - 42);
@@ -109,6 +147,8 @@ class CockpitGlobalSearchModal extends obsidian.Modal {
     }
     if (version !== this._queryVersion) return;
     this._results = results.slice(0, 40);
+    this._queryCache.set(query, this._results);
+    if (this._queryCache.size > 24) this._queryCache.delete(this._queryCache.keys().next().value);
     this.hint.setText(this._text('↑↓ 选择 · Enter 打开 · Esc 关闭', '↑↓ select · Enter open · Esc close'));
     this._renderResults();
   }

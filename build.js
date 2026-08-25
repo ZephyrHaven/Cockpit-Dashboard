@@ -14,6 +14,7 @@ const MODULES = [
   'constants.js',
   'utils.js',
   'todos.js',
+  'serverchan.js',
   'bookmarks.js',
   'storage.js',
   'calendar.js',

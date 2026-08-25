@@ -15,6 +15,28 @@ const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f9
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
 const RELEASE_HISTORY = [
   {
+    version: '1.1.0',
+    date: '2026-07-19',
+    title: {
+      'zh-CN': '定时待办消息推送',
+      en: 'Scheduled Task Notifications'
+    },
+    highlights: {
+      'zh-CN': [
+        '消息推送支持 Server酱³、Bark 与 MEOW，可同时启用，并分别测试。',
+        '支持每天、指定星期或指定月日，并可设置精确到秒的自动推送时间。',
+        '抽取统一的排程、消息组装、渠道适配与逐渠道去重逻辑，单个渠道失败不会阻断其他渠道。',
+        'Bark 支持 HTTPS 服务地址、Device Key 与分组；MEOW 使用昵称和 Markdown 消息接口。'
+      ],
+      en: [
+        'Added ServerChan³, Bark, and MEOW delivery; channels can be enabled and tested independently.',
+        'Supports daily, selected weekday, or selected day-of-month schedules with second-level delivery time.',
+        'Shared scheduling, message composition, adapters, and per-channel de-duplication so one delivery failure does not block another.',
+        'Bark supports an HTTPS server URL, Device Key, and group; MEOW uses its nickname and Markdown API.'
+      ]
+    }
+  },
+  {
     version: '1.0.10',
     date: '2026-07-12',
     title: {

@@ -44,6 +44,7 @@ Cockpit Dashboard is a local-first, cockpit-style homepage plugin for Obsidian. 
 | ⚡ 闪念胶囊 | 快速记录想法到 `_daily/YYYY-MM-DD.md` |
 | 📈 编辑热力图 | 展示近 30 天编辑频率 |
 | 🍅 番茄钟 | 浮动全局单例，可拖拽，深浅色适配；小视图以倒计时为主，大视图更精简，25+5 循环，休息结束会提示继续专注，专注数据会按日期累计写入 `_data/focus.md` |
+| 🔔 消息推送 | 可选集成 Server酱³、Bark 与 MEOW。可同时启用多个渠道，支持每天、指定星期或指定月日的秒级定时推送，以及今日到期 / 逾期待办汇总或自定义正文 |
 | 🌐 多语言界面 | 支持 `中文 / EN` 一键切换，覆盖首页主要文案并持久化语言设置，且语言开关会适配深浅色模式 |
 | ✨ 交互动效 | 语言切换、工具栏、筛选和卡片增加 hover / press 反馈，让点击更有层次 |
 | 🤖 Hermes | 统一通过 macOS 系统终端启动，不依赖 Obsidian 集成终端；迁移前仍支持通过 `_data/toolbar.md` 自定义命令 |
@@ -85,7 +86,7 @@ Cockpit Dashboard 已上架 Obsidian 社区插件市场：
 - **操作透明且可追溯**：插件使用的数据文件、保存位置和迁移方式都会在文档或界面中明确说明。涉及数据迁移、清理或执行本地脚本时，由用户知情并主动确认。
 - **用户拥有完整控制权**：你可以随时查看、编辑、备份、迁移或删除插件产生的数据。我们优先采用 Markdown、JSON 等用户可直接读取的格式，不以封闭格式锁定数据。
 - **自定义能力属于用户**：模块布局、显示状态、Toolbar 按钮、按钮名称、网址和本地命令都可按个人工作流配置。我们会持续维护并扩展这种可自定义能力，不以未来升级为由无故移除用户已有的配置权。
-- **外部行为由用户决定**：只有在用户主动点击网址按钮、运行自定义脚本或配置第三方工具时，才可能访问外部服务；相关数据处理由该命令或第三方服务决定，并不代表插件在收集数据。
+- **外部行为由用户决定**：只有在用户主动点击网址按钮、运行自定义脚本或配置第三方工具时，才可能访问外部服务。若用户启用 Server酱³ 推送，插件会在用户设定的时间向其自行填写的 Server酱³ 地址发送标题、正文和 `cockpit` 分类标签；相关数据处理由该第三方服务决定，并不代表插件在收集数据。
 
 简而言之：**你的数据属于你，你有权知道插件做了什么，也有权修改或撤销每一项配置。**
 
@@ -133,6 +134,18 @@ Cockpit Dashboard 已上架 Obsidian 社区插件市场：
 - `p:high | p:mid | p:low` 用于优先级
 - `created:` 与 `done:` 由插件保存时自动维护
 
+### 消息推送（Server酱³）
+
+在 **设置 → Cockpit Dashboard → 消息推送** 中启用。可分别开启 Server酱³、Bark 和 MEOW，并用各渠道自己的“发送测试”按钮验证配置。
+
+- Server酱³：推荐粘贴 SendKey 页面的完整 API URL；也可填写 UID 与 SendKey，请求使用 `cockpit` 分类标签。
+- Bark：填写 HTTPS 服务地址（默认 `https://api.day.app`）、Device Key 和可选分组。支持官方服务及 HTTPS 自建服务。
+- MEOW：填写 App 中的用户昵称；插件使用官方 HTTPS Markdown 接口发送内容。
+- 计划可选择每天、每周指定星期或每月指定日期，并设置精确到秒的发送时间。
+- 未填写自定义正文时，仅在存在“今日到期”或“已逾期”的未完成待办时推送汇总。
+- 填写自定义正文后，会在计划时间发送；正文保持原样，系统仅附上日期与时间。
+- 各渠道逐一记录同一计划时段的发送状态；某个渠道失败不会阻断其他渠道。Obsidian 必须保持运行，才能执行本地定时检查。
+
 ### 开发说明
 
 ```bash
@@ -151,15 +164,15 @@ bash deploy.sh --min
 
 ### 当前版本
 
-- Manifest version: `1.0.10`
-- Latest update date: `2026-07-12`
+- Manifest version: `1.1.0`
+- Latest update date: `2026-07-19`
 
-### 1.0.10 最近更新
+### 1.1.0 最近更新
 
-- 新增 Spotlight 风格 Vault 全局搜索，支持文件名、路径和正文搜索、输入防抖、键盘操作与拖动窗口。
-- 待办新增紧凑的状态下拉筛选；“优先处理”聚合高优先级或明天到期的未完成任务，并支持一键延期。
-- 日历详情与待办列表统一编辑图标和操作风格。
-- 收藏模块支持折叠、固定排序、上下调整，并可一键在分栏打开笔记。
+- 消息推送支持 Server酱³、Bark 与 MEOW，可同时启用、独立测试。
+- 支持每天、指定星期或指定月日，并可设置精确到秒的自动推送时间。
+- 推送核心改为复用同一套排程、消息生成、渠道适配与逐渠道去重机制；单一渠道失败不影响其他渠道。
+- Bark 支持 HTTPS 服务地址、Device Key 与分组；MEOW 使用昵称和 Markdown 消息接口。
 
 ### 赞助作者
 
@@ -208,6 +221,7 @@ Cockpit Dashboard is designed to be more than a visual landing page. It centrali
 | ⚡ Flash Notes | Quick capture into `_daily/YYYY-MM-DD.md` |
 | 📈 Heatmap | 30-day edit activity heatmap |
 | 🍅 Pomodoro | Draggable floating singleton timer with light/dark support, a countdown-first compact view, a cleaner expanded panel, a 25/5 cycle, break-finished reminders, and focus history persisted by date |
+| 🔔 Message Notifications | Optional ServerChan³, Bark, and MEOW delivery. Enable multiple channels at once with second-level daily, weekday, or monthly schedules, task summaries, or a custom body |
 | 🌐 Multi-language UI | One-tap `中文 / EN` switching with persisted preference and better light/dark readability |
 | ✨ Interaction Polish | Hover and press feedback for language toggle, toolbar actions, filters, and cards |
 | 🤖 Hermes | Always launches through the macOS system Terminal without depending on Obsidian’s integrated terminal; legacy custom commands remain available through `_data/toolbar.md` before migration |
@@ -293,6 +307,18 @@ Notes:
 - `p:high | p:mid | p:low` sets priority
 - `created:` and `done:` are maintained automatically by the plugin
 
+### Message Notifications (ServerChan³)
+
+Enable this under **Settings → Cockpit Dashboard → Message notifications**. ServerChan³, Bark, and MEOW can be enabled independently and each has its own test button.
+
+- ServerChan³: paste the complete API URL from the SendKey page, or provide a UID and SendKey. Requests carry the `cockpit` category tag.
+- Bark: enter an HTTPS server URL (default: `https://api.day.app`), Device Key, and optional group. Official and HTTPS self-hosted servers are supported.
+- MEOW: enter the nickname used in the App; the plugin sends through its official HTTPS Markdown endpoint.
+- Choose daily, selected weekdays, or selected month days, then set a delivery time including seconds.
+- Without a custom body, a summary is sent only when there are incomplete tasks due today or overdue.
+- With a custom body, it is sent on schedule without template syntax; the body remains unchanged and the system adds the date and time.
+- Each channel records its own delivery state per schedule slot, so one failing channel does not block the others. Obsidian must remain running for the local scheduler to run.
+
 ### Development
 
 ```bash
@@ -311,15 +337,15 @@ Build notes:
 
 ### Current Version
 
-- Manifest version: `1.0.10`
-- Latest update date: `2026-07-12`
+- Manifest version: `1.1.0`
+- Latest update date: `2026-07-19`
 
-### What’s New in 1.0.10
+### What’s New in 1.1.0
 
-- Added draggable Spotlight-style global Vault search across note names, paths, and content, with debounced input and keyboard navigation.
-- Added a compact task-status dropdown; Next now includes unfinished high-priority tasks or tasks due tomorrow, with one-click deferral.
-- Unified task-edit icons between the calendar and main todo list.
-- Added collapsible, persistently ordered bookmarks with move controls and one-click split-pane opening.
+- Added ServerChan³, Bark, and MEOW; channels can be enabled and tested independently.
+- Supports daily, selected weekday, or selected day-of-month schedules with second-level delivery time.
+- Reused shared scheduling, message composition, channel adapters, and per-channel de-duplication so a delivery failure does not block other channels.
+- Bark supports an HTTPS server URL, Device Key, and group; MEOW uses its nickname and Markdown API.
 
 ### Sponsor
 

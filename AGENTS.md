@@ -68,6 +68,12 @@ bash deploy.sh     # 自动 node build.js + 复制到 Obsidian 插件目录
 - `_framework.js` 包含 CockpitView 完整逻辑，在 build.js 模板中定义
 - `styles.css` 在运行时通过 `loadCss()` 读取嵌入页面
 
+## 后续开发约束
+
+- 后续新增功能时，不要继续把逻辑堆进单一大文件，优先按职责拆到 `src/` 子模块中。
+- 需要顺手逐步拆分当前偏大的 `_framework.js`，把 Toolbar、Pomodoro、静默刷新、发布记录、布局编辑等能力继续解耦。
+- 性能优化优先级高于继续堆功能；新增功能时要一并检查是否引入整页重渲染、重复读 Vault、重复绑定事件等问题。
+
 ## 发布流程
 
 ```bash
