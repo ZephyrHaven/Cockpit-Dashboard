@@ -15,8 +15,12 @@ const MODULES = [
   'utils.js',
   'todos.js',
   'bookmarks.js',
+  'storage.js',
   'calendar.js',
   'search.js',
+  'toolbar-config.js',
+  'toolbar-custom.js',
+  'toolbar.js',
   'pomodoro.js',
   '_framework.js'
 ];

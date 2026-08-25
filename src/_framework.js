@@ -1,5 +1,5 @@
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._hiddenToolbarActions = new Set(); this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._hiddenToolbarActions = new Set(); this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -43,11 +43,11 @@ class CockpitView extends obsidian.ItemView {
       { icon: E.tag, label: this._t('toolbar.tag'), action: 'tag' },
       { icon: E.graph, label: this._t('toolbar.graph'), action: 'graph' },
       { icon: E.bolt, label: this._t('toolbar.command'), action: 'command' },
-      { icon: '🤖', label: this._t('toolbar.hermes'), action: 'hermes' },
-      { icon: '🛩️', label: this._t('toolbar.cockpit'), action: 'cockpit-h5' },
-      { icon: '📝', label: this._t('toolbar.workLog'), action: 'work-log' },
+      { icon: '🤖', label: this._toolbarCmds?.Hermes?.label || this._t('toolbar.hermes'), action: 'hermes' },
+      { icon: '🛩️', label: this._toolbarCmds?.['驾驶舱']?.label || this._t('toolbar.cockpit'), action: 'cockpit-h5' },
+      { icon: '📝', label: this._toolbarCmds?.['工作日志']?.label || this._t('toolbar.workLog'), action: 'work-log' },
       { icon: '🍅', label: this._t('toolbar.pomodoro'), action: 'pomodoro' }
-    ];
+    ].filter((button) => !this._deletedToolbarActions.has(button.action));
   }
   _toolbarActionIds() {
     return this._toolbarButtons().map((button) => button.action);
@@ -109,6 +109,16 @@ class CockpitView extends obsidian.ItemView {
       console.warn('Cockpit: save hidden toolbar actions failed', e);
     }
   }
+  async _deletePresetToolbarAction(action) {
+    if (!['hermes', 'cockpit-h5', 'work-log'].includes(action)) return;
+    this._deletedToolbarActions.add(action);
+    this._hiddenToolbarActions.delete(action);
+    const data = await this._plugin.loadData() || {};
+    data.deletedToolbarActions = Array.from(this._deletedToolbarActions);
+    data.hiddenToolbarActions = Array.from(this._hiddenToolbarActions);
+    data.toolbarOrder = (Array.isArray(data.toolbarOrder) ? data.toolbarOrder : []).filter((item) => item !== action);
+    await this._plugin.saveData(data);
+  }
   _getModuleIdForElement(el) {
     if (!(el instanceof HTMLElement)) return null;
     if (el.tagName === 'STYLE') return null;
@@ -160,25 +170,40 @@ class CockpitView extends obsidian.ItemView {
     toolbar.classList.toggle(PLUGIN_ID + '-toolbar-editing', this._editMode);
     toolbar.querySelectorAll('.' + PLUGIN_ID + '-toolslot').forEach((slot) => {
       const action = slot.dataset.action;
+      const customId = slot.dataset.customId;
       const hidden = this._isToolbarActionHidden(action);
-      const label = this._toolbarActionLabel(action);
+      const customHidden = customId && slot.dataset.hidden === 'true';
+      const label = customId ? (slot.dataset.label || customId) : this._toolbarActionLabel(action);
       const btn = slot.querySelector('.' + PLUGIN_ID + '-toolbtn');
-      const toggle = slot.querySelector('.' + PLUGIN_ID + '-toolbtn-visibility');
-      slot.classList.toggle('is-hidden', hidden);
-      slot.style.display = !this._editMode && hidden ? 'none' : '';
+      const isHidden = customId ? customHidden : hidden;
+      slot.classList.toggle('is-hidden', isHidden);
+      slot.style.display = !this._editMode && isHidden ? 'none' : '';
+      slot.draggable = this._editMode;
       if (btn) {
         btn.disabled = this._editMode;
         btn.setAttribute('aria-label', label);
       }
-      if (toggle) {
-        toggle.textContent = hidden ? this._t('layout.show') : this._t('layout.hide');
-        toggle.title = hidden
-          ? this._t('layout.showToolbarButton', { button: label })
-          : this._t('layout.hideToolbarButton', { button: label });
-        toggle.tabIndex = this._editMode ? 0 : -1;
-        toggle.classList.toggle('is-hidden', hidden);
+      const visibility = slot.querySelector('.' + PLUGIN_ID + '-toolbtn-visibility');
+      if (visibility) {
+        visibility.textContent = isHidden ? this._t('layout.show') : this._t('layout.hide');
+        visibility.title = isHidden
+          ? (this._lang() === 'en' ? 'Show button' : '显示按钮')
+          : (this._lang() === 'en' ? 'Hide button' : '隐藏按钮');
+        visibility.classList.toggle('is-hidden', isHidden);
+        visibility.tabIndex = this._editMode ? 0 : -1;
       }
     });
+    const addCustom = toolbar.querySelector('.' + PLUGIN_ID + '-custom-toolbar-add');
+    if (addCustom) addCustom.style.display = this._editMode ? 'inline-flex' : 'none';
+    const logs = toolbar.querySelector('.' + PLUGIN_ID + '-custom-toolbar-logs');
+    if (logs) logs.style.display = this._editMode ? 'inline-flex' : 'none';
+  }
+
+  async _saveCustomToolbarButtons(buttons) {
+    this._customToolbarButtons = normalizeCustomToolbarButtons(buttons);
+    const data = await this._plugin.loadData() || {};
+    data.customToolbarButtons = this._customToolbarButtons;
+    await this._plugin.saveData(data);
   }
   _getGreetingByHour(hour) {
     let greeting = this._t('greetings.morning');
@@ -494,9 +519,11 @@ class CockpitView extends obsidian.ItemView {
   }
 
   async _reloadDashboardState() {
+    if (!this._storage) this._storage = new CockpitStorage(this._plugin, this.app);
+    await this._storage.initialize(this._defaultToolbarCommands());
     const loaded = await loadTodos(this.app.vault);
     this._todos = loaded || DEFAULT_TODOS.map(t=>({...t}));
-    this._bookmarks = await loadBookmarks(this.app.vault);
+    this._bookmarks = new Set(await this._storage.loadBookmarks());
 
     // 同步 Hermes 功能待办到 Obsidian
     await syncHermesTodos(this.app.vault, this._todos);
@@ -509,11 +536,16 @@ class CockpitView extends obsidian.ItemView {
       this._collapsed = pluginData?.collapsed || {};
       this._moduleOrder = this._normalizeModuleOrder(pluginData?.moduleOrder);
       this._hiddenModules = new Set(this._normalizeModuleSubset(pluginData?.hiddenModules));
+      this._deletedToolbarActions = new Set((Array.isArray(pluginData?.deletedToolbarActions) ? pluginData.deletedToolbarActions : []).filter((action) => ['hermes','cockpit-h5','work-log'].includes(action)));
       this._hiddenToolbarActions = new Set(this._normalizeToolbarActionSubset(pluginData?.hiddenToolbarActions));
+      this._customToolbarButtons = normalizeCustomToolbarButtons(pluginData?.customToolbarButtons);
+      this._toolbarOrder = normalizeToolbarOrder(this, pluginData?.toolbarOrder);
+      this._bookmarkOrder = Array.isArray(pluginData?.bookmarkOrder) ? pluginData.bookmarkOrder.filter((path) => this._bookmarks.has(path)) : [];
+      this._bookmarks.forEach((path) => { if (!this._bookmarkOrder.includes(path)) this._bookmarkOrder.push(path); });
       if (!pluginData.startDate) { pluginData.startDate = window.moment().format('YYYY-MM-DD'); await this._plugin.saveData(pluginData); }
       this._startDate = pluginData.startDate;
       this._onboardingDone = pluginData?.onboardingDone || false;
-    } catch(e) { this._language = DEFAULT_LANG; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._hiddenToolbarActions = new Set(); }
+    } catch(e) { this._language = DEFAULT_LANG; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -526,34 +558,18 @@ class CockpitView extends obsidian.ItemView {
       }
     } catch(e) {}
 
-    // 加载工具栏命令配置
-    this._toolbarCmds = {};
-    try {
-      const cfgFile = this.app.vault.getAbstractFileByPath('_data/toolbar.md');
-      let cfgContent;
-      if (!cfgFile) {
-        const homedir = require('os').homedir();
-        const vaultBase = this.app.vault.adapter.getBasePath();
-        const scriptPath = require('path').join(vaultBase, '.obsidian', 'plugins', 'cockpit-dashboard', 'oaAtuoLogin_obsidian.py');
-        const defCmds = '# 工具栏自定义命令配置\\n# 修改 command / mode / url 后刷新插件即可生效\\n\\n[Hermes]\\ncommand = hermes --tui\\nmode = auto\\n\\n[驾驶舱]\\ncommand = cd ' + homedir + '/Downloads/cockpit && ' + homedir + '/.local/bin/node server.js\\nurl = http://localhost:3456\\n\\n[工作日志]\\ncommand = /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 ' + scriptPath + '\\nurl =\\n';
-        await this.app.vault.create('_data/toolbar.md', defCmds);
-        cfgContent = defCmds;
-      } else {
-        cfgContent = await this.app.vault.read(cfgFile);
-      }
-      // 解析配置：按 [section] 分组提取 key=value
-      const sections = cfgContent.split(/^\[(.+?)\]/m);
-      for (let i = 1; i < sections.length; i += 2) {
-        const name = sections[i].trim();
-        const body = sections[i + 1] || '';
-        const cmds = {};
-        body.split('\n').forEach(line => {
-          const m = line.match(/^\s*(\S+)\s*=\s*(.*)/);
-          if (m) cmds[m[1]] = m[2].trim();
-        });
-        this._toolbarCmds[name] = cmds;
-      }
-    } catch(e) { console.warn('Cockpit: toolbar config error', e); }
+    this._toolbarCmds = await this._storage.loadToolbarCommands(this._defaultToolbarCommands());
+  }
+
+  _defaultToolbarCommands() {
+    const homedir = require('os').homedir();
+    const vaultBase = this.app.vault.adapter.getBasePath();
+    const scriptPath = require('path').join(vaultBase, '.obsidian', 'plugins', 'cockpit-dashboard', 'oaAtuoLogin_obsidian.py');
+    return {
+      Hermes: { command:'hermes --tui', mode:'auto' },
+      '驾驶舱': { command:'cd ' + homedir + '/Downloads/cockpit && ' + homedir + '/.local/bin/node server.js', url:'http://localhost:3456' },
+      '工作日志': { command:'/Library/Frameworks/Python.framework/Versions/3.13/bin/python3 ' + scriptPath, url:'' }
+    };
   }
 
   _shouldOpenContextMenu(target) {
@@ -597,6 +613,11 @@ class CockpitView extends obsidian.ItemView {
           const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
           if (root) this._applyModuleEditState(root);
         }
+      },
+      {
+        title: this._lang() === 'en' ? 'Data migration' : '数据迁移',
+        icon: 'database',
+        onClick: () => openStorageMigration(this)
       },
       {
         title: this._t('contextMenu.refreshPage'),
@@ -1049,38 +1070,8 @@ class CockpitView extends obsidian.ItemView {
       el.createDiv({ cls: PLUGIN_ID+'-tip-text', text: tip });
     });
 
-    // ===== 2. Toolbar =====
-    const toolbar = root.createDiv({ cls: PLUGIN_ID+'-toolbar' });
-    this._toolbarButtons().forEach((button) => {
-      const slot = toolbar.createDiv({ cls: PLUGIN_ID + '-toolslot' });
-      slot.dataset.action = button.action;
-      const el = slot.createEl('button', { cls: PLUGIN_ID+'-toolbtn'+(button.primary?' primary':''), attr: { type: 'button' } });
-      el.dataset.action = button.action;
-      el.createSpan({ cls: PLUGIN_ID+'-icon', text: button.icon });
-      el.createSpan({ text: button.label });
-      el.onclick = () => {
-        if (this._editMode) return;
-        this._doAction(button.action, el);
-      };
-      const visibilityBtn = slot.createEl('button', {
-        cls: PLUGIN_ID + '-toolbtn-visibility',
-        text: this._t('layout.hide'),
-        attr: { type: 'button' }
-      });
-      visibilityBtn.onclick = async (evt) => {
-        evt.preventDefault();
-        evt.stopPropagation();
-        const hiddenActions = new Set(this._hiddenToolbarActions);
-        if (hiddenActions.has(button.action)) hiddenActions.delete(button.action);
-        else hiddenActions.add(button.action);
-        await this._saveHiddenToolbarActions(Array.from(hiddenActions));
-        this._applyToolbarButtonEditState(root);
-      };
-    });
-    this._applyToolbarButtonEditState(root);
-
-    // ===== 2.5 迷你搜索区域（默认隐藏，点击搜索按钮展开） =====
-    const toggleSearch = buildSearch(root, toolbar, allFiles, this.app, { placeholder: t('search.placeholder') });
+    // ===== 2. Toolbar（渲染与编辑交互由独立模块负责） =====
+    const { toggleSearch } = buildToolbar(this, root, allFiles, t);
     this._blankContextMenuItems = [
       { title: t('contextMenu.newNote'), icon: 'plus', onClick: () => this._doAction('new') },
       { title: t('contextMenu.searchNotes'), icon: 'search', onClick: toggleSearch },
@@ -1163,9 +1154,9 @@ class CockpitView extends obsidian.ItemView {
               text: (td.done ? '🟢 ' : td.priority === 'high' ? '🔴 ' : td.priority === 'mid' ? '🟡 ' : '🟢 ') + td.text });
             const editBtn = item.createEl('button', {
               cls: PLUGIN_ID + '-cal-detail-edit',
-              text: E.edit,
               attr: { type: 'button', title: t('todo.edit') }
             });
+            obsidian.setIcon(editBtn, 'square-pen');
             const toggle = async (e) => {
               if (e) e.stopPropagation();
               td.raw.done = !td.raw.done;
@@ -1302,15 +1293,17 @@ class CockpitView extends obsidian.ItemView {
     allFolders.forEach((folder,idx)=>{
       const count = folderCounts[folder.path]||0;
       const name = folder.path.replace(/^\d+[-_]/,'')||folder.path;
-      const card = catsEl.createDiv({ cls: PLUGIN_ID+'-cat' });
+      const card = catsEl.createEl('button', { cls: PLUGIN_ID+'-cat', attr:{ type:'button', title:t('categories.openFolder', { folder:name }) } });
       card.style.setProperty('--cat-clr', COLORS[idx%COLORS.length]);
       card.createDiv({ cls: PLUGIN_ID+'-cat-icon', text: ICONS[idx%ICONS.length] });
       card.createDiv({ cls: PLUGIN_ID+'-cat-name', text: name });
       card.createDiv({ cls: PLUGIN_ID+'-cat-count', text: t('categories.noteCount', { count }) });
-      card.onclick=()=>{
-        const files = allFiles.filter(f=>f.path.startsWith(folder.path+'/'));
+      card.onclick=async ()=>{
+        const files = allFiles.filter(f=>f.path.startsWith(folder.path+'/')).sort((a,b)=>a.path.localeCompare(b.path));
         const overview = files.find(f=>f.basename.includes('概览')||f.basename.includes('MOC')||f.basename.includes('概述'));
-        if (overview) this.app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:overview.path}});
+        const target = overview || files[0];
+        if (target) await this.app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:target.path}});
+        else new obsidian.Notice(t('categories.emptyFolder', { folder:name }));
       };
     });
 
@@ -1374,16 +1367,38 @@ class CockpitView extends obsidian.ItemView {
     todoWrap.dataset.section = 'todos-body';
     const todosEl = todoWrap.createDiv({ cls: PLUGIN_ID+'-todos' });
 
-    // 状态筛选（全部/待办/已办）—— 放在 header 行右侧
+    // 状态筛选：用单一下拉框收纳选项，避免待办标题栏在窄窗口中拥挤。
     let currentStatus = 'todo';
-    const _ss = todoHeader.createDiv({ cls: PLUGIN_ID+'-status-tabs' });
-    [{key:'all',label:t('todo.all')},{key:'todo',label:t('todo.todo')},{key:'done',label:t('todo.done')}].forEach(s => {
-      const _b = _ss.createEl('button', { cls: PLUGIN_ID+'-status-btn'+(currentStatus===s.key?' active':''), text: s.label });
-      _b.onclick = async () => { currentStatus = s.key; _ss.querySelectorAll('.'+PLUGIN_ID+'-status-btn').forEach(x=>x.classList.remove('active')); _b.classList.add('active'); await renderTodos(); };
+    const statusOptions = [
+      { key:'next', label:lang === 'en' ? 'Next' : '优先处理' },
+      { key:'all', label:t('todo.all') },
+      { key:'todo', label:t('todo.todo') },
+      { key:'done', label:t('todo.done') }
+    ];
+    const statusSelectWrap = todoHeader.createDiv({ cls: PLUGIN_ID+'-status-select-wrap' });
+    obsidian.setIcon(statusSelectWrap.createSpan({ cls: PLUGIN_ID+'-status-select-icon' }), 'list-filter');
+    const statusSelect = statusSelectWrap.createEl('select', {
+      cls: PLUGIN_ID+'-status-select',
+      attr: { title: lang === 'en' ? 'Filter tasks by status' : '按状态筛选待办', 'aria-label': lang === 'en' ? 'Task status filter' : '待办状态筛选' }
     });
+    statusOptions.forEach((option) => {
+      const optionEl = statusSelect.createEl('option', { text: option.label, attr: { value: option.key } });
+      optionEl.selected = option.key === currentStatus;
+    });
+    statusSelect.onchange = async () => {
+      currentStatus = statusSelect.value;
+      await renderTodos();
+    };
 
     const getStatusFilteredTodos = ()=>{
       let filtered = this._todos;
+      if (currentStatus === 'next') {
+        const tomorrow = window.moment().add(1, 'day');
+        filtered = filtered.filter(t => !t.done && (
+          t.priority === 'high' ||
+          (t.dueDate && t.dueDate.isSame(tomorrow, 'day'))
+        ));
+      }
       if (currentStatus === 'todo') filtered = filtered.filter(t => !t.done);
       if (currentStatus === 'done') filtered = filtered.filter(t => t.done);
       return filtered;
@@ -1533,15 +1548,26 @@ class CockpitView extends obsidian.ItemView {
         // 操作按钮
         const actions = item.createDiv({ cls: PLUGIN_ID+'-todo-actions' });
 
-        // 编辑按钮
-        const editBtn = actions.createDiv({ cls: PLUGIN_ID+'-todo-btn', text:E.edit, attr:{title:t('todo.edit')} });
+        // 延期、编辑与删除使用 Obsidian 同一套 Lucide 图标，避免 emoji 风格割裂。
+        if (!done) {
+          const deferBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn', attr:{type:'button', title:lang === 'en' ? 'Move to tomorrow' : '延期到明天'} });
+          obsidian.setIcon(deferBtn, 'calendar-clock');
+          deferBtn.onclick = async (e) => {
+            e.stopPropagation();
+            this._todos[realIdx].dueDate = window.moment().add(1, 'day').startOf('day');
+            await renderTodos();
+          };
+        }
+        const editBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn', attr:{type:'button', title:t('todo.edit')} });
+        obsidian.setIcon(editBtn, 'square-pen');
         editBtn.onclick = (e)=>{
           e.stopPropagation();
           openTodoEditor({ index: realIdx });
         };
 
         // 删除按钮
-        const delBtn = actions.createDiv({ cls: PLUGIN_ID+'-todo-btn del', text:E.del, attr:{title:t('todo.remove')} });
+        const delBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn del', attr:{type:'button', title:t('todo.remove')} });
+        obsidian.setIcon(delBtn, 'trash-2');
         delBtn.onclick = async (e)=>{ e.stopPropagation(); this._todos.splice(realIdx,1); await renderTodos(); };
       });
     };
@@ -1596,7 +1622,7 @@ class CockpitView extends obsidian.ItemView {
         e.stopPropagation();
         if (this._bookmarks.has(file.path)) this._bookmarks.delete(file.path);
         else this._bookmarks.add(file.path);
-        await saveBookmarks(this.app.vault, this._bookmarks);
+        await this._storage.saveBookmarks(this._bookmarks);
         // 更新按钮状态
         const nowStarred = this._bookmarks.has(file.path);
         starBtn.textContent = nowStarred ? '★' : '☆';
@@ -1618,7 +1644,7 @@ class CockpitView extends obsidian.ItemView {
       bookmarkTitle.dataset.section = 'bookmarks-title';
       const bmEl = root.createDiv({ cls: PLUGIN_ID+'-recent' });
       bmEl.dataset.section = 'bookmarks-list';
-      this._bookmarks.forEach(path=>{
+      this._orderedBookmarks().forEach(path=>{
         const f = allFiles.find(ff=>ff.path===path);
         if (!f) return;
         const item = bmEl.createDiv({ cls: PLUGIN_ID+'-recent-item' });
@@ -1626,7 +1652,7 @@ class CockpitView extends obsidian.ItemView {
         starBtn.onclick = async (e)=>{
           e.stopPropagation();
           this._bookmarks.delete(path);
-          await saveBookmarks(this.app.vault, this._bookmarks);
+          await this._storage.saveBookmarks(this._bookmarks);
           try {
             await this._refreshBookmarkSection(root, this._allFiles);
             this._rebuildRecentStars();
@@ -1636,6 +1662,8 @@ class CockpitView extends obsidian.ItemView {
         link.onclick=e=>{e.preventDefault();this.app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:f.path}})};
         item.createDiv({ cls: PLUGIN_ID+'-recent-time', text: f.path });
       });
+      // 统一用局部刷新渲染收藏操作按钮、固定顺序和折叠状态。
+      await this._refreshBookmarkSection(root, allFiles);
     }
 
     // ===== 6.8 闪念胶囊 =====
@@ -2171,6 +2199,48 @@ class CockpitView extends obsidian.ItemView {
       count++;
     }
   }
+  _orderedBookmarks() {
+    const ordered = this._bookmarkOrder.filter((path) => this._bookmarks.has(path));
+    this._bookmarks.forEach((path) => { if (!ordered.includes(path)) { ordered.push(path); this._bookmarkOrder.push(path); } });
+    return ordered;
+  }
+  async _saveBookmarkOrder() {
+    this._bookmarkOrder = this._orderedBookmarks();
+    const data = await this._plugin.loadData() || {};
+    data.bookmarkOrder = this._bookmarkOrder;
+    await this._plugin.saveData(data);
+  }
+  async _openBookmarkInSplit(path) {
+    const leaf = this.app.workspace.getLeaf('split', 'vertical');
+    await leaf.setViewState({ type: 'markdown', state: { file: path }, active: true });
+    this.app.workspace.revealLeaf(leaf);
+  }
+  _bindBookmarkCollapse(titleEl, contentEl) {
+    if (!titleEl || !contentEl) return;
+    let arrow = titleEl.querySelector('.' + PLUGIN_ID + '-collapse-arrow');
+    if (!arrow) arrow = titleEl.createSpan({ cls: PLUGIN_ID + '-collapse-arrow', attr: { style:'margin-left:6px;font-size:0.7em;opacity:0.45;transition:transform 0.2s;display:inline-block;' } });
+    const apply = () => {
+      const collapsed = !!this._collapsed.bookmarks;
+      contentEl.style.display = collapsed ? 'none' : '';
+      arrow.textContent = collapsed ? '▶' : '▼';
+    };
+    titleEl.style.cursor = 'pointer';
+    apply();
+    if (titleEl.dataset.collapseBound === 'true') return;
+    titleEl.dataset.collapseBound = 'true';
+    titleEl.addEventListener('click', (evt) => {
+      if (evt.target.closest('button,input,a,textarea,select')) return;
+      this._collapsed.bookmarks = !this._collapsed.bookmarks;
+      apply();
+      (async () => {
+        try {
+          const data = await this._plugin.loadData() || {};
+          data.collapsed = { ...this._collapsed };
+          await this._plugin.saveData(data);
+        } catch (e) { console.warn('save bookmark collapsed', e); }
+      })();
+    });
+  }
   _refreshRecentSection(root, allFiles) {
     const recentEl = this._recentEl || root.querySelector('.' + PLUGIN_ID + '-recent');
     if (!recentEl) return;
@@ -2193,7 +2263,7 @@ class CockpitView extends obsidian.ItemView {
           e.stopPropagation();
           if (this._bookmarks.has(file.path)) this._bookmarks.delete(file.path);
           else this._bookmarks.add(file.path);
-          await saveBookmarks(this.app.vault, this._bookmarks);
+          await this._storage.saveBookmarks(this._bookmarks);
           const nowStarred = this._bookmarks.has(file.path);
           starBtn.textContent = nowStarred ? '★' : '☆';
           starBtn.className = PLUGIN_ID + '-bookmark-btn' + (nowStarred ? ' starred' : '');
@@ -2244,7 +2314,9 @@ class CockpitView extends obsidian.ItemView {
     // 重新渲染收藏列表
     bmEl.innerHTML = '';
     let hasVisible = false;
-    for (const path of this._bookmarks) {
+    const orderedPaths = this._orderedBookmarks();
+    for (let index = 0; index < orderedPaths.length; index++) {
+      const path = orderedPaths[index];
       const f = allFiles.find(ff => ff.path === path);
       if (!f) { this._bookmarks.delete(path); continue; } // 文件已删除，同步清理
       hasVisible = true;
@@ -2253,7 +2325,7 @@ class CockpitView extends obsidian.ItemView {
       starBtn.onclick = async (e) => {
         e.stopPropagation();
         this._bookmarks.delete(path);
-        await saveBookmarks(this.app.vault, this._bookmarks);
+        await this._storage.saveBookmarks(this._bookmarks);
         await this._refreshBookmarkSection(root, allFiles);
         this._rebuildRecentStars();
       };
@@ -2262,10 +2334,31 @@ class CockpitView extends obsidian.ItemView {
         e.preventDefault();
         this.app.workspace.getUnpinnedLeaf().setViewState({ type: 'markdown', state: { file: f.path } });
       };
+      const actions = item.createDiv({ cls: PLUGIN_ID + '-bookmark-actions' });
+      const splitBtn = actions.createEl('button', {
+        cls: PLUGIN_ID + '-bookmark-action',
+        attr: { type: 'button', title: this._lang() === 'en' ? 'Open in split' : '在分栏打开' }
+      });
+      obsidian.setIcon(splitBtn, 'panel-right-open');
+      splitBtn.onclick = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        await this._openBookmarkInSplit(path);
+      };
+      const upBtn = actions.createEl('button', { cls: PLUGIN_ID + '-bookmark-action', attr: { type: 'button', title: this._lang() === 'en' ? 'Move up' : '上移' } });
+      upBtn.disabled = index === 0;
+      obsidian.setIcon(upBtn, 'chevron-up');
+      upBtn.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); if (index === 0) return; [this._bookmarkOrder[index - 1], this._bookmarkOrder[index]] = [this._bookmarkOrder[index], this._bookmarkOrder[index - 1]]; await this._saveBookmarkOrder(); await this._refreshBookmarkSection(root, allFiles); };
+      const downBtn = actions.createEl('button', { cls: PLUGIN_ID + '-bookmark-action', attr: { type: 'button', title: this._lang() === 'en' ? 'Move down' : '下移' } });
+      downBtn.disabled = index === orderedPaths.length - 1;
+      obsidian.setIcon(downBtn, 'chevron-down');
+      downBtn.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); if (index >= orderedPaths.length - 1) return; [this._bookmarkOrder[index + 1], this._bookmarkOrder[index]] = [this._bookmarkOrder[index], this._bookmarkOrder[index + 1]]; await this._saveBookmarkOrder(); await this._refreshBookmarkSection(root, allFiles); };
       item.createDiv({ cls: PLUGIN_ID + '-recent-time', text: f.path });
     }
     if (!hasVisible) {
       bmTitle.remove(); bmEl.remove();
+    } else {
+      this._bindBookmarkCollapse(bmTitle, bmEl);
     }
     this._applyModuleLayout(root);
   }
@@ -2276,78 +2369,18 @@ class CockpitView extends obsidian.ItemView {
     }
     return null;
   }
-  _trySendCommandToTerminalView(termView, command) {
-    if (!termView || !command) return false;
-    const seen = new Set();
-    const queue = [termView];
-    while (queue.length > 0) {
-      const node = queue.shift();
-      if (!node || (typeof node !== 'object' && typeof node !== 'function') || seen.has(node)) continue;
-      seen.add(node);
-      try {
-        if (typeof node.write === 'function' && (node._core || node.buffer || node.options || node._coreService)) {
-          node.write(command + '\r');
-          return true;
-        }
-        if (typeof node.paste === 'function') {
-          node.paste(command + '\r');
-          return true;
-        }
-        if (typeof node.sendText === 'function') {
-          node.sendText(command, true);
-          return true;
-        }
-      } catch (e) {}
-      const keys = Object.getOwnPropertyNames(node).slice(0, 40);
-      keys.forEach((key) => {
-        try {
-          const value = node[key];
-          if (value && (typeof value === 'object' || typeof value === 'function') && !seen.has(value)) queue.push(value);
-        } catch (e) {}
-      });
-      if (Array.isArray(node._children)) {
-        node._children.forEach((child) => {
-          if (child && !seen.has(child)) queue.push(child);
-        });
-      }
-    }
-    return false;
-  }
-  _launchHermesInIntegratedTerminal(command) {
-    try {
-      this.app.commands.executeCommandById('terminal:open-terminal.integrated.root');
-    } catch (e) {}
-    return new Promise((resolve) => {
-      let attempts = 0;
-      const timer = setInterval(() => {
-        attempts++;
-        const termLeaves = this.app.workspace.getLeavesOfType('terminal') || [];
-        for (let i = termLeaves.length - 1; i >= 0; i--) {
-          const termView = termLeaves[i]?.view;
-          if (this._trySendCommandToTerminalView(termView, command)) {
-            clearInterval(timer);
-            resolve(true);
-            return;
-          }
-        }
-        if (attempts > 20) {
-          clearInterval(timer);
-          resolve(false);
-        }
-      }, 250);
-    });
-  }
-  _launchHermesInExternalTerminal(command, appName) {
+  _launchInSystemTerminal(command) {
     return new Promise((resolve, reject) => {
       try {
         const { execFile } = require('child_process');
-        const escapedCommand = String(command || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const targetApp = appName || 'Terminal';
         execFile('osascript', [
-          '-e', 'tell application "' + targetApp + '"',
+          '-e', 'on run argv',
+          '-e', 'tell application "Terminal"',
           '-e', 'activate',
-          '-e', 'do script "' + escapedCommand + '"',
-          '-e', 'end tell'
+          '-e', 'do script (item 1 of argv)',
+          '-e', 'end tell',
+          '-e', 'end run',
+          String(command || '')
         ], (err) => {
           if (err) reject(err);
           else resolve(true);
@@ -2358,23 +2391,18 @@ class CockpitView extends obsidian.ItemView {
     });
   }
   _doAction(a, sourceEl) {
+    if (String(a || '').startsWith('custom:')) {
+      const id = String(a).slice('custom:'.length);
+      executeCustomToolbarButton(this, this._customToolbarButtons.find((button) => button.id === id));
+      return;
+    }
     if (a === 'hermes') {
       (async () => {
         try {
           const cfg = this._getToolbarCommandConfig('Hermes', 'hermes') || {};
           const command = cfg.command || 'hermes --tui';
-          const mode = String(cfg.mode || 'auto').toLowerCase();
-          const terminalApp = cfg.app || 'Terminal';
-          let launched = false;
-          if (mode !== 'external') {
-            launched = await this._launchHermesInIntegratedTerminal(command);
-          }
-          if (launched) {
-            new obsidian.Notice(this._t('notices.hermesStarting'));
-            return;
-          }
-          await this._launchHermesInExternalTerminal(command, terminalApp);
-          new obsidian.Notice(this._t(mode === 'external' ? 'notices.hermesStartingExternal' : 'notices.hermesFallbackExternal'));
+          await this._launchInSystemTerminal(command);
+          new obsidian.Notice(this._t('notices.hermesStartingExternal'));
         } catch(e) {
           console.warn('Hermes failed', e);
           new obsidian.Notice(this._t('notices.hermesFailed', { message: e?.message || 'unknown error' }));
@@ -2717,12 +2745,15 @@ class CockpitPlugin extends obsidian.Plugin {
     this.registerView(VIEW_TYPE, l=>new CockpitView(l, this));
     this.addRibbonIcon('layout-dashboard','Cockpit',()=>this._open());
     this.addCommand({id:'open-cockpit',name:'打开 Cockpit 驾驶舱',callback:()=>this._open()});
+    this.addCommand({ id:'global-search', name:'打开 Cockpit 全局搜索', callback:() => openGlobalSearch(this.app) });
+    this.addCommand({ id:'open-data-migration', name:'打开 Cockpit 数据迁移', callback:async () => { await this._open(); const view = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view; if (view) openStorageMigration(view); } });
     this.app.workspace.onLayoutReady(()=>this._open());
   }
   async _open() {
     let leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0];
     if (!leaf) { leaf = this.app.workspace.getLeaf('split','vertical'); await leaf.setViewState({type:VIEW_TYPE,active:true}); }
     this.app.workspace.revealLeaf(leaf);
+    return leaf;
   }
   async onunload() { this.app.workspace.detachLeavesOfType(VIEW_TYPE); }
 }

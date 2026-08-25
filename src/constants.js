@@ -15,6 +15,36 @@ const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f9
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
 const RELEASE_HISTORY = [
   {
+    version: '1.0.10',
+    date: '2026-07-12',
+    title: {
+      'zh-CN': '全局搜索、优先待办与收藏工作流升级',
+      en: 'Global Search, Priority Tasks, and Bookmark Workflow'
+    },
+    highlights: {
+      'zh-CN': [
+        '新增 Spotlight 风格 Vault 全局搜索，支持文件名、路径和正文匹配、输入防抖、键盘操作与拖动窗口。',
+        '待办状态筛选改为紧凑下拉框；“优先处理”聚合高优先级或明天到期的未完成任务，并支持一键延期。',
+        '日历详情与待办列表统一编辑图标和操作风格。',
+        '收藏支持折叠、固定顺序、上下调整，并可一键在分栏中打开笔记。',
+        'Toolbar 编辑模式支持新增、编辑、隐藏和删除自定义网址或 Shell 脚本按钮；后台脚本提供日志，交互命令统一使用 macOS 系统终端。',
+        '新增带通俗引导的显式数据迁移；storageMigrationCompleted 完成前继续旧文件读写，完成后才切换 Storage V2。',
+        'Toolbar 编辑态改为疏朗布局与统一文字显示/隐藏；自定义按钮及 Hermes、驾驶舱、工作日志均支持直接删除，三个预制按钮也可修改名称和命令。',
+        '修复知识分类卡片在缺少概览/MOC 文件时无法点击的问题；现在会自动打开分类中的第一篇笔记，空目录会显示提示。'
+      ],
+      en: [
+        'Added draggable Spotlight-style Vault search across note names, paths, and content, with debounced input and keyboard navigation.',
+        'Changed task status filtering to a compact dropdown; Next includes unfinished high-priority tasks or tasks due tomorrow, with one-click deferral.',
+        'Unified edit icons and action styling between calendar details and the main todo list.',
+        'Added collapsible bookmarks with persistent ordering, move controls, and one-click split-pane opening.',
+        'Toolbar Edit Mode can add, edit, hide, and delete custom URL or Shell-script buttons; background scripts expose logs and interactive commands always use macOS Terminal.',
+        'Added an explicit guided data migration: legacy files remain active until storageMigrationCompleted is true, then Storage V2 becomes the only write target.',
+        'Toolbar Edit Mode now uses a cleaner layout and consistent text Show/Hide controls; custom buttons and the seeded Hermes, Cockpit, and Work Log buttons can all be deleted, while seeded buttons remain editable.',
+        'Fixed category cards that did nothing when no overview/MOC note existed; they now open the first note in the category or explain that the folder is empty.'
+      ]
+    }
+  },
+  {
     version: '1.0.9',
     date: '2026-07-08',
     title: {
@@ -269,7 +299,9 @@ const I18N = {
       addTodo: '新增待办'
     },
     categories: {
-      noteCount: ({ count }) => count + ' 篇笔记'
+      noteCount: ({ count }) => count + ' 篇笔记',
+      openFolder: ({ folder }) => '打开分类：' + folder,
+      emptyFolder: ({ folder }) => '“' + folder + '”分类中还没有笔记'
     },
     stats: {
       noteCount: '✏️ 笔记总数',
@@ -474,7 +506,9 @@ const I18N = {
       addTodo: 'Add task'
     },
     categories: {
-      noteCount: ({ count }) => count + ' notes'
+      noteCount: ({ count }) => count + ' notes',
+      openFolder: ({ folder }) => 'Open category: ' + folder,
+      emptyFolder: ({ folder }) => 'No notes yet in “' + folder + '”'
     },
     stats: {
       noteCount: '✏️ Notes',

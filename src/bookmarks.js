@@ -12,7 +12,8 @@ async function saveBookmarks(vault, bmSet) {
   try {
     const dir = BOOKMARK_FILE.split('/')[0];
     if (!vault.getAbstractFileByPath(dir)) await vault.createFolder(dir);
-    const content = '# 收藏文件\n\n' + Array.from(bmSet).sort().join('\n') + '\n';
+    // Set 的插入顺序就是用户的收藏顺序，不能排序后再写回。
+    const content = '# 收藏文件\n\n' + Array.from(bmSet).join('\n') + '\n';
     const file = vault.getAbstractFileByPath(BOOKMARK_FILE);
     if (file) await vault.modify(file, content);
     else await vault.create(BOOKMARK_FILE, content);
