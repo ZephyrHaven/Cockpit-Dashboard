@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# 编辑器/IDE 缓存
+.codegraph/
+.reasonix/
+claude.md
+reasonix.toml
+
+# 备份文件
+*.backup-*
+*.backup.*
+
+# 发布文件
+*.zip
+release.sh
+
+# 个人脚本（不随插件发布）
+oaAtuoLogin_obsidian.py
+
+# 项目档案（已和 README 合并）
+项目档案.md
+
+# Node
+node_modules/
+npm-debug.log*
