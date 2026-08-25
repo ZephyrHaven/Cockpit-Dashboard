@@ -1,5 +1,5 @@
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = '行'; this._collapsed = {}; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = '行'; this._collapsed = {}; this._toolbarCmds = {}; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -40,6 +40,34 @@ class CockpitView extends obsidian.ItemView {
       }
     } catch(e) {}
     if (!this._focusMinutes) this._focusMinutes = 0;
+
+    // 加载工具栏命令配置
+    try {
+      const cfgFile = this.app.vault.getAbstractFileByPath('_data/toolbar.md');
+      let cfgContent;
+      if (!cfgFile) {
+        const homedir = require('os').homedir();
+        const vaultBase = this.app.vault.adapter.getBasePath();
+        const scriptPath = require('path').join(vaultBase, '.obsidian', 'plugins', 'cockpit-dashboard', 'oaAtuoLogin_obsidian.py');
+        const defCmds = '# 工具栏自定义命令配置\\n# 修改 command 或 url 后刷新插件即可生效\\n\\n[驾驶舱]\\ncommand = cd ' + homedir + '/Downloads/cockpit && ' + homedir + '/.local/bin/node server.js\\nurl = http://localhost:3456\\n\\n[工作日志]\\ncommand = /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 ' + scriptPath + '\\nurl =\\n';
+        await this.app.vault.create('_data/toolbar.md', defCmds);
+        cfgContent = defCmds;
+      } else {
+        cfgContent = await this.app.vault.read(cfgFile);
+      }
+      // 解析配置：按 [section] 分组提取 key=value
+      const sections = cfgContent.split(/^\[(.+?)\]/m);
+      for (let i = 1; i < sections.length; i += 2) {
+        const name = sections[i].trim();
+        const body = sections[i + 1] || '';
+        const cmds = {};
+        body.split('\\n').forEach(line => {
+          const m = line.match(/^\s*(\S+)\s*=\s*(.*)/);
+          if (m) cmds[m[1]] = m[2].trim();
+        });
+        this._toolbarCmds[name] = cmds;
+      }
+    } catch(e) { console.warn('Cockpit: toolbar config error', e); }
 
     await this._buildAll(root);
 
@@ -1129,30 +1157,29 @@ class CockpitView extends obsidian.ItemView {
     if (a === 'cockpit-h5') {
       try {
         const { exec } = require('child_process');
-        const homedir = require('os').homedir();
-        const nodeBin = homedir + '/.local/bin/node';
-        const serverDir = require('path').join(homedir, 'Downloads', 'cockpit');
-        exec('cd ' + serverDir + ' && ' + nodeBin + ' server.js', (err) => {
+        const cfg = this._toolbarCmds['驾驶舱'];
+        const cmd = cfg && cfg.command || (require('os').homedir() + '/.local/bin/node ' + require('os').homedir() + '/Downloads/cockpit/server.js');
+        const url = cfg && cfg.url || 'http://localhost:3456';
+        exec(cmd, (err) => {
           if (err && !err.message.includes('EADDRINUSE')) {
-            console.warn('Cockpit H5 启动失败', err);
+            console.warn('驾驶舱 启动失败', err);
             new obsidian.Notice('🛩️ 驾驶舱启动失败: ' + err.message);
             return;
           }
         });
-        setTimeout(() => { exec('open http://localhost:3456'); }, 1000);
+        setTimeout(() => { exec('open ' + url); }, 1000);
         new obsidian.Notice('🛩️ 驾驶舱正在启动…');
       } catch(e) {
-        console.warn('Cockpit H5 launch failed', e);
+        console.warn('驾驶舱 launch failed', e);
       }
       return;
     }
     if (a === 'work-log') {
       try {
         const { exec } = require('child_process');
-        const pyBin = '/Library/Frameworks/Python.framework/Versions/3.13/bin/python3';
-        const vaultBase = this.app.vault.adapter.getBasePath();
-        const scriptPath = require('path').join(vaultBase, '.obsidian', 'plugins', 'cockpit-dashboard', 'oaAtuoLogin_obsidian.py');
-        exec(pyBin + ' "' + scriptPath + '"', (err, stdout, stderr) => {
+        const cfg = this._toolbarCmds['工作日志'];
+        const cmd = cfg && cfg.command || '';
+        if (cmd) exec(cmd, (err, stdout, stderr) => {
           if (err) {
             console.warn('工作日志执行失败', err);
             new obsidian.Notice('📝 工作日志执行失败: ' + err.message);
