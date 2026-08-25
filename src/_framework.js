@@ -61,7 +61,7 @@ class CockpitView extends obsidian.ItemView {
         const name = sections[i].trim();
         const body = sections[i + 1] || '';
         const cmds = {};
-        body.split('\\n').forEach(line => {
+        body.split('\n').forEach(line => {
           const m = line.match(/^\s*(\S+)\s*=\s*(.*)/);
           if (m) cmds[m[1]] = m[2].trim();
         });
@@ -1158,16 +1158,19 @@ class CockpitView extends obsidian.ItemView {
       try {
         const { exec } = require('child_process');
         const cfg = this._toolbarCmds['驾驶舱'];
-        const cmd = cfg && cfg.command || (require('os').homedir() + '/.local/bin/node ' + require('os').homedir() + '/Downloads/cockpit/server.js');
+        const cmd = cfg && cfg.command;
+        if (!cmd) { new obsidian.Notice('🛩️ 驾驶舱未配置'); return; }
         const url = cfg && cfg.url || 'http://localhost:3456';
         exec(cmd, (err) => {
-          if (err && !err.message.includes('EADDRINUSE')) {
-            console.warn('驾驶舱 启动失败', err);
-            new obsidian.Notice('🛩️ 驾驶舱启动失败: ' + err.message);
-            return;
+          if (err) {
+            if (!err.message.includes('EADDRINUSE')) {
+              console.warn('驾驶舱 启动失败', err);
+              new obsidian.Notice('🛩️ 驾驶舱启动失败: ' + err.message);
+              return;
+            }
           }
+          setTimeout(() => { exec('open ' + url); }, 800);
         });
-        setTimeout(() => { exec('open ' + url); }, 1000);
         new obsidian.Notice('🛩️ 驾驶舱正在启动…');
       } catch(e) {
         console.warn('驾驶舱 launch failed', e);
@@ -1178,9 +1181,9 @@ class CockpitView extends obsidian.ItemView {
       try {
         const { exec } = require('child_process');
         const cfg = this._toolbarCmds['工作日志'];
-        const cmd = cfg && cfg.command || '';
-        if (cmd) exec(cmd, (err, stdout, stderr) => {
-          if (err) {
+        const cmd = cfg && cfg.command;
+        if (!cmd) { new obsidian.Notice('📝 工作日志未配置'); return; }
+        exec(cmd, (err, stdout, stderr) => {
             console.warn('工作日志执行失败', err);
             new obsidian.Notice('📝 工作日志执行失败: ' + err.message);
             return;
