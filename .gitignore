@@ -38,3 +38,4 @@ npm-debug.log*
 
 # WorkBuddy 项目记忆（仅本地）
 .workbuddy/
+dist/
