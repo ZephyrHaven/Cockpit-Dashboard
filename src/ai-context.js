@@ -7,6 +7,63 @@ const AI_UPLOAD_LIMITS = Object.freeze({
   extensions:Object.freeze(['md','txt','csv','json','yaml','yml','log','html','htm','xml'])
 });
 
+const AI_IMAGE_LIMITS = Object.freeze({
+  maxImages:4,
+  maxBytesPerImage:8 * 1024 * 1024,
+  maxDimension:1568,
+  jpegQuality:0.85
+});
+
+// 计算贴图缩放目标：最长边不超过 maxDimension，且不放大原图。
+function computeAiImageTargetSize(width, height, maxDimension = AI_IMAGE_LIMITS.maxDimension) {
+  const w = Math.max(1, Math.floor(Number(width) || 1));
+  const h = Math.max(1, Math.floor(Number(height) || 1));
+  const longest = Math.max(w, h);
+  if (longest <= maxDimension) return { width:w, height:h, scaled:false };
+  const ratio = maxDimension / longest;
+  return { width:Math.max(1, Math.round(w * ratio)), height:Math.max(1, Math.round(h * ratio)), scaled:true };
+}
+
+function isAiImageFile(file) {
+  return String(file?.type || '').toLowerCase().startsWith('image/');
+}
+
+// 把粘贴/选择的图片压缩为 JPEG dataURL：限制尺寸与请求体积，纯浏览器环境执行。
+async function prepareAiImageFile(file) {
+  if (!isAiImageFile(file)) throw new Error('Not an image file.');
+  const size = Number(file?.size) || 0;
+  if (size > AI_IMAGE_LIMITS.maxBytesPerImage) throw new Error('Image is too large (max 8MB).');
+  const name = String(file?.name || 'clipboard.png').replace(/[\\/\r\n\0]/g, '_').trim().slice(0, 120) || 'clipboard.png';
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Could not read the image.'));
+    reader.readAsDataURL(file);
+  });
+  if (!dataUrl.startsWith('data:image/')) throw new Error('Unsupported image content.');
+  if (typeof document === 'undefined' || !document.createElement) {
+    // 无 DOM 环境（单测）仅做校验，不压缩。
+    return { name, dataUrl };
+  }
+  const bitmap = await new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Could not decode the image.'));
+    image.src = dataUrl;
+  });
+  const target = computeAiImageTargetSize(bitmap.naturalWidth || bitmap.width, bitmap.naturalHeight || bitmap.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = target.width;
+  canvas.height = target.height;
+  const context = canvas.getContext('2d');
+  if (!context) return { name, dataUrl };
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, target.width, target.height);
+  context.drawImage(bitmap, 0, 0, target.width, target.height);
+  const compressed = canvas.toDataURL('image/jpeg', AI_IMAGE_LIMITS.jpegQuality);
+  return { name, dataUrl:compressed.length > 64 ? compressed : dataUrl };
+}
+
 function createAiContextAbortError() {
   const error = new Error('Context retrieval stopped.');
   error.name = 'AbortError';
@@ -96,7 +153,10 @@ function rankAiContextChunks(chunks, keywords, options = {}) {
     const path = safeAiContextPath(chunk?.path);
     const content = String(chunk?.content || '').trim();
     const lowerPath = path.toLocaleLowerCase();
-    const lowerContent = content.toLocaleLowerCase();
+    // 命中缓存的小写副本（vault 文档预生成）；附件等新切片即时计算。
+    const lowerContent = typeof chunk?.lower === 'string' && chunk.lower.length >= content.length - 2
+      ? chunk.lower
+      : content.toLocaleLowerCase();
     let score = 0;
     terms.forEach((term) => {
       score += countAiKeywordMatches(lowerPath, term) * 8;
@@ -154,7 +214,17 @@ class CockpitRagService {
     this.plugin = plugin;
     this.pathCache = new Map();
     this.chunkCache = new Map();
+    // 倒排索引与 RAG 同生命周期；单独加载本模块（单测）时自动退化为全库扫描路径。
+    this.index = typeof CockpitAiSearchIndex === 'function' ? new CockpitAiSearchIndex(plugin) : null;
   }
+  queueIndexUpdate(value) { this.index?.queuePath(value); }
+  removeFromIndex(value) {
+    const path = String(value || '').replace(/\\/g, '/');
+    this.invalidatePath(path);
+    this.index?.removePath(path);
+  }
+  renameInIndex(oldPath, newPath) { this.index?.renamePath(oldPath, newPath); }
+  warmUp() { this.index?.warmUp(); }
   async _readVaultDocument(file) {
     const path = safeAiContextPath(file?.path);
     if (!path || file?.extension !== 'md' || isProtectedAiContextPath(path)) return null;
@@ -167,7 +237,12 @@ class CockpitRagService {
     const hash = await computeAiContentHash(content);
     let templates = this.chunkCache.get(hash);
     if (!templates) {
-      templates = chunkAiDocument({ path:'', content, source:'vault' }).map((chunk) => ({ content:chunk.content, chunkIndex:chunk.chunkIndex }));
+      templates = chunkAiDocument({ path:'', content, source:'vault' }).map((chunk) => ({
+        content:chunk.content,
+        // 预存小写副本：排序阶段不再对全库内容反复 toLocaleLowerCase。
+        lower:chunk.content.toLocaleLowerCase(),
+        chunkIndex:chunk.chunkIndex
+      }));
       this.chunkCache.set(hash, templates);
       while (this.chunkCache.size > 1600) this.chunkCache.delete(this.chunkCache.keys().next().value);
     }
@@ -178,12 +253,15 @@ class CockpitRagService {
   async _readSelected(paths, signal) {
     const vault = this.plugin.app.vault;
     const result = [];
-    for (const path of paths) {
-      assertAiContextNotAborted(signal);
-      if (isProtectedAiContextPath(path)) continue;
-      const file = vault.getAbstractFileByPath?.(path);
-      const document = await this._readVaultDocument(file);
-      if (document) result.push(document);
+    for (let offset = 0; offset < paths.length; offset += 6) {
+      const batch = paths.slice(offset, offset + 6).filter((path) => !isProtectedAiContextPath(path));
+      // 并行读取一小批：多上下文注入不再逐篇串行等待。
+      const documents = await Promise.all(batch.map(async (path) => {
+        assertAiContextNotAborted(signal);
+        const file = vault.getAbstractFileByPath?.(path);
+        return this._readVaultDocument(file);
+      }));
+      result.push(...documents.filter(Boolean));
     }
     return result;
   }
@@ -214,12 +292,22 @@ class CockpitRagService {
     if (manual.length && manualChars <= maxChars) return { mode:'manual', contexts:manual, searchedFiles:selected.length, truncated:false };
 
     const global = !selectedPaths.length && !attachments.length;
-    const documents = global ? await this._readAll(options.onProgress, options.signal) : selected;
+    const keywordsSource = query || [...selectedPaths, ...attachments.map((item) => item.path)].join(' ');
+    let documents;
+    if (global && this.index) {
+      // 自动 RAG：先让索引就绪（含首次构建进度），再只读取命中的候选笔记。
+      await this.index.ensure({ signal:options.signal, onProgress:options.onProgress });
+      const candidateLimit = typeof AI_INDEX_LIMITS !== 'undefined' ? AI_INDEX_LIMITS.candidateLimit : 12;
+      const candidates = this.index.query(keywordsSource, { limit:candidateLimit }).map((item) => item.path);
+      documents = candidates.length ? (await this._readSelected(candidates, options.signal)) : [];
+      if (!documents.length) documents = await this._readAll(options.onProgress, options.signal);
+    } else {
+      documents = global ? await this._readAll(options.onProgress, options.signal) : selected;
+    }
     assertAiContextNotAborted(options.signal);
     const chunks = documents.flatMap((item) => item.chunks || chunkAiDocument(item));
     chunks.push(...attachments.flatMap((item) => chunkAiDocument(item)));
-    const fallbackQuery = [...selectedPaths, ...attachments.map((item) => item.path)].join(' ');
-    const keywords = extractAiKeywords(query || fallbackQuery);
+    const keywords = extractAiKeywords(keywordsSource);
     let contexts = rankAiContextChunks(chunks, keywords, { limit:8, maxChars });
     if (!contexts.length && !global && chunks.length) contexts = rankAiContextChunks(chunks, [], { limit:8, maxChars });
     contexts = contexts.map((item) => ({ ...item, source:item.source === 'upload' ? 'upload' : 'rag' }));
@@ -243,7 +331,8 @@ class CockpitRagService {
 
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
   module.exports = {
-    AI_UPLOAD_LIMITS, isProtectedAiContextPath, extractAiKeywords, computeAiContentHash,
-    chunkAiDocument, rankAiContextChunks, readAiUploadFiles, CockpitRagService
+    AI_UPLOAD_LIMITS, AI_IMAGE_LIMITS, isProtectedAiContextPath, extractAiKeywords, computeAiContentHash,
+    chunkAiDocument, rankAiContextChunks, readAiUploadFiles, CockpitRagService,
+    computeAiImageTargetSize, prepareAiImageFile
   };
 }

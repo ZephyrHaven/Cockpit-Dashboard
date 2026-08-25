@@ -13,8 +13,10 @@ const CSS_FILE = path.join(ROOT, 'styles.css');
 const MODULES = [
   'constants.js',
   'data-store.js',
+  'ai-index.js',
   'ai-context.js',
   'ai-history.js',
+  'ai-local-tools.js',
   'ai-tools.js',
   'ai.js',
   'ai-dialogs.js',

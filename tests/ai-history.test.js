@@ -34,6 +34,29 @@ assert.deepEqual(normalized.sessions[0].contextPaths, ['Projects/A.md'], 'Protec
 assert.ok(!JSON.stringify(normalized).includes('secret.txt'));
 assert.ok(!JSON.stringify(normalized).includes('hidden chain'));
 
+assert.equal(normalized.sessions[0].contextMode, 'auto', 'Sessions default to automatic local RAG.');
+const noneModeSession = normalizeAiHistory({
+  sessions:[{ id:'session-2', contextMode:'none', messages:[{ role:'user', content:'纯聊天' }] }]
+});
+assert.equal(noneModeSession.sessions[0].contextMode, 'none', 'The no-context preference persists as a per-session setting.');
+const unknownModeSession = normalizeAiHistory({
+  sessions:[{ id:'session-3', contextMode:'yolo', messages:[] }]
+});
+assert.equal(unknownModeSession.sessions[0].contextMode, 'auto', 'Unknown context modes always fall back to automatic RAG.');
+
+const fullModeSession = normalizeAiHistory({
+  sessions:[{ id:'session-4', agentMode:'full', messages:[] }]
+});
+assert.equal(fullModeSession.sessions[0].agentMode, 'full', 'The full-permission preference persists per session.');
+const defaultAgentModeSession = normalizeAiHistory({
+  sessions:[{ id:'session-5', agentMode:'yolo', messages:[] }]
+});
+assert.equal(defaultAgentModeSession.sessions[0].agentMode, 'read-write', 'Unknown permission modes fall back to read/write with confirmation.');
+const readonlyAgentModeSession = normalizeAiHistory({
+  sessions:[{ id:'session-6', agentMode:'readonly', messages:[] }]
+});
+assert.equal(readonlyAgentModeSession.sessions[0].agentMode, 'readonly', 'The read-only preference persists per session.');
+
 (async () => {
   const files = new Map();
   const adapter = {

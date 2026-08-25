@@ -122,6 +122,19 @@ definitions.forEach((tool) => {
   assert.equal(toolRequestBody.tool_choice, 'auto');
   assert.equal(toolRequestBody.tools.length, 4, 'Only allowlisted tools are sent to the model.');
 
+  // ── 三层权限：只读不下发写工具；完整权限免确认执行写操作 ─────────────────────
+  const readonlyDefs = registry.definitions('readonly');
+  assert.deepEqual(
+    readonlyDefs.map((definition) => definition.function.name).sort(),
+    ['cockpit_list_todos', 'cockpit_search_notes'],
+    'Read-only mode never offers mutating tools to the model.'
+  );
+  assert.equal(registry.definitions('read-write').length, 4, 'Read/write mode exposes every allowlisted tool.');
+  assert.equal(registry.definitions('full').length, 4, 'Full access keeps every allowlisted tool available.');
+
+  const autoApproved = await registry.execute('cockpit_create_todo', { text:'免确认任务' }, { autoApprove:true });
+  assert.equal(autoApproved.ok, true, 'Full-permission mode executes mutations without a confirmation modal.');
+
   const parserEvents = [];
   const parser = createAiSseParser((event) => parserEvents.push(event));
   parser.push('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","type":"function","function":{"name":"cockpit_create_todo","arguments":"{\\"text\\":\\"Agent task\\"}"}}]}}]}\n\n');
@@ -185,6 +198,53 @@ definitions.forEach((tool) => {
   assert.equal(compatibilityResult.content, '兼容模式回答', 'Models without tool calling keep the original assistant available.');
   assert.equal(compatibilityRequest.tools, undefined, 'Compatibility retry removes tool definitions instead of weakening the registry.');
   assert.ok(compatibilityEvents.some((event) => event.type === 'status' && event.stage === 'tools_unavailable'), 'The sidebar can disclose when a model lacks Agent tool support.');
+
+  // ── 服务层权限模式与用量汇总 ─────────────────────────────────────────────────
+  {
+    const readonlyService = new CockpitAIService(plugin);
+    let readonlyToolNames = null;
+    readonlyService._requestAgentRound = async (_profile, _key, _messages, tools) => {
+      readonlyToolNames = tools.map((definition) => definition.function.name);
+      return { reasoning:'', content:'只读完成', toolCalls:[], streamed:true };
+    };
+    const readonlyEvents = [];
+    await readonlyService.completeAgentStream(
+      { action:'custom', question:'查一下待办', language:'zh-CN' },
+      (event) => readonlyEvents.push(event),
+      null,
+      { mode:'readonly', confirmTool:async () => { throw new Error('read-only mode must not prompt'); } }
+    );
+    assert.deepEqual(readonlyToolNames, ['cockpit_list_todos', 'cockpit_search_notes'], 'Read-only requests filter mutating tools before contacting the model.');
+    assert.ok(readonlyEvents.some((event) => event.type === 'status' && event.stage === 'agent_mode'), 'The sidebar can show the active permission mode.');
+
+    const fullService = new CockpitAIService(plugin);
+    let fullRound = 0;
+    fullService._requestAgentRound = async (_profile, _key, _messages, _tools) => {
+      fullRound += 1;
+      if (fullRound === 1) {
+        return {
+          reasoning:'', content:'', streamed:true,
+          toolCalls:[{ id:'call-full', type:'function', function:{ name:'cockpit_create_todo', arguments:'{"text":"完整权限任务"}' } }]
+        };
+      }
+      return { reasoning:'', content:'已直接创建。', toolCalls:[], streamed:true, usage:{ prompt:12, completion:7, cached:9, cachedKnown:true, total:19 } };
+    };
+    const fullEvents = [];
+    const fullResult = await fullService.completeAgentStream(
+      { action:'custom', question:'创建一个任务', language:'zh-CN' },
+      (event) => fullEvents.push(event),
+      null,
+      { mode:'full', confirmTool:async () => { throw new Error('full-permission mode must not prompt'); } }
+    );
+    assert.equal(fullResult.content, '已直接创建。');
+    assert.ok(!fullEvents.some((event) => event.type === 'tool' && event.stage === 'awaiting_confirmation'), 'Full-permission mode never waits for confirmation.');
+    assert.ok(fullEvents.some((event) => event.type === 'tool' && event.stage === 'completed'), 'Full-permission tools still report completion.');
+    assert.deepEqual(
+      fullResult.usage,
+      { prompt:12, completion:7, cached:9, cachedKnown:true, total:19 },
+      'Provider usage (including cache hits) reaches the caller for display.'
+    );
+  }
 
   console.log('AI Agent tool checks passed');
 })().catch((error) => {

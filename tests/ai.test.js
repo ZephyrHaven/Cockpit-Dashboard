@@ -15,6 +15,10 @@ const {
   parseAiResponseText,
   createAiRequest,
   createAiSseParser,
+  parseAiStreamPayload,
+  normalizeAiUsage,
+  sumAiUsage,
+  estimateAiTokens,
   CockpitAIService
 } = require('../src/ai.js');
 const {
@@ -274,7 +278,7 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
   assert.equal(capturedStreamRequest.url, 'https://provider.example/v1/chat/completions');
   assert.equal(capturedStreamRequest.options.headers.Authorization, 'Bearer runtime-secret');
   assert.equal(JSON.parse(capturedStreamRequest.options.body).stream, true);
-  assert.deepEqual(streamResult, { reasoning:'检查上下文', content:'流式回答', streamed:true });
+  assert.deepEqual(streamResult, { reasoning:'检查上下文', content:'流式回答', streamed:true, usage:null });
   assert.ok(streamed.some((event) => event.type === 'reasoning'), 'The service exposes model-provided reasoning as it arrives.');
   assert.ok(streamed.some((event) => event.type === 'content'), 'The service exposes answer text as it arrives.');
 
@@ -321,6 +325,100 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
     'Provider failures expose a safe localized error rather than the raw response.'
   );
   delete global.obsidian;
+
+  // ── 卡死回归：超时预算可注入，兼容模式回退请求必须有硬上限 ───────────────────
+  {
+    const timingService = new CockpitAIService({});
+    assert.equal(timingService.connectTimeoutMs, 15000, 'Connect phase fails fast into compat mode.');
+    assert.equal(timingService.streamIdleTimeoutMs, 60000, 'A stalled stream surfaces an error within a minute.');
+    assert.ok(timingService.fallbackTimeoutMs >= timingService.streamIdleTimeoutMs, 'Compat-mode requests keep a longer whole-answer budget.');
+    assert.equal(timingService.requestTimeoutMs, 60000, 'Non-streamed answers keep the bounded request timeout.');
+
+    const hangingService = new CockpitAIService({ app:{ secretStorage:{ getSecret:() => '' } }, loadData:async () => ({}) });
+    hangingService.fallbackTimeoutMs = 25;
+    global.obsidian = { requestUrl:() => new Promise(() => {}) };
+    const savedFetch = globalThis.fetch;
+    const hadFetch = typeof savedFetch === 'function';
+    delete globalThis.fetch;
+    try {
+      const events = [];
+      await assert.rejects(
+        () => hangingService._requestAgentRound(
+          { id:'p', providerId:'custom', baseUrl:'https://provider.example/v1', model:'m', apiKeySecret:'', name:'t' },
+          '', [{ role:'user', content:'hi' }], [],
+          (event) => events.push(event), undefined
+        ),
+        (error) => error?.code === 'AI_TIMEOUT',
+        'A silent provider cannot pin the chat view in “generating” forever.'
+      );
+      assert.ok(events.some((event) => event.stage === 'fallback'), 'The stalled request visibly entered compat mode first.');
+    } finally {
+      if (hadFetch) globalThis.fetch = savedFetch;
+      else delete globalThis.fetch;
+      delete global.obsidian;
+    }
+  }
+
+  // ── 用量统计与 stream_options 兼容性 ─────────────────────────────────────────
+  {
+    const usageProfile = { id:'p', providerId:'custom', baseUrl:'https://provider.example/v1', model:'m', apiKeySecret:'' };
+    const usageMessages = [{ role:'user', content:'hi' }];
+    const usageRequest = createAiRequest(usageProfile, '', usageMessages, { stream:true });
+    assert.deepEqual(JSON.parse(usageRequest.body).stream_options, { include_usage:true }, 'Streaming requests ask providers to report token usage.');
+    const quietRequest = createAiRequest(usageProfile, '', usageMessages, { stream:true, includeUsage:false });
+    assert.equal(JSON.parse(quietRequest.body).stream_options, undefined, 'The usage flag can be stripped for strict gateways.');
+    const plainBody = JSON.parse(createAiRequest(usageProfile, '', usageMessages).body);
+    assert.equal(plainBody.stream_options, undefined, 'Non-streaming requests never carry stream_options.');
+
+    const deepseekEvents = parseAiStreamPayload({ choices:[], usage:{ prompt_tokens:120, completion_tokens:30, prompt_cache_hit_tokens:48, total_tokens:150 } });
+    assert.deepEqual(
+      deepseekEvents.find((event) => event.type === 'usage')?.usage,
+      { prompt:120, completion:30, cached:48, cachedKnown:true, total:150 },
+      'DeepSeek-style cache fields surface as a usage event.'
+    );
+    const openaiEvents = parseAiStreamPayload({ choices:[], usage:{ prompt_tokens:100, completion_tokens:20, prompt_tokens_details:{ cached_tokens:64 } } });
+    assert.equal(openaiEvents.find((event) => event.type === 'usage')?.usage.cached, 64, 'OpenAI-style cached_tokens is recognized.');
+    assert.equal(parseAiStreamPayload({ choices:[{ delta:{ content:'x' } }] }).some((event) => event.type === 'usage'), false, 'Chunks without usage emit no usage event.');
+    assert.equal(normalizeAiUsage(undefined), null, 'Missing usage normalizes to null.');
+
+    const summed = sumAiUsage({ prompt:10, completion:4, cached:2, cachedKnown:true, total:14 }, { prompt:8, completion:6, cached:0, cachedKnown:false, total:14 });
+    assert.deepEqual(summed, { prompt:18, completion:10, cached:2, cachedKnown:true, total:28 }, 'Usage sums across agent rounds.');
+    assert.equal(estimateAiTokens('你好世界 abc'), Math.ceil(4 * 0.75 + 4 / 4), 'Token estimation handles CJK and latin text.');
+    assert.ok(estimateAiTokens('') >= 0);
+
+    // 严格网关拒绝 stream_options 时：去掉该字段重试一次，回答与用量照常返回。
+    const retryBodies = [];
+    const retryEncoder = new TextEncoder();
+    const savedFetch = globalThis.fetch;
+    let attempt = 0;
+    globalThis.fetch = async (_url, options) => {
+      attempt += 1;
+      retryBodies.push(JSON.parse(options.body));
+      if (attempt === 1) return { ok:false, status:400, headers:{ get:() => 'application/json' }, text:async () => '{"error":{"message":"unknown field stream_options"}}' };
+      const chunks = [
+        'data: {"choices":[{"delta":{"content":"重试成功"}}]}\n\n',
+        'data: {"choices":[],"usage":{"prompt_tokens":11,"completion_tokens":4}}\n\n',
+        'data: [DONE]\n\n'
+      ];
+      let index = 0;
+      return { ok:true, status:200, headers:{ get:() => 'text/event-stream' }, body:{ getReader:() => ({ read:async () => index < chunks.length ? { done:false, value:retryEncoder.encode(chunks[index++]) } : { done:true } }) } };
+    };
+    try {
+      const retryService = new CockpitAIService({
+        app:{ secretStorage:{ getSecret:() => '' } },
+        loadData:async () => ({ ai:{ profiles:[{ id:'default', providerId:'custom', baseUrl:'https://provider.example/v1', model:'m', apiKeySecret:'' }], activeProfileId:'default' } })
+      });
+      const retryResult = await retryService.completeStream({ action:'custom', question:'你好', language:'zh-CN' }, () => {});
+      assert.equal(retryResult.content, '重试成功');
+      assert.equal(retryBodies.length, 2, 'A strict-gateway rejection triggers exactly one retry.');
+      assert.ok(retryBodies[0].stream_options, 'The first attempt asks for usage reporting.');
+      assert.equal(retryBodies[1].stream_options, undefined, 'The retry drops stream_options instead of failing the chat.');
+      assert.deepEqual(retryResult.usage, { prompt:11, completion:4, cached:0, cachedKnown:false, total:15 }, 'Usage reported on the retried request reaches the caller.');
+    } finally {
+      if (savedFetch) globalThis.fetch = savedFetch;
+      else delete globalThis.fetch;
+    }
+  }
   console.log('AI core checks passed');
 })().catch((error) => {
   delete global.obsidian;

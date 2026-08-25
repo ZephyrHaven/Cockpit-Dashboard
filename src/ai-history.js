@@ -28,6 +28,16 @@ function cleanAiHistoryContextPaths(value) {
     .filter((item) => item && /\.md$/i.test(item) && !isProtectedAiHistoryContextPath(item)))).slice(0, 12);
 }
 
+// 会话级上下文模式：'auto' 自动 RAG / 'none' 不注入任何检索上下文；其余一律归一为 'auto'。
+function cleanAiHistoryContextMode(value) {
+  return value === 'none' ? 'none' : 'auto';
+}
+
+// Agent 三层权限模式：只读 / 读写（默认）/ 完整权限；非法值回退默认。
+function cleanAiHistoryAgentMode(value) {
+  return ['readonly', 'read-write', 'full'].includes(value) ? value : 'read-write';
+}
+
 function createAiHistoryId() {
   if (globalThis.crypto?.randomUUID) return 'chat-' + globalThis.crypto.randomUUID();
   return 'chat-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
@@ -68,6 +78,8 @@ function normalizeAiHistorySession(value, index = 0) {
     updatedAt,
     profileId:cleanAiHistoryId(value?.profileId),
     contextPaths:cleanAiHistoryContextPaths(value?.contextPaths),
+    contextMode:cleanAiHistoryContextMode(value?.contextMode),
+    agentMode:cleanAiHistoryAgentMode(value?.agentMode),
     messages
   };
 }
@@ -183,6 +195,8 @@ class CockpitAIHistoryService {
     if (Object.prototype.hasOwnProperty.call(patch, 'title')) session.title = buildAiSessionTitle(patch.title, patch.language);
     if (Object.prototype.hasOwnProperty.call(patch, 'profileId')) session.profileId = cleanAiHistoryId(patch.profileId);
     if (Object.prototype.hasOwnProperty.call(patch, 'contextPaths')) session.contextPaths = cleanAiHistoryContextPaths(patch.contextPaths);
+    if (Object.prototype.hasOwnProperty.call(patch, 'contextMode')) session.contextMode = cleanAiHistoryContextMode(patch.contextMode);
+    if (Object.prototype.hasOwnProperty.call(patch, 'agentMode')) session.agentMode = cleanAiHistoryAgentMode(patch.agentMode);
     session.updatedAt = Date.now();
     await this._save(state);
     return normalizeAiHistorySession(session);

@@ -6,11 +6,13 @@ const path = require('node:path');
 
 const {
   AI_UPLOAD_LIMITS,
+  AI_IMAGE_LIMITS,
   extractAiKeywords,
   chunkAiDocument,
   rankAiContextChunks,
   computeAiContentHash,
   readAiUploadFiles,
+  computeAiImageTargetSize,
   CockpitRagService
 } = require('../src/ai-context.js');
 const { buildAiMessages, CockpitAIService } = require('../src/ai.js');
@@ -100,6 +102,38 @@ assert.equal(ranked[0].path, 'Projects/Budget.md', 'Local lexical RAG ranks the 
   await rag.prepare({ query:'五公里训练', selectedPaths:[], attachments:[], maxChars:500 });
   assert.equal(reads, readsBeforeInvalidation + 1, 'Vault modify events can invalidate one cached path without rebuilding the full index.');
 
+  // ── 索引接入：自动 RAG 只读取倒排索引给出的候选，不再全库扫描 ────────────────
+  {
+    const previousCtor = globalThis.CockpitAiSearchIndex;
+    let ensured = 0;
+    let warmed = 0;
+    globalThis.CockpitAiSearchIndex = function () {
+      return {
+        ensure:async () => { ensured += 1; return true; },
+        warmUp() { warmed += 1; },
+        query:() => [{ path:'Projects/Budget.md', score:9 }]
+      };
+    };
+    try {
+      const indexedVault = {
+        getMarkdownFiles:() => { throw new Error('index-backed RAG must skip the whole-vault scan'); },
+        getAbstractFileByPath:(filePath) => (fileState[filePath] ? toFile(filePath) : null),
+        cachedRead:vault.cachedRead
+      };
+      const indexedRag = new CockpitRagService({ app:{ vault:indexedVault } });
+      indexedRag.warmUp();
+      assert.equal(warmed, 1, 'Opening the AI view can pre-warm the search index.');
+      const indexed = await indexedRag.prepare({ query:'财务审批金额', selectedPaths:[], attachments:[], maxChars:500 });
+      assert.equal(indexed.mode, 'rag-global', 'Index-backed retrieval still reports the auto-RAG mode.');
+      assert.equal(indexed.contexts[0].path, 'Projects/Budget.md', 'Only the candidate note enters the context.');
+      assert.equal(indexed.searchedFiles, 1, 'The retrieval report reflects the reduced candidate set.');
+      assert.equal(ensured, 1, 'Preparation waits for the index to become ready.');
+    } finally {
+      if (previousCtor === undefined) delete globalThis.CockpitAiSearchIndex;
+      else globalThis.CockpitAiSearchIndex = previousCtor;
+    }
+  }
+
   const aborted = new AbortController();
   aborted.abort();
   await assert.rejects(
@@ -149,6 +183,41 @@ assert.equal(ranked[0].path, 'Projects/Budget.md', 'Local lexical RAG ranks the 
   assert.equal(fallbackResult.content, '兼容回答');
   assert.equal(fallbackOptions.contexts[0].path, 'Projects/Budget.md', 'A tool-unsupported model still receives the locally prepared RAG context.');
 
+  // ── 「不使用上下文」模式：跳过检索，不注入笔记，仅保留手动附件 ────────────────
+  {
+    const noContextPlugin = {
+      app:{ vault:{ getMarkdownFiles:() => { throw new Error('no-context chat must not scan the vault'); } }, secretStorage:{ getSecret:() => '' } },
+      rag:{ prepare:async () => { throw new Error('no-context chat must not run local retrieval'); } },
+      agentTools:{ definitions:() => [{ type:'function', function:{ name:'cockpit_list_todos', description:'Read tasks', parameters:{ type:'object', additionalProperties:false, properties:{} } } }] },
+      loadData:async () => ({ ai:{ profiles:[{ id:'default', providerId:'custom', baseUrl:'https://provider.example/v1', model:'m', apiKeySecret:'' }], activeProfileId:'default' } })
+    };
+    const noCtxService = new CockpitAIService(noContextPlugin);
+    let capturedMessages = null;
+    noCtxService._requestAgentRound = async (_profile, _key, messages) => {
+      capturedMessages = messages;
+      return { reasoning:'', content:'纯聊天回答', toolCalls:[], streamed:true };
+    };
+    await noCtxService.completeAgentStream({
+      action:'custom', question:'你好呀', language:'zh-CN', noContext:true,
+      contextPaths:['Projects/Budget.md'],
+      attachments:[{ path:'附件:brief.md', name:'brief.md', content:'外部简报内容', source:'upload' }]
+    }, () => {});
+    const userMessage = capturedMessages[capturedMessages.length - 1].content;
+    assert.doesNotMatch(userMessage, /Projects\/Budget\.md/, 'No-context requests never include vault note excerpts.');
+    assert.doesNotMatch(userMessage, /本地 RAG 片段/, 'No-context requests never include RAG excerpts.');
+    assert.match(userMessage, /附件:brief\.md[\s\S]*外部简报内容/, 'Manually attached files still travel with a no-context request.');
+
+    let bareMessages = null;
+    noCtxService._requestAgentRound = async (_profile, _key, messages) => {
+      bareMessages = messages;
+      return { reasoning:'', content:'好的', toolCalls:[], streamed:true };
+    };
+    await noCtxService.completeAgentStream({ action:'custom', question:'在吗', language:'zh-CN', noContext:true }, () => {});
+    assert.equal(bareMessages.length, 2, 'A pure chat request only carries system plus user messages.');
+    assert.doesNotMatch(bareMessages[1].content, /路径：/, 'Without notes or attachments nothing context-shaped is injected.');
+  }
+
+
   const multiMessages = buildAiMessages({
     action:'custom', question:'比较两个上下文', language:'zh-CN', maxContextChars:5000,
     contexts:[
@@ -160,11 +229,32 @@ assert.equal(ranked[0].path, 'Projects/Budget.md', 'Local lexical RAG ranks the 
   assert.match(multiMessages[1].content, /附件:brief\.md[\s\S]*外部简报/);
   assert.match(multiMessages[0].content, /所有上下文内容.*不可信/, 'Uploaded and RAG context cannot inject Agent instructions.');
 
+  // ── 贴图：合法 data URL 转为多模态内容，非法输入被过滤 ──────────────────────
+  const imageMessages = buildAiMessages({
+    action:'custom', question:'这张图里有什么', language:'zh-CN',
+    images:[
+      { name:'shot.png', dataUrl:'data:image/jpeg;base64,AAAA' },
+      { name:'broken.png', dataUrl:'javascript:alert(1)' }
+    ]
+  });
+  const imageContent = imageMessages[1].content;
+  assert.ok(Array.isArray(imageContent), 'Pasted images switch the user message to multimodal content parts.');
+  assert.equal(imageContent.filter((part) => part.type === 'image_url').length, 1, 'Only valid data-URL images become image parts.');
+  assert.match(imageContent[0].text, /这张图里有什么/, 'The text part keeps the question alongside the images.');
+  const plainImageless = buildAiMessages({ action:'custom', question:'在吗', language:'zh-CN' });
+  assert.equal(typeof plainImageless[1].content, 'string', 'Without images the user message stays plain text.');
+
+  // ── 贴图缩放：最长边受限且不放大原图 ────────────────────────────────────────
+  assert.deepEqual(computeAiImageTargetSize(3000, 1500), { width:1568, height:784, scaled:true }, 'Oversized screenshots are downscaled before upload.');
+  assert.deepEqual(computeAiImageTargetSize(800, 600), { width:800, height:600, scaled:false }, 'Small images keep their original size.');
+  assert.ok(AI_IMAGE_LIMITS.maxImages >= 1 && AI_IMAGE_LIMITS.maxBytesPerImage > 0, 'Image limits stay configurable and positive.');
+
   const root = path.resolve(__dirname, '..');
   const build = fs.readFileSync(path.join(root, 'build.js'), 'utf8');
   const view = fs.readFileSync(path.join(root, 'src/ai-view.js'), 'utf8');
   const styles = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
   const framework = fs.readFileSync(path.join(root, 'src/_framework.js'), 'utf8');
+  const historySource = fs.readFileSync(path.join(root, 'src/ai-history.js'), 'utf8');
   assert.match(build, /'ai-context\.js'[\s\S]*'ai\.js'/, 'The context/RAG service is bundled before the AI request service.');
   assert.match(view, /ai-context-menu/, 'Recent Markdown notes are exposed through a multi-select context menu.');
   assert.match(view, /type:'file'[\s\S]*multiple:'multiple'/, 'The sidebar exposes a multi-file upload input.');
@@ -172,6 +262,28 @@ assert.equal(ranked[0].path, 'Projects/Budget.md', 'Local lexical RAG ranks the 
   assert.match(view, /retrieving_context/, 'Local RAG progress is visible during generation.');
   assert.match(styles, /cockpit-dashboard-ai-context-menu/, 'Multi-select context UI has scoped responsive styles.');
   assert.match(framework, /vault\.on\('modify'[\s\S]*invalidatePath/, 'Vault changes invalidate cached RAG documents.');
+  assert.match(view, /不使用上下文/, 'The context picker offers an explicit no-context mode.');
+  assert.match(view, /noContext/, 'The sidebar passes the no-context flag to the agent request.');
+  assert.match(historySource, /contextMode/, 'Sessions remember the chosen context mode.');
+  assert.match(view, /_appendMessageActions/, 'User and assistant messages share one copy-action builder.');
+  assert.match(view, /is-user/, 'User messages get their own aligned copy action.');
+  assert.match(view, /copy:false/, 'Streaming placeholders defer the copy row until completion.');
+  assert.match(view, /ai-agent-select/, 'The composer exposes a three-tier Agent permission selector.');
+  assert.match(view, /_appendMessageStats/, 'Completed answers render a usage statistics row.');
+  assert.match(view, /缓存命中|cache hit/i, 'Cache hit rate is displayed when the provider reports it.');
+  assert.match(view, /ai-session-stats/, 'The composer shows cumulative session token stats at the bottom.');
+  assert.match(view, /tok\/s/, 'Token generation speed is part of the session stats.');
+  assert.match(view, /addEventListener\('paste'/, 'The composer accepts pasted screenshots via Ctrl+V.');
+  assert.match(view, /clipboard\.items/, 'Paste falls back to clipboard items when files are empty.');
+  assert.match(view, /_addPendingImages/, 'Pasted and picked images share one attachment path.');
+  assert.match(view, /image\/\*/, 'The file picker accepts image files as well as text.');
+  assert.match(view, /ai-user-images/, 'Sent user bubbles echo thumbnails so attached images are visibly transmitted.');
+  assert.match(view, /!question && !this\._pendingImages\.length/, 'An image-only message can be sent without any text.');
+  assert.match(view, /const sentImages = \[\.\.\.this\._pendingImages\]/, 'Sending captures and clears pending images immediately to avoid stale chips.');
+  assert.match(view, /images:sentImages/, 'The captured image list is what reaches the model request.');
+  assert.match(view, /_openImagePreview/, 'Thumbnails open the fullscreen lightbox preview.');
+  assert.match(view, /ai-image-lightbox/, 'The lightbox overlay is implemented in the view.');
+  assert.match(view, /Wait for the current reply to finish|请等待当前回答完成/, 'Images cannot be attached while a reply is generating.');
 
   console.log('AI multi-context and RAG checks passed');
 })().catch((error) => {

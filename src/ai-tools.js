@@ -152,11 +152,15 @@ class CockpitAgentToolRegistry {
     this.tools = agentToolDefinitions();
     this.byName = new Map(this.tools.map((tool) => [tool.name, tool]));
   }
-  definitions() {
-    return this.tools.map((tool) => ({
-      type:'function',
-      function:{ name:tool.name, description:tool.description, parameters:tool.parameters }
-    }));
+  definitions(mode) {
+    // 三层权限：'readonly' 只暴露只读工具；其余模式提供全部工具。
+    const allowMutating = mode !== 'readonly';
+    return this.tools
+      .filter((tool) => allowMutating || !tool.mutates)
+      .map((tool) => ({
+        type:'function',
+        function:{ name:tool.name, description:tool.description, parameters:tool.parameters }
+      }));
   }
   describe(name) {
     const tool = this.byName.get(String(name || ''));
@@ -166,7 +170,8 @@ class CockpitAgentToolRegistry {
     const tool = this.byName.get(String(name || ''));
     if (!tool) throw new Error('This Agent tool is not available.');
     const args = validateAgentToolInput(tool, agentToolArguments(rawArguments));
-    if (tool.mutates) {
+    // 'full' 权限模式经 autoApprove 显式跳过交互确认；其余模式写操作仍需用户批准。
+    if (tool.mutates && options.autoApprove !== true) {
       const confirmed = typeof options.confirm === 'function' && await options.confirm({
         name:tool.name, label:tool.label, description:tool.description, args, mutates:true
       });
@@ -269,9 +274,44 @@ function createCockpitAgentToolRegistry(plugin, dependencies) {
   return new CockpitAgentToolRegistry(plugin, dependencies);
 }
 
+// 组合注册表：把多个工具注册表（核心 Cockpit 工具、本地工具适配层…）统一成一个接口，
+// 对 Agent 请求侧透明；组合关系由调用方（框架/测试）显式给出。
+class CockpitAgentToolHub {
+  constructor(providers = []) {
+    this.providers = (Array.isArray(providers) ? providers : []).filter(Boolean);
+  }
+  sync(config) { this.providers.forEach((provider) => { try { provider.sync?.(config); } catch (error) { console.warn('Cockpit Agent tool sync failed', error); } }); }
+  definitions(mode) { return this.providers.flatMap((provider) => provider.definitions?.(mode) || []); }
+  describe(name) {
+    for (const provider of this.providers) {
+      const meta = provider.describe?.(name);
+      if (meta) return meta;
+    }
+    return null;
+  }
+  async execute(name, args, options = {}) {
+    for (const provider of this.providers) {
+      if (!provider.describe?.(name)) continue;
+      const result = await provider.execute(name, args, options);
+      // 注册表返回 null 表示该名称不属于它，继续向后查找。
+      if (result === null) continue;
+      return result;
+    }
+    throw new Error('This Agent tool is not available.');
+  }
+}
+function createCockpitAgentToolHub(plugin, extraRegistries = []) {
+  const providers = [createCockpitAgentToolRegistry(plugin)];
+  for (const registry of (Array.isArray(extraRegistries) ? extraRegistries : [])) {
+    if (registry) providers.push(registry);
+  }
+  return new CockpitAgentToolHub(providers);
+}
+
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
   module.exports = {
     COCKPIT_AGENT_MAX_TOOL_CALLS, isProtectedAgentPath, agentToolDefinitions,
-    validateAgentToolInput, CockpitAgentToolRegistry, createCockpitAgentToolRegistry
+    validateAgentToolInput, CockpitAgentToolRegistry, createCockpitAgentToolRegistry,
+    CockpitAgentToolHub, createCockpitAgentToolHub
   };
 }

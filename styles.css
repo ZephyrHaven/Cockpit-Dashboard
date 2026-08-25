@@ -3524,12 +3524,12 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   border-radius: 12px 12px 12px 4px;
   color: var(--text-normal);
   background: var(--background-secondary);
-  font-size: 12px;
-  line-height: 1.65;
-  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.7;
   overflow-wrap: anywhere;
 }
 .cockpit-dashboard-ai-message.user .cockpit-dashboard-ai-message-body {
+  white-space: pre-wrap;
   border-color: color-mix(in srgb, var(--cockpit-ai-accent) 42%, transparent);
   border-radius: 12px 12px 4px 12px;
   background: var(--cockpit-ai-accent-soft);
@@ -3835,16 +3835,47 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   border-radius:0;
   color:var(--text-normal);
   background:transparent;
-  font-size:12px;
-  line-height:1.68;
+  font-size:13px;
+  line-height:1.72;
 }
+.cockpit-dashboard-ai-message-role { display:none; }
 .cockpit-dashboard-ai-message-body > :first-child { margin-top:0; }
 .cockpit-dashboard-ai-message-body > :last-child { margin-bottom:0; }
 .cockpit-dashboard-ai-message.user .cockpit-dashboard-ai-message-content { max-width:88%; }
 .cockpit-dashboard-ai-message.user .cockpit-dashboard-ai-message-body { padding:9px 12px; border:0; border-radius:14px 14px 4px 14px; background:var(--background-secondary); }
 .cockpit-dashboard-ai-message-body.cockpit-dashboard-ai-stream { padding:0; }
-.cockpit-dashboard-ai-message-tools { margin:6px 0 0; }
+.cockpit-dashboard-ai-message-tools { margin:6px 0 0; opacity:.7; transition:opacity .15s ease; }
 .cockpit-dashboard-ai-message-tools button { height:25px; padding:0 8px; border:0; background:transparent; }
+.cockpit-dashboard-ai-message:hover .cockpit-dashboard-ai-message-tools, .cockpit-dashboard-ai-message-tools:focus-within { opacity:1; }
+.cockpit-dashboard-ai-message-tools.is-user { display:flex; justify-content:flex-end; }
+/* ── AI 回答的 Markdown 排版：段落节奏、代码块、列表与表格 ── */
+.cockpit-dashboard-ai-message-body p { margin:.5em 0; }
+.cockpit-dashboard-ai-message-body h1, .cockpit-dashboard-ai-message-body h2, .cockpit-dashboard-ai-message-body h3, .cockpit-dashboard-ai-message-body h4, .cockpit-dashboard-ai-message-body h5, .cockpit-dashboard-ai-message-body h6 { margin:1em 0 .4em; font-weight:700; line-height:1.35; }
+.cockpit-dashboard-ai-message-body h1 { font-size:16px; } .cockpit-dashboard-ai-message-body h2 { font-size:15px; } .cockpit-dashboard-ai-message-body h3 { font-size:14px; } .cockpit-dashboard-ai-message-body h4, .cockpit-dashboard-ai-message-body h5, .cockpit-dashboard-ai-message-body h6 { font-size:13px; color:var(--text-muted); }
+.cockpit-dashboard-ai-message-body ul, .cockpit-dashboard-ai-message-body ol { margin:.45em 0; padding-left:1.4em; }
+.cockpit-dashboard-ai-message-body li { margin:.22em 0; }
+.cockpit-dashboard-ai-message-body li > p { margin:.15em 0; }
+.cockpit-dashboard-ai-message-body pre { margin:.6em 0; padding:10px 12px; overflow-x:auto; border:1px solid var(--background-modifier-border); border-radius:9px; background:var(--background-secondary); font-size:11.5px; line-height:1.55; }
+.cockpit-dashboard-ai-message-body pre code { padding:0; border:0; background:transparent; font-size:inherit; }
+.cockpit-dashboard-ai-message-body :not(pre) > code { padding:1px 5px; border-radius:5px; background:var(--background-secondary); font-size:11.5px; }
+.cockpit-dashboard-ai-message-body blockquote { margin:.6em 0; padding:2px 0 2px 12px; border-left:3px solid var(--background-modifier-border); color:var(--text-muted); }
+.cockpit-dashboard-ai-message-body hr { margin:.9em 0; border:0; border-top:1px solid var(--background-modifier-border); }
+.cockpit-dashboard-ai-message-body table { display:block; max-width:100%; margin:.6em 0; overflow-x:auto; border-collapse:collapse; font-size:12px; }
+.cockpit-dashboard-ai-message-body th, .cockpit-dashboard-ai-message-body td { padding:5px 9px; border:1px solid var(--background-modifier-border); text-align:left; }
+.cockpit-dashboard-ai-message-body th { background:var(--background-secondary); font-weight:600; }
+.cockpit-dashboard-ai-message-body a { color:var(--cockpit-ai-accent, var(--interactive-accent)); text-decoration:none; }
+.cockpit-dashboard-ai-message-body a:hover { text-decoration:underline; }
+.cockpit-dashboard-ai-stream-answer { white-space:pre-wrap; overflow-wrap:anywhere; }
+/* ── 图片预览灯箱 ── */
+.cockpit-dashboard-ai-image-lightbox { position:fixed; inset:0; z-index:var(--layer-cover, 60); display:flex; align-items:center; justify-content:center; padding:36px; background:rgba(8, 10, 18, .82); backdrop-filter:blur(5px); animation:cockpit-ai-lightbox-in .16s ease; }
+@keyframes cockpit-ai-lightbox-in { from { opacity:0; } to { opacity:1; } }
+.cockpit-dashboard-ai-image-lightbox figure { display:flex; flex-direction:column; align-items:center; gap:10px; margin:0; max-width:min(1100px, 94vw); }
+.cockpit-dashboard-ai-image-lightbox img { max-width:100%; max-height:82vh; border-radius:12px; box-shadow:0 24px 72px rgba(0, 0, 0, .5); }
+.cockpit-dashboard-ai-image-lightbox figcaption { max-width:100%; overflow:hidden; color:var(--text-muted); font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.cockpit-dashboard-ai-image-lightbox button { position:absolute; top:18px; right:20px; display:grid; place-items:center; width:34px; height:34px; padding:0; border:0; border-radius:50%; color:var(--text-normal); background:var(--background-secondary); box-shadow:0 6px 18px rgba(0, 0, 0, .35); cursor:pointer; }
+.cockpit-dashboard-ai-user-images img { cursor:zoom-in; transition:transform .14s ease, box-shadow .14s ease; }
+.cockpit-dashboard-ai-user-images img:hover { transform:scale(1.03); box-shadow:0 6px 18px rgba(0, 0, 0, .28); }
+.cockpit-dashboard-ai-image-thumb { cursor:zoom-in; }
 
 .cockpit-dashboard-ai-activity { margin:0 0 11px; color:var(--text-muted); }
 .cockpit-dashboard-ai-activity > summary { width:max-content; max-width:100%; margin-bottom:6px; color:var(--text-muted); font-size:10px; font-weight:600; cursor:pointer; }
@@ -3891,7 +3922,7 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   box-shadow:0 10px 30px color-mix(in srgb,#111827 10%,transparent),inset 0 1px 0 color-mix(in srgb,#fff 5%,transparent);
 }
 .cockpit-dashboard-ai-composer:focus-within { border-color:color-mix(in srgb,var(--interactive-accent) 40%,var(--background-modifier-border)); }
-.cockpit-dashboard-ai-input { min-height:34px; max-height:160px; resize:none; padding:7px 5px 6px; font-size:12px; line-height:1.5; }
+.cockpit-dashboard-ai-input { min-height:52px; max-height:260px; resize:none; padding:9px 5px 6px; font-size:13px; line-height:1.6; }
 .cockpit-dashboard-ai-composer-footer { min-height:34px; }
 .cockpit-dashboard-ai-composer-tools,.cockpit-dashboard-ai-composer-right { display:flex; align-items:center; gap:4px; min-width:0; }
 .cockpit-dashboard-ai-composer-add { display:grid; place-items:center; width:30px; height:30px; flex:0 0 30px; padding:0; border:0; border-radius:9px; color:var(--text-muted); background:transparent; box-shadow:none; }
@@ -3904,6 +3935,16 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
 .cockpit-dashboard-ai-composer-right { margin-left:auto; }
 .cockpit-dashboard-ai-composer .cockpit-dashboard-ai-model-select { width:auto; max-width:150px; min-width:74px; height:30px; padding:0 24px 0 7px; border:0; border-radius:8px; background-color:transparent; font-size:9px; }
 .cockpit-dashboard-ai-composer .cockpit-dashboard-ai-model-select:hover { background-color:var(--background-modifier-hover); }
+.cockpit-dashboard-ai-composer .cockpit-dashboard-ai-agent-select { width:auto; max-width:110px; min-width:64px; height:30px; padding:0 20px 0 7px; border:0; border-radius:8px; background-color:transparent; color:var(--text-muted); font-size:9px; }
+.cockpit-dashboard-ai-composer .cockpit-dashboard-ai-agent-select:hover { background-color:var(--background-modifier-hover); }
+.cockpit-dashboard-ai-composer .cockpit-dashboard-ai-agent-select.is-full { color:var(--color-orange); font-weight:600; }
+.cockpit-dashboard-ai-message-stats { margin-left:10px; color:var(--text-faint); font-size:9px; letter-spacing:.02em; }
+.cockpit-dashboard-ai-session-stats { margin-top:5px; padding:0 4px; color:var(--text-faint); font-size:9px; letter-spacing:.02em; text-align:right; user-select:none; }
+.cockpit-dashboard-ai-image-chip { gap:6px; padding-right:4px; }
+.cockpit-dashboard-ai-image-thumb { display:grid; place-items:center; width:22px; height:22px; flex:0 0 22px; border-radius:6px; overflow:hidden; background:var(--background-secondary); }
+.cockpit-dashboard-ai-image-thumb img { width:100%; height:100%; object-fit:cover; }
+.cockpit-dashboard-ai-user-images { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.cockpit-dashboard-ai-user-images img { width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--background-modifier-border); }
 .cockpit-dashboard-ai-send { display:grid; place-items:center; width:31px; height:31px; padding:0; border-radius:10px; color:var(--background-primary); background:var(--text-normal); }
 .cockpit-dashboard-ai-send:hover { transform:translateY(-1px); filter:none; }
 .cockpit-dashboard-ai-send:active { transform:scale(.96); }

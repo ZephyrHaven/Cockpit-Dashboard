@@ -2935,15 +2935,31 @@ class CockpitPlugin extends obsidian.Plugin {
   }
   async onload() {
     this.rag = new CockpitRagService(this);
-    this.registerEvent(this.app.vault.on('modify', (file) => this.rag.invalidatePath(file?.path)));
-    this.registerEvent(this.app.vault.on('delete', (file) => this.rag.invalidatePath(file?.path)));
+    this.registerEvent(this.app.vault.on('modify', (file) => {
+      this.rag.invalidatePath(file?.path);
+      this.rag.queueIndexUpdate(file?.path);
+    }));
+    this.registerEvent(this.app.vault.on('delete', (file) => this.rag.removeFromIndex(file?.path)));
     this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
       this.rag.invalidatePath(oldPath);
       this.rag.invalidatePath(file?.path);
+      if (!file || file.extension !== 'md') { this.rag.removeFromIndex(oldPath); return; }
+      this.rag.renameInIndex(oldPath, file.path);
+      this.rag.queueIndexUpdate(file.path);
     }));
     this.aiHistory = new CockpitAIHistoryService(this);
-    this.agentTools = createCockpitAgentToolRegistry(this);
     this.ai = new CockpitAIService(this);
+    // 组合注册表：核心工具 + 本地工具（系统通知/剪贴板/打开目标/用户允许列表命令）。
+    // 防御性初始化：即使工具层出错也绝不能阻断整个插件加载。
+    try {
+      this.agentTools = createCockpitAgentToolHub(this, [createCockpitLocalToolsRegistry(this)]);
+      // 本地命令允许列表来自 AI 配置：启动时同步一次，配置变更后自动刷新。
+      this.ai.getConfig().then((config) => this.agentTools.sync?.(config)).catch(() => {});
+      this.ai.subscribeConfig((savedConfig) => this.agentTools.sync?.(savedConfig));
+    } catch (toolInitError) {
+      console.error('Cockpit: agent tool layer init failed, falling back to core tools', toolInitError);
+      this.agentTools = createCockpitAgentToolRegistry(this);
+    }
     this.alarms = new AlarmService(this);
     await this.alarms.start();
     this.scheduledTasks = new ScheduledTaskService(this);

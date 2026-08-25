@@ -90,8 +90,8 @@ assert.deepEqual(getOnlineReleaseNotesModel(null), { releases:[], selected:null 
   assert.match(releaseUi, /createEl\('select'[\s\S]*release-version-select/, 'Online releases remain available through a real select control.');
   assert.doesNotMatch(constants, /const RELEASE_HISTORY\s*=/, 'Release history is no longer bundled into the plugin.');
   assert.doesNotMatch(releaseUi, /RELEASE_HISTORY/, 'The modal has no local release-data fallback.');
-  assert.equal(manifest.version, '1.5.2', 'The release manifest is bumped for the data-safety fixes release.');
-  assert.match(readme, /一次加载全部 GitHub Releases|Loads all GitHub Releases once/i, 'README documents that update history is loaded online from GitHub Releases.');
+  assert.equal(manifest.version, '1.6.0', 'The release manifest is bumped for the AI assistant upgrade release.');
+  assert.match(readme, /本地关键词|lexical|倒排索引/i, 'README documents the technical principles behind the assistant.');
 
   console.log('Release notes checks passed');
 })().catch((error) => {
