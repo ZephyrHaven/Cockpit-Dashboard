@@ -15,6 +15,22 @@ const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f9
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
 const RELEASE_HISTORY = [
   {
+    version: '1.1.3',
+    date: '2026-07-27',
+    title: {
+      'zh-CN': 'RSS 朗读与日历刷新优化',
+      en: 'RSS Playback and Calendar Refresh Improvements'
+    },
+    highlights: {
+      'zh-CN': [
+        'RSS 阅读器新增顶部全局朗读播放器，日历也会在跨日后静默更新当天状态。'
+      ],
+      en: [
+        'Added a top-level RSS text-to-speech player and silent calendar updates when the date changes.'
+      ]
+    }
+  },
+  {
     version: '1.1.2',
     date: '2026-07-24',
     title: {
@@ -23,10 +39,10 @@ const RELEASE_HISTORY = [
     },
     highlights: {
       'zh-CN': [
-        '新增日历 RSS 订阅：支持多源按日期查看、已读未读提醒、正文过滤、顶部全局朗读播放器与跨日静默更新。'
+        '新增日历 RSS 订阅：支持多源按日期查看、已读未读提醒、正文过滤与顶部全局朗读播放器。'
       ],
       en: [
-        'Added calendar RSS subscriptions with multi-source date-based entries, read/unread reminders, content filters, a top-level text-to-speech player, and silent date-change updates.'
+        'Added calendar RSS subscriptions with multi-source date-based entries, read/unread reminders, content filters, and a top-level text-to-speech player.'
       ]
     }
   },

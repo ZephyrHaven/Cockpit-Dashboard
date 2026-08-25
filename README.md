@@ -155,12 +155,16 @@ bash deploy.sh --min
 
 ### 当前版本
 
-- Manifest version: `1.1.2`
+- Manifest version: `1.1.3`
 - Latest update date: `2026-07-27`
+
+### 1.1.3 最近更新
+
+- RSS 阅读器新增顶部全局朗读播放器，日历也会在跨日后静默更新当天状态。
 
 ### 1.1.2 最近更新
 
-- 新增日历 RSS 订阅：支持多源筛选、日期总数、已读状态、正文过滤、仅本机缓存、顶部全局播放器与跨日静默更新。
+- 新增日历 RSS 订阅：支持多源筛选、日期总数、已读状态、正文过滤与仅本机缓存，并可通过顶部全局播放器朗读当前文章。
 
 ### 1.1.1 最近更新
 
@@ -323,12 +327,16 @@ Build notes:
 
 ### Current Version
 
-- Manifest version: `1.1.2`
+- Manifest version: `1.1.3`
 - Latest update date: `2026-07-27`
+
+### What’s New in 1.1.3
+
+- Added a top-level RSS text-to-speech player and silent calendar updates when the date changes.
 
 ### What’s New in 1.1.2
 
-- Added calendar RSS subscriptions with multi-source filtering, daily totals, read state, content filters, device-local cache, a top-level player for reading the current article aloud, and silent date-change updates.
+- Added calendar RSS subscriptions with multi-source filtering, daily totals, read state, content filters, device-local cache, and a top-level player for reading the current article aloud.
 
 ### What’s New in 1.1.1
 
