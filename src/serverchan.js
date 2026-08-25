@@ -66,9 +66,21 @@ function safeHttpsBase(value, fallback) {
 }
 function normalizeSentReminders(raw) {
   const sent = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const keepRecord = (stamp) => {
+    if (typeof stamp === 'string') return true;
+    return !!(stamp && typeof stamp === 'object' && typeof stamp.at === 'string');
+  };
+  const cleanRecord = (stamp) => {
+    if (typeof stamp !== 'object' || stamp == null) return stamp;
+    return {
+      at:String(stamp.at || ''), ok:stamp.ok === true,
+      attempts:Math.max(1, Math.min(9, Number(stamp.attempts) || 1)),
+      error:safeText(stamp.error, 200)
+    };
+  };
   return Object.fromEntries(Object.entries(sent).filter(([key]) => /^\d{4}-\d{2}-\d{2}\|\d{2}:\d{2}:\d{2}$/.test(key)).map(([key, value]) => {
     const perChannel = value && typeof value === 'object' && !Array.isArray(value)
-      ? Object.fromEntries(Object.entries(value).filter(([id, stamp]) => NOTIFICATION_CHANNELS[id] && typeof stamp === 'string'))
+      ? Object.fromEntries(Object.entries(value).filter(([id, stamp]) => NOTIFICATION_CHANNELS[id] && keepRecord(stamp)).map(([id, stamp]) => [id, typeof stamp === 'object' ? cleanRecord(stamp) : stamp]))
       : { serverChan: typeof value === 'string' ? value : new Date().toISOString() };
     return [key, perChannel];
   }).slice(-90));
@@ -131,7 +143,20 @@ function formatServerChanDateTime(now) {
   return now.format('YYYY 年 M 月 D 日') + ' · ' + weekdays[now.day()] + ' · ' + now.format('HH:mm:ss');
 }
 function getEnabledChannels(config) { return Object.keys(NOTIFICATION_CHANNELS).filter((id) => config.channels[id]?.enabled); }
-function channelWasSent(config, key, id) { return !!config.sentReminders[key]?.[id]; }
+// 兼容两种记录形态：旧版时间戳字符串（视为已发送）与新版 { at, ok, attempts } 对象。
+function channelWasSent(config, key, id) {
+  const record = config.sentReminders[key]?.[id];
+  if (!record) return false;
+  if (typeof record === 'string') return true;
+  return record.ok === true;
+}
+function channelAttempts(config, key, id) {
+  const record = config.sentReminders[key]?.[id];
+  if (typeof record === 'string') return 1;
+  return Number(record?.attempts) || (record ? 1 : 0);
+}
+// 每个时段每个渠道最多尝试 3 次，避免网络故障时整点后每秒重试到午夜。
+const MAX_NOTIFICATION_ATTEMPTS_PER_SLOT = 3;
 function allEnabledChannelsSent(config, key) { const ids = getEnabledChannels(config); return ids.length > 0 && ids.every((id) => channelWasSent(config, key, id)); }
 function getServerChanEndpoint(channel) {
   if (channel.apiUrl) {
@@ -220,7 +245,11 @@ class ServerChanService {
     this._schedulerRunning = true;
     try {
       const config = await this.getConfig(); const now = window.moment(); const slot = getServerChanScheduleSlot(config, now); const key = slot?.key;
-      if (!config.enabled || !isServerChanScheduleDue(config, now) || !key || allEnabledChannelsSent(config, key)) return;
+      // 资格检查全部在读文件之前：开关关闭 / 不在计划内 / 无可用渠道 / 已全部发送时直接返回。
+      if (!config.enabled || !isServerChanScheduleDue(config, now) || !key || !getEnabledChannels(config).length || allEnabledChannelsSent(config, key)) return;
+      // 失败渠道重试次数用尽后同样不再读待办文件，避免整点后每秒空转。
+      const pendingIds = getEnabledChannels(config).filter((id) => !channelWasSent(config, key, id) && channelAttempts(config, key, id) < MAX_NOTIFICATION_ATTEMPTS_PER_SLOT);
+      if (!pendingIds.length) return;
       const data = await this.plugin.loadData() || {}; const todos = await loadTodos(this.plugin.app.vault);
       await this.sendDueReminder(todos || [], data.username || '你', slot);
     } finally { this._schedulerRunning = false; }
@@ -230,6 +259,7 @@ class ServerChanService {
   async _sendDueReminder(todos, username, scheduledSlot) {
     const config = await this.getConfig(); const now = window.moment(); const day = now.clone().startOf('day'); const slot = scheduledSlot || getServerChanScheduleSlot(config, now); const key = slot?.key;
     if (!config.enabled || !isServerChanScheduleDue(config, now) || !key || allEnabledChannelsSent(config, key)) return false;
+    if (!getEnabledChannels(config).length) return false;
     const due = (todos || []).filter((todo) => !todo.done && todo.dueDate && ((config.notifyToday && todo.dueDate.isSame(day, 'day')) || (config.notifyOverdue && todo.dueDate.isBefore(day, 'day'))));
     if (!due.length && !config.messageTemplate) return false;
     const name = safeText(username || '你', 80) || '你'; const dateTime = formatServerChanDateTime(now); const todayItems = due.filter((todo) => todo.dueDate.isSame(day, 'day')); const overdueItems = due.filter((todo) => todo.dueDate.isBefore(day, 'day'));
@@ -242,11 +272,25 @@ class ServerChanService {
       if (overdueItems.length) sections.push('已逾期 · ' + overdueItems.length + ' 项\n' + overdueItems.map((todo) => '• ' + todo.text + '（截止 ' + todo.dueDate.format('YYYY-MM-DD') + '）').join('\n'));
       body = name + '，你好！\n\n' + dateTime + '\n\n' + sections.join('\n\n');
     }
-    const ids = getEnabledChannels(config).filter((id) => !channelWasSent(config, key, id));
+    // 只对“未发送且未用尽重试次数”的渠道发起推送；失败的渠道记录明确状态，
+    // 允许有限次重试，而不是像旧版那样把失败也标成已发送（通知静默丢失）。
+    const ids = getEnabledChannels(config).filter((id) => !channelWasSent(config, key, id) && channelAttempts(config, key, id) < MAX_NOTIFICATION_ATTEMPTS_PER_SLOT);
     if (!ids.length) return false;
     const results = await Promise.allSettled(ids.map((id) => sendNotificationChannel(id, config.channels[id], title, body)));
     const attemptedAt = new Date().toISOString(); const records = { ...(config.sentReminders[key] || {}) };
-    results.forEach((result, index) => { records[ids[index]] = attemptedAt; if (result.status === 'rejected') console.warn('Cockpit notification failed for ' + ids[index], result.reason?.message || result.reason); });
+    results.forEach((result, index) => {
+      const id = ids[index];
+      if (result.status === 'fulfilled') {
+        records[id] = { at:attemptedAt, ok:true, attempts:channelAttempts(config, key, id) + 1 };
+      } else {
+        records[id] = {
+          at:attemptedAt, ok:false,
+          attempts:channelAttempts(config, key, id) + 1,
+          error:safeText(result.reason?.message || result.reason || 'send failed', 200)
+        };
+        console.warn('Cockpit notification failed for ' + id, result.reason?.message || result.reason);
+      }
+    });
     config.sentReminders[key] = records; await this.saveConfig(config);
     return results.some((result) => result.status === 'fulfilled');
   }

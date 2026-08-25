@@ -867,11 +867,14 @@ class CockpitView extends obsidian.ItemView {
     this._tipRotationMode = tipState.rotationMode;
     await this._storage.initialize(this._defaultToolbarCommands());
     const loaded = await loadTodos(this.app.vault);
-    this._todos = loaded || ensureTodoIds(DEFAULT_TODOS.map(t=>({...t})));
+    // loaded 为 null 仅表示文件不存在（首次使用，注入默认待办）；
+    // 空数组代表用户已清空全部待办，是合法状态，不能被默认内容复活。
+    this._todos = loaded ?? ensureTodoIds(DEFAULT_TODOS.map(t=>({...t})));
     this._bookmarks = new Set(await this._storage.loadBookmarks());
 
-    // 同步 Hermes 功能待办到 Obsidian
-    await syncHermesTodos(this.app.vault, this._todos);
+    // 同步 Hermes 功能待办到 Obsidian；文件已存在且无内置功能待办时跳过，
+    // 避免每次重载都多一轮文件读取。
+    if (loaded === null || HERMES_TODOS.length) await syncHermesTodos(this.app.vault, this._todos);
 
     // 加载用户自定义名称 + 初始化首次使用日期
     try {
@@ -1089,6 +1092,10 @@ class CockpitView extends obsidian.ItemView {
   }
 
   _attachRootContextMenu(container) {
+    // 监听器挂在持久容器上；不设守卫的话每次重渲染（切语言/切情景/手动刷新）
+    // 都会叠加一个 handler，右键时同时弹出多个菜单。
+    if (container.dataset.cockpitCtxMenuBound === '1') return;
+    container.dataset.cockpitCtxMenuBound = '1';
     container.addEventListener('contextmenu', (evt) => {
       if (!this._shouldOpenContextMenu(evt.target)) return;
       evt.preventDefault();
@@ -2271,9 +2278,18 @@ class CockpitView extends obsidian.ItemView {
       makeAction(en ? 'Add tag' : '添加标签', en ? 'Add a tag to this thought in today\'s note' : '给今日日记里的这条闪念添加标签', async () => {
         const tag = window.prompt(en ? 'Tag name' : '标签名称'); if (!tag) return;
         const file = this.app.vault.getAbstractFileByPath(filePath); if (!file) return;
-        const content = await this.app.vault.read(file); const marker = '- ['; const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        await this.app.vault.modify(file, content.replace(new RegExp('(^- \\[[^\\]]+\\] ' + escaped + ')(?!.*#' + tag + ')', 'm'), '$1 #' + tag.replace(/^#/, '')));
-        new obsidian.Notice(en ? 'Tag added.' : '标签已添加。');
+        const rawTag = tag.replace(/^#/, '');
+        const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // 标签同样来自用户输入，必须转义后才能进 RegExp，否则含 + ( * 等字符会抛异常。
+        const escapedTag = rawTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        try {
+          const content = await this.app.vault.read(file);
+          await this.app.vault.modify(file, content.replace(new RegExp('(^- \\[[^\\]]+\\] ' + escaped + ')(?!.*#' + escapedTag + ')', 'm'), '$1 #' + rawTag));
+          new obsidian.Notice(en ? 'Tag added.' : '标签已添加。');
+        } catch (e) {
+          console.warn('Cockpit: add flash tag failed', e);
+          new obsidian.Notice(en ? 'Could not add a tag to this line.' : '无法给这条闪念添加标签。');
+        }
       });
       makeAction(en ? 'Open today' : '打开今日日记', en ? 'Open today\'s daily note' : '打开保存这条闪念的今日日记', () => this.app.workspace.getUnpinnedLeaf().setViewState({ type:'markdown', state:{ file:filePath } }));
       makeAction(en ? 'Organize later' : '稍后整理', en ? 'Keep this thought in the dashboard inbox' : '把这条闪念保留在驾驶舱整理箱', async () => { const entry={id:'flash-'+Date.now().toString(36),text,filePath,createdAt:new Date().toISOString()};this._flashInbox=[...this._flashInbox,entry].slice(-100);await this._mutatePluginData((data)=>{const state=data.workspaceState&&typeof data.workspaceState==='object'?data.workspaceState:{};state.flashInbox=this._flashInbox;data.workspaceState=state;});flashTitle.dataset.pending=String(this._flashInbox.length);flashTitle.setText(t('sections.flash')+' · '+this._flashInbox.length);new obsidian.Notice(en?'Added to the organize-later inbox.':'已加入稍后整理。'); });

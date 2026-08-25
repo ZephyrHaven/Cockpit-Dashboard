@@ -201,8 +201,17 @@ bash deploy.sh --min
 
 ### 当前版本
 
-- Manifest version: `1.5.1`
-- Latest update date: `2026-08-20`
+- Manifest version: `1.5.2`
+- Latest update date: `2026-08-24`
+
+### 1.5.2 最近更新
+
+- 待办文件改为行级更新：你在 `todos.md` 里手写的备注、缩进子任务和自定义元数据不会再被插件覆盖，并兼容大写 `[X]` 与缩进任务行；清空全部待办后也不会再自动恢复默认示例。
+- 修复刚响铃后就编辑闹钟会导致几分钟内重复响铃的问题。
+- 番茄钟改为按真实时间计时：窗口切到后台或电脑休眠后仍能准点结束并提醒。
+- AI 请求新增连接与读取超时：模型服务无响应时会明确报错或自动降级，设置页的测试按钮不再卡死；流式回答中服务返回的错误现在会直接显示原因，而不是提示“没有内容”。
+- 消息推送失败时会在同一时段内自动重试（最多三次），不再把失败误标为已发送；未启用任何渠道时不再产生无意义的后台检查。
+- 插件配置只在内容真正变化时写入磁盘，减少日常使用中的持续写入；同时修复右键菜单在切换语言或情景后重复弹出的问题，闪念添加标签现在支持含特殊字符的标签名。
 
 ### 1.5.1 最近更新
 
@@ -420,8 +429,17 @@ Build notes:
 
 ### Current Version
 
-- Manifest version: `1.5.1`
-- Latest update date: `2026-08-20`
+- Manifest version: `1.5.2`
+- Latest update date: `2026-08-24`
+
+### What’s New in 1.5.2
+
+- Todo file writes are now line-level: your own notes, indented subtasks, and custom metadata in `todos.md` are preserved, with support for uppercase `[X]` and indented task lines. Clearing every todo no longer restores the default samples.
+- Fixed a bug where editing an alarm right after it rang caused a second ring within minutes.
+- The Pomodoro now tracks real time: focus sessions still end on time after background throttling or system sleep.
+- AI requests gained connect and read timeouts: unresponsive model services fail clearly or fall back automatically, the settings Test button can no longer get stuck, and errors returned inside streaming responses now show their real cause instead of "no content".
+- Failed notification channels retry within the same slot (up to three attempts) instead of being marked as sent; idle background checks stop when no channel is enabled.
+- Plugin settings are written to disk only when content actually changes, reducing constant writes. Right-click menus no longer stack after switching language or scene, and flash-note tags now accept special characters.
 
 ### What’s New in 1.5.1
 

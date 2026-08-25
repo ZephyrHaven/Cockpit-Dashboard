@@ -123,10 +123,14 @@ class AlarmOverlayRuntime {
       Promise.resolve(document.exitFullscreen()).catch(() => {});
     }
     this.enteredFullscreen = false;
-    try {
-      if (reason === 'snooze') current?.onSnooze?.();
-      else current?.onStop?.();
-    } catch (e) { console.warn('Cockpit alarm action failed', e); }
+    // destroy 只是插件卸载时的清理，不能走 onStop/onSnooze 回调，
+    // 否则卸载瞬间会误触“开始休息”之类的动作。
+    if (reason !== 'destroy') {
+      try {
+        if (reason === 'snooze') current?.onSnooze?.();
+        else current?.onStop?.();
+      } catch (e) { console.warn('Cockpit alarm action failed', e); }
+    }
     this._showNext();
   }
 
@@ -316,11 +320,28 @@ function openAlarmEditor(view, alarm, onSaved, linkedTodo) {
   schedule.onchange = syncFields; syncFields();
   const draft = () => {
     const onceAt = schedule.value === 'once' ? new Date(date.value + 'T' + time.value + ':00') : null;
+    // 只改名称等无关字段时保留 lastTriggeredAt/snoozedUntil；否则刚响完就编辑
+    // 会被 10 分钟补跑窗口判定为“漏响”，导致立刻二次响铃。
+    let scheduleChanged = true;
+    if (existing) {
+      scheduleChanged = existing.scheduleType !== schedule.value
+        || normalizeAlarmTime(existing.time) !== normalizeAlarmTime(time.value);
+      if (!scheduleChanged && schedule.value === 'weekdays') {
+        const nextDays = Array.from(selected).sort((a, b) => a - b);
+        const prevDays = Array.isArray(existing.weekdays) ? existing.weekdays.slice().sort((a, b) => a - b) : [];
+        scheduleChanged = JSON.stringify(nextDays) !== JSON.stringify(prevDays);
+      }
+      if (!scheduleChanged && schedule.value === 'once') {
+        const prevMs = existing.onceAt ? new Date(existing.onceAt).getTime() : NaN;
+        scheduleChanged = !onceAt || !Number.isFinite(onceAt.getTime()) || onceAt.getTime() !== prevMs;
+      }
+    }
     return normalizeAlarm({
       ...existing, id:existing?.id || alarmId(), name:name.value, enabled:existing?.enabled !== false,
       scheduleType:schedule.value, time:time.value, weekdays:Array.from(selected),
       onceAt:onceAt && Number.isFinite(onceAt.getTime()) ? onceAt.toISOString() : null,
-      lastTriggeredAt:null, snoozedUntil:null,
+      lastTriggeredAt:scheduleChanged ? null : (existing?.lastTriggeredAt || null),
+      snoozedUntil:scheduleChanged ? null : (existing?.snoozedUntil || null),
       todoId:existing?.todoId || linkedTodo?.id || '',
       linkedTodoText:linkedTodo?.text || existing?.linkedTodoText || ''
     });

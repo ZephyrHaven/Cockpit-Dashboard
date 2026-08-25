@@ -116,6 +116,8 @@ function createPomodoro(view, root, initialTodo) {
     let isRunning = false;
     let isBreak = !!restoredSession?.isBreak;
     let timerInterval = null;
+    // 运行期以墙钟为准（endAt），后台标签页被节流或系统休眠后仍能正确倒计时。
+    let endAt = null;
     let minimized = !!restoredSession?.minimized;
     let reminderResetTimer = null;
     let cueTimer = null;
@@ -464,8 +466,10 @@ function createPomodoro(view, root, initialTodo) {
       if (destroyed) return;
       destroyed = true;
       clearInterval(timerInterval);
+      timerInterval = null;
       clearTimeout(reminderResetTimer);
       clearTimeout(cueTimer);
+      if (typeof visibilityTick === 'function') document.removeEventListener('visibilitychange', visibilityTick);
       if (themeObserver) themeObserver.disconnect();
       finishDrag(dragPointerId);
       floatEl.remove();
@@ -583,116 +587,141 @@ function createPomodoro(view, root, initialTodo) {
     }
 
     // 开始/暂停
+    const pausePomodoro = () => {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      if (Number.isFinite(endAt)) remaining = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+      endAt = null;
+      isRunning = false;
+      startLabelKey = 'pomodoro.resume';
+      statusKey = isBreak ? 'pomodoro.breakPaused' : 'pomodoro.focusPaused';
+      statusEl.style.color = '#f59e0b';
+      syncPomodoroText();
+      persistSession();
+    };
+
+    let pomodoroTicking = false;
+    const tickPomodoro = async () => {
+      if (pomodoroTicking || !isRunning) return;
+      pomodoroTicking = true;
+      try {
+        // 用 endAt 换算剩余时间：interval 被浏览器节流或系统休眠暂停后，恢复时能立即校正，
+        // 完成事件按真实时间触发，不再随后台节流漂移。
+        if (Number.isFinite(endAt)) {
+          const synced = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+          if (synced !== remaining) { remaining = synced; updateDisplay(); }
+        }
+        if (remaining > 0) return;
+        clearInterval(timerInterval);
+        timerInterval = null;
+        endAt = null;
+        isRunning = false;
+        if (!isBreak) {
+          // 专注完成
+          if (boundTask) {
+            setTaskActionsVisible(true);
+          }
+          statusKey = 'pomodoro.completedOne';
+          statusEl.style.color = '#22c55e';
+          startLabelKey = 'pomodoro.startBreak';
+          isBreak = true;
+          totalSeconds = POMODORO_BREAK_MINUTES * 60;
+          remaining = totalSeconds;
+          flashCue(t('pomodoro.readyForBreak'), '#22c55e', 3600, false, 'pomodoro.readyForBreak');
+          if (self._pomodoroFullscreen === true) {
+            self._plugin.alarms?.showFullscreenReminder({
+              id:'pomodoro-focus-' + Date.now(),
+              language:self._lang(),
+              title:t('pomodoro.focusFinishedTitle'),
+              subtitle:t('pomodoro.focusFinishedSubtitle'),
+              stopLabel:self._lang() === 'en' ? 'Start break' : '开始休息',
+              onStop:startBreakFromReminder
+            });
+          }
+          const completion = {
+            id:'focus-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
+            day:window.moment().format('YYYY-MM-DD'),
+            minutes:POMODORO_FOCUS_MINUTES,
+            currentFocusMinutes:self._focusMinutes || 0,
+            task:boundTask ? { id:boundTask.id, text:boundTask.text } : null,
+            completedAt:new Date().toISOString()
+          };
+          pendingCompletion = completion;
+          try {
+            // data.json 中的任务统计与“已切到休息”状态一次提交；focus.md 失败时会在下次启动补写。
+            pendingCompletion = null;
+            const outcome = await self._commitPomodoroCompletion(completion, currentSession());
+            await self._applyPomodoroCompletionToFocusHistory(outcome.entry);
+            syncTaskMeta();
+          } catch (e) {
+            console.warn('Cockpit: commit focus completion failed', e);
+            // 若首次 data.json 提交失败，把同一个 completion ID 放进会话；恢复时仍按幂等键补记。
+            pendingCompletion = completion;
+            new obsidian.Notice(self._lang() === 'en' ? 'Focus was completed, but saving failed. Cockpit will retry on next launch.' : '专注已完成，但保存失败；Cockpit 会在下次启动时重试。');
+            await persistSession();
+          }
+          if (self._updateStatsRef) self._updateStatsRef();
+        } else {
+          // 休息完成
+          statusKey = 'pomodoro.breakEnd';
+          statusEl.style.color = BREAK_ACCENT;
+          startLabelKey = 'pomodoro.start';
+          isBreak = false;
+          totalSeconds = POMODORO_FOCUS_MINUTES * 60;
+          remaining = totalSeconds;
+          flashCue(t('pomodoro.readyForFocus'), BREAK_ACCENT, 5200, minimized || document.hidden, 'pomodoro.readyForFocus');
+          if (self._pomodoroFullscreen === true && self._pomodoroBreakReminder !== false) {
+            self._plugin.alarms?.showFullscreenReminder({
+              id:'pomodoro-break-' + Date.now(),
+              language:self._lang(),
+              title:t('pomodoro.breakFinishedTitle'),
+              subtitle:t('pomodoro.breakFinishedSubtitle'),
+              stopLabel:self._lang() === 'en' ? 'Back to focus' : '回到专注'
+            });
+          }
+        }
+        if (isBreak === false) await persistSession();
+        updateDisplay();
+      } finally { pomodoroTicking = false; }
+    };
+
+    // 窗口重新可见时立即校正一次，避免等待下一个被节流的 interval。
+    const visibilityTick = () => { if (!document.hidden && isRunning) void tickPomodoro(); };
+    document.addEventListener('visibilitychange', visibilityTick);
+
     startBtn.onclick = () => {
       if (isRunning) {
-        // 暂停
-        clearInterval(timerInterval);
-        isRunning = false;
-        startLabelKey = 'pomodoro.resume';
-        statusKey = isBreak ? 'pomodoro.breakPaused' : 'pomodoro.focusPaused';
-        statusEl.style.color = '#f59e0b';
-        syncPomodoroText();
-        persistSession();
-      } else {
-        // 开始
-        if (!isBreak && remaining === totalSeconds && boundTask) {
-          const liveTodo = (self._todos || []).find((todo) => todo.id === boundTask.id && !todo.done);
-          if (!liveTodo) {
-            boundTask = null;
-            setTaskActionsVisible(false);
-            renderTaskPicker();
-            persistSession();
-            new obsidian.Notice(self._lang() === 'en' ? 'The linked task is no longer pending. Choose another task.' : '关联待办已完成或不存在，请重新选择。');
-            return;
-          }
-          boundTask = pomodoroTaskRef(liveTodo);
-        }
-        isRunning = true;
-        startLabelKey = 'pomodoro.pause';
-        statusKey = isBreak ? 'pomodoro.resting' : 'pomodoro.focusing';
-        statusEl.style.color = isBreak ? '#22c55e' : '#ef4444';
-        syncPomodoroText();
-        persistSession();
-        timerInterval = setInterval(async () => {
-          remaining--;
-          updateDisplay();
-          if (remaining <= 0) {
-            clearInterval(timerInterval);
-            isRunning = false;
-            if (!isBreak) {
-              // 专注完成
-              if (boundTask) {
-                setTaskActionsVisible(true);
-              }
-              statusKey = 'pomodoro.completedOne';
-              statusEl.style.color = '#22c55e';
-              startLabelKey = 'pomodoro.startBreak';
-              isBreak = true;
-              totalSeconds = POMODORO_BREAK_MINUTES * 60;
-              remaining = totalSeconds;
-              flashCue(t('pomodoro.readyForBreak'), '#22c55e', 3600, false, 'pomodoro.readyForBreak');
-              if (self._pomodoroFullscreen === true) {
-                self._plugin.alarms?.showFullscreenReminder({
-                  id:'pomodoro-focus-' + Date.now(),
-                  language:self._lang(),
-                  title:t('pomodoro.focusFinishedTitle'),
-                  subtitle:t('pomodoro.focusFinishedSubtitle'),
-                  stopLabel:self._lang() === 'en' ? 'Start break' : '开始休息',
-                  onStop:startBreakFromReminder
-                });
-              }
-              const completion = {
-                id:'focus-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
-                day:window.moment().format('YYYY-MM-DD'),
-                minutes:POMODORO_FOCUS_MINUTES,
-                currentFocusMinutes:self._focusMinutes || 0,
-                task:boundTask ? { id:boundTask.id, text:boundTask.text } : null,
-                completedAt:new Date().toISOString()
-              };
-              pendingCompletion = completion;
-              try {
-                // data.json 中的任务统计与“已切到休息”状态一次提交；focus.md 失败时会在下次启动补写。
-                pendingCompletion = null;
-                const outcome = await self._commitPomodoroCompletion(completion, currentSession());
-                await self._applyPomodoroCompletionToFocusHistory(outcome.entry);
-                syncTaskMeta();
-              } catch (e) {
-                console.warn('Cockpit: commit focus completion failed', e);
-                // 若首次 data.json 提交失败，把同一个 completion ID 放进会话；恢复时仍按幂等键补记。
-                pendingCompletion = completion;
-                new obsidian.Notice(self._lang() === 'en' ? 'Focus was completed, but saving failed. Cockpit will retry on next launch.' : '专注已完成，但保存失败；Cockpit 会在下次启动时重试。');
-                await persistSession();
-              }
-              if (self._updateStatsRef) self._updateStatsRef();
-            } else {
-              // 休息完成
-              statusKey = 'pomodoro.breakEnd';
-              statusEl.style.color = BREAK_ACCENT;
-              startLabelKey = 'pomodoro.start';
-              isBreak = false;
-              totalSeconds = POMODORO_FOCUS_MINUTES * 60;
-              remaining = totalSeconds;
-              flashCue(t('pomodoro.readyForFocus'), BREAK_ACCENT, 5200, minimized || document.hidden, 'pomodoro.readyForFocus');
-              if (self._pomodoroFullscreen === true && self._pomodoroBreakReminder !== false) {
-                self._plugin.alarms?.showFullscreenReminder({
-                  id:'pomodoro-break-' + Date.now(),
-                  language:self._lang(),
-                  title:t('pomodoro.breakFinishedTitle'),
-                  subtitle:t('pomodoro.breakFinishedSubtitle'),
-                  stopLabel:self._lang() === 'en' ? 'Back to focus' : '回到专注'
-                });
-              }
-            }
-            if (isBreak === false) await persistSession();
-            updateDisplay();
-          }
-        }, 1000);
+        pausePomodoro();
+        return;
       }
+      // 开始
+      if (!isBreak && remaining === totalSeconds && boundTask) {
+        const liveTodo = (self._todos || []).find((todo) => todo.id === boundTask.id && !todo.done);
+        if (!liveTodo) {
+          boundTask = null;
+          setTaskActionsVisible(false);
+          renderTaskPicker();
+          persistSession();
+          new obsidian.Notice(self._lang() === 'en' ? 'The linked task is no longer pending. Choose another task.' : '关联待办已完成或不存在，请重新选择。');
+          return;
+        }
+        boundTask = pomodoroTaskRef(liveTodo);
+      }
+      isRunning = true;
+      endAt = Date.now() + remaining * 1000;
+      startLabelKey = 'pomodoro.pause';
+      statusKey = isBreak ? 'pomodoro.resting' : 'pomodoro.focusing';
+      statusEl.style.color = isBreak ? '#22c55e' : '#ef4444';
+      syncPomodoroText();
+      persistSession();
+      timerInterval = setInterval(() => { void tickPomodoro(); }, 1000);
     };
 
     // 重置
     resetBtn.onclick = () => {
       clearInterval(timerInterval);
+      timerInterval = null;
+      endAt = null;
       isRunning = false;
       isBreak = false;
       totalSeconds = POMODORO_FOCUS_MINUTES * 60;

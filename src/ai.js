@@ -217,6 +217,13 @@ function getAiDeltaText(value) {
 }
 
 function parseAiStreamPayload(payload) {
+  // 部分兼容网关过载时会在 SSE 流内直接推 {"error": ...} 事件，
+  // 不识别的话会被静默丢弃，表现为“模型没有返回内容”，掩盖真实故障。
+  if (payload && typeof payload === 'object' && payload.error) {
+    const rawError = payload.error;
+    const message = typeof rawError === 'string' ? rawError : (rawError?.message || rawError?.msg || '');
+    return [{ type:'stream_error', message:String(message || '模型服务返回错误').slice(0, 300) }];
+  }
   const choice = payload?.choices?.[0];
   const delta = choice?.delta || choice?.message || {};
   const reasoning = getAiDeltaText(delta.reasoning_content ?? delta.reasoning ?? delta.reasoning_details);
@@ -315,6 +322,57 @@ function createAiAbortError() {
   return error;
 }
 
+const AI_CONNECT_TIMEOUT_MS = 30000;
+const AI_REQUEST_TIMEOUT_MS = 60000;
+const AI_STREAM_IDLE_TIMEOUT_MS = 180000;
+
+function createAiTimeoutError(message) {
+  const error = new Error(message || '模型请求超时，请检查网络后重试');
+  error.code = 'AI_TIMEOUT';
+  return error;
+}
+
+// 把用户中止信号与超时组合成一个 signal；cancel() 用于请求成功后解除超时。
+function createAiTimeoutController(signal, timeoutMs, message) {
+  const controller = new AbortController();
+  let timer = null;
+  let settled = false;
+  const abortFromUser = () => { settled = true; controller.abort(signal?.reason || createAiAbortError()); };
+  if (signal) {
+    if (signal.aborted) { settled = true; controller.abort(signal.reason || createAiAbortError()); }
+    else signal.addEventListener('abort', abortFromUser, { once:true });
+  }
+  if (!settled && timeoutMs > 0) timer = setTimeout(() => { settled = true; controller.abort(createAiTimeoutError(message)); }, timeoutMs);
+  return {
+    signal:controller.signal,
+    cancel() { if (timer) clearTimeout(timer); timer = null; if (signal) signal.removeEventListener('abort', abortFromUser); },
+    timedOut:() => !signal?.aborted && settled
+  };
+}
+
+// requestUrl 无法真正取消，这里用 Promise.race 让调用方按时返回（底层请求随后自行结束）。
+function raceAiRequestTimeout(promise, timeoutMs, message) {
+  let timer = null;
+  const timeout = new Promise((resolve, reject) => { timer = setTimeout(() => reject(createAiTimeoutError(message)), timeoutMs); });
+  return Promise.race([promise, timeout]).finally(() => { if (timer) clearTimeout(timer); });
+}
+
+async function readAiChunkWithTimeout(reader, timeoutMs, message) {
+  if (!(timeoutMs > 0)) return reader.read();
+  let timer = null;
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise((resolve, reject) => {
+        timer = setTimeout(() => {
+          try { reader.cancel()?.catch?.(() => {}); } catch (e) {}
+          reject(createAiTimeoutError(message));
+        }, timeoutMs);
+      })
+    ]);
+  } finally { if (timer) clearTimeout(timer); }
+}
+
 async function waitForAiFallback(promise, signal) {
   if (!signal) return promise;
   if (signal.aborted) throw createAiAbortError();
@@ -389,8 +447,11 @@ class CockpitAIService {
     const apiKey = this.getSecret(profile.apiKeySecret);
     const messages = buildAiMessages({ ...options, maxContextChars:config.maxContextChars });
     let response;
-    try { response = await obsidian.requestUrl(createAiRequest(profile, apiKey, messages)); }
-    catch (e) { throw new Error('无法连接模型服务，请检查网络与接口地址'); }
+    try { response = await raceAiRequestTimeout(obsidian.requestUrl(createAiRequest(profile, apiKey, messages)), AI_REQUEST_TIMEOUT_MS); }
+    catch (e) {
+      if (e?.code === 'AI_TIMEOUT') throw e;
+      throw new Error('无法连接模型服务，请检查网络与接口地址');
+    }
     if (response.status < 200 || response.status >= 300) throw new Error(getAiProviderError(response.status));
     let payload = response.json;
     if (!payload) { try { payload = JSON.parse(response.text || '{}'); } catch (e) { payload = {}; } }
@@ -429,11 +490,16 @@ class CockpitAIService {
     emit({ type:'status', stage:'connecting' });
     const request = createAiRequest(profile, apiKey, messages, { stream:true, tools });
     let response;
-    try { response = await globalThis.fetch(request.url, { method:request.method, headers:request.headers, body:request.body, signal }); }
+    // 连接阶段加超时：服务器只接受连接不返回字节时不再永久挂起。
+    const connectCtl = createAiTimeoutController(signal, AI_CONNECT_TIMEOUT_MS, '连接模型服务超时，请检查网络与接口地址');
+    try { response = await globalThis.fetch(request.url, { method:request.method, headers:request.headers, body:request.body, signal:connectCtl.signal }); }
     catch (error) {
+      connectCtl.cancel();
       if (signal?.aborted || error?.name === 'AbortError') throw createAiAbortError();
+      if (connectCtl.timedOut() && error?.code === 'AI_TIMEOUT') return fallback();
       return fallback();
     }
+    connectCtl.cancel();
     if (!response.ok) {
       const error = new Error(getAiProviderError(response.status));
       if (response.status === 400 || response.status === 422) error.code = 'AI_TOOLS_UNSUPPORTED';
@@ -442,26 +508,39 @@ class CockpitAIService {
     const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
     if (!response.body?.getReader || (contentType && !contentType.includes('text/event-stream'))) {
       let payload;
-      try { payload = await response.json(); } catch (error) { payload = {}; }
+      try { payload = await raceAiRequestTimeout(response.json(), AI_REQUEST_TIMEOUT_MS); }
+      catch (error) {
+        if (error?.code === 'AI_TIMEOUT') throw error;
+        payload = {};
+      }
       return parsePayload(payload, false);
     }
     const decoder = new TextDecoder();
     const reader = response.body.getReader();
     let reasoning = '';
     let content = '';
+    let streamError = null;
     const toolCalls = [];
     const parser = createAiSseParser((event) => {
       if (event.type === 'reasoning') { reasoning += event.text; emit(event); }
       if (event.type === 'content') { content += event.text; emit(event); }
       if (event.type === 'tool_call_delta') mergeAiToolCallDelta(toolCalls, event);
+      if (event.type === 'stream_error' && !streamError) streamError = new Error(event.message || '模型服务返回错误');
     });
     while (true) {
-      const { done, value } = await reader.read();
+      let chunk;
+      try { chunk = await readAiChunkWithTimeout(reader, AI_STREAM_IDLE_TIMEOUT_MS, '模型响应中断或长时间没有输出'); }
+      catch (error) {
+        if (signal?.aborted) throw createAiAbortError();
+        throw error;
+      }
+      const { done, value } = chunk;
       if (done) break;
       parser.push(decoder.decode(value, { stream:true }));
     }
     parser.push(decoder.decode());
     parser.finish();
+    if (streamError) throw streamError;
     const normalizedCalls = normalizeAiToolCalls(toolCalls);
     if (!content.trim() && !reasoning.trim() && !normalizedCalls.length) throw new Error('模型没有返回可显示的内容或工具调用');
     return { reasoning:reasoning.trim(), content:content.trim(), toolCalls:normalizedCalls, streamed:true };
@@ -563,19 +642,24 @@ class CockpitAIService {
     if (typeof globalThis.fetch !== 'function') return fallback();
     emit({ type:'status', stage:'connecting' });
     let response;
+    const connectCtl = createAiTimeoutController(signal, AI_CONNECT_TIMEOUT_MS, '连接模型服务超时，请检查网络与接口地址');
     try {
       response = await globalThis.fetch(request.url, {
-        method:request.method, headers:request.headers, body:request.body, signal
+        method:request.method, headers:request.headers, body:request.body, signal:connectCtl.signal
       });
     } catch (e) {
+      connectCtl.cancel();
       if (signal?.aborted || e?.name === 'AbortError') throw createAiAbortError();
+      if (connectCtl.timedOut() && e?.code === 'AI_TIMEOUT') return fallback();
       return fallback();
     }
+    connectCtl.cancel();
     if (!response.ok) throw new Error(getAiProviderError(response.status));
     const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
     if (!response.body?.getReader || (contentType && !contentType.includes('text/event-stream'))) {
       let payload;
-      try { payload = await response.json(); } catch (e) { payload = {}; }
+      try { payload = await raceAiRequestTimeout(response.json(), AI_REQUEST_TIMEOUT_MS); }
+      catch (e) { if (e?.code === 'AI_TIMEOUT') throw e; payload = {}; }
       const content = parseAiResponseText(payload);
       emit({ type:'status', stage:'fallback' });
       emit({ type:'content', text:content });
@@ -586,18 +670,27 @@ class CockpitAIService {
     const reader = response.body.getReader();
     let reasoning = '';
     let content = '';
+    let streamError = null;
     const parser = createAiSseParser((event) => {
       if (event.type === 'reasoning') reasoning += event.text;
       if (event.type === 'content') content += event.text;
+      if (event.type === 'stream_error' && !streamError) streamError = new Error(event.message || '模型服务返回错误');
       emit(event);
     });
     while (true) {
-      const { done, value } = await reader.read();
+      let chunk;
+      try { chunk = await readAiChunkWithTimeout(reader, AI_STREAM_IDLE_TIMEOUT_MS, '模型响应中断或长时间没有输出'); }
+      catch (e) {
+        if (signal?.aborted) throw createAiAbortError();
+        throw e;
+      }
+      const { done, value } = chunk;
       if (done) break;
       parser.push(decoder.decode(value, { stream:true }));
     }
     parser.push(decoder.decode());
     parser.finish();
+    if (streamError) throw streamError;
     if (!content.trim()) throw new Error(reasoning.trim() ? '模型只返回了思考过程，没有生成最终回答' : '模型没有返回可显示的内容');
     return { reasoning:reasoning.trim(), content:content.trim(), streamed:true };
   }
@@ -613,8 +706,11 @@ class CockpitAIService {
     const question = language === 'en' ? 'Reply with only: Connection successful' : '请只回复：连接成功';
     const messages = buildAiMessages({ action:'custom', question, note:null, language, maxContextChars:config.maxContextChars });
     let response;
-    try { response = await obsidian.requestUrl(createAiRequest(profile, apiKey, messages)); }
-    catch (e) { throw new Error(language === 'en' ? 'Could not connect to this model service.' : '无法连接这个模型服务，请检查网络与接口地址'); }
+    try { response = await raceAiRequestTimeout(obsidian.requestUrl(createAiRequest(profile, apiKey, messages)), AI_REQUEST_TIMEOUT_MS); }
+    catch (e) {
+      if (e?.code === 'AI_TIMEOUT') throw e;
+      throw new Error(language === 'en' ? 'Could not connect to this model service.' : '无法连接这个模型服务，请检查网络与接口地址');
+    }
     if (response.status < 200 || response.status >= 300) throw new Error(getAiProviderError(response.status));
     let payload = response.json;
     if (!payload) { try { payload = JSON.parse(response.text || '{}'); } catch (e) { payload = {}; } }

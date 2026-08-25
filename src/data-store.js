@@ -5,7 +5,13 @@ async function mutatePluginData(plugin, mutator) {
   const operation = Promise.resolve(previous).catch(() => {}).then(async () => {
     const data = await plugin.loadData() || {};
     await mutator(data);
+    // 内容与上次落盘一致时跳过写入：周期性 tick（闹钟/定时任务等）即使毫无变化
+    // 也不再触发全量序列化落盘，避免每天数千次无效磁盘写入。
+    let serialized = null;
+    try { serialized = JSON.stringify(data); } catch (e) { serialized = null; }
+    if (serialized !== null && plugin._cockpitDataSnapshot === serialized) return data;
     await plugin.saveData(data);
+    plugin._cockpitDataSnapshot = serialized;
     return data;
   });
   plugin._cockpitDataWrite = operation;
