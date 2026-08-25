@@ -36,20 +36,21 @@ Cockpit Dashboard is a local-first Obsidian workspace for tasks, calendar, RSS, 
 | 🧩 编辑模式 | 所有仪表盘模块统一支持上下拖动排序、显示/隐藏、修改标题和折叠状态持久化；统计卡片和 Toolbar 按钮也可分别排序、隐藏 |
 | ◈ 情景布局 | 保存多套模块与 Toolbar 布局；支持手动切换，也可按工作日、时间段或当前打开文件夹自动进入指定情景 |
 | 🖱️ 右键菜单 | 在首页空白区域弹出快捷菜单，支持刷新页面、新建笔记、搜索、命令面板、图谱、番茄钟、最近更新记录、进入编辑模式 |
-| 📅 日历看板 | 月视图与 7 天周视图一键切换并记住选择；日期格显示紧凑的待办/RSS 数量，选中日期后展示可完成、编辑的左对齐时间流，并支持把待办拖入日期排期 |
+| 📅 日历看板 | 月视图与 7 天周视图一键切换并记住选择；日期格显示紧凑的待办/RSS 数量，选中日期后展示可完成、编辑和关联闹钟的左对齐时间流，并支持把待办拖入日期排期 |
 | 📰 RSS 阅读器 | 双栏订阅阅读器提供当天、未读、稍后读三类队列，来源/标签下拉筛选、阅读进度、结构化正文、链接/图片和全局朗读播放器；缓存只保存在当前设备 |
 | ✅ 待办管理 | 默认进入“今天”行动队列，按逾期、今日到期、高优先级、待安排分组；支持动态标签、批量完成/延期、拖入日历排期、编辑和删除 |
 | 📊 统计卡片 | 笔记、待办、完成率、今日专注、连续未专注和标签积压；点击可跳转到关联待办，在编辑布局中可排序和隐藏 |
 | 🍅 专注趋势 | 默认隐藏、可在编辑模式启用；从 `_data/focus.md` 汇总近 7 / 30 天专注时长，并支持平滑折线与柱状图切换 |
 | 📂 分类卡片 | 展示顶层目录，优先打开概览/MOC 类文件；没有概览时打开分类中的第一篇笔记，空目录会明确提示 |
 | ✏️ 最近更新 | 按最近修改时间展示笔记，支持一键打开 |
-| 📝 更新记录 | 内置本地版本记录弹窗，可在右键菜单中查看最近版本、日期和更新内容 |
+| 📝 更新记录 | 打开弹窗时从 GitHub Releases 在线读取内容，默认展示最新版本，并可通过下拉切换近期发布记录；源码中不再内置更新文案 |
 | ⭐ 收藏文件 | 收藏/取消收藏重要笔记，与最近更新区联动；支持折叠、固定排序、上下调整及一键在分栏打开 |
 | ⚡ 闪念胶囊 | 快速记录想法到 `_daily/YYYY-MM-DD.md` |
 | 📈 编辑热力图 | 展示近 30 天编辑频率 |
-| 🍅 番茄钟 | 可关联具体待办，完成一轮后显示完成、继续或延期操作，并累计该任务的专注次数与分钟；全局单例支持 25+5 循环、恢复、拖拽和深浅色 |
+| 🍅 番茄钟 | 可关联具体待办，完成一轮后显示完成、继续或延期操作，并累计该任务的专注次数与分钟；支持专注结束全屏提醒、按钮直接启动 5 分钟休息，以及可选的休息结束提醒 |
+| ⏰ 全局闹钟 | 支持单次、每天和指定星期闹钟、全屏响铃、稍后提醒及启停管理；待办列表和日历待办都可直接创建、编辑关联闹钟，完成或删除待办会同步停用提醒 |
 | ⏱ 定时任务 | 默认隐藏，可从编辑布局启用；按间隔、每天或每周运行 Toolbar 动作、Obsidian 命令与桌面端 Shell 命令，支持立即运行、重叠保护、错过任务策略，以及可清除的成功/失败审计日志 |
-| 🔔 消息推送 | 可选集成 Server酱³、Bark 与 MEOW。可同时启用多个渠道，支持每天、指定星期或指定月日的秒级定时推送，以及今日到期 / 逾期待办汇总或自定义正文 |
+| 🔔 消息推送 | 可选集成 Server酱³、Bark 与 MEOW。可同时启用多个渠道和多个可视化时间点，支持每天、指定星期或指定月日推送，以及今日到期 / 逾期待办汇总或自定义正文 |
 | 🌐 多语言界面 | 支持 `中文 / EN` 一键切换，覆盖首页主要文案并持久化语言设置，且语言开关会适配深浅色模式 |
 | ✨ 交互动效 | 语言切换、工具栏、筛选和卡片增加 hover / press 反馈，让点击更有层次 |
 | 🧭 首次引导 | 首次打开显示分步引导，可跳过并记住状态 |
@@ -83,7 +84,7 @@ Cockpit Dashboard 已上架 Obsidian 社区插件市场：
 
 ### 本地优先与用户数据权利
 
-你的数据归你：插件不收集或上传 Vault 数据，也没有遥测。数据迁移、清理和本地命令都需要你主动操作；插件产生的数据尽量使用 Markdown 和 JSON，便于查看、备份与删除。第三方推送或自定义命令仅在你自行启用时才会访问外部服务。
+你的数据归你：插件不收集或上传 Vault 数据，也没有遥测。数据迁移、清理和本地命令都需要你主动操作；插件产生的数据尽量使用 Markdown 和 JSON，便于查看、备份与删除。第三方推送或自定义命令仅在你自行启用时才会访问外部服务；打开“最近更新记录”时，插件会向 GitHub Releases 公共 API 请求公开发布信息，不会发送 Vault 内容或用户配置。
 
 ### 数据文件
 
@@ -182,14 +183,15 @@ bash deploy.sh --min
 
 ### 当前版本
 
-- Manifest version: `1.2.0`
-- Latest update date: `2026-08-12`
+- Manifest version: `1.3.0`
+- Latest update date: `2026-08-13`
 
-### 1.2.0 最近更新
+### 1.3.0 最近更新
 
-- 首页新增“今天”行动队列，支持批量处理、日历排期和任务关联番茄钟。
-- 日历加入周视图和更紧凑的时间流；RSS 加入未读、稍后读、来源筛选与阅读进度。
-- 新增可选定时任务与审计日志，情景布局支持自动切换，统计卡片可排序和隐藏。
+- 新增插件级全局闹钟，支持全屏响铃、稍后提醒、重复计划，以及待办列表和日历待办的关联提醒。
+- 番茄钟全屏提醒可直接开始休息，并可独立控制休息结束后的工作提醒。
+- 通知设置支持添加、删除和选择多个推送时间点，并修复键盘编辑串改与修改时误触发推送的问题。
+- 最近更新弹窗不再打包本地文案，改为从 GitHub Releases 在线读取，默认展示最新版本并支持下拉切换。
 
 ### 赞助作者
 
@@ -230,20 +232,21 @@ Cockpit Dashboard is designed to be more than a visual landing page. It centrali
 | 🧩 Edit Mode | Dashboard modules can be reordered, hidden, renamed, and collapsed; stat cards and Toolbar actions have their own ordering and visibility controls |
 | ◈ Layout Scenes | Save multiple module/Toolbar layouts and switch manually or automatically by weekday, time range, or active folder |
 | 🖱️ Context Menu | Right-click in blank dashboard space for refresh, new note, search, command palette, graph, Pomodoro, recent updates, and Edit Mode |
-| 📅 Calendar Board | Month and seven-day week views, compact todo/RSS indicators, drag-to-schedule, and a left-aligned selected-day task timeline with completion/edit actions |
+| 📅 Calendar Board | Month and seven-day week views, compact todo/RSS indicators, drag-to-schedule, and a left-aligned selected-day task timeline with completion, edit, and linked-alarm actions |
 | 📰 RSS Reader | Two-pane reader with Today, Unread, and Later queues; a single source/tag dropdown; reading progress, structured articles, links/images, and global text-to-speech |
 | ✅ Todo Manager | Opens on a Today action queue grouped into overdue, due today, high priority, and unscheduled work, with dynamic tags, batch deferral, Next filtering, edit/delete, and completion sync |
 | 📊 Stats Cards | Notes, todos, completion rate, focus gap, and tag backlog; cards jump to related work and can be reordered or hidden in Edit Mode |
 | 🍅 Focus Trend | Hidden by default and enabled from Edit Mode; summarizes 7/30-day focus history from `_data/focus.md` with smooth line and bar chart views |
 | 📂 Category Cards | Top-level folder cards that prefer overview/MOC notes, fall back to the first note, and clearly report empty folders |
 | ✏️ Recent Files | Recently modified notes with one-click open |
-| 📝 Release Notes | Built-in local update-history modal with versions, dates, and highlights |
+| 📝 Release Notes | Loads GitHub Releases online when opened, shows the latest release by default, and switches recent releases from a dropdown without bundling update copy in source |
 | ⭐ Bookmarks | Bookmark important files, keep them synced with recent files, collapse the section, persist ordering, move items, and open a note in a split pane |
 | ⚡ Flash Notes | Quick capture into `_daily/YYYY-MM-DD.md` |
 | 📈 Heatmap | 30-day edit activity heatmap |
-| 🍅 Pomodoro | Links a focus session to a todo, tracks per-task sessions and minutes, and offers complete, continue, or defer actions afterward; the global 25/5 timer still supports restore, drag, and light/dark themes |
+| 🍅 Pomodoro | Links focus sessions to todos and supports full-screen focus completion, starting the five-minute break directly from the reminder, and an optional return-to-work reminder after the break |
+| ⏰ Global Alarms | One-time, daily, or selected-weekday alarms with full-screen ringing, snooze, and enable/disable controls; todo rows and Calendar tasks can create or edit linked alarms that disable when the task is completed or deleted |
 | ⏱ Scheduled Tasks | Runs Toolbar actions, Obsidian commands, or trusted desktop Shell commands on interval, daily, or weekly schedules; supports missed-run policy, manual runs, overlap protection, and bounded audit logs |
-| 🔔 Message Notifications | Optional ServerChan³, Bark, and MEOW delivery. Enable multiple channels at once with second-level daily, weekday, or monthly schedules, task summaries, or a custom body |
+| 🔔 Message Notifications | Optional ServerChan³, Bark, and MEOW delivery. Enable multiple channels and multiple visual delivery times with daily, weekday, or monthly schedules, task summaries, or a custom body |
 | 🌐 Multi-language UI | One-tap `中文 / EN` switching with persisted preference and better light/dark readability |
 | ✨ Interaction Polish | Hover and press feedback for language toggle, toolbar actions, filters, and cards |
 | 🧭 Onboarding | First-run guided tour with persistent completion state |
@@ -277,7 +280,7 @@ Cockpit Dashboard is available in the Obsidian Community Plugins marketplace:
 
 ### Local-first and user data rights
 
-Your data stays yours: the plugin does not collect or upload Vault data and includes no telemetry. Migration, cleanup, and local commands require your action. Plugin data uses readable Markdown and JSON where possible, and third-party services are contacted only when you enable them.
+Your data stays yours: the plugin does not collect or upload Vault data and includes no telemetry. Migration, cleanup, and local commands require your action. Plugin data uses readable Markdown and JSON where possible, and third-party services are contacted only when you enable them. Opening Recent updates requests public release metadata from the GitHub Releases API; no Vault content or user configuration is sent.
 
 ### Runtime Files
 
@@ -374,14 +377,15 @@ Build notes:
 
 ### Current Version
 
-- Manifest version: `1.2.0`
-- Latest update date: `2026-08-12`
+- Manifest version: `1.3.0`
+- Latest update date: `2026-08-13`
 
-### What’s New in 1.2.0
+### What’s New in 1.3.0
 
-- Added a Today action queue with batch handling, calendar scheduling, and task-linked Pomodoro.
-- Added Calendar week/timeline views and RSS unread, read-later, filtering, and reading progress.
-- Added optional scheduled tasks with audit logs, automated layout scenes, and reorderable/hidden stat cards.
+- Added plugin-wide alarms with full-screen ringing, snooze, repeat schedules, and linked reminders from todo and Calendar rows.
+- Full-screen Pomodoro completion can start the break directly, with an optional return-to-work reminder after the break.
+- Notification settings now support multiple visual delivery times and fix keyboard edits affecting another time or triggering an immediate push.
+- Recent updates now load from GitHub Releases online, default to the latest release, and switch versions from a dropdown without bundled release copy.
 
 ### Sponsor
 

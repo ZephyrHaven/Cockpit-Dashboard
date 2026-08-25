@@ -1,5 +1,5 @@
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -27,6 +27,7 @@ class CockpitView extends obsidian.ItemView {
       { id:'hero', label:this._t('layout.modules.hero'), matches:(el) => el.classList.contains(PLUGIN_ID + '-hero') },
       { id:'tip', label:this._t('layout.modules.tip'), matches:(el) => el.classList.contains(PLUGIN_ID + '-tip') },
       { id:'toolbar', label:this._t('layout.modules.toolbar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-toolbar') || el.classList.contains(PLUGIN_ID + '-search-row') || el.classList.contains(PLUGIN_ID + '-search-results') },
+      { id:'alarms', label:this._t('layout.modules.alarms'), collapsible:true, matches:(el) => el.dataset.section === 'alarms-title' || el.dataset.section === 'alarms-body' || el.classList.contains(PLUGIN_ID + '-alarms') },
       { id:'calendar', label:this._t('layout.modules.calendar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-cal-wrap') || el.classList.contains(PLUGIN_ID + '-cal-detail') },
       { id:'cats', label:this._t('sections.cats'), collapsible:true, matches:(el) => el.dataset.section === 'cats-title' || el.classList.contains(PLUGIN_ID + '-cats') },
       { id:'stats', label:this._t('sections.stats'), collapsible:true, matches:(el) => el.dataset.section === 'stats-title' || el.classList.contains(PLUGIN_ID + '-stats') },
@@ -884,6 +885,8 @@ class CockpitView extends obsidian.ItemView {
       await this._rss.initialize();
       if (this._rss.config.enabled) this._rss.refresh().then(() => this._refreshCalendarRef?.()).catch((e) => console.warn('Cockpit RSS refresh failed', e));
       this._pomodoroAutoShow = pluginData?.pomodoroAutoShow !== false;
+      this._pomodoroFullscreen = pluginData?.pomodoroFullscreen === true;
+      this._pomodoroBreakReminder = pluginData?.pomodoroBreakReminder !== false;
       this._pomodoroSession = pluginData?.pomodoroSession?.active ? pluginData.pomodoroSession : null;
       this._pomodoroTaskStats = normalizePomodoroTaskStats(pluginData?.pomodoroTaskStats);
       this._pomodoroCompletions = normalizePomodoroCompletions(pluginData?.pomodoroCompletions);
@@ -959,7 +962,7 @@ class CockpitView extends obsidian.ItemView {
       }
       this._startDate = pluginData.startDate;
       this._onboardingDone = pluginData?.onboardingDone || false;
-    } catch(e) { this._language = DEFAULT_LANG; this._calendarViewMode = 'month'; this._pomodoroAutoShow = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks']); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:this._sceneSnapshot() } }; this._activeSceneId = 'default'; }
+    } catch(e) { this._language = DEFAULT_LANG; this._calendarViewMode = 'month'; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks']); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:this._sceneSnapshot() } }; this._activeSceneId = 'default'; }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -1287,6 +1290,7 @@ class CockpitView extends obsidian.ItemView {
         return false;
       }
       this._todos = outcome.todos;
+      await this._plugin.alarms.syncTodos(this._todos).catch((e) => console.warn('Cockpit todo alarm sync failed', e));
       if (refreshTodosRef) await refreshTodosRef({ persist:false });
       else {
         refreshCalendarRef?.();
@@ -1332,6 +1336,23 @@ class CockpitView extends obsidian.ItemView {
       const dueHasTime = hasDueSyntax ? parsed.dueHasTime : !!draft.dueHasTime;
       const priority = hasPrioritySyntax ? parsed.priority : draft.priority;
       return { text: cleanText, tags, dueDate, dueHasTime, priority };
+    };
+    let linkedAlarmTodoIds = new Set();
+    const refreshLinkedAlarmTodoIds = async () => {
+      try {
+        linkedAlarmTodoIds = new Set((await this._plugin.alarms.load()).filter((alarm) => alarm.todoId).map((alarm) => alarm.todoId));
+      } catch (e) {
+        console.warn('Cockpit linked alarm state unavailable; todo views remain available', e);
+      }
+      return linkedAlarmTodoIds;
+    };
+    const openTodoAlarm = async (todo) => {
+      if (!todo?.id || todo.done) return;
+      const existingAlarm = await this._plugin.alarms.findForTodo(todo.id);
+      openAlarmEditor(this, existingAlarm, async () => {
+        await refreshLinkedAlarmTodoIds();
+        await renderTodos({ persist:false });
+      }, todo);
     };
     const openTodoEditor = (options = {}) => {
       const existingTodo = options.id
@@ -1580,11 +1601,21 @@ class CockpitView extends obsidian.ItemView {
       { title: t('contextMenu.startPomodoro'), icon: 'timer', onClick: () => this._doAction('pomodoro') }
     ];
 
+    // ===== 2.5 闹钟（独立模块；调度由插件级 AlarmService 持续运行） =====
+    try {
+      await buildAlarmModule(this, root);
+    } catch (e) {
+      console.warn('Cockpit alarm module failed; dashboard basics remain available', e);
+    }
+
     // ===== 3.5 日历看板（模块化实现） =====
+    await refreshLinkedAlarmTodoIds();
     const refreshCalendar = buildCalendar(root, () => this._todos, {
       language: lang,
       t,
       openTodoEditor,
+      onTodoAlarm: openTodoAlarm,
+      hasLinkedTodoAlarm: (todoId) => linkedAlarmTodoIds.has(todoId),
       onTodoToggle: async (todoId, done) => commitTodoMutation((todos) => {
         const target = todos.find((todo) => todo.id === todoId);
         if (!target) return false;
@@ -1843,6 +1874,7 @@ class CockpitView extends obsidian.ItemView {
     let renderTodos = async (options = {})=>{
       todosEl.empty();
       updateStats();
+      await refreshLinkedAlarmTodoIds();
 
       const todayKey = window.moment().format('YYYY-MM-DD');
       const baseTodayGroups = currentStatus === 'today' ? groupTodayTodos(this._todos, todayKey) : null;
@@ -2046,6 +2078,12 @@ class CockpitView extends obsidian.ItemView {
             buildPomodoro(this, root, todo);
           };
         }
+        if (!done && todo.id) {
+          const hasLinkedAlarm = linkedAlarmTodoIds.has(todo.id);
+          const alarmBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn alarm'+(hasLinkedAlarm ? ' active' : ''), attr:{type:'button', 'aria-label':t(hasLinkedAlarm ? 'todo.editAlarm' : 'todo.createAlarm'), 'aria-pressed':String(hasLinkedAlarm)} });
+          obsidian.setIcon(alarmBtn, 'alarm-clock');
+          alarmBtn.onclick = async (e) => { e.stopPropagation(); await openTodoAlarm(todo); };
+        }
         if (!done) {
           const deferBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn', attr:{type:'button', 'aria-label':lang === 'en' ? 'Move this task to tomorrow' : '延期到明天：保留任务并调整截止日期'} });
           obsidian.setIcon(deferBtn, 'calendar-clock');
@@ -2119,6 +2157,7 @@ class CockpitView extends obsidian.ItemView {
       const loaded = await loadTodos(this.app.vault);
       if (loaded) {
         this._todos = loaded;
+        await this._plugin.alarms.syncTodos(this._todos).catch((e) => console.warn('Cockpit refreshed todo alarm sync failed', e));
       }
       // loadTodos 已在同一队列内完成旧格式 ID 的一次性回写，无需再重复写文件。
       await renderTodos({ persist:false });
@@ -2647,6 +2686,8 @@ class CockpitView extends obsidian.ItemView {
     this._closeTodoEditor();
     this._closeWelcomeCover();
     this._closeOnboardingCard();
+    this._alarmUnsubscribe?.();
+    this._alarmUnsubscribe = null;
     // 番茄钟是全局单例，不随驾驶舱关闭而销毁
     // 只清理引用，不移除 DOM
     this._pomodoroTimer = null;
@@ -2848,72 +2889,13 @@ class CockpitView extends obsidian.ItemView {
   }
 }
 
-class CockpitReleaseNotesModal extends obsidian.Modal {
-  constructor(app, plugin, language) {
-    super(app);
-    this._plugin = plugin;
-    this._language = language;
-  }
-
-  _t(key, vars) {
-    return getText(this._language, key, vars);
-  }
-
-  _pickLocalizedReleaseField(field, fallback) {
-    if (!field) return fallback;
-    if (typeof field === 'string') return field;
-    const lang = normalizeLang(this._language);
-    return field[lang] || field.en || field['zh-CN'] || fallback;
-  }
-
-  onOpen() {
-    const { contentEl, modalEl, titleEl } = this;
-    modalEl.addClass(PLUGIN_ID + '-release-modal');
-    titleEl.setText(this._t('releases.title'));
-    this._dragCleanup = makeCockpitModalDraggable(this, titleEl, this._language === 'en' ? 'Drag release notes' : '拖动最近更新窗口');
-    contentEl.empty();
-
-    const top = contentEl.createDiv({ cls: PLUGIN_ID + '-release-top' });
-    top.createDiv({ cls: PLUGIN_ID + '-release-current', text: this._t('releases.current') + ' · v' + (this._plugin.manifest?.version || 'unknown') });
-
-    if (!RELEASE_HISTORY.length) {
-      contentEl.createDiv({ cls: PLUGIN_ID + '-release-empty', text: this._t('releases.empty') });
-      return;
-    }
-
-    RELEASE_HISTORY.forEach((release) => {
-      const card = contentEl.createDiv({ cls: PLUGIN_ID + '-release-card' });
-      const head = card.createDiv({ cls: PLUGIN_ID + '-release-head' });
-      head.createDiv({ cls: PLUGIN_ID + '-release-version', text: 'v' + release.version });
-      head.createDiv({ cls: PLUGIN_ID + '-release-date', text: release.date });
-      card.createDiv({
-        cls: PLUGIN_ID + '-release-title',
-        text: this._pickLocalizedReleaseField(release.title, release.version)
-      });
-      const list = card.createEl('ul', { cls: PLUGIN_ID + '-release-list' });
-      const highlights = this._pickLocalizedReleaseField(release.highlights, []);
-      (Array.isArray(highlights) ? highlights : []).forEach((item) => {
-        list.createEl('li', { text: item });
-      });
-    });
-  }
-
-  onClose() {
-    this._dragCleanup?.();
-    this._dragCleanup = null;
-    this._scheduledTasksUnsubscribe?.();
-    this._scheduledTasksUnsubscribe = null;
-    this._viewportResizeObserver?.disconnect();
-    this._viewportResizeObserver = null;
-    this.contentEl.empty();
-  }
-}
-
 class CockpitPlugin extends obsidian.Plugin {
   async mutateData(mutator) {
     return mutatePluginData(this, mutator);
   }
   async onload() {
+    this.alarms = new AlarmService(this);
+    await this.alarms.start();
     this.scheduledTasks = new ScheduledTaskService(this);
     this.scheduledTasks.start();
     this.serverChan = new ServerChanService(this);
@@ -2932,6 +2914,6 @@ class CockpitPlugin extends obsidian.Plugin {
     this.app.workspace.revealLeaf(leaf);
     return leaf;
   }
-  async onunload() { this.scheduledTasks?.stop(); this.app.workspace.detachLeavesOfType(VIEW_TYPE); }
+  async onunload() { this.alarms?.stop(); this.scheduledTasks?.stop(); this.app.workspace.detachLeavesOfType(VIEW_TYPE); }
 }
 module.exports = CockpitPlugin;

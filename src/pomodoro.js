@@ -23,8 +23,8 @@ function createPomodoro(view, root, initialTodo) {
         existing._cockpitBindPomodoroView(view);
       }
       // 旧版浮窗没有可安全调用的销毁钩子；保留本轮计时并要求用户主动关闭后再打开。
-      if (existing._cockpitPomodoroFeatureVersion !== 2) {
-        new obsidian.Notice(view._lang() === 'en' ? 'Close the existing timer, then reopen it to enable task linking.' : '请关闭当前旧番茄钟，再重新打开以关联待办。');
+      if (existing._cockpitPomodoroFeatureVersion !== 3) {
+        new obsidian.Notice(view._lang() === 'en' ? 'Close the existing timer, then reopen it to use the latest reminder settings.' : '请关闭当前旧番茄钟，再重新打开以使用最新提醒设置。');
         return existing;
       }
       if (typeof existing._cockpitSyncLanguage === 'function') {
@@ -78,6 +78,17 @@ function createPomodoro(view, root, initialTodo) {
     const todayFocus = metricsRow.createSpan({ text: t('pomodoro.focusToday', { minutes: 0 }) });
     const metricsSep = metricsRow.createSpan({ text: '·', attr: { style: 'opacity:0.45;' } });
     const countEl = metricsRow.createSpan({ text: '🍅 × 0' });
+
+    const fullscreenRow = body.createEl('label', { cls:PID + '-pomodoro-fullscreen' });
+    const fullscreenToggle = fullscreenRow.createEl('input', { attr:{type:'checkbox'} });
+    fullscreenToggle.checked = self._pomodoroFullscreen === true;
+    const fullscreenText = fullscreenRow.createSpan({ text:t('pomodoro.fullscreenReminder') });
+    fullscreenRow.title = t('pomodoro.fullscreenHint');
+    const breakReminderRow = body.createEl('label', { cls:PID + '-pomodoro-fullscreen ' + PID + '-pomodoro-break-reminder' });
+    const breakReminderToggle = breakReminderRow.createEl('input', { attr:{type:'checkbox'} });
+    breakReminderToggle.checked = self._pomodoroBreakReminder !== false;
+    const breakReminderText = breakReminderRow.createSpan({ text:t('pomodoro.breakReminder') });
+    breakReminderRow.title = t('pomodoro.breakReminderHint');
 
     const taskActions = body.createDiv({ cls:PID + '-pomodoro-task-actions', attr:{ role:'group', 'aria-live':'polite', 'aria-label':t('pomodoro.taskNextAction') } });
     const taskActionAnnouncement = taskActions.createSpan({ attr:{ style:'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;' } });
@@ -316,6 +327,14 @@ function createPomodoro(view, root, initialTodo) {
         cueEl.textContent = cueText;
       }
       countEl.textContent = '🍅 × ' + getPomodoroCount();
+      fullscreenToggle.checked = self._pomodoroFullscreen === true;
+      fullscreenText.textContent = t('pomodoro.fullscreenReminder');
+      fullscreenRow.title = t('pomodoro.fullscreenHint');
+      breakReminderToggle.checked = self._pomodoroBreakReminder !== false;
+      breakReminderToggle.disabled = self._pomodoroFullscreen !== true;
+      breakReminderText.textContent = t('pomodoro.breakReminder');
+      breakReminderRow.title = t('pomodoro.breakReminderHint');
+      breakReminderRow.classList.toggle('is-disabled', breakReminderToggle.disabled);
       syncTaskMeta();
       taskSelect.disabled = isRunning || (!isBreak && remaining < totalSeconds);
       if (minimized) {
@@ -341,9 +360,12 @@ function createPomodoro(view, root, initialTodo) {
 
     floatEl._cockpitBindPomodoroView = (nextView) => {
       if (nextView) self = nextView;
+      fullscreenToggle.checked = self._pomodoroFullscreen === true;
+      breakReminderToggle.checked = self._pomodoroBreakReminder !== false;
+      breakReminderToggle.disabled = self._pomodoroFullscreen !== true;
       renderTaskPicker();
     };
-    floatEl._cockpitPomodoroFeatureVersion = 2;
+    floatEl._cockpitPomodoroFeatureVersion = 3;
     floatEl._cockpitSelectTask = (todo) => {
       const ref = pomodoroTaskRef(todo);
       if (!ref) return false;
@@ -388,6 +410,18 @@ function createPomodoro(view, root, initialTodo) {
       setTaskActionsVisible(false);
       renderTaskPicker();
       persistSession();
+    };
+    fullscreenToggle.onchange = () => {
+      self._pomodoroFullscreen = fullscreenToggle.checked;
+      breakReminderToggle.disabled = !self._pomodoroFullscreen;
+      breakReminderRow.classList.toggle('is-disabled', breakReminderToggle.disabled);
+      self._mutatePluginData((data) => { data.pomodoroFullscreen = self._pomodoroFullscreen; })
+        .catch((e) => console.warn('Cockpit: save Pomodoro full-screen setting failed', e));
+    };
+    breakReminderToggle.onchange = () => {
+      self._pomodoroBreakReminder = breakReminderToggle.checked;
+      self._mutatePluginData((data) => { data.pomodoroBreakReminder = self._pomodoroBreakReminder; })
+        .catch((e) => console.warn('Cockpit: save Pomodoro break reminder setting failed', e));
     };
     keepTaskBtn.onclick = () => { setTaskActionsVisible(false); persistSession(); };
     completeTaskBtn.onclick = async () => {
@@ -539,6 +573,11 @@ function createPomodoro(view, root, initialTodo) {
       syncPomodoroText();
     }
 
+    function startBreakFromReminder() {
+      if (!floatEl.isConnected || !isBreak || isRunning) return;
+      startBtn.click();
+    }
+
     // 开始/暂停
     startBtn.onclick = () => {
       if (isRunning) {
@@ -588,6 +627,16 @@ function createPomodoro(view, root, initialTodo) {
               totalSeconds = 5 * 60;
               remaining = totalSeconds;
               flashCue(t('pomodoro.readyForBreak'), '#22c55e', 3600, false, 'pomodoro.readyForBreak');
+              if (self._pomodoroFullscreen === true) {
+                self._plugin.alarms?.showFullscreenReminder({
+                  id:'pomodoro-focus-' + Date.now(),
+                  language:self._lang(),
+                  title:t('pomodoro.focusFinishedTitle'),
+                  subtitle:t('pomodoro.focusFinishedSubtitle'),
+                  stopLabel:self._lang() === 'en' ? 'Start break' : '开始休息',
+                  onStop:startBreakFromReminder
+                });
+              }
               const completion = {
                 id:'focus-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
                 day:window.moment().format('YYYY-MM-DD'),
@@ -620,6 +669,15 @@ function createPomodoro(view, root, initialTodo) {
               totalSeconds = 25 * 60;
               remaining = totalSeconds;
               flashCue(t('pomodoro.readyForFocus'), BREAK_ACCENT, 5200, minimized || document.hidden, 'pomodoro.readyForFocus');
+              if (self._pomodoroFullscreen === true && self._pomodoroBreakReminder !== false) {
+                self._plugin.alarms?.showFullscreenReminder({
+                  id:'pomodoro-break-' + Date.now(),
+                  language:self._lang(),
+                  title:t('pomodoro.breakFinishedTitle'),
+                  subtitle:t('pomodoro.breakFinishedSubtitle'),
+                  stopLabel:self._lang() === 'en' ? 'Back to focus' : '回到专注'
+                });
+              }
             }
             if (isBreak === false) await persistSession();
             updateDisplay();

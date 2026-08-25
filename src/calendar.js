@@ -1,7 +1,7 @@
 // calendar.js — 日历看板模块
 
 function buildCalendar(root, todos, opts) {
-  const { language, t, openTodoEditor, onTodoToggle, onTodoSchedule, rss, openRss, initialViewMode, onViewModeChange } = opts;
+  const { language, t, openTodoEditor, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, initialViewMode, onViewModeChange } = opts;
   // 刷新时必须读取视图的最新待办数组；不能闭包捕获初次渲染的旧快照。
   const getTodos = typeof todos === 'function' ? todos : () => todos;
   let calYear = window.moment().year();
@@ -103,7 +103,17 @@ function buildCalendar(root, todos, opts) {
       obsidian.setIcon(prio.createSpan(), priorityIcon[todo.priority] || 'minus');
       prio.createSpan({ text:priorityText[todo.priority] || priorityText.mid });
       if (todo === nextTimed) content.createSpan({ cls:PLUGIN_ID + '-cal-timeline-now', text:'NOW' });
-      const edit = content.createEl('button', { cls:PLUGIN_ID + '-cal-detail-edit', attr:{ type:'button', title:t('todo.edit'), 'aria-label':t('todo.edit') } });
+      const rowActions = content.createDiv({ cls:PLUGIN_ID + '-cal-timeline-actions' });
+      if (!todo.done && todo.raw.id) {
+        const hasLinkedAlarm = hasLinkedTodoAlarm?.(todo.raw.id) === true;
+        const alarm = rowActions.createEl('button', {
+          cls:PLUGIN_ID + '-cal-detail-edit ' + PLUGIN_ID + '-cal-detail-alarm' + (hasLinkedAlarm ? ' active' : ''),
+          attr:{ type:'button', title:t(hasLinkedAlarm ? 'todo.editAlarm' : 'todo.createAlarm'), 'aria-label':t(hasLinkedAlarm ? 'todo.editAlarm' : 'todo.createAlarm'), 'aria-pressed':String(hasLinkedAlarm) }
+        });
+        obsidian.setIcon(alarm, 'alarm-clock');
+        alarm.onclick = async (event) => { event.stopPropagation(); await onTodoAlarm?.(todo.raw); };
+      }
+      const edit = rowActions.createEl('button', { cls:PLUGIN_ID + '-cal-detail-edit', attr:{ type:'button', title:t('todo.edit'), 'aria-label':t('todo.edit') } });
       obsidian.setIcon(edit, 'square-pen');
       check.onclick = async (event) => { event.stopPropagation(); await onTodoToggle(todo.raw.id, !todo.raw.done); };
       text.onclick = (event) => { event.stopPropagation(); openTodoEditor({ id:todo.raw.id }); };

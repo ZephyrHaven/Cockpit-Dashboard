@@ -14,5 +14,10 @@ assert.match(source, /this\._displayVersion = 0/, 'Settings tab tracks render ve
 assert.match(source, /if \(renderVersion !== this\._displayVersion\) return;/, 'Stale asynchronous settings renders are discarded.');
 assert.match(source, /heading: 'Message notifications'/, 'English settings heading is localized.');
 assert.match(source, /heading: '消息推送'/, 'Chinese settings heading is localized.');
+assert.match(source, /getServerChanScheduleSlot\(config, now\)/, 'The scheduler chooses from multiple configured delivery times.');
+assert.match(source, /notification-time-list[\s\S]*type:'time'[\s\S]*addTime/, 'Settings use a visual list of native time pickers with an add action.');
+assert.doesNotMatch(source, /setValue\(config\.time\)/, 'Settings no longer expose one legacy time input.');
+assert.doesNotMatch(source, /next\[index\] = normalized; await persistTimes\(next\); renderTimes\(\);/, 'Keyboard edits do not rebuild the list and move focus to the first row.');
+assert.match(source, /saveConfig\(next, options\)[\s\S]*suppressElapsedNotificationSlots/, 'Saving edited delivery times suppresses elapsed slots for the current day.');
 
 console.log('ServerChan regression checks passed');

@@ -13,196 +13,6 @@ const LANG_OPTIONS = [
 const E = { wave:'👋', search:'🔍', tag:'🏷️', graph:'🕸️', bolt:'⚡', folder:'📂', rule:'📋', gear:'⚙️', robot:'🤖', box:'📦', chart:'📊', pencil:'✏️', check:'✅', save:'💾', edit:'✏️', del:'✕', cal:'📅' };
 const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f97316','#6366f1'];
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
-const RELEASE_HISTORY = [
-  {
-    version: '1.2.0',
-    date: '2026-08-12',
-    title: {
-      'zh-CN': '时间流与自动化',
-      en: 'Timeline and Automation'
-    },
-    highlights: {
-      'zh-CN': [
-        '首页新增“今天”行动队列，可集中处理逾期、今日到期、高优先级和待安排任务，并支持批量完成、延期和日历排期。',
-        '番茄钟可绑定具体待办，专注结束后可直接完成、继续或延期，并按任务累计专注时间。',
-        '日历提供会记住选择的月视图、周视图和更紧凑的今日时间流；RSS 增加未读、稍后读、来源筛选与阅读进度。',
-        '新增可选的定时任务模块，可运行 Toolbar 动作、Obsidian 命令或桌面端 Shell 命令，并查看、清除成功与失败审计记录。',
-        '情景布局支持自动切换，统计卡片可在编辑布局时排序和隐藏，首页模块标题也可以按情景自定义。'
-      ],
-      en: [
-        'Added a Today action queue for overdue, due-today, high-priority, and unscheduled tasks, including batch completion, deferral, and calendar scheduling.',
-        'Pomodoro can link to a todo, offer complete, continue, or defer actions afterward, and accumulate focus time per task.',
-        'Calendar now remembers the selected month or week view and offers a compact daily timeline; RSS adds unread, read-later, source filters, and reading progress.',
-        'Added an optional scheduled-task module for Toolbar actions, Obsidian commands, or desktop Shell commands with success/failure audit history and log clearing.',
-        'Layout scenes support automatic switching; stat cards can be reordered or hidden, and module titles can be customized per scene.'
-      ]
-    }
-  },
-  {
-    version: '1.1.4',
-    date: '2026-07-27',
-    title: {
-      'zh-CN': '移动端体验升级',
-      en: 'Mobile Experience Upgrade'
-    },
-    highlights: {
-      'zh-CN': [
-        '升级手机端驾驶舱的浏览与编辑体验，优化首页、工具栏、待办、番茄钟和编辑模式，并保持桌面端原有工作流。'
-      ],
-      en: [
-        'Upgraded the mobile dashboard browsing and editing experience across the home screen, toolbar, tasks, Pomodoro timer, and edit mode while preserving the desktop workflow.'
-      ]
-    }
-  },
-  {
-    version: '1.1.2',
-    date: '2026-07-24',
-    title: {
-      'zh-CN': '日历 RSS 订阅',
-      en: 'Calendar RSS Subscriptions'
-    },
-    highlights: {
-      'zh-CN': [
-        '新增日历 RSS 订阅：支持多源按日期查看、已读未读提醒、正文过滤、顶部全局朗读播放器与跨日静默更新。'
-      ],
-      en: [
-        'Added calendar RSS subscriptions with multi-source date-based entries, read/unread reminders, content filters, a top-level text-to-speech player, and silent date-change updates.'
-      ]
-    }
-  },
-  {
-    version: '1.1.1',
-    date: '2026-07-21',
-    title: {
-      'zh-CN': '情景布局、模块化与专注趋势',
-      en: 'Layout Scenes, Modular Dashboard, and Focus Trends'
-    },
-    highlights: {
-      'zh-CN': [
-        '新增情景布局，让模块与 Toolbar 可按不同工作场景独立保存、排序、显示和折叠。',
-        '每日一语与 Toolbar 编辑支持按当前语言维护、拖拽调整和局部保存。',
-        '新增默认隐藏的专注趋势，可查看近 7 / 30 天记录并切换折线或柱状图。',
-        '番茄钟支持自动显示控制，并会随 Obsidian 切换深浅主题。'
-      ],
-      en: [
-        'Added layout scenes for independently saving, ordering, showing, and collapsing modules and Toolbar items by workflow.',
-        'Daily Note and Toolbar editing now support language-aware maintenance, drag adjustment, and local saves.',
-        'Added a hidden-by-default Focus Trend with 7/30-day history and line or bar views.',
-        'Pomodoro supports auto-show control and follows Obsidian’s light/dark theme.'
-      ]
-    }
-  },
-  {
-    version: '1.1.0',
-    date: '2026-07-19',
-    title: {
-      'zh-CN': '定时待办消息推送',
-      en: 'Scheduled Task Notifications'
-    },
-    highlights: {
-      'zh-CN': [
-        '支持 Server酱³、Bark 与 MEOW 多渠道待办消息推送。',
-        '可设置每天、指定星期或指定月日的推送时间。'
-      ],
-      en: [
-        'Added multi-channel task notifications through ServerChan³, Bark, and MEOW.',
-        'Choose daily, selected weekday, or selected month-day delivery times.'
-      ]
-    }
-  },
-  {
-    version: '1.0.10',
-    date: '2026-07-12',
-    title: {
-      'zh-CN': '全局搜索、优先待办与收藏工作流升级',
-      en: 'Global Search, Priority Tasks, and Bookmark Workflow'
-    },
-    highlights: {
-      'zh-CN': [
-        '新增可拖动的全局搜索，支持按文件名、路径和正文查找笔记。',
-        '优化待办优先处理、收藏排序和日历编辑体验。',
-        'Toolbar 支持更完整的自定义与管理。'
-      ],
-      en: [
-        'Added draggable global search across note names, paths, and content.',
-        'Improved priority tasks, bookmark ordering, and calendar editing.',
-        'Expanded Toolbar customization and management.'
-      ]
-    }
-  },
-  {
-    version: '1.0.9',
-    date: '2026-07-08',
-    title: {
-      'zh-CN': '静默刷新、番茄钟历史记录与 Toolbar 可定制',
-      en: 'Silent Refresh, Pomodoro History, and Customizable Toolbar'
-    },
-    highlights: {
-      'zh-CN': [
-        '首页关键数据支持静默刷新，尽量不打断当前操作。',
-        '优化番茄钟体验，并支持按日期保留专注历史。'
-      ],
-      en: [
-        'Added silent refresh for key dashboard data while avoiding active work.',
-        'Improved Pomodoro and preserved focus history by date.'
-      ]
-    }
-  },
-  {
-    version: '1.0.8',
-    date: '2026-07-06',
-    title: {
-      'zh-CN': '编辑模式、更新记录与日历体验升级',
-      en: 'Edit Mode, Release Notes, and Calendar Refresh'
-    },
-    highlights: {
-      'zh-CN': [
-        '新增编辑模式，可拖拽排序和隐藏模块。',
-        '新增本地更新记录与优化后的日历看板。'
-      ],
-      en: [
-        'Added Edit Mode for reordering and hiding dashboard modules.',
-        'Added local release notes and refreshed the calendar board.'
-      ]
-    }
-  },
-  {
-    version: '1.0.7',
-    date: '2026-07-04',
-    title: {
-      'zh-CN': '语言切换与交互细节优化',
-      en: 'Language Toggle and Interaction Polish'
-    },
-    highlights: {
-      'zh-CN': [
-        '新增中英文界面切换，并优化主要交互反馈。'
-      ],
-      en: [
-        'Added Chinese and English UI switching with improved interaction feedback.'
-      ]
-    }
-  },
-
-
-  {
-    version: '1.0.3',
-    date: '2026-06-13',
-    title: {
-      'zh-CN': '支持工具栏命令自定义',
-      en: 'Custom Toolbar Command Support'
-    },
-    highlights: {
-      'zh-CN': [
-        '支持按需自定义驾驶舱和工作日志等 Toolbar 命令。'
-      ],
-      en: [
-        'Added customizable Toolbar commands for Cockpit, work log, and more.'
-      ]
-    }
-  },
-
-];
-
 const I18N = {
   'zh-CN': {
     sections: {
@@ -213,6 +23,7 @@ const I18N = {
       bookmarks: '⭐ 收藏文件',
       flash: '⚡ 闪念胶囊',
       focusChart: '🍅 专注趋势',
+      alarms: '⏰ 闹钟',
       scheduledTasks: '⏱ 定时任务',
       heatmap: '📈 编辑热力图（近30天）'
     },
@@ -278,6 +89,7 @@ const I18N = {
         hero: '欢迎区',
         tip: '每日小贴士',
         toolbar: '快捷工具栏',
+        alarms: '闹钟',
         calendar: '日历看板',
         focusChart: '专注趋势',
         footer: '页脚'
@@ -335,6 +147,8 @@ const I18N = {
       todayEmpty: '今天已经清空了，做点真正重要的事吧 ✦',
       filterEmpty: '当前筛选下没有待办',
       focusTask: '专注此任务',
+      createAlarm: '创建关联闹钟',
+      editAlarm: '编辑关联闹钟',
       placeholder: '输入待办标题...',
       overdue: ({ date }) => '⚠️ 已过期: ' + date,
       dueToday: '⏰ 今天到期',
@@ -382,7 +196,18 @@ const I18N = {
     releases: {
       title: '最近更新记录',
       current: '当前版本',
-      empty: '暂时没有可展示的更新记录。'
+      empty: 'GitHub 暂时没有可展示的 Release。',
+      versionPicker: '选择版本',
+      onlineSource: '更新内容在线读取自 GitHub Releases',
+      loading: '正在从 GitHub 读取更新记录…',
+      errorTitle: '暂时无法读取更新记录',
+      errorHint: '请检查网络后重试，或直接前往 GitHub Releases 查看。',
+      retry: '重新加载',
+      prerelease: '预发布',
+      bodyEmpty: '这个 Release 没有填写更新说明。',
+      github: '在 GitHub 查看全部更新',
+      githubHint: '完整发布历史与附件由 GitHub Releases 提供。',
+      githubError: '无法打开 GitHub Releases。'
     },
     pomodoro: {
       title: '🍅 番茄钟',
@@ -416,7 +241,18 @@ const I18N = {
       completeTask: '完成任务',
       keepTask: '继续任务',
       deferTask: '移到明天',
-      taskNextAction: '本轮专注后的任务操作'
+      taskNextAction: '本轮专注后的任务操作',
+      fullscreenReminder: '专注结束全屏提醒',
+      fullscreenHint: '25 分钟专注结束时覆盖当前 Obsidian 窗口',
+      breakReminder: '休息结束也提醒',
+      breakReminderHint: '开启全屏提醒后，5 分钟休息结束时提醒开始工作',
+      focusFinishedTitle: '专注完成',
+      focusFinishedSubtitle: '做得很好，起来活动一下吧。',
+      breakFinishedTitle: '休息结束',
+      breakFinishedSubtitle: '准备好后，开始下一轮专注。'
+    },
+    alarm: {
+      runningNote: 'Obsidian 运行时会准点响铃，休眠唤醒后 10 分钟内可补响。'
     },
     onboarding: {
       stepName: '✏️ 这里可以切换界面语言，也可以点击昵称直接修改名字',
@@ -450,6 +286,7 @@ const I18N = {
       bookmarks: '⭐ Starred Notes',
       flash: '⚡ Quick Capture',
       focusChart: '🍅 Focus Trend',
+      alarms: '⏰ Alarms',
       scheduledTasks: '⏱ Scheduled Tasks',
       heatmap: '📈 Edit Heatmap (30d)'
     },
@@ -515,6 +352,7 @@ const I18N = {
         hero: 'Hero',
         tip: 'Daily Tip',
         toolbar: 'Toolbar',
+        alarms: 'Alarms',
         calendar: 'Calendar',
         focusChart: 'Focus Trend',
         footer: 'Footer'
@@ -572,6 +410,8 @@ const I18N = {
       todayEmpty: 'Today is clear. Make room for what matters ✦',
       filterEmpty: 'No tasks match this filter',
       focusTask: 'Focus on this task',
+      createAlarm: 'Create linked alarm',
+      editAlarm: 'Edit linked alarm',
       placeholder: 'Type a task title...',
       overdue: ({ date }) => '⚠️ Overdue: ' + date,
       dueToday: '⏰ Due today',
@@ -619,7 +459,18 @@ const I18N = {
     releases: {
       title: 'Recent updates',
       current: 'Current version',
-      empty: 'No update records are available yet.'
+      empty: 'No GitHub Releases are available yet.',
+      versionPicker: 'Version',
+      onlineSource: 'Update content is loaded online from GitHub Releases',
+      loading: 'Loading release notes from GitHub…',
+      errorTitle: 'Release notes are unavailable',
+      errorHint: 'Check your connection and retry, or open GitHub Releases directly.',
+      retry: 'Retry',
+      prerelease: 'Pre-release',
+      bodyEmpty: 'This release does not include release notes.',
+      github: 'View all updates on GitHub',
+      githubHint: 'GitHub Releases provides the complete history and downloadable files.',
+      githubError: 'Could not open GitHub Releases.'
     },
     pomodoro: {
       title: '🍅 Pomodoro',
@@ -653,7 +504,18 @@ const I18N = {
       completeTask: 'Complete task',
       keepTask: 'Keep working',
       deferTask: 'Move to tomorrow',
-      taskNextAction: 'Task actions after this focus session'
+      taskNextAction: 'Task actions after this focus session',
+      fullscreenReminder: 'Full-screen focus reminder',
+      fullscreenHint: 'Cover the current Obsidian window when a 25-minute focus session ends',
+      breakReminder: 'Also remind after break',
+      breakReminderHint: 'When full-screen reminders are enabled, prompt to resume work after the five-minute break',
+      focusFinishedTitle: 'Focus complete',
+      focusFinishedSubtitle: 'Nice work. Take a moment to move and reset.',
+      breakFinishedTitle: 'Break complete',
+      breakFinishedSubtitle: 'Start the next focus session when you are ready.'
+    },
+    alarm: {
+      runningNote: 'Alarms ring while Obsidian is running and recover within 10 minutes after wake.'
     },
     onboarding: {
       stepName: '✏️ Use this area to switch interface language and rename yourself quickly.',

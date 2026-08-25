@@ -29,8 +29,12 @@ const MODULES = [
   'toolbar.js',
   'scenes.js',
   'scheduled-tasks.js',
+  'alarm-core.js',
+  'alarm.js',
   'pomodoro.js',
   'focus-chart.js',
+  'release-notes-core.js',
+  'release-notes.js',
   '_framework.js'
 ];
 

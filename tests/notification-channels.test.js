@@ -18,7 +18,7 @@ const context = vm.createContext({
     requestUrl: async (request) => { requests.push(request); return { status: 200, json: { code: 0, status: 200 } }; }
   }
 });
-vm.runInContext(source + ';globalThis.channelTestApi = { normalizeServerChanConfig, safeHttpsBase, sendNotificationChannel, NOTIFICATION_CHANNELS };', context);
+vm.runInContext(source + ';globalThis.channelTestApi = { normalizeServerChanConfig, normalizeNotificationTimes, getServerChanScheduleSlot, suppressElapsedNotificationSlots, safeHttpsBase, sendNotificationChannel, NOTIFICATION_CHANNELS };', context);
 const api = context.channelTestApi;
 
 assert.deepEqual(Object.keys(api.NOTIFICATION_CHANNELS), ['serverChan', 'bark', 'meow']);
@@ -26,6 +26,22 @@ assert.equal(api.normalizeServerChanConfig({ apiUrl: 'https://5923.push.ft07.com
 assert.equal(api.normalizeServerChanConfig({}).channels.serverChan.enabled, false, 'A fresh install never enables an unconfigured channel.');
 assert.equal(api.safeHttpsBase('http://unsafe.example', 'https://api.day.app'), 'https://api.day.app', 'Bark credentials never fall back to HTTP.');
 assert.equal(api.normalizeServerChanConfig({ channels:{ meow:{ nickname:'a/b' } } }).channels.meow.nickname, 'ab', 'MEOW nickname cannot inject URL path separators.');
+assert.deepEqual(Array.from(api.normalizeNotificationTimes(['18:00', '09:30:00', '18:00:00', 'bad'])), ['18:00:00', '09:30:00'], 'Notification times are valid, unique, normalized to seconds, and keep the user-visible row order.');
+assert.deepEqual(Array.from(api.normalizeServerChanConfig({ time:'11:30:00' }).times), ['11:30:00'], 'Legacy single-time settings migrate without changing the selected time.');
+assert.equal(api.normalizeServerChanConfig({ times:['08:00', '20:15'] }).time, '08:00:00', 'The legacy time alias follows the first normalized time.');
+
+const fakeNow = (date, time) => ({ format:(pattern) => pattern === 'HH:mm:ss' ? time : pattern === 'YYYY-MM-DD' ? date : '' });
+const multiTimeConfig = api.normalizeServerChanConfig({ times:['18:00', '09:00', '11:30'] });
+const activeSlot = api.getServerChanScheduleSlot(multiTimeConfig, fakeNow('2026-08-13', '12:00:00'));
+assert.equal(activeSlot.time, '11:30:00', 'Only the latest elapsed time is eligible after Obsidian resumes.');
+assert.equal(activeSlot.key, '2026-08-13|11:30:00');
+assert.equal(api.getServerChanScheduleSlot(multiTimeConfig, fakeNow('2026-08-13', '08:59:59')), null, 'No slot is due before the first configured time.');
+
+const previousTimes = api.normalizeServerChanConfig({ times:['11:30'] });
+const editedTimes = api.normalizeServerChanConfig({ ...previousTimes, times:['11:30', '09:00', '18:00'] });
+const suppressed = api.suppressElapsedNotificationSlots(previousTimes, editedTimes, fakeNow('2026-08-13', '12:00:00'));
+assert.deepEqual(Object.keys(suppressed.sentReminders['2026-08-13|09:00:00']).sort(), ['bark', 'meow', 'serverChan'], 'Editing a time into the past suppresses an immediate push through every channel.');
+assert.equal(suppressed.sentReminders['2026-08-13|18:00:00'], undefined, 'A newly configured future time remains eligible later today.');
 
 (async () => {
   await api.sendNotificationChannel('bark', { serverUrl:'https://api.day.app/push', deviceKey:'abcdefgh', group:'cockpit' }, 'Title', 'Body');
