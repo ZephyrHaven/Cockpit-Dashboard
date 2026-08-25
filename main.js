@@ -340,13 +340,15 @@ function buildSearch(root, toolbar, allFiles, app) {
       item.onclick = ()=>{ app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:f.path}}); };
     });
   });
-  // 重写搜索按钮行为
-  toolbar.querySelector('button:nth-child(2)').onclick = ()=>{
+  const toggleSearch = ()=>{
     searchExpanded = !searchExpanded;
     searchWrap.style.display = searchExpanded ? 'flex' : 'none';
     if (searchExpanded) searchInput.focus();
     else { searchInput.value=''; searchResults.empty(); }
   };
+  // 重写搜索按钮行为
+  toolbar.querySelector('button:nth-child(2)').onclick = toggleSearch;
+  return toggleSearch;
 }
 
 // ===== pomodoro.js =====
@@ -464,18 +466,13 @@ class CockpitView extends obsidian.ItemView {
     this._collapsed = {};
     this._toolbarCmds = {};
     this._onboardingDone = false;
+    this._blankContextMenuItems = [];
   }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
 
-  async onOpen() {
-    const container = this.containerEl.children[1];
-    container.empty();
-    const root = container.createDiv({ cls: PLUGIN_ID + '-root' });
-    loadCss(this.app.vault);
-    root.createEl('style', { text: CSS });
-
+  async _reloadDashboardState() {
     const loaded = await loadTodos(this.app.vault);
     this._todos = loaded || DEFAULT_TODOS.map(t => ({ ...t }));
     this._bookmarks = await loadBookmarks(this.app.vault);
@@ -494,6 +491,7 @@ class CockpitView extends obsidian.ItemView {
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
+    this._focusMinutes = 0;
     try {
       const f = this.app.vault.getAbstractFileByPath('_data/focus.md');
       if (f) {
@@ -502,9 +500,9 @@ class CockpitView extends obsidian.ItemView {
         if (m && m[1] === today) this._focusMinutes = parseInt(m[2]) || 0;
       }
     } catch (e) {}
-    if (!this._focusMinutes) this._focusMinutes = 0;
 
     // 加载工具栏命令配置
+    this._toolbarCmds = {};
     try {
       const cfgFile = this.app.vault.getAbstractFileByPath('_data/toolbar.md');
       let cfgContent;
@@ -528,19 +526,77 @@ class CockpitView extends obsidian.ItemView {
         this._toolbarCmds[name] = cmds;
       }
     } catch(e) { console.warn('Cockpit: toolbar config error', e); }
+  }
 
+  _shouldOpenContextMenu(target) {
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.closest('button,input,a,textarea,select,[contenteditable="true"]')) return false;
+    const blockedSelectors = [
+      '.' + PLUGIN_ID + '-hero',
+      '.' + PLUGIN_ID + '-tip',
+      '.' + PLUGIN_ID + '-toolbar',
+      '.' + PLUGIN_ID + '-search-item',
+      '.' + PLUGIN_ID + '-cal-header',
+      '.' + PLUGIN_ID + '-cal-grid',
+      '.' + PLUGIN_ID + '-cal-detail',
+      '.' + PLUGIN_ID + '-cat',
+      '.' + PLUGIN_ID + '-stat',
+      '.' + PLUGIN_ID + '-todo-header',
+      '.' + PLUGIN_ID + '-todo-tabs',
+      '.' + PLUGIN_ID + '-todo',
+      '.' + PLUGIN_ID + '-recent-item',
+      '.' + PLUGIN_ID + '-flash-row',
+      '.' + PLUGIN_ID + '-heatmap',
+      '.' + PLUGIN_ID + '-footer'
+    ];
+    return !target.closest(blockedSelectors.join(','));
+  }
+
+  _attachRootContextMenu(container) {
+    container.addEventListener('contextmenu', (evt) => {
+      if (!this._shouldOpenContextMenu(evt.target)) return;
+      evt.preventDefault();
+      const menu = new obsidian.Menu();
+      const items = [
+        ...this._blankContextMenuItems,
+        {
+          title: '刷新页面',
+          icon: 'refresh-cw',
+          onClick: async () => { await this._renderDashboard(true); }
+        }
+      ];
+      items.forEach(({ title, icon, onClick }) => {
+        menu.addItem((item) => {
+          item.setTitle(title).setIcon(icon).onClick(onClick);
+        });
+      });
+      menu.showAtMouseEvent(evt);
+    });
+  }
+
+  async _renderDashboard(reloadState) {
+    if (reloadState) await this._reloadDashboardState();
+    this._blankContextMenuItems = [];
+    const container = this.containerEl.children[1];
+    container.empty();
+    const root = container.createDiv({ cls: PLUGIN_ID + '-root' });
+    loadCss(this.app.vault);
+    root.createEl('style', { text: CSS });
+    this._attachRootContextMenu(container);
     await this._buildAll(root);
-    setTimeout(() => this._showOnboarding(root), 600);
+    return root;
+  }
+
+  async onOpen() {
+    await this._renderDashboard(true);
+    setTimeout(() => {
+      const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
+      if (root) this._showOnboarding(root);
+    }, 600);
 
     this._refreshTimer = setInterval(async () => {
       try {
-        const fresh = await loadTodos(this.app.vault);
-        if (fresh) this._todos = fresh;
-        const c = this.containerEl.children[1];
-        c.empty();
-        const r = c.createDiv({ cls: PLUGIN_ID + '-root' });
-        r.createEl('style', { text: CSS });
-        await this._buildAll(r);
+        await this._renderDashboard(true);
       } catch (e) { console.warn('Cockpit auto-refresh failed', e); }
     }, 2 * 60 * 60 * 1000);
   }
@@ -656,7 +712,14 @@ class CockpitView extends obsidian.ItemView {
     });
 
     // 2.5 迷你搜索
-    buildSearch(root, toolbar, allFiles, this.app);
+    const toggleSearch = buildSearch(root, toolbar, allFiles, this.app);
+    this._blankContextMenuItems = [
+      { title: '新建笔记', icon: 'plus', onClick: () => this._doAction('new') },
+      { title: '搜索笔记', icon: 'search', onClick: toggleSearch },
+      { title: '命令面板', icon: 'terminal', onClick: () => this._doAction('command') },
+      { title: '打开图谱', icon: 'git-fork', onClick: () => this._doAction('graph') },
+      { title: '启动番茄钟', icon: 'timer', onClick: () => this._doAction('pomodoro') }
+    ];
 
     // 3.5 日历看板
     const calRefresh = buildCalendar(root, this._todos, {
@@ -749,8 +812,14 @@ class CockpitView extends obsidian.ItemView {
       _b.onclick = async () => { currentStatus = s.key; _ss.querySelectorAll('.' + PLUGIN_ID + '-status-btn').forEach(x => x.classList.remove('active')); _b.classList.add('active'); await renderTodos(); };
     });
 
+    const getStatusFilteredTodos = () => {
+      let filtered = this._todos;
+      if (currentStatus === 'todo') filtered = filtered.filter(t => !t.done);
+      if (currentStatus === 'done') filtered = filtered.filter(t => t.done);
+      return filtered;
+    };
     let currentTag = 'all';
-    const getAllTags = () => { const s = new Set(); this._todos.forEach(t => { if (t.tags) t.tags.forEach(tag => s.add(tag)); }); return Array.from(s).sort(); };
+    const getVisibleTags = () => { const s = new Set(); getStatusFilteredTodos().forEach(t => { if (t.tags) t.tags.forEach(tag => s.add(tag)); }); return Array.from(s).sort(); };
     const renderTabs = (allTags, wrapEl) => {
       wrapEl.empty();
       const tabsEl = wrapEl.createDiv({ cls: PLUGIN_ID + '-todo-tabs' });
@@ -765,11 +834,12 @@ class CockpitView extends obsidian.ItemView {
       updateStats();
       let tabsWrap = root.querySelector('.' + PLUGIN_ID + '-todo-tabs-wrap');
       if (!tabsWrap) { tabsWrap = document.createElement('div'); tabsWrap.className = PLUGIN_ID + '-todo-tabs-wrap'; todoWrap.prepend(tabsWrap); }
-      renderTabs(getAllTags(), tabsWrap);
-      const filtered = currentTag === 'all' ? this._todos : this._todos.filter(t => t.tags && t.tags.includes(currentTag.replace('tag:', '')));
-      let sf = filtered;
-      if (currentStatus === 'todo') sf = sf.filter(t => !t.done);
-      if (currentStatus === 'done') sf = sf.filter(t => t.done);
+      const allTags = getVisibleTags();
+      if (currentTag !== 'all' && !allTags.includes(currentTag.replace('tag:', ''))) currentTag = 'all';
+      renderTabs(allTags, tabsWrap);
+      const sf = currentTag === 'all'
+        ? getStatusFilteredTodos()
+        : getStatusFilteredTodos().filter(t => t.tags && t.tags.includes(currentTag.replace('tag:', '')));
       const po = { high: 0, mid: 1, low: 2 };
       const nM = window.moment();
       sf.sort((a, b) => { const ao = !a.done && a.dueDate && a.dueDate.isBefore(nM, 'day') ? 0 : 1; const bo = !b.done && b.dueDate && b.dueDate.isBefore(nM, 'day') ? 0 : 1; if (ao !== bo) return ao - bo; const pa = po[a.priority || 'mid']; const pb = po[b.priority || 'mid']; if (pa !== pb) return pa - pb; return (b.created?.valueOf() || 0) - (a.created?.valueOf() || 0); });

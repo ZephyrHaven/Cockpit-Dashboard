@@ -17,11 +17,13 @@ function buildSearch(root, toolbar, allFiles, app) {
       item.onclick = ()=>{ app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:f.path}}); };
     });
   });
-  // 重写搜索按钮行为
-  toolbar.querySelector('button:nth-child(2)').onclick = ()=>{
+  const toggleSearch = ()=>{
     searchExpanded = !searchExpanded;
     searchWrap.style.display = searchExpanded ? 'flex' : 'none';
     if (searchExpanded) searchInput.focus();
     else { searchInput.value=''; searchResults.empty(); }
   };
+  // 重写搜索按钮行为
+  toolbar.querySelector('button:nth-child(2)').onclick = toggleSearch;
+  return toggleSearch;
 }

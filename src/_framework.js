@@ -1,15 +1,10 @@
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = '点击修改名称'; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = '点击修改名称'; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
 
-  async onOpen() {
-    const container = this.containerEl.children[1];
-    container.empty();
-    const root = container.createDiv({ cls: PLUGIN_ID+'-root' });
-    root.createEl('style', { text: CSS });
-
+  async _reloadDashboardState() {
     const loaded = await loadTodos(this.app.vault);
     this._todos = loaded || DEFAULT_TODOS.map(t=>({...t}));
     this._bookmarks = await loadBookmarks(this.app.vault);
@@ -29,7 +24,7 @@ class CockpitView extends obsidian.ItemView {
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
-    let focusData = null;
+    this._focusMinutes = 0;
     try {
       const f = this.app.vault.getAbstractFileByPath('_data/focus.md');
       if (f) {
@@ -40,9 +35,9 @@ class CockpitView extends obsidian.ItemView {
         }
       }
     } catch(e) {}
-    if (!this._focusMinutes) this._focusMinutes = 0;
 
     // 加载工具栏命令配置
+    this._toolbarCmds = {};
     try {
       const cfgFile = this.app.vault.getAbstractFileByPath('_data/toolbar.md');
       let cfgContent;
@@ -69,20 +64,77 @@ class CockpitView extends obsidian.ItemView {
         this._toolbarCmds[name] = cmds;
       }
     } catch(e) { console.warn('Cockpit: toolbar config error', e); }
+  }
 
+  _shouldOpenContextMenu(target) {
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.closest('button,input,a,textarea,select,[contenteditable="true"]')) return false;
+    const blockedSelectors = [
+      '.' + PLUGIN_ID + '-hero',
+      '.' + PLUGIN_ID + '-tip',
+      '.' + PLUGIN_ID + '-toolbar',
+      '.' + PLUGIN_ID + '-search-item',
+      '.' + PLUGIN_ID + '-cal-header',
+      '.' + PLUGIN_ID + '-cal-grid',
+      '.' + PLUGIN_ID + '-cal-detail',
+      '.' + PLUGIN_ID + '-cat',
+      '.' + PLUGIN_ID + '-stat',
+      '.' + PLUGIN_ID + '-todo-header',
+      '.' + PLUGIN_ID + '-todo-tabs',
+      '.' + PLUGIN_ID + '-todo',
+      '.' + PLUGIN_ID + '-recent-item',
+      '.' + PLUGIN_ID + '-flash-row',
+      '.' + PLUGIN_ID + '-heatmap',
+      '.' + PLUGIN_ID + '-footer'
+    ];
+    return !target.closest(blockedSelectors.join(','));
+  }
+
+  _attachRootContextMenu(container) {
+    container.addEventListener('contextmenu', (evt) => {
+      if (!this._shouldOpenContextMenu(evt.target)) return;
+      evt.preventDefault();
+      const menu = new obsidian.Menu();
+      const items = [
+        ...this._blankContextMenuItems,
+        {
+          title: '刷新页面',
+          icon: 'refresh-cw',
+          onClick: async () => { await this._renderDashboard(true); }
+        }
+      ];
+      items.forEach(({ title, icon, onClick }) => {
+        menu.addItem((item) => {
+          item.setTitle(title).setIcon(icon).onClick(onClick);
+        });
+      });
+      menu.showAtMouseEvent(evt);
+    });
+  }
+
+  async _renderDashboard(reloadState) {
+    if (reloadState) await this._reloadDashboardState();
+    this._blankContextMenuItems = [];
+    const container = this.containerEl.children[1];
+    container.empty();
+    const root = container.createDiv({ cls: PLUGIN_ID+'-root' });
+    root.createEl('style', { text: CSS });
+    this._attachRootContextMenu(container);
     await this._buildAll(root);
-    setTimeout(() => this._showOnboarding(root), 600);
+    return root;
+  }
+
+  async onOpen() {
+    await this._renderDashboard(true);
+    setTimeout(() => {
+      const root = this.containerEl.children[1]?.querySelector('.'+PLUGIN_ID+'-root');
+      if (root) this._showOnboarding(root);
+    }, 600);
 
     // 每 2 小时静默刷新一次数据（问候语、时间、统计、最近文件、待办）
     this._refreshTimer = setInterval(async () => {
       try {
-        const fresh = await loadTodos(this.app.vault);
-        if (fresh) this._todos = fresh;
-        const c = this.containerEl.children[1];
-        c.empty();
-        const r = c.createDiv({ cls: PLUGIN_ID+'-root' });
-        r.createEl('style', { text: CSS });
-        await this._buildAll(r);
+        await this._renderDashboard(true);
       } catch(e) { console.warn('Cockpit auto-refresh failed', e); }
     }, 2 * 60 * 60 * 1000);
   }
@@ -187,29 +239,14 @@ class CockpitView extends obsidian.ItemView {
     });
 
     // ===== 2.5 迷你搜索区域（默认隐藏，点击搜索按钮展开） =====
-    let searchExpanded = false;
-    const searchWrap = root.createDiv({ cls: PLUGIN_ID+'-search-row', attr:{style:'display:none'} });
-    const searchInput = searchWrap.createEl('input', { cls: PLUGIN_ID+'-search-input', attr:{placeholder:'输入关键词搜索笔记...', type:'text'} });
-    const searchResults = root.createDiv({ cls: PLUGIN_ID+'-search-results' });
-    searchInput.addEventListener('input', ()=>{
-      const q = searchInput.value.trim().toLowerCase();
-      searchResults.empty();
-      if (!q) return;
-      const matched = allFiles.filter(f=>f.basename.toLowerCase().includes(q)).slice(0,8);
-      matched.forEach(f=>{
-        const item = searchResults.createDiv({ cls: PLUGIN_ID+'-search-item' });
-        item.createSpan({ cls: PLUGIN_ID+'-search-name', text: f.basename });
-        item.createSpan({ cls: PLUGIN_ID+'-search-path', text: f.path });
-        item.onclick = ()=>{ this.app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:f.path}}); };
-      });
-    });
-    // 重写搜索按钮行为
-    toolbar.querySelector('button:nth-child(2)').onclick = ()=>{
-      searchExpanded = !searchExpanded;
-      searchWrap.style.display = searchExpanded ? 'flex' : 'none';
-      if (searchExpanded) searchInput.focus();
-      else { searchInput.value=''; searchResults.empty(); }
-    };
+    const toggleSearch = buildSearch(root, toolbar, allFiles, this.app);
+    this._blankContextMenuItems = [
+      { title: '新建笔记', icon: 'plus', onClick: () => this._doAction('new') },
+      { title: '搜索笔记', icon: 'search', onClick: toggleSearch },
+      { title: '命令面板', icon: 'terminal', onClick: () => this._doAction('command') },
+      { title: '打开图谱', icon: 'git-fork', onClick: () => this._doAction('graph') },
+      { title: '启动番茄钟', icon: 'timer', onClick: () => this._doAction('pomodoro') }
+    ];
 
     // ===== 3.5 日历看板 =====
     (() => {
@@ -453,11 +490,18 @@ class CockpitView extends obsidian.ItemView {
       _b.onclick = async () => { currentStatus = s.key; _ss.querySelectorAll('.'+PLUGIN_ID+'-status-btn').forEach(x=>x.classList.remove('active')); _b.classList.add('active'); await renderTodos(); };
     });
 
-    // 动态收集所有标签
+    const getStatusFilteredTodos = ()=>{
+      let filtered = this._todos;
+      if (currentStatus === 'todo') filtered = filtered.filter(t => !t.done);
+      if (currentStatus === 'done') filtered = filtered.filter(t => t.done);
+      return filtered;
+    };
+
+    // 动态收集当前状态下可见的标签
     let currentTag = 'all'; // 当前选中页签
-    const getAllTags = ()=>{
+    const getVisibleTags = ()=>{
       const tagSet = new Set();
-      this._todos.forEach(t => { if (t.tags) t.tags.forEach(tag => tagSet.add(tag)); });
+      getStatusFilteredTodos().forEach(t => { if (t.tags) t.tags.forEach(tag => tagSet.add(tag)); });
       return Array.from(tagSet).sort();
     };
 
@@ -493,23 +537,22 @@ class CockpitView extends obsidian.ItemView {
         tabsWrap.className = PLUGIN_ID+'-todo-tabs-wrap';
         todoWrap.prepend(tabsWrap);
       }
-      const allTags = getAllTags();
+      const allTags = getVisibleTags();
+      if (currentTag !== 'all' && !allTags.includes(currentTag.replace('tag:',''))) currentTag = 'all';
       renderTabs(allTags, tabsWrap);
 
-      // 根据当前选中页签过滤
-      const filtered = currentTag === 'all'
-        ? this._todos
-        : this._todos.filter(t => t.tags && t.tags.includes(currentTag.replace('tag:','')));
-
       // 根据状态过滤（全部/待办/已办）
-      let statusFiltered = filtered;
-      if (currentStatus === 'todo') statusFiltered = statusFiltered.filter(t => !t.done);
-      if (currentStatus === 'done') statusFiltered = statusFiltered.filter(t => t.done);
+      const statusFiltered = getStatusFilteredTodos();
+
+      // 根据当前选中页签过滤
+      const tagFiltered = currentTag === 'all'
+        ? statusFiltered
+        : statusFiltered.filter(t => t.tags && t.tags.includes(currentTag.replace('tag:','')));
 
       // 排序：优先级 high>mid+low，同优先级内按创建时间倒序，已过期的置顶
       const prioOrder = { high:0, mid:1, low:2 };
       const now = window.moment();
-      statusFiltered.sort((a,b)=>{
+      tagFiltered.sort((a,b)=>{
         // 已过期的未完成置顶
         const aOver = !a.done && a.dueDate && a.dueDate.isBefore(now, 'day') ? 0 : 1;
         const bOver = !b.done && b.dueDate && b.dueDate.isBefore(now, 'day') ? 0 : 1;
@@ -522,7 +565,7 @@ class CockpitView extends obsidian.ItemView {
         return (b.created?.valueOf()||0) - (a.created?.valueOf()||0);
       });
 
-      statusFiltered.forEach((t,i)=>{
+      tagFiltered.forEach((t,i)=>{
         const realIdx = this._todos.indexOf(t);
         const done = t.done;
         const item = todosEl.createDiv({ cls: PLUGIN_ID+'-todo'+(done?' done':'') });
