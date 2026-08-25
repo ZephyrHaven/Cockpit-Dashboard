@@ -1,6 +1,8 @@
 // ai-tools.js — 内置 Agent 的受控能力层；只暴露白名单工具，绝不提供任意文件或代码执行。
 
-const COCKPIT_AGENT_MAX_TOOL_CALLS = 6;
+// 编码类任务（读文件→改代码→跑验证）单轮需要的工具调用远多于待办操作，
+// 上限从 6 提升到 24，配合工作区工具的粒度仍然可控。
+const COCKPIT_AGENT_MAX_TOOL_CALLS = 24;
 
 function isProtectedAgentPath(value) {
   const path = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
@@ -282,6 +284,34 @@ class CockpitAgentToolHub {
   }
   sync(config) { this.providers.forEach((provider) => { try { provider.sync?.(config); } catch (error) { console.warn('Cockpit Agent tool sync failed', error); } }); }
   definitions(mode) { return this.providers.flatMap((provider) => provider.definitions?.(mode) || []); }
+  // 聚合各注册表的系统提示补充（如工作区沙箱说明），供 Agent 循环注入 system 消息。
+  environment(mode) {
+    return this.providers
+      .map((provider) => String(provider.environment?.(mode) || '').trim())
+      .filter(Boolean)
+      .join('\n\n')
+      .slice(0, 2000);
+  }
+  // 工作区能力透传：侧栏只接触 Hub，校验/选择器必须在这里代理到内部注册表。
+  // 能力缺失时返回结构化结果而不是 undefined，避免界面静默失败或误报“非桌面环境”。
+  describeWorkspace() {
+    for (const provider of this.providers) {
+      if (typeof provider.describeWorkspace === 'function') return provider.describeWorkspace();
+    }
+    return null;
+  }
+  async checkPath(value) {
+    for (const provider of this.providers) {
+      if (typeof provider.checkPath === 'function') return provider.checkPath(value);
+    }
+    return { ok:false, reason:'unsupported' };
+  }
+  async pickFolder() {
+    for (const provider of this.providers) {
+      if (typeof provider.pickFolder === 'function') return provider.pickFolder();
+    }
+    return { ok:false, reason:'unsupported' };
+  }
   describe(name) {
     for (const provider of this.providers) {
       const meta = provider.describe?.(name);

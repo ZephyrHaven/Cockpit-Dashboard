@@ -38,6 +38,30 @@ function cleanAiHistoryAgentMode(value) {
   return ['readonly', 'read-write', 'full'].includes(value) ? value : 'read-write';
 }
 
+// 会话级编码工作区：与 AI 配置同格式的绝对路径；空表示该会话未绑定工作区。
+function cleanAiHistoryWorkspaceRoot(value) {
+  return String(value ?? '').replace(/[\0\r\n]+/g, '').trim().slice(0, 600);
+}
+
+// 会话列表按工作区分组：输入需已按 updatedAt 降序（历史服务默认如此）。
+// 组序：当前活跃工作区最前；其余按组内最新会话的活跃时间排列（依赖稳定排序）。
+// 未绑定工作区的会话归入空根组，活跃根为空时该组同样排在最前。
+function groupAiSessionsByWorkspace(sessions, activeWorkspaceRoot) {
+  const ordered = (Array.isArray(sessions) ? sessions : [])
+    .slice()
+    .sort((a, b) => Number(b?.updatedAt || 0) - Number(a?.updatedAt || 0));
+  const groups = new Map();
+  ordered.forEach((session) => {
+    const key = cleanAiHistoryWorkspaceRoot(session?.workspaceRoot);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(session);
+  });
+  const active = cleanAiHistoryWorkspaceRoot(activeWorkspaceRoot);
+  return Array.from(groups.entries())
+    .sort((a, b) => (a[0] === active ? -1 : b[0] === active ? 1 : 0))
+    .map(([root, items]) => ({ root, sessions:items }));
+}
+
 function createAiHistoryId() {
   if (globalThis.crypto?.randomUUID) return 'chat-' + globalThis.crypto.randomUUID();
   return 'chat-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
@@ -80,6 +104,7 @@ function normalizeAiHistorySession(value, index = 0) {
     contextPaths:cleanAiHistoryContextPaths(value?.contextPaths),
     contextMode:cleanAiHistoryContextMode(value?.contextMode),
     agentMode:cleanAiHistoryAgentMode(value?.agentMode),
+    workspaceRoot:cleanAiHistoryWorkspaceRoot(value?.workspaceRoot),
     messages
   };
 }
@@ -197,6 +222,7 @@ class CockpitAIHistoryService {
     if (Object.prototype.hasOwnProperty.call(patch, 'contextPaths')) session.contextPaths = cleanAiHistoryContextPaths(patch.contextPaths);
     if (Object.prototype.hasOwnProperty.call(patch, 'contextMode')) session.contextMode = cleanAiHistoryContextMode(patch.contextMode);
     if (Object.prototype.hasOwnProperty.call(patch, 'agentMode')) session.agentMode = cleanAiHistoryAgentMode(patch.agentMode);
+    if (Object.prototype.hasOwnProperty.call(patch, 'workspaceRoot')) session.workspaceRoot = cleanAiHistoryWorkspaceRoot(patch.workspaceRoot);
     session.updatedAt = Date.now();
     await this._save(state);
     return normalizeAiHistorySession(session);
@@ -213,5 +239,5 @@ class CockpitAIHistoryService {
 }
 
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
-  module.exports = { AI_HISTORY_LIMITS, buildAiSessionTitle, normalizeAiHistory, CockpitAIHistoryService };
+  module.exports = { AI_HISTORY_LIMITS, buildAiSessionTitle, normalizeAiHistory, groupAiSessionsByWorkspace, CockpitAIHistoryService };
 }

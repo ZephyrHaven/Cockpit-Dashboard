@@ -14,6 +14,8 @@ class CockpitAIView extends obsidian.ItemView {
     this._contextMode = 'none';
     // Agent 三层权限：readonly 只读 / read-write 读写（默认）/ full 完整权限。
     this._agentMode = 'read-write';
+    // 当前生效的编码工作区（沙箱根目录）；空表示未启用编码工具。
+    this._activeWorkspaceRoot = '';
     // 贴图：随消息发送的多模态图片（data URL），不写入本地历史。
     this._pendingImages = [];
     // 会话累计用量：↑输入 / ↓输出 / 缓存命中，以及最近一次回答的 token 速度。
@@ -50,7 +52,12 @@ class CockpitAIView extends obsidian.ItemView {
     }
     await this._render();
     this._aiConfigUnsubscribe?.();
-    this._aiConfigUnsubscribe = this.plugin.ai.subscribeConfig(() => this._refreshModelOptions());
+    this._aiConfigUnsubscribe = this.plugin.ai.subscribeConfig((savedConfig) => {
+      this._refreshModelOptions();
+      this._updateWorkspaceChip(savedConfig?.workspaceRoot);
+    });
+    // 恢复本会话绑定的编码工作区（若有且与当前不同）。
+    try { await this._restoreSessionWorkspace(session); } catch (error) { console.warn('Cockpit AI workspace restore failed', error); }
     // 后台预热本地检索索引：用户开始输入前就把自动 RAG 准备好，首问不再等待全库构建。
     try { this.plugin.rag?.warmUp?.(); } catch (error) { console.warn('Cockpit AI warm-up failed', error); }
     this.registerEvent(this.app.workspace.on('file-open', async (file) => {
@@ -119,35 +126,49 @@ class CockpitAIView extends obsidian.ItemView {
     layer.classList.toggle('is-open', open);
     if (open) { this._renderSessionList(this._sessionDrawerEls.search.value); window.setTimeout(() => this._sessionDrawerEls.search.focus(), 0); }
   }
-  _sessionGroup(session) {
-    const en = this._language === 'en';
-    const age = Date.now() - session.updatedAt;
-    if (age < 86400000 && new Date(session.updatedAt).toDateString() === new Date().toDateString()) return en ? 'Today' : '今天';
-    if (age < 7 * 86400000) return en ? 'Previous 7 days' : '过去 7 天';
-    return en ? 'Earlier' : '更早';
-  }
   _renderSessionList(query = '') {
     const list = this._sessionDrawerEls?.list;
     if (!list) return;
     const en = this._language === 'en';
     const normalizedQuery = String(query || '').trim().toLocaleLowerCase();
-    const sessions = this._historyState.sessions.filter((session) => !normalizedQuery || session.title.toLocaleLowerCase().includes(normalizedQuery));
+    // 搜索同时匹配标题与绑定的工作区路径，方便按项目找会话。
+    const sessions = this._historyState.sessions.filter((session) => !normalizedQuery
+      || session.title.toLocaleLowerCase().includes(normalizedQuery)
+      || String(session.workspaceRoot || '').toLocaleLowerCase().includes(normalizedQuery));
     list.empty();
     if (!sessions.length) {
       list.createDiv({ cls:PLUGIN_ID + '-ai-session-empty', text:normalizedQuery ? (en ? 'No matching conversations' : '没有匹配的对话') : (en ? 'No conversations yet' : '还没有历史对话') });
       return;
     }
-    let lastGroup = '';
-    sessions.forEach((session) => {
-      const group = this._sessionGroup(session);
-      if (group !== lastGroup) { list.createDiv({ cls:PLUGIN_ID + '-ai-session-group', text:group }); lastGroup = group; }
-      const row = list.createDiv({ cls:PLUGIN_ID + '-ai-session-row' + (session.id === this._activeSessionId ? ' is-active' : '') });
-      const open = row.createEl('button', { cls:PLUGIN_ID + '-ai-session-open', attr:{ type:'button' } });
-      open.createSpan({ cls:PLUGIN_ID + '-ai-session-row-title', text:session.title });
-      open.createSpan({ cls:PLUGIN_ID + '-ai-session-row-meta', text:(session.messages.length || 0) + (en ? ' messages' : ' 条消息') });
-      const more = this._iconButton(row, 'ellipsis', en ? 'Conversation actions' : '对话操作', PLUGIN_ID + '-ai-session-more');
-      open.onclick = () => this._switchSession(session.id);
-      more.onclick = (event) => { event.stopPropagation(); this._openSessionMenu(event, session); };
+    // 主分组 = 工作区：当前工作区的组排最前；点击组头可一键切换到该工作区。
+    const groups = groupAiSessionsByWorkspace(sessions, this._activeWorkspaceRoot);
+    groups.forEach(({ root, sessions:items }) => {
+      const name = root
+        ? (root.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || root)
+        : (en ? 'No workspace' : '未绑定工作区');
+      const header = list.createDiv({
+        cls:PLUGIN_ID + '-ai-session-group is-workspace' + (root === String(this._activeWorkspaceRoot || '') ? ' is-active' : ''),
+        attr:{
+          role:'button', tabindex:'0',
+          title:root ? ((en ? 'Click to switch workspace to ' : '点击切换工作区到 ') + root) : (en ? 'Click to clear the workspace' : '点击清除工作区')
+        }
+      });
+      header.createSpan({ cls:PLUGIN_ID + '-ai-session-group-name', text:name });
+      header.createSpan({ cls:PLUGIN_ID + '-ai-session-group-count', text:String(items.length) });
+      const activateGroup = async () => {
+        if (await this._applyWorkspaceRoot(root, { silent:true })) this._renderSessionList(query);
+      };
+      header.onclick = activateGroup;
+      header.onkeydown = (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activateGroup(); } };
+      items.forEach((session) => {
+        const row = list.createDiv({ cls:PLUGIN_ID + '-ai-session-row' + (session.id === this._activeSessionId ? ' is-active' : '') });
+        const open = row.createEl('button', { cls:PLUGIN_ID + '-ai-session-open', attr:{ type:'button' } });
+        open.createSpan({ cls:PLUGIN_ID + '-ai-session-row-title', text:session.title });
+        open.createSpan({ cls:PLUGIN_ID + '-ai-session-row-meta', text:(session.messages.length || 0) + (en ? ' messages' : ' 条消息') });
+        const more = this._iconButton(row, 'ellipsis', en ? 'Conversation actions' : '对话操作', PLUGIN_ID + '-ai-session-more');
+        open.onclick = () => this._switchSession(session.id);
+        more.onclick = (event) => { event.stopPropagation(); this._openSessionMenu(event, session); };
+      });
     });
   }
   _openSessionMenu(event, session) {
@@ -208,6 +229,8 @@ class CockpitAIView extends obsidian.ItemView {
     this._uploadedContexts = [];
     const config = await this.plugin.ai.getConfig();
     if (session.profileId && config.profiles.some((profile) => profile.id === session.profileId) && session.profileId !== config.activeProfileId) await this.plugin.ai.setActiveProfile(session.profileId);
+    // 切换会话时恢复该会话绑定的编码工作区。
+    await this._restoreSessionWorkspace(session);
     await this._refreshContextOptions();
     this._renderActiveSession();
     this._renderSessionList();
@@ -274,8 +297,15 @@ class CockpitAIView extends obsidian.ItemView {
       }
       finally { agentSelect.disabled = false; if (this._busy) agentSelect.disabled = true; }
     };
-    const modelSelect = right.createEl('select', { cls:PLUGIN_ID + '-ai-model-select dropdown', attr:{ 'aria-label':en ? 'AI model' : 'AI 模型', title:en ? 'Switch AI model' : '切换 AI 模型' } });
     const config = await this.plugin.ai.getConfig();
+    // 工作区指示 + 就地编辑：像 DeepSeek Harness 一样把工作区管理放在对话区，
+    // 点击徽标弹出面板即可粘贴路径、切换最近使用或清除，不必进设置页。
+    const wsChip = right.createEl('button', { cls:PLUGIN_ID + '-ai-ws-chip', attr:{ type:'button', title:en ? 'Coding workspace (click to switch)' : '编码工作区（点击切换）', 'aria-label':en ? 'Coding workspace' : '编码工作区', 'aria-haspopup':'dialog', 'aria-expanded':'false' } });
+    obsidian.setIcon(wsChip.createSpan(), 'folder-open');
+    const wsChipLabel = wsChip.createSpan({ cls:PLUGIN_ID + '-ai-ws-chip-label' });
+    this._workspaceChipEls = { chip:wsChip, label:wsChipLabel };
+    this._updateWorkspaceChip(config.workspaceRoot);
+    const modelSelect = right.createEl('select', { cls:PLUGIN_ID + '-ai-model-select dropdown', attr:{ 'aria-label':en ? 'AI model' : 'AI 模型', title:en ? 'Switch AI model' : '切换 AI 模型' } });
     this._fillModelOptions(modelSelect, config);
     const send = right.createEl('button', { cls:PLUGIN_ID + '-ai-send', attr:{ type:'button' } });
     const popover = composer.createDiv({ cls:PLUGIN_ID + '-ai-context-popover' }); popover.hidden = true;
@@ -283,6 +313,8 @@ class CockpitAIView extends obsidian.ItemView {
     this._contextPickerEls = { composer, popover, menu, chips, uploadInput, add, contextButton, contextLabel };
     const togglePopover = (event) => { event.stopPropagation(); const open = popover.hidden; popover.hidden = !open; add.setAttribute('aria-expanded', String(open)); contextButton.setAttribute('aria-expanded', String(open)); };
     add.onclick = togglePopover; contextButton.onclick = togglePopover; popover.onclick = (event) => event.stopPropagation();
+    // 工作区面板：挂在 composer 上，与上下文弹出层同一交互模式（点外部关闭）。
+    this._buildWorkspacePopover(composer, wsChip);
     uploadInput.onchange = async () => {
       if (this._busy) { uploadInput.value = ''; new obsidian.Notice(en ? 'Wait for the current reply to finish.' : '请等待当前回答完成'); return; }
       try {
@@ -422,6 +454,174 @@ class CockpitAIView extends obsidian.ItemView {
     modelSelect.empty();
     config.profiles.forEach((profile) => modelSelect.createEl('option', { value:profile.id, text:profile.name || profile.model }));
     modelSelect.value = config.activeProfileId;
+  }
+  _updateWorkspaceChip(rootValue) {
+    const els = this._workspaceChipEls;
+    if (!els?.chip || !els.label) return;
+    const en = this._language === 'en';
+    const clean = String(rootValue || '').trim().slice(0, 600);
+    this._activeWorkspaceRoot = clean;
+    els.chip.classList.toggle('is-active', Boolean(clean));
+    const name = clean ? clean.replace(/[\\/]+$/, '').split(/[\\/]/).pop() : '';
+    els.chip.setAttribute('title', clean ? ((en ? 'Coding workspace: ' : '编码工作区：') + name) : (en ? 'Coding workspace (click to switch)' : '编码工作区（点击切换）'));
+    els.label.setText(clean ? (name || (en ? 'Workspace' : '工作区')) : (en ? 'Workspace' : '工作区'));
+  }
+  // ── 工作区弹出面板：粘贴路径即用、最近使用一键切换、清除；无需进设置页 ──────────
+  _buildWorkspacePopover(composer, chip) {
+    if (!composer || !chip) return;
+    const en = this._language === 'en';
+    const popover = composer.createDiv({ cls:PLUGIN_ID + '-ai-ws-popover' }); popover.hidden = true;
+    const head = popover.createDiv({ cls:PLUGIN_ID + '-ai-context-menu-head' });
+    head.createEl('strong', { text:en ? 'Coding workspace' : '编码工作区' });
+    const closeWrap = head.createDiv();
+    const closeButton = closeWrap.createEl('button', { cls:PLUGIN_ID + '-ai-header-button', attr:{ type:'button', 'aria-label':en ? 'Close' : '关闭' } });
+    obsidian.setIcon(closeButton, 'x');
+    const body = popover.createDiv({ cls:PLUGIN_ID + '-ai-ws-body' });
+    body.createEl('p', { cls:PLUGIN_ID + '-ai-ws-desc', text:en
+      ? 'The Agent can read, write, and run commands only inside this folder. Paste an absolute path to switch.'
+      : 'Agent 只能在这个文件夹内读文件、改代码和跑命令。粘贴绝对路径即可切换。' });
+    const inputRow = body.createDiv({ cls:PLUGIN_ID + '-ai-ws-input-row' });
+    const input = inputRow.createEl('input', { cls:PLUGIN_ID + '-ai-ws-input', attr:{ type:'text', spellcheck:'false', placeholder:en ? '/absolute/path/to/project' : '/绝对路径/到/项目（或点右侧图标选择）', 'aria-label':en ? 'Workspace folder path' : '工作区文件夹路径' } });
+    const browse = inputRow.createEl('button', { cls:PLUGIN_ID + '-ai-ws-browse', attr:{ type:'button', title:en ? 'Pick a folder' : '选择文件夹', 'aria-label':en ? 'Pick a folder' : '选择文件夹' } });
+    obsidian.setIcon(browse, 'folder-open');
+    const apply = inputRow.createEl('button', { cls:PLUGIN_ID + '-ai-ws-apply', attr:{ type:'button' }, text:en ? 'Use' : '使用' });
+    const status = body.createDiv({ cls:PLUGIN_ID + '-ai-ws-status', attr:{ role:'status' } });
+    const recents = body.createDiv({ cls:PLUGIN_ID + '-ai-ws-recents' });
+    const footerRow = body.createDiv({ cls:PLUGIN_ID + '-ai-ws-footer' });
+    const clearButton = footerRow.createEl('button', { cls:PLUGIN_ID + '-ai-ws-clear', attr:{ type:'button' }, text:en ? 'Clear workspace' : '清除工作区' });
+    const settingsLink = footerRow.createEl('span', { cls:PLUGIN_ID + '-ai-ws-settings-hint', text:en ? 'Default lives in plugin settings.' : '默认值也可在插件设置里配置。' });
+    void settingsLink;
+    this._wsPopoverEls = { popover, chip, input, apply, status, recents, clearButton };
+    const submit = async () => {
+      apply.disabled = true; input.disabled = true; browse.disabled = true;
+      try {
+        if (await this._applyWorkspaceRoot(input.value)) this._toggleWorkspacePopover(false);
+      } finally { apply.disabled = false; input.disabled = false; browse.disabled = false; }
+    };
+    apply.onclick = submit;
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') { event.preventDefault(); submit(); }
+      else if (event.key === 'Escape') this._toggleWorkspacePopover(false);
+    });
+    // 弹出系统文件夹选择器；选择后立即应用，无需再点「使用」。
+    browse.onclick = async () => {
+      browse.disabled = true; apply.disabled = true;
+      try {
+        if (typeof this.plugin.agentTools?.pickFolder !== 'function') {
+          new obsidian.Notice(en ? 'Picking a folder needs the Obsidian desktop app.' : '选择文件夹需要桌面版 Obsidian。');
+          return;
+        }
+        const verdict = await this.plugin.agentTools.pickFolder();
+        if (verdict?.ok && verdict.root) {
+          input.value = verdict.root;
+          if (await this._applyWorkspaceRoot(verdict.root)) this._toggleWorkspacePopover(false);
+        } else if (verdict?.reason === 'unsupported') {
+          new obsidian.Notice(en ? 'No folder picker available here; paste an absolute path instead.' : '此环境无法打开文件夹选择器，请直接粘贴绝对路径。');
+        }
+      } catch (error) {
+        new obsidian.Notice((en ? 'Could not open the folder picker: ' : '无法打开文件夹选择器：') + (error?.message || 'unknown'));
+      } finally { browse.disabled = false; apply.disabled = false; }
+    };
+    clearButton.onclick = async () => {
+      clearButton.disabled = true;
+      try { if (await this._applyWorkspaceRoot('')) this._toggleWorkspacePopover(false); }
+      finally { clearButton.disabled = false; }
+    };
+    closeButton.onclick = () => this._toggleWorkspacePopover(false);
+    popover.onclick = (event) => event.stopPropagation();
+    chip.onclick = (event) => { event.stopPropagation(); this._toggleWorkspacePopover(); };
+    // 打开期间点击面板外自动收起；capture 阶段拦截，避免被内部 stopPropagation 干扰。
+    this.registerDomEvent(document, 'click', (event) => {
+      if (popover.hidden) return;
+      const target = event.target;
+      if (target instanceof Node && !popover.contains(target) && !chip.contains(target)) this._toggleWorkspacePopover(false);
+    }, true);
+  }
+  _toggleWorkspacePopover(forceOpen) {
+    const els = this._wsPopoverEls;
+    if (!els?.popover) return;
+    const open = typeof forceOpen === 'boolean' ? forceOpen : els.popover.hidden;
+    els.popover.hidden = !open;
+    els.chip?.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    this._closeContextPopover();
+    this._refreshWorkspacePanel();
+  }
+  async _refreshWorkspacePanel() {
+    const els = this._wsPopoverEls;
+    if (!els) return;
+    const en = this._language === 'en';
+    const activeRoot = String(this._activeWorkspaceRoot || '');
+    els.input.value = activeRoot;
+    els.status.setText(activeRoot ? ((en ? 'Active sandbox root: ' : '当前沙箱根目录：') + activeRoot) : (en ? 'No workspace set — coding tools are off.' : '未设置工作区，编码工具不可用。'));
+    els.recents.empty();
+    let config = null;
+    try { config = await this.plugin.ai.getConfig(); } catch (error) { return; }
+    const items = (Array.isArray(config.workspaceRecents) ? config.workspaceRecents : []).filter((item) => item !== activeRoot);
+    if (!items.length) return;
+    els.recents.createDiv({ cls:PLUGIN_ID + '-ai-ws-recents-label', text:en ? 'Recent workspaces' : '最近使用' });
+    items.forEach((item) => {
+      const row = els.recents.createDiv({ cls:PLUGIN_ID + '-ai-ws-recent', attr:{ role:'button', tabindex:'0', title:item } });
+      row.createSpan({ text:(item.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || item) });
+      row.createSpan({ cls:PLUGIN_ID + '-ai-ws-recent-path', text:item });
+      const activate = async () => {
+        if (await this._applyWorkspaceRoot(item)) this._toggleWorkspacePopover(false);
+      };
+      row.onclick = activate;
+      row.onkeydown = (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } };
+    });
+  }
+  // 应用一个新的工作区（空串表示清除）：校验 → 写全局配置 → 记到当前会话。
+  // saveConfig 的订阅者会把新沙箱同步给工具层，下一条消息立即生效。
+  async _applyWorkspaceRoot(rawValue, options = {}) {
+    const en = this._language === 'en';
+    const value = String(rawValue ?? '').trim();
+    let root = '';
+    if (value) {
+      const registry = this.plugin.agentTools;
+      if (typeof registry?.checkPath !== 'function') {
+        new obsidian.Notice(en ? 'The coding workspace needs the Obsidian desktop app (reload the plugin after updating).' : '编码工作区仅支持桌面版 Obsidian（更新后请重新加载插件）。');
+        return false;
+      }
+      let verdict = null;
+      try { verdict = await registry.checkPath(value); }
+      catch (error) {
+        new obsidian.Notice((en ? 'Could not verify the folder: ' : '无法校验该文件夹：') + (error?.message || 'unknown'));
+        return false;
+      }
+      if (!verdict?.ok) {
+        const reason = verdict?.reason;
+        if (reason === 'relative') new obsidian.Notice(en ? 'Enter an absolute path, e.g. /Users/you/Projects/demo.' : '请填写绝对路径，如 /Users/you/Projects/demo。');
+        else if (reason === 'missing') new obsidian.Notice((en ? 'This folder does not exist yet: ' : '该文件夹不存在：') + (verdict.root || value));
+        else if (reason === 'not-directory') new obsidian.Notice((en ? 'This is not a folder: ' : '这不是一个文件夹：') + (verdict.root || value));
+        else new obsidian.Notice(en ? 'The coding workspace needs the Obsidian desktop app.' : '编码工作区仅支持桌面版 Obsidian。');
+        return false;
+      }
+      root = verdict.root;
+    }
+    try {
+      const config = await this.plugin.ai.getConfig();
+      config.workspaceRoot = root;
+      if (root) config.workspaceRecents = [root, ...(Array.isArray(config.workspaceRecents) ? config.workspaceRecents : []).filter((item) => item !== root)].slice(0, 5);
+      await this.plugin.ai.saveConfig(config);
+      if (this._activeSessionId && options.updateSession !== false) {
+        await this.plugin.aiHistory.update(this._activeSessionId, { workspaceRoot:root });
+      }
+    } catch (error) {
+      new obsidian.Notice((en ? 'Could not save the workspace: ' : '工作区保存失败：') + (error?.message || 'unknown'));
+      return false;
+    }
+    this._updateWorkspaceChip(root);
+    if (options.silent !== true) {
+      new obsidian.Notice(root ? ((en ? 'Workspace switched to ' : '工作区已切换到 ') + root) : (en ? 'Coding workspace cleared.' : '已清除编码工作区。'));
+    }
+    return true;
+  }
+  // 会话恢复：老会话记得自己绑定的工作区；为空则沿用当前，不倒退用户的全局默认。
+  async _restoreSessionWorkspace(session) {
+    const stored = String(session?.workspaceRoot || '').trim();
+    if (!stored || stored === String(this._activeWorkspaceRoot || '')) return false;
+    return this._applyWorkspaceRoot(stored, { silent:true });
   }
   _closeContextPopover() {
     if (!this._contextPickerEls?.popover) return;

@@ -3184,10 +3184,14 @@ class CockpitPlugin extends obsidian.Plugin {
     }));
     this.aiHistory = new CockpitAIHistoryService(this);
     this.ai = new CockpitAIService(this);
-    // 组合注册表：核心工具 + 本地工具（系统通知/剪贴板/打开目标/用户允许列表命令）。
+    // 组合注册表：核心工具 + 本地工具（系统通知/剪贴板/打开目标/用户允许列表命令）
+    // + 工作区工具（用户配置的编码沙箱：list/read/write/edit/search/命令执行）。
     // 防御性初始化：即使工具层出错也绝不能阻断整个插件加载。
     try {
-      this.agentTools = createCockpitAgentToolHub(this, [createCockpitLocalToolsRegistry(this)]);
+      this.agentTools = createCockpitAgentToolHub(this, [
+        createCockpitLocalToolsRegistry(this),
+        createCockpitWorkspaceToolsRegistry(this)
+      ]);
       // 本地命令允许列表来自 AI 配置：启动时同步一次，配置变更后自动刷新。
       this.ai.getConfig().then((config) => this.agentTools.sync?.(config)).catch(() => {});
       this.ai.subscribeConfig((savedConfig) => this.agentTools.sync?.(savedConfig));

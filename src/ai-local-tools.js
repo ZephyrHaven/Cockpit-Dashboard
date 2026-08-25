@@ -237,9 +237,13 @@ class CockpitLocalToolsRegistry {
   }
 }
 
+function createCockpitLocalToolsRegistry(plugin, dependencies) {
+  return new CockpitLocalToolsRegistry(plugin, dependencies);
+}
+
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
   module.exports = {
     AI_LOCAL_TOOL_LIMITS, localToolDefinitions,
-    validateLocalToolInput, CockpitLocalToolsRegistry
+    validateLocalToolInput, CockpitLocalToolsRegistry, createCockpitLocalToolsRegistry
   };
 }

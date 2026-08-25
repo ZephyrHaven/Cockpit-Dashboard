@@ -65,13 +65,55 @@ async function renderAiSettings(containerEl, plugin, language) {
     config.activeProfileId = id; await save(); refreshActiveDropdown(); renderCards();
   }));
   renderCards();
+  // Agent 编码工作区：绝对路径沙箱；留空关闭。仅桌面端（需要 Node 文件能力）生效。
+  let workspaceInputEl = null;
+  const setWorkspaceValue = async (value) => {
+    config.workspaceRoot = String(value ?? '');
+    await save();
+    if (workspaceInputEl) workspaceInputEl.value = config.workspaceRoot;
+    new obsidian.Notice(config.workspaceRoot
+      ? ((language === 'en' ? 'Workspace switched to ' : '工作区已切换到 ') + config.workspaceRoot)
+      : (language === 'en' ? 'Coding workspace cleared.' : '已清除编码工作区。'));
+  };
+  const workspaceSetting = new obsidian.Setting(section).setName(en ? 'Coding workspace' : 'Agent 工作区')
+    .setDesc(en
+      ? 'Default folder the Agent may work in ("~" allowed). You can switch it anytime from the workspace chip in the AI sidebar; leave empty to disable. Desktop app only.'
+      : 'Agent 工作区的默认文件夹（支持 ~）。可随时在 AI 侧栏的工作区徽标里直接切换；留空关闭。仅桌面版 Obsidian 可用。');
+  workspaceSetting.addText((text) => {
+    text.setPlaceholder(en ? '/path/to/project or pick a folder' : '/path/to/project 或点右侧图标选择')
+      .setValue(String(config.workspaceRoot || ''))
+      .onChange(async (value) => { config.workspaceRoot = value; await save(); });
+    text.inputEl.setAttribute('spellcheck', 'false');
+    workspaceInputEl = text.inputEl;
+    return text;
+  }).addExtraButton((button) => button
+    .setIcon('folder-open')
+    .setTooltip(en ? 'Pick a folder' : '选择文件夹')
+    .onClick(async () => {
+      try {
+        if (typeof plugin.agentTools?.pickFolder !== 'function') {
+          new obsidian.Notice(en ? 'Picking a folder needs the Obsidian desktop app.' : '选择文件夹需要桌面版 Obsidian。');
+          return;
+        }
+        const verdict = await plugin.agentTools.pickFolder();
+        if (verdict?.ok && verdict.root) await setWorkspaceValue(verdict.root);
+        else if (!verdict || verdict.reason === 'unsupported') new obsidian.Notice(en ? 'No folder picker available here; paste an absolute path instead.' : '此环境无法打开文件夹选择器，请直接粘贴绝对路径。');
+      } catch (error) { new obsidian.Notice((en ? 'Could not open the folder picker: ' : '无法打开文件夹选择器：') + (error?.message || 'unknown')); }
+    }))
+  .addExtraButton((button) => button
+    .setIcon('trash-2')
+    .setTooltip(en ? 'Clear workspace' : '清空工作区')
+    .onClick(() => setWorkspaceValue('')));
   new obsidian.Setting(section).setName(en ? 'Note context limit' : '笔记上下文上限').setDesc(en ? 'Maximum characters sent from selected notes or local RAG (2,000–50,000).' : '所选笔记或本地 RAG 单次最多发送的字符数（2,000–50,000）。')
     .addText((text) => { text.inputEl.type = 'number'; text.inputEl.min = '2000'; text.inputEl.max = '50000'; text.inputEl.step = '1000'; return text.setValue(String(config.maxContextChars)).onChange(async (value) => { config.maxContextChars = Number(value); await save(); }); });
   section.createEl('p', { cls:PLUGIN_ID + '-ai-settings-footnote', text:en
     ? 'Conversation history is stored separately in plugin-private ai-history.json. It excludes attachments, retrieved note excerpts, reasoning, and tool arguments.'
     : '会话历史单独保存在插件私有的 ai-history.json 中，不保存附件、检索到的笔记片段、思考过程或工具参数。' });
   section.createEl('p', { cls:PLUGIN_ID + '-ai-settings-footnote', text:en
-    ? 'Agent tools can list tasks and search notes. Creating or completing a task always requires confirmation. Plugin source, Obsidian configuration, Shell, and arbitrary file writes are never exposed.'
-    : 'Agent 工具可以读取待办和搜索笔记；创建或完成待办始终需要确认。插件源码、Obsidian 配置、Shell 与任意文件写入永远不会开放。' });
+    ? 'Agent tools can list tasks and search notes. Creating or completing a task always requires confirmation.'
+    : 'Agent 工具可以读取待办和搜索笔记；创建或完成待办始终需要确认。' });
+  section.createEl('p', { cls:PLUGIN_ID + '-ai-settings-footnote', text:en
+    ? 'When a coding workspace is set, the Agent additionally gets sandboxed file tools (list/read/write/edit/search) and command execution inside that folder only. Writes and commands follow the permission mode chosen in the sidebar; paths outside the folder and privilege elevation are always refused.'
+    : '设置工作区后，Agent 会额外获得沙箱化的文件工具（浏览/读取/写入/编辑/搜索）与命令执行能力，且只能在该文件夹内活动。写操作与命令遵循侧栏选择的权限模式；目录之外的路径与提权命令永远被拒绝。' });
   containerEl.createEl('hr', { cls:PLUGIN_ID + '-settings-divider' });
 }

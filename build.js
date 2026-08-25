@@ -17,6 +17,7 @@ const MODULES = [
   'ai-context.js',
   'ai-history.js',
   'ai-local-tools.js',
+  'ai-workspace.js',
   'ai-tools.js',
   'ai.js',
   'ai-quick.js',
