@@ -35,6 +35,8 @@ Cockpit Dashboard is a cockpit-style homepage plugin for Obsidian. It replaces t
 | ⚡ 闪念胶囊 | 快速记录想法到 `_daily/YYYY-MM-DD.md` |
 | 📈 编辑热力图 | 展示近 30 天编辑频率 |
 | 🍅 番茄钟 | 浮动全局单例，可拖拽，25+5 循环，专注数据写入 `_data/focus.md` |
+| 🌐 多语言界面 | 支持 `中文 / EN` 一键切换，覆盖首页主要文案并持久化语言设置 |
+| ✨ 交互动效 | 语言切换、工具栏、筛选和卡片增加 hover / press 反馈，让点击更有层次 |
 | 🤖 Hermes | 打开 Obsidian 集成终端并尝试启动 `hermes --tui` |
 | 🛩️ 驾驶舱 H5 / 📝 工作日志 | 通过 `_data/toolbar.md` 自定义启动命令和目标地址 |
 | 🧭 首次引导 | 首次打开显示分步引导，可跳过并记住状态 |
@@ -42,19 +44,7 @@ Cockpit Dashboard is a cockpit-style homepage plugin for Obsidian. It replaces t
 
 ### 安装方式
 
-#### 方式一：通过 BRAT 安装
 
-1. 在 Obsidian 社区插件中安装 [BRAT](https://obsidian.md/plugins?search=BRAT)
-2. 打开 BRAT 设置，选择 `Add Beta plugin`
-3. 输入仓库地址：
-
-```text
-https://github.com/sadom125/Cockpit-Dashboard
-```
-
-4. 回到社区插件列表，启用 `Cockpit Dashboard`
-
-#### 方式二：手动安装
 
 1. 从 [GitHub Releases](https://github.com/sadom125/Cockpit-Dashboard/releases) 下载以下文件：
 
@@ -118,7 +108,7 @@ bash deploy.sh
 
 ### 当前版本
 
-- Manifest version: `1.0.6`
+- Manifest version: `1.0.7`
 
 ---
 
@@ -151,26 +141,14 @@ Cockpit Dashboard is designed to be more than a visual landing page. It centrali
 | ⚡ Flash Notes | Quick capture into `_daily/YYYY-MM-DD.md` |
 | 📈 Heatmap | 30-day edit activity heatmap |
 | 🍅 Pomodoro | Draggable floating singleton timer with 25/5 cycle and persisted focus tracking |
+| 🌐 Multi-language UI | One-tap `中文 / EN` switching for the main dashboard copy with persisted language preference |
+| ✨ Interaction Polish | Hover and press feedback for language toggle, toolbar actions, filters, and cards |
 | 🤖 Hermes | Opens Obsidian’s integrated terminal and tries to run `hermes --tui` |
 | 🛩️ Cockpit H5 / 📝 Work Log | Custom launch commands configured through `_data/toolbar.md` |
 | 🧭 Onboarding | First-run guided tour with persistent completion state |
 | 📦 Collapsible Sections | Persistent collapsed state for dashboard sections |
 
 ### Installation
-
-#### Option 1: Install with BRAT
-
-1. Install [BRAT](https://obsidian.md/plugins?search=BRAT) from Obsidian Community Plugins
-2. Open BRAT settings and choose `Add Beta plugin`
-3. Paste the repository URL:
-
-```text
-https://github.com/sadom125/Cockpit-Dashboard
-```
-
-4. Enable `Cockpit Dashboard` in Community Plugins
-
-#### Option 2: Manual Installation
 
 1. Download the latest files from [GitHub Releases](https://github.com/sadom125/Cockpit-Dashboard/releases):
 
@@ -230,7 +208,7 @@ Build notes:
 
 ### Current Version
 
-- Manifest version: `1.0.6`
+- Manifest version: `1.0.7`
 
 ## Author
 

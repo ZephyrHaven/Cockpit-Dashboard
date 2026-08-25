@@ -1,10 +1,10 @@
 // search.js — 迷你搜索模块
 // 导出：buildSearch(root, toolbar, allFiles, app)
 
-function buildSearch(root, toolbar, allFiles, app) {
+function buildSearch(root, toolbar, allFiles, app, texts) {
   let searchExpanded = false;
   const searchWrap = root.createDiv({ cls: PLUGIN_ID + '-search-row', attr:{style:'display:none'} });
-  const searchInput = searchWrap.createEl('input', { cls: PLUGIN_ID + '-search-input', attr:{placeholder:'输入关键词搜索笔记...', type:'text'} });
+  const searchInput = searchWrap.createEl('input', { cls: PLUGIN_ID + '-search-input', attr:{placeholder:(texts && texts.placeholder) || '输入关键词搜索笔记...', type:'text'} });
   const searchResults = root.createDiv({ cls: PLUGIN_ID + '-search-results' });
   searchInput.addEventListener('input', ()=>{
     const q = searchInput.value.trim().toLowerCase();
