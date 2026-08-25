@@ -1,4 +1,4 @@
-// ai-view.js — Cockpit AI 自适应侧栏、模型切换与安全设置界面
+// ai-view.js — Chat-first AI 侧栏：多会话、底部组合输入、上下文选择与分段式 Agent 活动轨道。
 
 class CockpitAIView extends obsidian.ItemView {
   constructor(leaf, plugin) {
@@ -7,24 +7,46 @@ class CockpitAIView extends obsidian.ItemView {
     this._language = DEFAULT_LANG;
     this._busy = false;
     this._messagesEl = null;
-    this._selectedContextPath = '';
+    this._selectedContextPaths = [];
+    this._uploadedContexts = [];
+    this._contextEntries = [];
+    this._historyState = { version:1, activeSessionId:'', sessions:[] };
+    this._activeSessionId = '';
     this._abortController = null;
     this._aiConfigUnsubscribe = null;
+    this._toolConfirmModal = null;
   }
   getViewType() { return AI_VIEW_TYPE; }
   getDisplayText() { return this._language === 'en' ? 'Cockpit AI' : 'Cockpit AI 助手'; }
   getIcon() { return 'bot-message-square'; }
+  _activeSession() { return this._historyState.sessions.find((session) => session.id === this._activeSessionId) || null; }
   async onOpen() {
     const data = await this.plugin.loadData() || {};
     this._language = normalizeLang(data.language || DEFAULT_LANG);
+    const config = await this.plugin.ai.getConfig();
+    this._historyState = await this.plugin.aiHistory.load();
+    let session = this._historyState.sessions.find((item) => item.id === this._historyState.activeSessionId);
+    if (!session) {
+      session = await this.plugin.aiHistory.create({ language:this._language, profileId:config.activeProfileId, contextPaths:[] });
+      this._historyState = await this.plugin.aiHistory.load();
+    }
+    this._activeSessionId = session.id;
+    this._selectedContextPaths = [...session.contextPaths];
+    if (session.profileId && config.profiles.some((profile) => profile.id === session.profileId) && session.profileId !== config.activeProfileId) {
+      await this.plugin.ai.setActiveProfile(session.profileId);
+    }
     await this._render();
     this._aiConfigUnsubscribe?.();
     this._aiConfigUnsubscribe = this.plugin.ai.subscribeConfig(() => this._refreshModelOptions());
     this.registerEvent(this.app.workspace.on('file-open', async (file) => {
       if (file?.extension !== 'md' || this._busy) return;
-      this._selectedContextPath = file.path;
       await this._refreshContextOptions();
     }));
+  }
+  _iconButton(parent, iconName, label, className = '') {
+    const button = parent.createEl('button', { cls:PLUGIN_ID + '-ai-header-button ' + className, attr:{ type:'button', title:label, 'aria-label':label } });
+    obsidian.setIcon(button, iconName);
+    return button;
   }
   async _render() {
     const en = this._language === 'en';
@@ -33,383 +55,437 @@ class CockpitAIView extends obsidian.ItemView {
     container.addClass(PLUGIN_ID + '-ai-view');
     const shell = container.createDiv({ cls:PLUGIN_ID + '-ai-shell' });
 
-    const header = shell.createDiv({ cls:PLUGIN_ID + '-ai-header' });
-    const brand = header.createDiv({ cls:PLUGIN_ID + '-ai-brand' });
-    brand.createDiv({ cls:PLUGIN_ID + '-ai-mark', text:'AI' });
-    const title = brand.createDiv({ cls:PLUGIN_ID + '-ai-brand-copy' });
-    title.createDiv({ cls:PLUGIN_ID + '-ai-title', text:'Cockpit AI' });
-    title.createDiv({ cls:PLUGIN_ID + '-ai-subtitle', text:en ? 'A focused assistant for your notes' : '专注于笔记的轻量助手' });
+    const header = shell.createEl('header', { cls:PLUGIN_ID + '-ai-header' });
+    const historyButton = this._iconButton(header, 'panel-left', en ? 'Conversation history' : '会话历史');
+    const titleWrap = header.createDiv({ cls:PLUGIN_ID + '-ai-conversation-heading' });
+    this._sessionTitleEl = titleWrap.createDiv({ cls:PLUGIN_ID + '-ai-conversation-title' });
+    titleWrap.createDiv({ cls:PLUGIN_ID + '-ai-conversation-subtitle', text:en ? 'Stored locally' : '本地会话' });
     const headerControls = header.createDiv({ cls:PLUGIN_ID + '-ai-header-controls' });
-    const modelSelect = headerControls.createEl('select', {
-      cls:PLUGIN_ID + '-ai-model-select dropdown',
-      attr:{ 'aria-label':en ? 'AI model' : 'AI 模型', title:en ? 'Switch AI model' : '切换 AI 模型' }
-    });
-    const config = await this.plugin.ai.getConfig();
-    config.profiles.forEach((profile) => modelSelect.createEl('option', {
-      value:profile.id,
-      text:profile.name && profile.name !== profile.model ? profile.name + ' · ' + profile.model : profile.model,
-      attr:profile.id === config.activeProfileId ? { selected:'selected' } : {}
-    }));
-    modelSelect.value = config.activeProfileId;
-    modelSelect.onchange = async () => {
-      const previous = (await this.plugin.ai.getConfig()).activeProfileId;
-      modelSelect.disabled = true;
-      try {
-        const saved = await this.plugin.ai.setActiveProfile(modelSelect.value);
-        if (saved.activeProfileId !== modelSelect.value) throw new Error('profile not found');
-        new obsidian.Notice((en ? 'Model switched to ' : '已切换模型：') + modelSelect.options[modelSelect.selectedIndex]?.text);
-      } catch (e) {
-        modelSelect.value = previous;
-        new obsidian.Notice(en ? 'Could not switch the AI model.' : '模型切换失败，请检查配置。');
-      } finally { modelSelect.disabled = false; }
-    };
-    const settings = headerControls.createEl('button', { cls:PLUGIN_ID + '-ai-icon-button', attr:{ type:'button', title:en ? 'AI settings' : 'AI 设置', 'aria-label':en ? 'AI settings' : 'AI 设置' } });
-    obsidian.setIcon(settings, 'settings-2');
+    const newChat = this._iconButton(headerControls, 'square-pen', en ? 'New conversation' : '新建对话');
+    const settings = this._iconButton(headerControls, 'settings-2', en ? 'AI settings' : 'AI 设置');
+    const close = this._iconButton(headerControls, 'x', en ? 'Close AI sidebar' : '关闭 AI 侧栏', PLUGIN_ID + '-ai-close');
+    historyButton.onclick = () => this._toggleSessionDrawer(true);
+    newChat.onclick = () => this._newSession();
     settings.onclick = () => { this.app.setting.open(); this.app.setting.openTabById(PLUGIN_ID); };
-    const close = headerControls.createEl('button', { cls:PLUGIN_ID + '-ai-icon-button ' + PLUGIN_ID + '-ai-close', attr:{ type:'button', title:en ? 'Close AI sidebar' : '关闭 AI 侧栏', 'aria-label':en ? 'Close AI sidebar' : '关闭 AI 侧栏' } });
-    obsidian.setIcon(close, 'x');
     close.onclick = () => this.plugin.closeAI();
 
-    const contextCard = shell.createDiv({ cls:PLUGIN_ID + '-ai-context' });
-    const contextHead = contextCard.createDiv({ cls:PLUGIN_ID + '-ai-context-head' });
-    contextHead.createDiv({ cls:PLUGIN_ID + '-ai-context-label', text:en ? 'NOTE CONTEXT' : '笔记上下文' });
-    const refreshContext = contextHead.createEl('button', { cls:PLUGIN_ID + '-ai-context-refresh', attr:{ type:'button', title:en ? 'Refresh recent notes' : '刷新最近笔记', 'aria-label':en ? 'Refresh recent notes' : '刷新最近笔记' } });
-    obsidian.setIcon(refreshContext, 'refresh-cw');
-    this._contextSelect = contextCard.createEl('select', { cls:PLUGIN_ID + '-ai-context-select dropdown', attr:{ 'aria-label':en ? 'Note context' : '笔记上下文' } });
-    this._contextHint = contextCard.createDiv({ cls:PLUGIN_ID + '-ai-context-hint' });
-    const contextChanged = () => { this._selectedContextPath = this._contextSelect.value; };
-    this._contextSelect.onchange = contextChanged;
-    refreshContext.onclick = () => this._refreshContextOptions();
+    this._buildSessionDrawer(shell);
+    this._messagesEl = shell.createEl('main', { cls:PLUGIN_ID + '-ai-messages', attr:{ 'aria-live':'polite' } });
+    await this._buildComposer(shell);
     await this._refreshContextOptions();
-
-    const actions = shell.createDiv({ cls:PLUGIN_ID + '-ai-actions' });
-    const actionItems = [
-      { action:'summarize', icon:'scan-text', label:en ? 'Summarize note' : '总结当前笔记', hint:en ? 'Key points and next actions' : '提炼重点与下一步' },
-      { action:'extract-todos', icon:'list-checks', label:en ? 'Extract tasks' : '提取待办', hint:en ? 'Generate a Markdown checklist' : '生成 Markdown 清单' }
-    ];
-    actionItems.forEach((item) => {
-      const button = actions.createEl('button', { cls:PLUGIN_ID + '-ai-action', attr:{ type:'button' } });
-      const icon = button.createSpan({ cls:PLUGIN_ID + '-ai-action-icon' }); obsidian.setIcon(icon, item.icon);
-      const copy = button.createSpan({ cls:PLUGIN_ID + '-ai-action-copy' });
-      copy.createSpan({ cls:PLUGIN_ID + '-ai-action-label', text:item.label });
-      copy.createSpan({ cls:PLUGIN_ID + '-ai-action-hint', text:item.hint });
-      button.onclick = () => this._run(item.action, '');
+    this._renderActiveSession();
+    this._renderSessionList();
+    this.registerDomEvent(document, 'click', () => this._closeContextPopover());
+  }
+  _buildSessionDrawer(shell) {
+    const en = this._language === 'en';
+    const layer = shell.createDiv({ cls:PLUGIN_ID + '-ai-session-drawer-layer' });
+    layer.hidden = true;
+    const backdrop = layer.createDiv({ cls:PLUGIN_ID + '-ai-session-backdrop' });
+    const drawer = layer.createEl('aside', { cls:PLUGIN_ID + '-ai-session-drawer', attr:{ 'aria-label':en ? 'Conversation history' : '会话历史' } });
+    const head = drawer.createDiv({ cls:PLUGIN_ID + '-ai-session-drawer-head' });
+    head.createEl('strong', { text:en ? 'Conversations' : '对话' });
+    const add = this._iconButton(head, 'square-pen', en ? 'New conversation' : '新建对话');
+    const search = drawer.createEl('input', { cls:PLUGIN_ID + '-ai-session-search', attr:{ type:'search', placeholder:en ? 'Search conversations' : '搜索对话', 'aria-label':en ? 'Search conversations' : '搜索对话' } });
+    const list = drawer.createDiv({ cls:PLUGIN_ID + '-ai-session-list' });
+    drawer.createDiv({ cls:PLUGIN_ID + '-ai-session-privacy', text:en
+      ? 'Local history excludes attachments, RAG excerpts, reasoning, and tool arguments.'
+      : '本地历史不保存附件、RAG 片段、思考过程和工具参数。' });
+    backdrop.onclick = () => this._toggleSessionDrawer(false);
+    add.onclick = () => this._newSession();
+    search.oninput = () => this._renderSessionList(search.value);
+    drawer.onclick = (event) => event.stopPropagation();
+    this._sessionDrawerEls = { layer, drawer, list, search };
+  }
+  _toggleSessionDrawer(open) {
+    const layer = this._sessionDrawerEls?.layer;
+    if (!layer) return;
+    layer.hidden = !open;
+    layer.classList.toggle('is-open', open);
+    if (open) { this._renderSessionList(this._sessionDrawerEls.search.value); window.setTimeout(() => this._sessionDrawerEls.search.focus(), 0); }
+  }
+  _sessionGroup(session) {
+    const en = this._language === 'en';
+    const age = Date.now() - session.updatedAt;
+    if (age < 86400000 && new Date(session.updatedAt).toDateString() === new Date().toDateString()) return en ? 'Today' : '今天';
+    if (age < 7 * 86400000) return en ? 'Previous 7 days' : '过去 7 天';
+    return en ? 'Earlier' : '更早';
+  }
+  _renderSessionList(query = '') {
+    const list = this._sessionDrawerEls?.list;
+    if (!list) return;
+    const en = this._language === 'en';
+    const normalizedQuery = String(query || '').trim().toLocaleLowerCase();
+    const sessions = this._historyState.sessions.filter((session) => !normalizedQuery || session.title.toLocaleLowerCase().includes(normalizedQuery));
+    list.empty();
+    if (!sessions.length) {
+      list.createDiv({ cls:PLUGIN_ID + '-ai-session-empty', text:normalizedQuery ? (en ? 'No matching conversations' : '没有匹配的对话') : (en ? 'No conversations yet' : '还没有历史对话') });
+      return;
+    }
+    let lastGroup = '';
+    sessions.forEach((session) => {
+      const group = this._sessionGroup(session);
+      if (group !== lastGroup) { list.createDiv({ cls:PLUGIN_ID + '-ai-session-group', text:group }); lastGroup = group; }
+      const row = list.createDiv({ cls:PLUGIN_ID + '-ai-session-row' + (session.id === this._activeSessionId ? ' is-active' : '') });
+      const open = row.createEl('button', { cls:PLUGIN_ID + '-ai-session-open', attr:{ type:'button' } });
+      open.createSpan({ cls:PLUGIN_ID + '-ai-session-row-title', text:session.title });
+      open.createSpan({ cls:PLUGIN_ID + '-ai-session-row-meta', text:(session.messages.length || 0) + (en ? ' messages' : ' 条消息') });
+      const more = this._iconButton(row, 'ellipsis', en ? 'Conversation actions' : '对话操作', PLUGIN_ID + '-ai-session-more');
+      open.onclick = () => this._switchSession(session.id);
+      more.onclick = (event) => { event.stopPropagation(); this._openSessionMenu(event, session); };
     });
-
-    this._messagesEl = shell.createDiv({ cls:PLUGIN_ID + '-ai-messages' });
+  }
+  _openSessionMenu(event, session) {
+    const en = this._language === 'en';
+    const menu = new obsidian.Menu();
+    menu.addItem((item) => item.setTitle(en ? 'Rename' : '重命名').setIcon('pencil').onClick(() => {
+      new CockpitAISessionNameModal(this.app, session.title, this._language, async (title) => {
+        await this.plugin.aiHistory.rename(session.id, title, this._language); await this._refreshHistoryUi();
+      }).open();
+    }));
+    menu.addItem((item) => item.setTitle(en ? 'Delete' : '删除').setIcon('trash-2').onClick(() => {
+      new CockpitAISessionDeleteModal(this.app, session.title, this._language, async () => {
+        await this.plugin.aiHistory.remove(session.id);
+        this._historyState = await this.plugin.aiHistory.load();
+        if (!this._historyState.sessions.length) await this._newSession();
+        else await this._switchSession(this._historyState.activeSessionId || this._historyState.sessions[0].id);
+      }).open();
+    }));
+    menu.showAtMouseEvent(event);
+  }
+  async _newSession() {
+    if (this._busy) return;
+    const config = await this.plugin.ai.getConfig();
+    const session = await this.plugin.aiHistory.create({ language:this._language, profileId:config.activeProfileId, contextPaths:[] });
+    this._historyState = await this.plugin.aiHistory.load();
+    this._activeSessionId = session.id;
+    this._selectedContextPaths = [];
+    this._uploadedContexts = [];
+    this._toggleSessionDrawer(false);
+    await this._refreshContextOptions();
+    this._renderActiveSession();
+    this._renderSessionList();
+    this._composerEls?.input?.focus();
+  }
+  async _switchSession(sessionId) {
+    if (this._busy || sessionId === this._activeSessionId) { this._toggleSessionDrawer(false); return; }
+    const session = await this.plugin.aiHistory.setActive(sessionId);
+    if (!session) return;
+    this._historyState = await this.plugin.aiHistory.load();
+    this._activeSessionId = session.id;
+    this._selectedContextPaths = [...session.contextPaths];
+    this._uploadedContexts = [];
+    const config = await this.plugin.ai.getConfig();
+    if (session.profileId && config.profiles.some((profile) => profile.id === session.profileId) && session.profileId !== config.activeProfileId) await this.plugin.ai.setActiveProfile(session.profileId);
+    await this._refreshContextOptions();
+    this._renderActiveSession();
+    this._renderSessionList();
+    this._toggleSessionDrawer(false);
+  }
+  async _refreshHistoryUi() {
+    this._historyState = await this.plugin.aiHistory.load();
+    this._renderSessionList(this._sessionDrawerEls?.search?.value || '');
+    const session = this._activeSession();
+    if (this._sessionTitleEl) this._sessionTitleEl.setText(session?.title || (this._language === 'en' ? 'New chat' : '新对话'));
+  }
+  _renderWelcome() {
+    const en = this._language === 'en';
     const welcome = this._messagesEl.createDiv({ cls:PLUGIN_ID + '-ai-welcome' });
-    welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-icon' });
-    obsidian.setIcon(welcome.lastElementChild, 'sparkles');
-    welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-title', text:en ? 'Ask about what you are working on' : '问问你正在处理的内容' });
-    welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-copy', text:en ? 'Choose a recent note above. This preview can read it, but cannot edit your vault.' : '可在上方选择最近笔记。当前预览版只读取内容，不会修改你的 Vault。' });
-
-    const composer = shell.createDiv({ cls:PLUGIN_ID + '-ai-composer' });
-    const input = composer.createEl('textarea', { cls:PLUGIN_ID + '-ai-input', attr:{ rows:'3', maxlength:'8000', placeholder:en ? 'Ask a question about the selected note…' : '针对所选笔记提一个问题…', 'aria-label':en ? 'Ask Cockpit AI' : '向 Cockpit AI 提问' } });
+    const icon = welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-icon' }); obsidian.setIcon(icon, 'sparkles');
+    welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-title', text:en ? 'What are we working on?' : '今天想处理什么？' });
+    welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-copy', text:en ? 'Ask directly, or add notes and files from the composer.' : '直接提问，或者从输入框添加笔记与文件。' });
+    const prompts = welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-prompts' });
+    const summarize = prompts.createEl('button', { text:en ? 'Summarize selected notes' : '总结所选笔记' });
+    const todos = prompts.createEl('button', { text:en ? 'Extract next actions' : '提取下一步行动' });
+    summarize.onclick = () => this._run('summarize', ''); todos.onclick = () => this._run('extract-todos', '');
+  }
+  _renderActiveSession() {
+    if (!this._messagesEl) return;
+    const session = this._activeSession();
+    if (this._sessionTitleEl) this._sessionTitleEl.setText(session?.title || (this._language === 'en' ? 'New chat' : '新对话'));
+    this._messagesEl.empty();
+    if (!session?.messages?.length) this._renderWelcome();
+    else session.messages.forEach((message) => this._appendMessage(message.role, message.content, false, { markdown:message.role === 'assistant' }));
+    this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
+  }
+  async _buildComposer(shell) {
+    const en = this._language === 'en';
+    const composer = shell.createEl('section', { cls:PLUGIN_ID + '-ai-composer' });
+    const uploadInput = composer.createEl('input', { cls:PLUGIN_ID + '-ai-upload-input', attr:{ type:'file', multiple:'multiple', accept:'.md,.txt,.csv,.json,.yaml,.yml,.log,.html,.htm,.xml,text/*' } });
+    const chips = composer.createDiv({ cls:PLUGIN_ID + '-ai-context-chips' });
+    const input = composer.createEl('textarea', { cls:PLUGIN_ID + '-ai-input', attr:{ rows:'1', maxlength:'8000', placeholder:en ? 'Message Cockpit AI' : '向 Cockpit AI 提问', 'aria-label':en ? 'Ask Cockpit AI' : '向 Cockpit AI 提问' } });
     const footer = composer.createDiv({ cls:PLUGIN_ID + '-ai-composer-footer' });
-    footer.createDiv({ cls:PLUGIN_ID + '-ai-shortcut', text:en ? '⌘/Ctrl + Enter to send' : '⌘/Ctrl + Enter 发送' });
-    const send = footer.createEl('button', { cls:PLUGIN_ID + '-ai-send', attr:{ type:'button' } });
-    obsidian.setIcon(send.createSpan(), 'arrow-up'); send.createSpan({ text:en ? 'Send' : '发送' });
-    const submit = () => {
-      const question = input.value.trim();
-      if (!question || this._busy) return;
-      input.value = '';
-      this._run('custom', question);
+    const tools = footer.createDiv({ cls:PLUGIN_ID + '-ai-composer-tools' });
+    const add = tools.createEl('button', { cls:PLUGIN_ID + '-ai-composer-add', attr:{ type:'button', title:en ? 'Add context or file' : '添加上下文或文件', 'aria-label':en ? 'Add context or file' : '添加上下文或文件', 'aria-expanded':'false' } }); obsidian.setIcon(add, 'plus');
+    const contextButton = tools.createEl('button', { cls:PLUGIN_ID + '-ai-context-summary', attr:{ type:'button', 'aria-expanded':'false' } });
+    const contextIcon = contextButton.createSpan(); obsidian.setIcon(contextIcon, 'database-zap');
+    const contextLabel = contextButton.createSpan({ cls:PLUGIN_ID + '-ai-context-summary-label' });
+    const right = footer.createDiv({ cls:PLUGIN_ID + '-ai-composer-right' });
+    const modelSelect = right.createEl('select', { cls:PLUGIN_ID + '-ai-model-select dropdown', attr:{ 'aria-label':en ? 'AI model' : 'AI 模型', title:en ? 'Switch AI model' : '切换 AI 模型' } });
+    const config = await this.plugin.ai.getConfig();
+    this._fillModelOptions(modelSelect, config);
+    const send = right.createEl('button', { cls:PLUGIN_ID + '-ai-send', attr:{ type:'button' } });
+    const popover = composer.createDiv({ cls:PLUGIN_ID + '-ai-context-popover' }); popover.hidden = true;
+    const menu = popover.createDiv({ cls:PLUGIN_ID + '-ai-context-menu', attr:{ role:'menu' } });
+    this._contextPickerEls = { composer, popover, menu, chips, uploadInput, add, contextButton, contextLabel };
+    const togglePopover = (event) => { event.stopPropagation(); const open = popover.hidden; popover.hidden = !open; add.setAttribute('aria-expanded', String(open)); contextButton.setAttribute('aria-expanded', String(open)); };
+    add.onclick = togglePopover; contextButton.onclick = togglePopover; popover.onclick = (event) => event.stopPropagation();
+    uploadInput.onchange = async () => {
+      try {
+        const additions = await readAiUploadFiles(uploadInput.files); const merged = [...this._uploadedContexts];
+        additions.forEach((item) => { if (!merged.some((existing) => existing.hash === item.hash && existing.name === item.name)) merged.push(item); });
+        if (merged.length > AI_UPLOAD_LIMITS.maxFiles) throw new Error(en ? 'Attach at most five files.' : '最多上传 5 个文件。');
+        this._uploadedContexts = merged; this._renderContextPicker();
+      } catch (error) { new obsidian.Notice((en ? 'Could not attach file: ' : '文件上传失败：') + (error?.message || 'unknown error')); }
+      finally { uploadInput.value = ''; }
     };
-    send.onclick = () => {
-      if (this._busy) { this._abortController?.abort(); return; }
-      submit();
-    };
+    const resize = () => { input.style.height = 'auto'; input.style.height = Math.min(160, Math.max(30, input.scrollHeight)) + 'px'; };
+    input.oninput = resize;
+    const submit = () => { const question = input.value.trim(); if (!question || this._busy) return; input.value = ''; resize(); this._run('custom', question); };
+    send.onclick = () => { if (this._busy) this._abortController?.abort(); else submit(); };
     input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); submit(); }
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); submit(); }
     });
-    this._composerEls = { input, send, actions, modelSelect };
+    modelSelect.onchange = async () => {
+      const previous = (await this.plugin.ai.getConfig()).activeProfileId; modelSelect.disabled = true;
+      try {
+        const saved = await this.plugin.ai.setActiveProfile(modelSelect.value); if (saved.activeProfileId !== modelSelect.value) throw new Error('profile not found');
+        await this.plugin.aiHistory.update(this._activeSessionId, { profileId:modelSelect.value }); await this._refreshHistoryUi();
+      } catch (error) { modelSelect.value = previous; new obsidian.Notice(en ? 'Could not switch the AI model.' : '模型切换失败，请检查配置。'); }
+      finally { modelSelect.disabled = false; }
+    };
+    this._composerEls = { input, send, modelSelect, composer };
+    this._renderSendState(false);
+  }
+  _fillModelOptions(modelSelect, config) {
+    modelSelect.empty();
+    config.profiles.forEach((profile) => modelSelect.createEl('option', { value:profile.id, text:profile.name || profile.model }));
+    modelSelect.value = config.activeProfileId;
+  }
+  _closeContextPopover() {
+    if (!this._contextPickerEls?.popover) return;
+    this._contextPickerEls.popover.hidden = true;
+    this._contextPickerEls.add.setAttribute('aria-expanded', 'false');
+    this._contextPickerEls.contextButton.setAttribute('aria-expanded', 'false');
   }
   async _refreshContextOptions() {
-    if (!this._contextSelect) return;
-    const en = this._language === 'en';
+    if (!this._contextPickerEls) return;
     try {
-      const recent = await this.plugin.ai.listRecentNotes(this._selectedContextPath);
-      this._contextSelect.empty();
-      if (!recent.length) {
-        this._contextSelect.createEl('option', { value:'', text:en ? 'No recent Markdown note' : '没有最近打开的 Markdown 笔记' });
-        this._contextSelect.disabled = true;
-        this._selectedContextPath = '';
-      } else {
-        recent.forEach((entry) => this._contextSelect.createEl('option', { value:entry.path, text:entry.path }));
-        this._contextSelect.disabled = false;
-        this._selectedContextPath = recent[0].path;
-        this._contextSelect.value = this._selectedContextPath;
-      }
-      this._contextHint.setText(en
-        ? 'Only the selected note is sent after you click an action or send a question.'
-        : '只有点击快捷操作或发送问题后，所选笔记内容才会发给模型。');
-      this._contextHint.classList.toggle('is-empty', !recent.length);
-    } catch (e) {
-      this._contextSelect.empty();
-      this._contextSelect.createEl('option', { value:'', text:en ? 'Could not read recent notes' : '无法读取最近笔记' });
-      this._contextSelect.disabled = true;
-      this._contextHint.setText(en ? 'Try refreshing after opening a Markdown note.' : '打开一篇 Markdown 笔记后再刷新。');
-      this._contextHint.addClass('is-empty');
-    }
+      const recent = await this.plugin.ai.listRecentNotes(this._selectedContextPaths[0] || '');
+      const byPath = new Map(recent.map((entry) => [entry.path, entry]));
+      this._selectedContextPaths.forEach((path) => { if (!byPath.has(path)) byPath.set(path, { path }); });
+      this._contextEntries = Array.from(byPath.values()).slice(0, 20);
+    } catch (error) { this._contextEntries = this._selectedContextPaths.map((path) => ({ path })); }
+    this._renderContextPicker();
+  }
+  _renderContextPicker() {
+    const elements = this._contextPickerEls;
+    if (!elements) return;
+    const en = this._language === 'en';
+    const selected = new Set(this._selectedContextPaths);
+    const selectedCount = selected.size; const attachmentCount = this._uploadedContexts.length;
+    elements.contextLabel.setText(selectedCount || attachmentCount
+      ? (en ? `${selectedCount} notes · ${attachmentCount} files` : `${selectedCount} 篇 · ${attachmentCount} 附件`)
+      : (en ? 'Auto RAG' : '自动 RAG'));
+    elements.menu.empty();
+    const menuHead = elements.menu.createDiv({ cls:PLUGIN_ID + '-ai-context-menu-head' });
+    menuHead.createEl('strong', { text:en ? 'Add context' : '添加上下文' });
+    const menuActions = menuHead.createDiv();
+    const upload = this._iconButton(menuActions, 'paperclip', en ? 'Attach text files' : '上传文本文件');
+    const refresh = this._iconButton(menuActions, 'refresh-cw', en ? 'Refresh recent notes' : '刷新最近笔记');
+    upload.onclick = () => elements.uploadInput.click(); refresh.onclick = () => this._refreshContextOptions();
+    const auto = elements.menu.createEl('button', { cls:PLUGIN_ID + '-ai-context-option is-auto' + (!selectedCount ? ' is-selected' : ''), attr:{ type:'button', role:'menuitem' } });
+    const autoIcon = auto.createSpan({ cls:PLUGIN_ID + '-ai-context-option-icon' }); obsidian.setIcon(autoIcon, 'sparkles');
+    const autoCopy = auto.createSpan({ cls:PLUGIN_ID + '-ai-context-option-copy' }); autoCopy.createSpan({ text:en ? 'Automatic local RAG' : '自动本地 RAG' }); autoCopy.createSpan({ text:en ? 'Search the Vault only when you send' : '仅在发送问题时检索知识库' });
+    auto.onclick = () => { this._selectedContextPaths = []; this._renderContextPicker(); };
+    this._contextEntries.forEach((entry) => {
+      const row = elements.menu.createEl('label', { cls:PLUGIN_ID + '-ai-context-option' + (selected.has(entry.path) ? ' is-selected' : '') });
+      const checkbox = row.createEl('input', { attr:{ type:'checkbox', value:entry.path } }); checkbox.checked = selected.has(entry.path);
+      const copy = row.createSpan({ cls:PLUGIN_ID + '-ai-context-option-copy' }); copy.createSpan({ text:entry.path.split('/').pop()?.replace(/\.md$/i, '') || entry.path }); copy.createSpan({ text:entry.path });
+      checkbox.onchange = () => { const next = new Set(this._selectedContextPaths); if (checkbox.checked) next.add(entry.path); else next.delete(entry.path); this._selectedContextPaths = Array.from(next).slice(0, 12); this._renderContextPicker(); };
+    });
+    const quick = elements.menu.createDiv({ cls:PLUGIN_ID + '-ai-context-quick-actions' });
+    const summarize = quick.createEl('button', { text:en ? 'Summarize' : '总结' }); const todos = quick.createEl('button', { text:en ? 'Extract tasks' : '提取待办' });
+    summarize.onclick = () => { this._closeContextPopover(); this._run('summarize', ''); };
+    todos.onclick = () => { this._closeContextPopover(); this._run('extract-todos', ''); };
+    elements.chips.empty();
+    const addChip = (label, iconName, remove, title) => {
+      const chip = elements.chips.createDiv({ cls:PLUGIN_ID + '-ai-context-chip', attr:{ title:title || label } });
+      const icon = chip.createSpan({ cls:PLUGIN_ID + '-ai-context-chip-icon' }); obsidian.setIcon(icon, iconName);
+      chip.createSpan({ cls:PLUGIN_ID + '-ai-context-chip-label', text:label });
+      const close = chip.createEl('button', { attr:{ type:'button', 'aria-label':(en ? 'Remove ' : '移除 ') + label } }); obsidian.setIcon(close, 'x'); close.onclick = remove;
+    };
+    this._selectedContextPaths.forEach((path) => addChip(path.split('/').pop()?.replace(/\.md$/i, '') || path, 'file-text', () => { this._selectedContextPaths = this._selectedContextPaths.filter((item) => item !== path); this._renderContextPicker(); }, path));
+    this._uploadedContexts.forEach((item) => addChip(item.name, 'paperclip', () => { this._uploadedContexts = this._uploadedContexts.filter((entry) => entry !== item); this._renderContextPicker(); }, item.name));
   }
   async _refreshModelOptions() {
     const modelSelect = this._composerEls?.modelSelect;
     if (!modelSelect) return;
-    const config = await this.plugin.ai.getConfig();
-    modelSelect.empty();
-    config.profiles.forEach((profile) => modelSelect.createEl('option', {
-      value:profile.id,
-      text:profile.name && profile.name !== profile.model ? profile.name + ' · ' + profile.model : profile.model
-    }));
-    modelSelect.value = config.activeProfileId;
-    modelSelect.disabled = this._busy;
+    const config = await this.plugin.ai.getConfig(); this._fillModelOptions(modelSelect, config); modelSelect.disabled = this._busy;
   }
-  _appendMessage(role, text, pending) {
+  async _renderMarkdown(element, text) {
+    try { element.empty(); await obsidian.MarkdownRenderer.render(this.app, String(text || ''), element, '', this); }
+    catch (error) { element.setText(String(text || '')); }
+  }
+  _appendMessage(role, text, pending, options = {}) {
     this._messagesEl?.querySelector('.' + PLUGIN_ID + '-ai-welcome')?.remove();
     const row = this._messagesEl.createDiv({ cls:PLUGIN_ID + '-ai-message ' + role + (pending ? ' pending' : '') });
-    row.createDiv({ cls:PLUGIN_ID + '-ai-message-role', text:role === 'user' ? (this._language === 'en' ? 'You' : '你') : 'Cockpit AI' });
-    const body = row.createDiv({ cls:PLUGIN_ID + '-ai-message-body', text });
+    if (role === 'assistant') { const avatar = row.createDiv({ cls:PLUGIN_ID + '-ai-message-avatar' }); obsidian.setIcon(avatar, 'sparkles'); }
+    const content = row.createDiv({ cls:PLUGIN_ID + '-ai-message-content' });
+    const body = content.createDiv({ cls:PLUGIN_ID + '-ai-message-body' });
+    if (options.markdown && role === 'assistant') this._renderMarkdown(body, text); else body.setText(text || '');
     this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
-    return { row, body };
+    return { row, content, body };
   }
   _appendStreamingMessage() {
     const en = this._language === 'en';
     const message = this._appendMessage('assistant', '', false);
     message.body.addClass(PLUGIN_ID + '-ai-stream');
-    const status = message.body.createDiv({
-      cls:PLUGIN_ID + '-ai-stream-status is-running',
-      attr:{ 'aria-live':'polite', role:'status' }
-    });
-    status.createSpan({ cls:PLUGIN_ID + '-ai-stream-dot', attr:{ 'aria-hidden':'true' } });
-    const statusText = status.createSpan({ text:en ? 'Connecting to model…' : '正在连接模型…' });
-    const reasoning = message.body.createEl('details', { cls:PLUGIN_ID + '-ai-reasoning is-empty' });
-    reasoning.createEl('summary', { text:en ? 'Reasoning process' : '思考过程' });
+    const activity = message.body.createEl('details', { cls:PLUGIN_ID + '-ai-activity', attr:{ open:'open' } });
+    activity.createEl('summary', { text:en ? 'Work log' : '处理过程' });
+    const toolActivity = activity.createDiv({ cls:PLUGIN_ID + '-ai-activity-track', attr:{ 'aria-live':'polite' } });
+    const status = toolActivity.createDiv({ cls:PLUGIN_ID + '-ai-activity-step is-running', attr:{ role:'status' } });
+    const statusIcon = status.createSpan({ cls:PLUGIN_ID + '-ai-activity-icon' }); obsidian.setIcon(statusIcon, 'loader-circle');
+    const statusText = status.createSpan({ cls:PLUGIN_ID + '-ai-activity-label', text:en ? 'Connecting to model' : '正在连接模型' });
+    status.createSpan({ cls:PLUGIN_ID + '-ai-tool-state' });
+    const reasoning = message.body.createEl('details', { cls:PLUGIN_ID + '-ai-reasoning is-empty' }); reasoning.createEl('summary', { text:en ? 'Reasoning' : '思考过程' });
     const reasoningText = reasoning.createDiv({ cls:PLUGIN_ID + '-ai-reasoning-text' });
     const answer = message.body.createDiv({ cls:PLUGIN_ID + '-ai-stream-answer' });
-    return { ...message, status, statusText, reasoning, reasoningText, answer };
+    return { ...message, activity, status, statusText, reasoning, reasoningText, answer, toolActivity, toolRows:new Map() };
+  }
+  _renderToolEvent(message, event) {
+    if (!message?.toolActivity || !event?.callId) return;
+    const en = this._language === 'en';
+    let row = message.toolRows.get(event.callId);
+    if (!row) {
+      row = message.toolActivity.createDiv({ cls:PLUGIN_ID + '-ai-activity-step' });
+      const icon = row.createSpan({ cls:PLUGIN_ID + '-ai-activity-icon' });
+      const iconName = event.name === 'local_context' ? 'search' : event.name === 'reasoning' ? 'brain' : event.name === 'writing' ? 'pencil-line' : 'wrench'; obsidian.setIcon(icon, iconName);
+      row.createSpan({ cls:PLUGIN_ID + '-ai-activity-label', text:event.label || event.name || (en ? 'Cockpit tool' : 'Cockpit 工具') }); row.createSpan({ cls:PLUGIN_ID + '-ai-tool-state' });
+      message.toolRows.set(event.callId, row);
+    }
+    const states = en ? { requested:'Queued', awaiting_confirmation:'Waiting', executing:'Running', completed:'Done', denied:'Denied', error:'Failed' }
+      : { requested:'已排队', awaiting_confirmation:'等待确认', executing:'执行中', completed:'已完成', denied:'已拒绝', error:'失败' };
+    row.className = PLUGIN_ID + '-ai-activity-step is-' + String(event.stage || 'requested').replace(/_/g, '-');
+    if (event.label) row.querySelector('.' + PLUGIN_ID + '-ai-activity-label')?.setText(event.label);
+    row.querySelector('.' + PLUGIN_ID + '-ai-tool-state')?.setText(states[event.stage] || event.stage || '');
+  }
+  _confirmAgentTool(tool) {
+    return new Promise((resolve) => {
+      const signal = this._abortController?.signal; let modal = null;
+      const finish = (value) => { signal?.removeEventListener?.('abort', onAbort); if (this._toolConfirmModal === modal) this._toolConfirmModal = null; resolve(value); };
+      const onAbort = () => modal?.close(); modal = new CockpitAgentConfirmationModal(this.app, tool, this._language, finish); this._toolConfirmModal = modal;
+      signal?.addEventListener?.('abort', onAbort, { once:true }); modal.open();
+    });
   }
   _renderSendState(running) {
     const send = this._composerEls?.send;
     if (!send) return;
-    const en = this._language === 'en';
-    send.empty();
-    obsidian.setIcon(send.createSpan(), running ? 'square' : 'arrow-up');
-    send.createSpan({ text:running ? (en ? 'Stop' : '停止') : (en ? 'Send' : '发送') });
-    send.classList.toggle('is-stop', running);
+    const en = this._language === 'en'; send.empty(); obsidian.setIcon(send, running ? 'square' : 'arrow-up'); send.classList.toggle('is-stop', running);
     send.setAttribute('aria-label', running ? (en ? 'Stop generation' : '停止生成') : (en ? 'Send message' : '发送消息'));
+    send.setAttribute('title', running ? (en ? 'Stop generation' : '停止生成') : (en ? 'Send message' : '发送消息'));
   }
   _setBusy(value) {
     this._busy = value;
-    const { input, send, actions, modelSelect } = this._composerEls || {};
-    if (input) input.disabled = value;
-    if (send) send.disabled = false;
-    this._renderSendState(value);
-    if (modelSelect) modelSelect.disabled = value;
-    if (this._contextSelect) this._contextSelect.disabled = value || !this._selectedContextPath;
-    actions?.querySelectorAll('button').forEach((button) => { button.disabled = value; });
+    const { input, send, modelSelect, composer } = this._composerEls || {};
+    if (input) input.disabled = value; if (send) send.disabled = false; if (modelSelect) modelSelect.disabled = value; this._renderSendState(value);
+    composer?.querySelectorAll('.' + PLUGIN_ID + '-ai-context-popover button').forEach((button) => { button.disabled = value; });
+  }
+  async _safeHistory(operation) {
+    try { return await operation; }
+    catch (error) { console.warn('Cockpit: could not save AI conversation history'); return null; }
   }
   async _run(action, question) {
     if (this._busy) return;
     const en = this._language === 'en';
-    this._abortController = new AbortController();
-    this._setBusy(true);
-    let streamMessage = null;
-    let clock = null;
-    const startedAt = Date.now();
-    let stage = en ? 'Connecting to model' : '正在连接模型';
+    if (action !== 'custom' && !this._selectedContextPaths.length && !this._uploadedContexts.length) {
+      new obsidian.Notice(en ? 'Select at least one note or attach a text file for this action.' : '请先选择笔记或添加文本文件'); this._closeContextPopover(); return;
+    }
+    const session = this._activeSession();
+    const priorHistory = (session?.messages || []).map((message) => ({ role:message.role, content:message.content }));
+    const config = await this.plugin.ai.getConfig();
+    const runAttachments = this._uploadedContexts.map((item) => ({ ...item }));
+    const userText = question || (action === 'summarize' ? (en ? 'Summarize the selected notes' : '总结所选笔记') : (en ? 'Extract tasks from the selected notes' : '从所选笔记提取待办'));
+    this._abortController = new AbortController(); this._setBusy(true); this._closeContextPopover();
+    this._appendMessage('user', userText, false);
+    await this._safeHistory(this.plugin.aiHistory.update(this._activeSessionId, { profileId:config.activeProfileId, contextPaths:this._selectedContextPaths }));
+    await this._safeHistory(this.plugin.aiHistory.appendMessage(this._activeSessionId, { role:'user', content:userText, language:this._language }));
+    await this._refreshHistoryUi();
+    let streamMessage = this._appendStreamingMessage(); let clock = null; const startedAt = Date.now(); let stage = en ? 'Connecting to model' : '正在连接模型';
     const elapsedLabel = () => Math.max(0, (Date.now() - startedAt) / 1000).toFixed(1) + 's';
-    const setStatus = (text, state = 'is-running') => {
-      if (!streamMessage) return;
-      streamMessage.status.className = PLUGIN_ID + '-ai-stream-status ' + state;
-      streamMessage.statusText.setText(text);
-    };
+    const setStatus = (text, state = 'is-running') => { streamMessage.status.className = PLUGIN_ID + '-ai-activity-step ' + state; streamMessage.statusText.setText(text); };
     try {
-      const note = await this.plugin.ai.getCurrentNoteContext(this._selectedContextPath);
-      if (!note && action !== 'custom') throw new Error(en ? 'Open a Markdown note first.' : '请先打开一篇 Markdown 笔记');
-      const userText = question || (action === 'summarize' ? (en ? 'Summarize the selected note' : '总结所选笔记') : (en ? 'Extract tasks from the selected note' : '从所选笔记提取待办'));
-      this._appendMessage('user', userText, false);
-      streamMessage = this._appendStreamingMessage();
       clock = window.setInterval(() => setStatus(stage + ' · ' + elapsedLabel()), 500);
-      let answer = '';
-      let reasoning = '';
-      const result = await this.plugin.ai.completeStream(
-        { action, question, note, language:this._language },
-        (event) => {
-          if (event.type === 'status' && event.stage === 'fallback') {
-            stage = en ? 'Compatibility mode' : '兼容模式处理中';
-            setStatus(stage + ' · ' + elapsedLabel());
-          }
-          if (event.type === 'reasoning' && event.text) {
-            stage = en ? 'Reasoning' : '正在思考';
-            reasoning += event.text;
-            streamMessage.reasoning.removeClass('is-empty');
-            streamMessage.reasoning.open = true;
-            streamMessage.reasoningText.append(document.createTextNode(event.text));
-            setStatus(stage + ' · ' + elapsedLabel());
-          }
-          if (event.type === 'content' && event.text) {
-            stage = en ? 'Writing answer' : '正在生成回答';
-            answer += event.text;
-            streamMessage.answer.append(document.createTextNode(event.text));
-            setStatus(stage + ' · ' + elapsedLabel());
-          }
-          this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
-        },
-        this._abortController.signal
-      );
-      answer = result.content || answer;
-      reasoning = result.reasoning || reasoning;
-      if (!streamMessage.answer.textContent && answer) streamMessage.answer.setText(answer);
-      if (!streamMessage.reasoningText.textContent && reasoning) {
-        streamMessage.reasoning.removeClass('is-empty');
-        streamMessage.reasoningText.setText(reasoning);
-      }
-      setStatus((result.streamed ? (en ? 'Completed' : '生成完成') : (en ? 'Completed in compatibility mode' : '兼容模式完成')) + ' · ' + elapsedLabel(), 'is-done');
-      const tools = streamMessage.row.createDiv({ cls:PLUGIN_ID + '-ai-message-tools' });
-      const copy = tools.createEl('button', { attr:{ type:'button' }, text:en ? 'Copy' : '复制' });
-      copy.onclick = async () => {
-        try { await navigator.clipboard.writeText(answer); copy.setText(en ? 'Copied' : '已复制'); }
-        catch (e) { new obsidian.Notice(en ? 'Could not copy the response.' : '复制失败，请手动选择文本。'); }
-      };
-      this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
-    } catch (e) {
-      if (this._abortController?.signal.aborted || e?.name === 'AbortError') {
-        if (streamMessage) {
-          if (!streamMessage.answer.textContent && !streamMessage.reasoningText.textContent) streamMessage.answer.setText(en ? 'Generation stopped.' : '已停止生成。');
-          setStatus((en ? 'Stopped' : '已停止') + ' · ' + elapsedLabel(), 'is-stopped');
+      let answer = ''; let reasoning = '';
+      const result = await this.plugin.ai.completeAgentStream({
+        action, question, history:priorHistory, contextPaths:[...this._selectedContextPaths], attachments:runAttachments, language:this._language
+      }, (event) => {
+        if (event.type === 'status' && event.stage === 'fallback') stage = en ? 'Using compatibility mode' : '正在使用兼容模式';
+        if (event.type === 'status' && event.stage === 'tools_unavailable') stage = en ? 'Answering without tools' : '模型不支持工具，正在直接回答';
+        if (event.type === 'status' && event.stage === 'retrieving_context') {
+          stage = en ? 'Searching local knowledge base' : '正在检索本地知识库';
+          this._renderToolEvent(streamMessage, { callId:'context-' + startedAt, name:'local_context', label:stage, stage:'executing' });
         }
+        if (event.type === 'status' && event.stage === 'context_progress') {
+          stage = en ? `Indexing notes ${event.indexed || 0}/${event.total || 0}` : `正在索引笔记 ${event.indexed || 0}/${event.total || 0}`;
+          this._renderToolEvent(streamMessage, { callId:'context-' + startedAt, name:'local_context', label:stage, stage:'executing' });
+          streamMessage.toolRows.get('context-' + startedAt)?.querySelector('.' + PLUGIN_ID + '-ai-activity-label')?.setText(stage);
+        }
+        if (event.type === 'status' && event.stage === 'context_ready') {
+          const isRag = String(event.mode || '').startsWith('rag-');
+          const label = isRag ? (en ? `Selected ${event.count || 0} local excerpts` : `已选取 ${event.count || 0} 个本地片段`) : (en ? `Loaded ${event.count || 0} contexts` : `已载入 ${event.count || 0} 个上下文`);
+          this._renderToolEvent(streamMessage, { callId:'context-' + startedAt, name:'local_context', label, stage:'completed' });
+          streamMessage.toolRows.get('context-' + startedAt)?.querySelector('.' + PLUGIN_ID + '-ai-activity-label')?.setText(label); stage = label;
+        }
+        if (event.type === 'reasoning' && event.text) {
+          stage = en ? 'Reasoning' : '正在思考'; reasoning += event.text;
+          this._renderToolEvent(streamMessage, { callId:'reasoning-' + startedAt, name:'reasoning', label:stage, stage:'executing' });
+          streamMessage.reasoning.removeClass('is-empty'); streamMessage.reasoningText.append(document.createTextNode(event.text));
+        }
+        if (event.type === 'content' && event.text) {
+          stage = en ? 'Writing answer' : '正在生成回答'; answer += event.text;
+          this._renderToolEvent(streamMessage, { callId:'writing-' + startedAt, name:'writing', label:stage, stage:'executing' });
+          streamMessage.answer.append(document.createTextNode(event.text));
+        }
+        if (event.type === 'tool') {
+          this._renderToolEvent(streamMessage, event);
+          if (event.stage === 'awaiting_confirmation') stage = en ? 'Waiting for approval' : '等待你的确认';
+          else if (event.stage === 'executing') stage = en ? 'Running Cockpit tool' : '正在执行 Cockpit 工具';
+          else if (event.stage === 'completed') stage = en ? 'Tool completed' : '工具执行完成';
+          else if (event.stage === 'denied') stage = en ? 'Tool denied' : '工具已拒绝';
+        }
+        setStatus(stage + ' · ' + elapsedLabel()); this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
+      }, this._abortController.signal, { confirmTool:(tool) => this._confirmAgentTool(tool) });
+      answer = result.content || answer; reasoning = result.reasoning || reasoning;
+      if (!streamMessage.answer.textContent && answer) streamMessage.answer.setText(answer);
+      if (!streamMessage.reasoningText.textContent && reasoning) { streamMessage.reasoning.removeClass('is-empty'); streamMessage.reasoningText.setText(reasoning); }
+      if (reasoning) this._renderToolEvent(streamMessage, { callId:'reasoning-' + startedAt, name:'reasoning', label:en ? 'Reasoned through the request' : '已完成思考', stage:'completed' });
+      if (answer) this._renderToolEvent(streamMessage, { callId:'writing-' + startedAt, name:'writing', label:en ? 'Answer completed' : '回答已生成', stage:'completed' });
+      setStatus((en ? 'Completed' : '已完成') + ' · ' + elapsedLabel(), 'is-done');
+      await this._renderMarkdown(streamMessage.answer, answer);
+      const tools = streamMessage.content.createDiv({ cls:PLUGIN_ID + '-ai-message-tools' });
+      const copy = tools.createEl('button', { attr:{ type:'button' }, text:en ? 'Copy' : '复制' });
+      copy.onclick = async () => { try { await navigator.clipboard.writeText(answer); copy.setText(en ? 'Copied' : '已复制'); } catch (error) { new obsidian.Notice(en ? 'Could not copy the response.' : '复制失败，请手动选择文本。'); } };
+      await this._safeHistory(this.plugin.aiHistory.appendMessage(this._activeSessionId, { role:'assistant', content:answer, language:this._language }));
+    } catch (error) {
+      if (this._abortController?.signal.aborted || error?.name === 'AbortError') {
+        const partial = streamMessage.answer.textContent || '';
+        if (!partial && !streamMessage.reasoningText.textContent) streamMessage.answer.setText(en ? 'Generation stopped.' : '已停止生成。');
+        setStatus((en ? 'Stopped' : '已停止') + ' · ' + elapsedLabel(), 'is-stopped');
+        if (partial) await this._safeHistory(this.plugin.aiHistory.appendMessage(this._activeSessionId, { role:'assistant', content:partial, language:this._language }));
       } else {
-        const errorText = e?.message || (en ? 'AI request failed.' : 'AI 请求失败');
-        if (streamMessage) {
-          setStatus(en ? 'Request failed' : '请求失败', 'is-error');
-          if (!streamMessage.answer.textContent) streamMessage.answer.setText('⚠ ' + errorText);
-          streamMessage.row.addClass('error');
-        } else this._appendMessage('assistant', '⚠ ' + errorText, false).row.addClass('error');
+        const errorText = error?.message || (en ? 'AI request failed.' : 'AI 请求失败'); setStatus(en ? 'Request failed' : '请求失败', 'is-error');
+        if (!streamMessage.answer.textContent) streamMessage.answer.setText('⚠ ' + errorText); streamMessage.row.addClass('error');
       }
     } finally {
-      if (clock) window.clearInterval(clock);
-      this._abortController = null;
-      this._setBusy(false);
-      this._composerEls?.input?.focus();
+      if (clock) window.clearInterval(clock); this._abortController = null; this._uploadedContexts = []; this._setBusy(false);
+      await this._refreshHistoryUi(); this._renderContextPicker(); this._composerEls?.input?.focus(); this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
     }
   }
   async onClose() {
-    this._abortController?.abort();
-    this._aiConfigUnsubscribe?.();
-    this._aiConfigUnsubscribe = null;
-    this.contentEl.removeClass(PLUGIN_ID + '-ai-view');
-    this._messagesEl = null;
-    this._contextSelect = null;
-    this._contextHint = null;
-    this._composerEls = null;
+    this._abortController?.abort(); this._toolConfirmModal?.close(); this._toolConfirmModal = null;
+    this._aiConfigUnsubscribe?.(); this._aiConfigUnsubscribe = null; this.contentEl.removeClass(PLUGIN_ID + '-ai-view');
+    this._messagesEl = null; this._contextPickerEls = null; this._sessionDrawerEls = null; this._uploadedContexts = []; this._composerEls = null;
     window.setTimeout(() => this.plugin._syncAiLauncher?.(), 0);
   }
-}
-
-async function renderAiSettings(containerEl, plugin, language) {
-  const en = language === 'en';
-  const config = await plugin.ai.getConfig();
-  const section = containerEl.createDiv({ cls:PLUGIN_ID + '-ai-settings' });
-  section.createEl('h2', { text:'Cockpit AI' });
-  section.createEl('p', { text:en
-    ? 'Configure several OpenAI-compatible model profiles and switch between them in the AI sidebar. Requests go directly to the selected provider.'
-    : '可配置多个 OpenAI 兼容模型，并在 AI 侧栏直接切换。请求会直达所选模型服务，不经过 Cockpit 中转。' });
-  const save = async () => { await plugin.ai.saveConfig(config); };
-
-  const activeSetting = new obsidian.Setting(section)
-    .setName(en ? 'Active model' : '当前模型')
-    .setDesc(en ? 'The default profile used by the AI sidebar.' : 'AI 侧栏默认使用的模型配置。');
-  let activeDropdown = null;
-  const refreshActiveDropdown = () => {
-    if (!activeDropdown) return;
-    activeDropdown.selectEl.empty();
-    config.profiles.forEach((profile) => activeDropdown.addOption(profile.id, profile.name || profile.model));
-    activeDropdown.setValue(config.activeProfileId);
-  };
-  activeSetting.addDropdown((dropdown) => {
-    activeDropdown = dropdown;
-    config.profiles.forEach((profile) => dropdown.addOption(profile.id, profile.name || profile.model));
-    dropdown.setValue(config.activeProfileId).onChange(async (value) => { config.activeProfileId = value; await save(); });
-  });
-
-  const addSetting = new obsidian.Setting(section)
-    .setName(en ? 'Add provider' : '添加模型服务')
-    .setDesc(en ? 'Presets remain editable, so newer model IDs and compatible gateways also work.' : '预设地址和模型名都可编辑，后续新模型或兼容网关也能接入。');
-  let providerToAdd = 'deepseek';
-  addSetting.addDropdown((dropdown) => {
-    AI_PROVIDER_PRESETS.forEach((provider) => dropdown.addOption(provider.id, provider.name));
-    dropdown.setValue(providerToAdd).onChange((value) => { providerToAdd = value; });
-  });
-
-  const cards = section.createDiv({ cls:PLUGIN_ID + '-ai-profile-list' });
-  const renderCards = () => {
-    cards.empty();
-    config.profiles.forEach((profile, index) => {
-      const preset = getAiProviderPreset(profile.providerId);
-      const card = cards.createDiv({ cls:PLUGIN_ID + '-ai-profile-card' });
-      const heading = card.createDiv({ cls:PLUGIN_ID + '-ai-profile-heading' });
-      heading.createEl('strong', { text:profile.name || profile.model });
-      const headingActions = heading.createDiv({ cls:PLUGIN_ID + '-ai-profile-actions' });
-      const test = headingActions.createEl('button', { cls:PLUGIN_ID + '-ai-profile-test', attr:{ type:'button', 'aria-label':en ? 'Test this model profile' : '测试这个模型配置' } });
-      obsidian.setIcon(test, 'plug-zap');
-      test.createSpan({ text:en ? 'Test' : '测试' });
-      test.onclick = async () => {
-        test.disabled = true;
-        try { await save(); await plugin.ai.testProfile(profile.id, language); new obsidian.Notice(en ? 'This model connection is working.' : '这个模型连接正常'); }
-        catch (e) { new obsidian.Notice((en ? 'Model connection failed: ' : '模型连接失败：') + (e?.message || 'unknown error')); }
-        finally { test.disabled = false; }
-      };
-      if (config.profiles.length > 1) {
-        const remove = headingActions.createEl('button', { cls:PLUGIN_ID + '-ai-profile-remove', attr:{ type:'button', 'aria-label':en ? 'Remove profile' : '删除配置' } });
-        obsidian.setIcon(remove, 'trash-2');
-        remove.onclick = async () => {
-          config.profiles.splice(index, 1);
-          if (config.activeProfileId === profile.id) config.activeProfileId = config.profiles[0].id;
-          await save(); refreshActiveDropdown(); renderCards();
-        };
-      }
-      new obsidian.Setting(card).setName(en ? 'Display name' : '显示名称')
-        .addText((text) => text.setValue(profile.name).onChange(async (value) => { profile.name = value; await save(); refreshActiveDropdown(); }));
-      new obsidian.Setting(card).setName(en ? 'Provider preset' : '服务商预设')
-        .addDropdown((dropdown) => {
-          AI_PROVIDER_PRESETS.forEach((provider) => dropdown.addOption(provider.id, provider.name));
-          dropdown.setValue(profile.providerId).onChange(async (value) => {
-            const next = getAiProviderPreset(value);
-            profile.providerId = value; profile.baseUrl = next.baseUrl; profile.model = next.models[0] || profile.model;
-            await save(); renderCards();
-          });
-        });
-      new obsidian.Setting(card).setName(en ? 'API base URL' : 'API 基础地址')
-        .setDesc(en ? 'Remote URLs require HTTPS; localhost may use HTTP.' : '远程地址必须使用 HTTPS；本机服务可使用 HTTP。')
-        .addText((text) => text.setPlaceholder(preset.baseUrl).setValue(profile.baseUrl).onChange(async (value) => { profile.baseUrl = value; await save(); }));
-      new obsidian.Setting(card).setName(en ? 'Model ID' : '模型 ID')
-        .setDesc((preset.models.length ? (en ? 'Examples: ' : '示例：') + preset.models.join('、') : (en ? 'Enter the model identifier from your provider.' : '填写服务商给出的模型标识。')))
-        .addText((text) => text.setValue(profile.model).onChange(async (value) => { profile.model = value; await save(); }));
-      const secretSetting = new obsidian.Setting(card).setName(en ? 'API key' : 'API Key')
-        .setDesc(en ? 'Stored by Obsidian SecretStorage; only the secret name is kept in Cockpit data.' : '由 Obsidian SecretStorage 保管；Cockpit 数据中只保存密钥名称。');
-      if (obsidian.SecretComponent && typeof secretSetting.addComponent === 'function' && plugin.app.secretStorage) {
-        secretSetting.addComponent((el) => new obsidian.SecretComponent(plugin.app, el).setValue(profile.apiKeySecret).onChange(async (value) => { profile.apiKeySecret = value; await save(); }));
-      } else {
-        secretSetting.setDesc(en ? 'Upgrade Obsidian to a version with SecretStorage before using an API key.' : '请先升级到支持 SecretStorage 的 Obsidian 版本，再配置 API Key。');
-      }
-    });
-  };
-  addSetting.addButton((button) => button.setButtonText(en ? 'Add' : '添加').onClick(async () => {
-    if (config.profiles.length >= 20) return new obsidian.Notice(en ? 'Up to 20 model profiles are supported.' : '最多支持 20 个模型配置。');
-    const preset = getAiProviderPreset(providerToAdd);
-    const id = 'model-' + Date.now().toString(36);
-    config.profiles.push({ id, name:preset.name + ' · ' + (preset.models[0] || AI_DEFAULTS.model), providerId:preset.id, baseUrl:preset.baseUrl, model:preset.models[0] || AI_DEFAULTS.model, apiKeySecret:'' });
-    config.activeProfileId = id;
-    await save(); refreshActiveDropdown(); renderCards();
-  }));
-  renderCards();
-
-  new obsidian.Setting(section)
-    .setName(en ? 'Note context limit' : '笔记上下文上限')
-    .setDesc(en ? 'Maximum characters sent from the selected note (2,000–50,000).' : '单次最多发送的所选笔记字符数（2,000–50,000）。')
-    .addText((text) => { text.inputEl.type = 'number'; text.inputEl.min = '2000'; text.inputEl.max = '50000'; text.inputEl.step = '1000'; return text.setValue(String(config.maxContextChars)).onChange(async (value) => { config.maxContextChars = Number(value); await save(); }); });
-  section.createEl('p', { cls:PLUGIN_ID + '-ai-settings-footnote', text:en
-    ? 'Cockpit AI remains read-only: it can summarize, extract tasks, and answer questions, but cannot write to the vault.'
-    : 'Cockpit AI 仍为只读：可以总结、提取待办和回答问题，但不能写入 Vault。' });
-  containerEl.createEl('hr', { cls:PLUGIN_ID + '-settings-divider' });
 }

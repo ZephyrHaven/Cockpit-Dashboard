@@ -17,7 +17,7 @@ Cockpit Dashboard is a local-first Obsidian workspace for tasks, calendar, RSS, 
 
 - 看今天和本月的待办节奏
 - 快速搜索和打开笔记
-- 使用可选的 AI 助手总结当前笔记、提取待办或继续追问
+- 使用可选的 AI 助手组合多篇笔记与临时文本附件，进行总结、提取待办或继续追问
 - 查看知识库统计和最近更新
 - 按自己的习惯调整模块顺序与可见性
 - 为工作、阅读、回顾等场景保存不同布局，并按时间或文件夹自动切换
@@ -34,7 +34,7 @@ Cockpit Dashboard is a local-first Obsidian workspace for tasks, calendar, RSS, 
 | 💡 每日一语 | 内置提示每天轮换；编辑模式下可按当前语言维护、排序并选择轮询方式 |
 | 🧰 工具栏 | 新建笔记、全局搜索、标签、图谱、命令、Hermes、驾驶舱 H5、工作日志、番茄钟；编辑模式支持拖拽排序、显示/隐藏和自定义按钮，保存时局部更新工具栏 |
 | 🔍 全局搜索 | Spotlight 风格悬浮搜索，支持文件名、路径和笔记正文，带输入防抖、键盘选择和可拖动窗口；也可通过 Obsidian 命令快捷呼出 |
-| 🤖 AI 助手 | 可拖动的全局悬浮入口与可关闭侧栏；支持最近 Markdown 笔记上下文、总结、提取待办、自由问答、流式正文与可展开的思考过程 |
+| 🤖 AI 助手 | ChatGPT 式对话优先侧栏：底部统一放置模型、上下文、附件与发送操作；支持本地多会话历史、多选笔记、临时文本附件、本地关键词 RAG、流式回答和分段 Agent 过程轨道 |
 | 🧩 编辑模式 | 所有仪表盘模块统一支持上下拖动排序、显示/隐藏、修改标题和折叠状态持久化；统计卡片和 Toolbar 按钮也可分别排序、隐藏 |
 | ◈ 情景布局 | 保存多套模块与 Toolbar 布局；支持手动切换，也可按工作日、时间段或当前打开文件夹自动进入指定情景 |
 | 🖱️ 右键菜单 | 在首页空白区域弹出快捷菜单，支持刷新页面、新建笔记、搜索、命令面板、图谱、番茄钟、最近更新记录、进入编辑模式 |
@@ -87,7 +87,7 @@ Cockpit Dashboard 已上架 Obsidian 社区插件市场：
 
 ### 本地优先与用户数据权利
 
-你的数据归你：插件没有遥测，也不会在后台收集或上传 Vault 数据。只有你主动向 AI 助手发送问题、总结或提取待办时，所选笔记的截断上下文和问题才会直接发送到你配置的模型服务；API Key 使用 Obsidian SecretStorage 保存，不写入插件 `data.json`。数据迁移、清理和本地命令都需要你主动操作；第三方推送仅在自行启用时访问对应服务。打开“最近更新记录”时，插件只会请求 GitHub Releases 的公开信息，不会发送 Vault 内容或用户配置。
+你的数据归你：插件没有遥测，也不会在后台收集或上传 Vault 数据。只有你主动向 AI 助手发送问题、总结或提取待办时，所选笔记、临时文本附件或本地关键词 RAG 命中的截断片段，才会和问题一起直接发送到你配置的模型服务。未手动选择上下文的自由问答会在本机扫描 Markdown 笔记并检索相关片段；原始知识库不会因此整体上传。会话历史单独保存在插件私有文件中，只记录有限数量的用户问题、最终回答、模型 ID 与笔记路径；不记录附件正文、RAG 片段、思考过程或工具参数。API Key 使用 Obsidian SecretStorage 保存，不写入插件 `data.json`。数据迁移、清理和本地命令都需要你主动操作；第三方推送仅在自行启用时访问对应服务。
 
 ### 数据文件
 
@@ -97,6 +97,7 @@ Cockpit Dashboard 已上架 Obsidian 社区插件市场：
 |---|---|
 | `_data/todos.md` | 待办数据 |
 | `data.json` | Storage V2 设置、自定义按钮、收藏、排序、Toolbar 命令、RSS 配置、AI 模型配置（不含 API Key），以及番茄钟会话与按任务聚合的专注统计 |
+| `.obsidian/plugins/cockpit-dashboard/ai-history.json` | 最多 30 个本地 AI 会话及受限消息历史；不包含 API Key、附件正文、RAG 片段、思考过程或工具参数 |
 | Obsidian SecretStorage | AI 服务 API Key；由 Obsidian 安全存储接口管理，不写入源码或 `data.json` |
 | IndexedDB | 当前设备的 RSS 正文摘要、已读状态和受限缓存；不参与 Obsidian Sync，可随时在 RSS 菜单清除 |
 | `_data/bookmarks.md` | 未完成数据迁移时的收藏存储；迁移后停止写入，可由用户主动清理 |
@@ -124,9 +125,13 @@ Cockpit Dashboard 已上架 Obsidian 社区插件市场：
 1. 在 **设置 → Cockpit Dashboard → AI 模型** 中新增模型配置，选择预设服务或填写 OpenAI 兼容接口地址、模型 ID 与 API Key。
 2. 内置预设包括 OpenAI、DeepSeek、Kimi、智谱 GLM、通义千问、MiniMax、硅基流动、OpenRouter、Ollama、OmniRouter，并支持自定义 OpenAI 兼容服务。
 3. 每个配置卡片都可以独立测试连接；修改名称、模型或当前配置后，已打开的 AI 侧栏会立即同步模型下拉框。
-4. 点击可拖动的全局 AI 按钮打开或关闭侧栏。按钮位置会保存，并会在窗口尺寸变化时保持在可见范围内。
-5. 侧栏可以选择最近打开的 Markdown 笔记，执行总结、提取待办或自由问答。回答采用流式输出；兼容模型返回的思考过程会单独展示。
-6. 当前版本只读取所选笔记，不会自动修改 Vault、笔记或待办。发送前请确认所选模型服务及其数据处理政策符合你的要求。
+4. 点击可拖动的全局 AI 按钮打开或关闭侧栏。顶部只保留会话历史、新建、设置和关闭；模型、上下文与附件统一位于底部输入框。
+5. 左上角打开会话抽屉，可搜索、切换、重命名或删除本地会话。每个会话记住自己的模型与所选笔记，并把最近的用户/助手消息作为后续提问的连续上下文。
+6. 点击输入框左下角 `+`，可以多选最近打开的 Markdown 笔记，或临时上传最多 5 个文本文件（单个不超过 1 MB，支持 `md/txt/csv/json/yaml/yml/log/html/xml`）。附件只保留在当前输入轮次的内存中。
+7. 多选内容超过上下文上限时，插件会先在本机按关键词切片检索；自由问答未选择任何上下文时，会对 Vault 中的 Markdown 笔记执行同样的全局检索，再仅注入命中的受限片段。这是轻量的本地关键词 RAG，不是向量数据库或语义嵌入检索。
+8. 回答采用流式输出；检索、思考、工具调用和回答生成会沿左侧分段轨道实时更新。兼容模型返回的思考正文仍可单独展开，点击停止也会中止尚未完成的检索或生成。
+9. Agent 只能调用插件注册的白名单工具：可读取待办、搜索 Markdown 笔记，并在你逐次确认后创建或完成待办。插件源码、`.obsidian` 配置、Shell 和任意文件写入不会开放给 Agent。
+10. 发送前请确认所选模型服务及其数据处理政策符合你的要求；笔记正文或附件仍只会在你主动发起请求后发送。
 
 ### 情景布局与编辑布局
 
@@ -196,15 +201,17 @@ bash deploy.sh --min
 
 ### 当前版本
 
-- Manifest version: `1.4.0`
-- Latest update date: `2026-08-19`
+- Manifest version: `1.5.0`
+- Latest update date: `2026-08-20`
 
-### 1.4.0 最近更新
+### 1.5.0 最近更新
 
-- 新增只读 Cockpit AI 侧栏，支持最近笔记上下文、总结、提取待办、自由问答以及流式正文与思考过程。
-- 新增多模型配置，内置国内外主流服务和本地 OpenAI 兼容接口；API Key 使用 Obsidian SecretStorage 保存，每个配置可独立测试并实时同步到侧栏。
-- 新增可拖动并记忆位置的全局 AI 悬浮按钮，侧栏可随时打开、关闭和切换模型。
-- 设置页按 AI 模型、推送渠道、提醒计划和消息内容分为独立页签，配置结构更清晰。
+- AI 侧栏改为 ChatGPT 式对话布局，模型、笔记上下文、临时附件和发送操作统一收进底部输入区，并用分段过程轨道实时展示检索、思考、工具调用与回答生成。
+- 新增本地多会话历史，可搜索、切换、重命名和删除会话；每个会话独立记住模型与笔记上下文，历史文件不会保存 API Key、附件正文、RAG 片段、思考过程或工具参数。
+- 新增多篇笔记与临时文本附件上下文；上下文过长或未手动选择笔记时，会在本机执行关键词 RAG，只向模型注入受限的相关片段。
+- 内置 Agent 新增受控工具，可读取待办和搜索 Markdown 笔记；创建或完成待办必须逐次确认，且无法访问插件源码、`.obsidian` 配置、Shell 或任意文件写入。
+
+升级无需迁移现有配置；首次使用多会话时会自动创建插件私有的 `ai-history.json`。部分模型服务不返回独立思考内容，此时过程轨道仍会显示检索、工具与生成状态。
 
 ### 赞助作者
 
@@ -243,7 +250,7 @@ Cockpit Dashboard is designed to be more than a visual landing page. It centrali
 | 💡 Daily Note | Built-in tips rotate daily; Edit Mode supports per-language editing, sorting, and rotation modes |
 | 🧰 Toolbar | New note, global search, tags, graph, command palette, Hermes, Cockpit H5, work log, and Pomodoro; Edit Mode supports sorting, visibility controls, custom buttons, and local Toolbar updates on save |
 | 🔍 Global Search | Draggable Spotlight-style search across note names, paths, and content, with input debouncing, keyboard navigation, and an Obsidian command entry point |
-| 🤖 AI Assistant | Draggable global launcher and closable sidebar with recent Markdown-note context, summarization, task extraction, free-form questions, streamed answers, and expandable reasoning output |
+| 🤖 AI Assistant | Chat-first sidebar with model, context, attachments, and send controls consolidated in the bottom composer; includes local multi-conversation history, multi-note context, temporary text attachments, lexical RAG, streaming, and a segmented Agent activity rail |
 | 🧩 Edit Mode | Dashboard modules can be reordered, hidden, renamed, and collapsed; stat cards and Toolbar actions have their own ordering and visibility controls |
 | ◈ Layout Scenes | Save multiple module/Toolbar layouts and switch manually or automatically by weekday, time range, or active folder |
 | 🖱️ Context Menu | Right-click in blank dashboard space for refresh, new note, search, command palette, graph, Pomodoro, recent updates, and Edit Mode |
@@ -296,7 +303,7 @@ Cockpit Dashboard is available in the Obsidian Community Plugins marketplace:
 
 ### Local-first and user data rights
 
-Your data stays yours: the plugin includes no telemetry and does not collect or upload Vault data in the background. Note context is sent only when you explicitly ask the AI assistant to answer, summarize, or extract tasks; the selected note is truncated to the configured limit and sent directly to your chosen model service with your question. API keys are stored through Obsidian SecretStorage, not in plugin `data.json`. Third-party notification services are contacted only when enabled. Recent updates requests only public GitHub Releases metadata and sends no Vault content or user configuration.
+Your data stays yours: the plugin includes no telemetry and does not collect or upload Vault data in the background. Only after an explicit AI request are selected notes, temporary text attachments, or bounded excerpts found by local keyword RAG sent with your question directly to the configured model service. A free-form question with no manual context searches Markdown notes locally; it does not upload the entire Vault. Conversation history is stored in a separate plugin-private file and retains only bounded user questions, final answers, model IDs, and note paths—never attachment bodies, RAG excerpts, reasoning, or tool arguments. API keys remain in Obsidian SecretStorage, not plugin data.
 
 ### Runtime Files
 
@@ -304,6 +311,7 @@ Your data stays yours: the plugin includes no telemetry and does not collect or 
 |---|---|
 | `_data/todos.md` | Todo storage |
 | `data.json` | Storage V2 settings, custom buttons, bookmarks, ordering, Toolbar commands, RSS configuration, AI model metadata (never API keys), Pomodoro sessions, per-task focus aggregates, and scheduled-task configuration/status |
+| `.obsidian/plugins/cockpit-dashboard/ai-history.json` | Up to 30 bounded local AI conversations; excludes API keys, attachment bodies, RAG excerpts, reasoning, and tool arguments |
 | Obsidian SecretStorage | API keys for AI services, managed by Obsidian and excluded from source code and `data.json` |
 | IndexedDB | Device-local RSS summaries, read states, and bounded cache; excluded from Obsidian Sync and removable from the RSS menu |
 | `_data/bookmarks.md` | Bookmark storage before migration; no longer written after migration and removable by the user |
@@ -334,9 +342,13 @@ New modules and features do not create additional Markdown files under `_data`. 
 1. Open **Settings → Cockpit Dashboard → AI models**, add a profile, then choose a preset or enter an OpenAI-compatible endpoint, model ID, and API key.
 2. Presets include OpenAI, DeepSeek, Kimi, Zhipu GLM, Qwen, MiniMax, SiliconFlow, OpenRouter, Ollama, and OmniRouter, plus custom OpenAI-compatible services.
 3. Test each profile independently. Editing a profile or changing the active model updates the model picker in an already-open AI sidebar immediately.
-4. Use the draggable global AI button to open or close the sidebar. Its position is persisted and clamped into view when the window changes size.
-5. Select a recent Markdown note, then summarize it, extract tasks, or ask a free-form question. Answers stream as they arrive, with compatible reasoning output shown separately.
-6. This release is read-only and never edits the Vault, notes, or tasks automatically. Review the privacy and data-processing terms of the model service you select before sending note context.
+4. Use the draggable global AI button to open or close the sidebar. The header contains only history, new chat, settings, and close; model and context controls live in the bottom composer.
+5. Open the history drawer to search, switch, rename, or delete local conversations. Each conversation remembers its model and selected note paths and supplies recent user/assistant turns to follow-up requests.
+6. Use the composer's `+` button to select several recent Markdown notes or temporarily attach up to five text files (1 MB each; `md/txt/csv/json/yaml/yml/log/html/xml`). Attachments remain in memory for the current turn only.
+7. If selected context exceeds the limit, Cockpit locally ranks bounded keyword-matched chunks. With no manual context, a free-form question searches Markdown notes across the Vault and sends only matching excerpts. This is lightweight lexical RAG, not vector or embedding search.
+8. Retrieval, reasoning, tool calls, and answer generation update along a segmented activity rail. Compatible reasoning text remains separately expandable, and Stop aborts pending retrieval or generation.
+9. The Agent can call only registered allowlisted tools: it may list tasks, search Markdown notes, and create or complete a task after per-action confirmation. Plugin source, `.obsidian` configuration, Shell access, and arbitrary file writes are never exposed.
+10. Review the selected model service's privacy and data-processing terms; note or attachment content is transmitted only after an explicit request.
 
 ### Layout scenes and Edit Mode
 
@@ -403,15 +415,17 @@ Build notes:
 
 ### Current Version
 
-- Manifest version: `1.4.0`
-- Latest update date: `2026-08-19`
+- Manifest version: `1.5.0`
+- Latest update date: `2026-08-20`
 
-### What’s New in 1.4.0
+### What’s New in 1.5.0
 
-- Added a read-only Cockpit AI sidebar with recent-note context, summarization, task extraction, free-form questions, streamed answers, and reasoning output.
-- Added multi-model profiles for major hosted and local OpenAI-compatible services. API keys use Obsidian SecretStorage, each profile can be tested independently, and open sidebars update immediately.
-- Added a draggable, position-persistent global AI launcher with reliable open, close, and model switching behavior.
-- Reorganized settings into separate tabs for AI models, delivery channels, notification schedules, and message content.
+- Redesigned the AI sidebar around a ChatGPT-style conversation flow. Model, note context, temporary attachments, and send controls now live in the bottom composer, while a segmented activity rail streams retrieval, reasoning, tool, and answer progress.
+- Added local multi-session history with search, switch, rename, and delete actions. Each session remembers its model and note context without storing API keys, attachment bodies, RAG excerpts, reasoning traces, or tool arguments.
+- Added multi-note and temporary text-file context. When the selection is too large—or no note is selected—the plugin runs local keyword RAG and sends only bounded, relevant excerpts to the configured model.
+- Added restricted Agent tools for reading tasks and searching Markdown notes. Creating or completing a task requires per-action confirmation, and the Agent cannot access plugin source, `.obsidian` settings, Shell, or arbitrary file writes.
+
+No settings migration is required. The private `ai-history.json` file is created automatically when multi-session history is first used. Some model providers do not expose separate reasoning text; in that case, the activity rail still reports retrieval, tool, and generation progress.
 
 ### Sponsor
 

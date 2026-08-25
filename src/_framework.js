@@ -2894,6 +2894,15 @@ class CockpitPlugin extends obsidian.Plugin {
     return mutatePluginData(this, mutator);
   }
   async onload() {
+    this.rag = new CockpitRagService(this);
+    this.registerEvent(this.app.vault.on('modify', (file) => this.rag.invalidatePath(file?.path)));
+    this.registerEvent(this.app.vault.on('delete', (file) => this.rag.invalidatePath(file?.path)));
+    this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
+      this.rag.invalidatePath(oldPath);
+      this.rag.invalidatePath(file?.path);
+    }));
+    this.aiHistory = new CockpitAIHistoryService(this);
+    this.agentTools = createCockpitAgentToolRegistry(this);
     this.ai = new CockpitAIService(this);
     this.alarms = new AlarmService(this);
     await this.alarms.start();
