@@ -8,6 +8,8 @@
     "test": "node tests/run-all.js"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.24.0",
+    "lightningcss": "^1.33.0",
+    "terser": "^5.50.0"
   }
 }

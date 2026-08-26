@@ -105,59 +105,67 @@ function loadModuleCode(mod) {
   return code;
 }
 
-function buildBundle(css, moduleBodies, mode) {
-  if (mode === 'pretty') {
-    const parts = moduleBodies.map(({ name, code }) => `// ===== ${name} =====\n${code}`);
-    return `'use strict';
+function buildBundle(moduleBodies) {
+  const parts = moduleBodies.map(({ name, code }) => `// ===== ${name} =====\n${code}`);
+  return `'use strict';
 var obs = require('obsidian');
-
-// ===== styles.css =====
-const CSS = ${JSON.stringify(css)};
 
 // ===== modules =====
 ${parts.join('\n\n')}
 `;
-  }
-
-  const compactCss = css
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\s+/g, ' ')
-    .replace(/\s*([{}:;,])\s*/g, '$1')
-    .replace(/;}/g, '}')
-    .trim();
-  const compactModules = moduleBodies
-    .map(({ code }) => code
-      .split('\n')
-      .map((line) => line.trimEnd())
-      .filter((line) => line.trim() && !line.trim().startsWith('//'))
-      .join('\n'))
-    .join('\n');
-  return `'use strict';var obs=require('obsidian');const CSS=${JSON.stringify(compactCss)};\n${compactModules}\n`;
 }
 
 function minifyCss(css) {
-  if (!esbuild) return css;
-  return esbuild.transformSync(css, {
-    loader: 'css',
-    minify: true,
-    target: 'es2020',
-    legalComments: 'none'
-  }).code;
+  // 多引擎竞争：esbuild 与 lightningcss 各压一遍，取更小结果。
+  const candidates = [];
+  if (esbuild) {
+    try {
+      candidates.push(esbuild.transformSync(css, {
+        loader: 'css', minify: true, target: 'es2020', legalComments: 'none'
+      }).code);
+    } catch (e) { console.warn('esbuild CSS 压缩失败:', e.message); }
+  }
+  try {
+    const lightningcss = require('lightningcss');
+    const out = lightningcss.transform({ filename: 'styles.css', code: Buffer.from(css), minify: true });
+    candidates.push(out.code.toString('utf8'));
+  } catch (e) { /* 未安装则跳过 */ }
+  if (!candidates.length) return css;
+  return candidates.reduce((a, b) => (Buffer.byteLength(b) < Buffer.byteLength(a) ? b : a));
 }
 
-function minifyJs(code) {
-  // 纯压缩不改语义：不开启顶层符号改写以外的转译，target es2020 覆盖现有语法。
-  if (!esbuild) return null;
-  const out = esbuild.transformSync(code, {
-    loader: 'js',
-    minify: true,
-    target: 'es2020',
-    legalComments: 'none',
-    sourcemap: true,
-    sourcefile: 'main.js'
-  });
-  if (out.map) fs.writeFileSync(path.join(OUT_DIR, 'main.js.map'), out.map);
-  return out.map ? out.code + '\n//# sourceMappingURL=main.js.map' : out.code;
+async function minifyJsBest(bundle) {
+  // 极致压缩：多引擎各跑一遍取最小。只求机器可读；可读源码始终在 src/。
+  const jobs = [];
+  if (esbuild) {
+    jobs.push((async () => {
+      const out = esbuild.transformSync(bundle, {
+        loader: 'js', minify: true, target: 'es2020', legalComments: 'none',
+        sourcemap: true, sourcefile: 'main.js'
+      });
+      return { engine: 'esbuild', code: out.code, map: out.map };
+    })().catch((e) => { console.warn('esbuild JS 压缩失败:', e.message); return null; }));
+  }
+  jobs.push((async () => {
+    let terser = null;
+    try { terser = require('terser'); } catch (e) { return null; }
+    const result = await terser.minify(bundle, {
+      compress: {
+        passes: 3,
+        unsafe: true,
+        // 剥离调试日志（保留 warn/error），不影响任何运行行为
+        pure_funcs: ['console.log', 'console.info', 'console.debug']
+      },
+      mangle: { toplevel: true },
+      format: { comments: false },
+      sourceMap: false
+    });
+    return result.code ? { engine: 'terser', code: result.code, map: null } : null;
+  })().catch((e) => { console.warn('terser 压缩失败:', e.message); return null; }));
+
+  const results = (await Promise.all(jobs)).filter(Boolean);
+  if (!results.length) return null;
+  return results.reduce((a, b) => (Buffer.byteLength(b.code) < Buffer.byteLength(a.code) ? b : a));
 }
 
 function writeAndReport(filePath, content, label) {
@@ -177,15 +185,18 @@ async function main() {
   fs.writeFileSync(path.join(OUT_DIR, 'styles.css'), minifiedCss);
   console.log(`✅ styles.css: ${Buffer.byteLength(rawCss)} -> ${Buffer.byteLength(minifiedCss)} 字节 (dist/)`);
 
-  const bundle = buildBundle(minifiedCss, moduleBodies, 'pretty');
-  const minified = minifyJs(bundle);
-  if (minified) {
-    writeAndReport(OUT_FILE, minified, '构建完成(压缩产物)');
-    const ratio = ((1 - Buffer.byteLength(minified) / Buffer.byteLength(bundle)) * 100).toFixed(1);
-    console.log(`ℹ️ esbuild JS 压缩率 ${ratio}%，sourcemap 已生成 dist/main.js.map`);
+  // CSS 不再内嵌进 main.js：宿主会自动加载插件目录的 styles.css，
+  // 视图侧仅保留 _ensureStylesheetLoaded() 兜底探测。
+  const bundle = buildBundle(moduleBodies);
+  const best = await minifyJsBest(bundle);
+  if (best) {
+    fs.writeFileSync(path.join(OUT_DIR, 'main.js.map'), best.map || '');
+    writeAndReport(OUT_FILE, best.map ? best.code + '\n//# sourceMappingURL=main.js.map' : best.code, `构建完成(压缩产物, ${best.engine})`);
+    const ratio = ((1 - Buffer.byteLength(best.code) / Buffer.byteLength(bundle)) * 100).toFixed(1);
+    console.log(`ℹ️ 胜出引擎: ${best.engine}，JS 压缩率 ${ratio}%`);
   } else {
     writeAndReport(OUT_FILE, bundle, '构建完成(未压缩回退)');
-    console.log('⚠️ 未安装 esbuild（npm install 后重跑可获得压缩产物），本次 dist/main.js 为未压缩版本');
+    console.log('⚠️ 未安装任何压缩引擎（npm install 后重跑），本次 dist/main.js 为未压缩版本');
   }
 }
 
