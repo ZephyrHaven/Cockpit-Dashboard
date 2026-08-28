@@ -9,7 +9,7 @@ Cockpit Dashboard is a local-first Obsidian home-page plugin that brings todos, 
 
 ## Core Features
 
-- **Dashboard workbench**: today todo queue, calendar board (month/week views, drag-to-schedule, lunar calendar with statutory holidays & make-up workdays, toggleable), today agenda timeline, stat cards, edit heatmap, project progress bars, category cards, recent updates, starred files, quick-capture capsules, resurfacing old notes
+- **Dashboard workbench**: today todo queue, calendar board (month/week views, drag-to-schedule, lunar calendar with statutory holidays & make-up workdays, toggleable), today agenda timeline, stat cards, edit heatmap, project progress bars, category cards, recent updates, starred files, quick-capture capsules, resurfacing old notes; event-driven refresh keeps panel data in sync seconds after a file is saved
 - **AI assistant**: multi-model chat sidebar with local multi-session history, multi-select note context, temporary text attachments, image chat, local keyword RAG, streaming output, and allowlisted agent tools; one-click AI breakdown of a todo into subtasks; the flash-capture inbox can be clustered by the agent into topics and converted to todos or organized notes. Optional **coding workspace**: point it at a local folder and the agent can read/write code inside it, search files, and run commands to verify its changes
 - **Automation**: pomodoro timer (linkable to todos), global alarms (fullscreen reminders + catch-up on missed alerts), scheduled tasks (including desktop shell), ServerChan³/Bark/MEOW push notifications
 - **Focus analytics**: focus trend charts (line/bar), this week vs last week, golden focus hours, top-3 task investment insights, one-click weekly-report share card PNG
@@ -20,14 +20,15 @@ Cockpit Dashboard is a local-first Obsidian home-page plugin that brings todos, 
 
 ### Build System
 
-The plugin uses no bundler: `build.js` concatenates the modules under `src/` in a fixed order into `main.js` plus a minified `main.min.js`:
+The plugin uses no bundler: `build.js` concatenates the modules under `src/` in a fixed order, then races esbuild against terser and keeps the smaller minified output in `dist/` — `dist/main.js` plus a standalone `dist/styles.css` (loaded by the host, never embedded in the JS); a sourcemap is written locally for debugging only:
 
 ```text
 constants → data-store → ai-index → ai-context → ai … → ai-launcher
 → daily-tips → utils → todos → todo-focus → focus-insights → share-card
 → habits → weekly-review → projects → resurface → morning-brief
 → serverchan → bookmarks → rss → lunar → calendar → search → toolbar
-→ scenes → scheduled-tasks → alarm → pomodoro → … → _framework (views & plugin main class)
+→ scenes → scheduled-tasks → alarm → pomodoro → …
+→ toolbar-defs → layout-edit → silent-refresh → commands → _framework (views & plugin main class)
 ```
 
 Modules share scope through top-level function declarations, so each module can be `require`d directly by Node for unit testing. Tests are framework-free assertion scripts (pure-function assertions plus source-pattern assertions) run file by file.
@@ -95,14 +96,14 @@ cd Cockpit-Dashboard
 # Run tests (framework-free assertion scripts, executed per file)
 for t in tests/*.test.js; do node "$t"; done
 
-# Build main.js / main.min.js
+# Build minified artifacts into dist/
 node build.js
 
-# Build and deploy to your local Obsidian plugin directory (never overwrites user data.json)
+# Build and deploy to your local host plugin directory (never overwrites user data.json)
 bash deploy.sh
 ```
 
-Release convention: bump the version in `manifest.json` → build and test → tag without a `v` prefix → use `gh release create <version>` to upload `main.js`, `styles.css`, and `manifest.json` as three separate assets (the Obsidian plugin store relies on them for update detection). Build artifacts are never committed to the source repository.
+Release convention: bump the version in `manifest.json` → build and test → tag without a `v` prefix → use `gh release create <version>` to upload `dist/main.js`, `dist/styles.css`, and `manifest.json` as three separate assets (the plugin store relies on them for update detection). Build artifacts are never committed to the source repository.
 
 ## Sponsor
 

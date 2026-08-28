@@ -9,7 +9,7 @@ Cockpit Dashboard 是一个本地优先的 Obsidian 驾驶舱首页插件：把�
 
 ## 核心特性
 
-- **仪表盘工作台**：待办今天队列、日历看板（月/周视图、拖拽排期、农历与法定节假日调休显示、可开关）、今日 Agenda 时间流、统计卡片、编辑热力图、项目进度条、分类卡片、最近更新、收藏文件、闪念胶囊、旧笔记重现
+- **仪表盘工作台**：待办今天队列、日历看板（月/周视图、拖拽排期、农历与法定节假日调休显示、可开关）、今日 Agenda 时间流、统计卡片、编辑热力图、项目进度条、分类卡片、最近更新、收藏文件、闪念胶囊、旧笔记重现；面板数据基于库内事件驱动刷新，文件保存后数秒内自动跟随
 - **AI 助手**：多模型对话侧栏，本地多会话历史、多选笔记上下文、临时文本附件、贴图对话、本地关键词 RAG、流式输出、白名单 Agent 工具；待办一键 AI 拆解子任务，闪念整理箱 Agent 聚类成主题后转待办或存为整理笔记；可选「编码工作区」——指定本地文件夹后 Agent 可在其中读写代码、搜索并运行命令验证
 - **自动化**：番茄钟（可关联待办）、全局闹钟（后台全屏提醒 + 手势追赶）、定时任务（含桌面 Shell）、Server酱³/Bark/MEOW 消息推送
 - **专注分析**：专注趋势图表（折线/柱状），本周对比上周、黄金专注时段、任务投入 Top3 洞察，一键生成周报分享卡片 PNG
@@ -20,14 +20,15 @@ Cockpit Dashboard 是一个本地优先的 Obsidian 驾驶舱首页插件：把�
 
 ### 构建系统
 
-插件不依赖打包器，`build.js` 按 fixed 顺序拼接 `src/` 下模块生成 `main.js` 与压缩版 `main.min.js`：
+插件不依赖打包器，`build.js` 按固定顺序拼接 `src/` 下模块，经 esbuild 与 terser 双引擎竞争压缩取更小者，产物输出到 `dist/`：`dist/main.js` 与独立的 `dist/styles.css`（由宿主自动加载，不内嵌进 JS），sourcemap 仅本地调试用：
 
 ```text
 constants → data-store → ai-index → ai-context → ai … → ai-launcher
 → daily-tips → utils → todos → todo-focus → focus-insights → share-card
 → habits → weekly-review → projects → resurface → morning-brief
 → serverchan → bookmarks → rss → lunar → calendar → search → toolbar
-→ scenes → scheduled-tasks → alarm → pomodoro → … → _framework（视图与插件主类）
+→ scenes → scheduled-tasks → alarm → pomodoro → …
+→ toolbar-defs → layout-edit → silent-refresh → commands → _framework（视图与插件主类）
 ```
 
 模块间通过顶层函数声明共享作用域，各模块均可用 Node 直接 `require` 单测。测试是无框架的断言脚本（纯函数断言 + 源码模式断言），逐文件独立运行。
@@ -95,14 +96,14 @@ cd Cockpit-Dashboard
 # 运行测试（无框架断言脚本，逐文件执行）
 for t in tests/*.test.js; do node "$t"; done
 
-# 构建 main.js / main.min.js
+# 构建压缩产物到 dist/
 node build.js
 
-# 构建并部署到本机 Obsidian 插件目录（不覆盖用户 data.json）
+# 构建并部署到本机宿主插件目录（不覆盖用户 data.json）
 bash deploy.sh
 ```
 
-发布约定：更新 `manifest.json` 版本号 → 构建并测试 → 打不带 `v` 前缀的 tag → 用 `gh release create <version>` 上传 `main.js`、`styles.css`、`manifest.json` 三个独立附件（Obsidian 插件商店据此检测更新）。源码仓库不提交构建产物。
+发布约定：更新 `manifest.json` 版本号 → 构建并测试 → 打不带 `v` 前缀的 tag → 用 `gh release create <version>` 上传 `dist/main.js`、`dist/styles.css`、`manifest.json` 三个独立附件（宿主插件商店据此检测更新）。源码仓库不提交构建产物。
 
 ## 赞助作者
 

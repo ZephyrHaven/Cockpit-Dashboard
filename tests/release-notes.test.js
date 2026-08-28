@@ -90,7 +90,11 @@ assert.deepEqual(getOnlineReleaseNotesModel(null), { releases:[], selected:null 
   assert.match(releaseUi, /createEl\('select'[\s\S]*release-version-select/, 'Online releases remain available through a real select control.');
   assert.doesNotMatch(constants, /const RELEASE_HISTORY\s*=/, 'Release history is no longer bundled into the plugin.');
   assert.doesNotMatch(releaseUi, /RELEASE_HISTORY/, 'The modal has no local release-data fallback.');
-  assert.equal(manifest.version, '1.6.0', 'The release manifest is bumped for the AI assistant upgrade release.');
+  // 版本随每次发布推进，测试不硬编码具体值：只要求是合法 semver，
+  // 且不低于 AI 助手升级（1.6.0）时的基线，防止清单被意外回退或写坏。
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/, 'The release manifest declares a valid semver version.');
+  const [major, minor, patch] = manifest.version.split('.').map(Number);
+  assert.equal(major * 10000 + minor * 100 + patch >= 1 * 10000 + 6 * 100 + 0, true, 'The manifest version never regresses below the AI assistant upgrade release.');
   assert.match(readme, /本地关键词|lexical|倒排索引/i, 'README documents the technical principles behind the assistant.');
 
   console.log('Release notes checks passed');

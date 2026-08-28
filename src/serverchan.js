@@ -430,9 +430,8 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     addPanelIntro(panels.calendar, en ? 'Calendar' : '日历', en ? 'Tune how the dashboard calendar looks.' : '调整仪表盘日历的显示细节。');
     const applyLunarSetting = async (value) => {
       try {
-        const data = await this.plugin.loadData() || {};
-        data.calendarLunarEnabled = value === true;
-        await this.plugin.saveData(data);
+        // 走共享变更队列写 data.json，绝不绕过排队直接 saveData（会与其他写入竞态）。
+        await this.plugin.mutateData((data) => { data.calendarLunarEnabled = value === true; });
       } catch (e) { console.warn('Cockpit lunar setting failed', e); }
       this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((leaf) => {
         try {

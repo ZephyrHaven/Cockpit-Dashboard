@@ -65,6 +65,10 @@ const MODULES = [
   'focus-chart.js',
   'release-notes-core.js',
   'release-notes.js',
+  'toolbar-defs.js',
+  'layout-edit.js',
+  'silent-refresh.js',
+  'commands.js',
   '_framework.js'
 ];
 

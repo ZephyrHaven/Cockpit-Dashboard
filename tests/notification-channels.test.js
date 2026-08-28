@@ -26,8 +26,10 @@ assert.deepEqual(
   [
     { id:'ai', label:'AI 模型', icon:'bot-message-square' },
     { id:'channels', label:'推送渠道', icon:'send' },
+    { id:'brief', label:'晨间简报', icon:'sunrise' },
     { id:'schedule', label:'提醒计划', icon:'calendar-clock' },
-    { id:'scope', label:'消息内容', icon:'list-checks' }
+    { id:'scope', label:'消息内容', icon:'list-checks' },
+    { id:'calendar', label:'日历', icon:'calendar-days' }
   ],
   'Settings are grouped into clear user-facing modules.'
 );

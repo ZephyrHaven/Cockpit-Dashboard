@@ -149,3 +149,13 @@ function makeCockpitModalDraggable(modal, handle, label) {
   const dragHandle = handle || modal.titleEl || modal.contentEl?.querySelector('h2,h3');
   return makeCockpitDialogDraggable(modal.modalEl, dragHandle, { label });
 }
+
+// 视图级 Markdown 文件清单的统一入口：优先复用驾驶舱视图已缓存的
+// _allFiles（onOpen / 静默刷新 / 库内事件都会及时更新它），
+// 避免每个模块在渲染路径上各自触发一次全库扫描；无缓存可用时兜底现扫。
+function getViewMarkdownFiles(view) {
+  const cached = view?._allFiles;
+  if (Array.isArray(cached) && cached.length) return cached;
+  const vault = view?.app?.vault;
+  return typeof vault?.getMarkdownFiles === 'function' ? vault.getMarkdownFiles() : [];
+}

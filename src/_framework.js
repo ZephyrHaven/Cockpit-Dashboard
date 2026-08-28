@@ -87,31 +87,12 @@ class CockpitView extends obs.ItemView {
     if (!title.dataset.defaultModuleTitle) title.dataset.defaultModuleTitle = textNode.textContent.trim();
     textNode.textContent = this._customModuleLabels?.[moduleId] || title.dataset.defaultModuleTitle;
   }
-  _toolbarButtons() {
-    const desktopOnly = this._isMobile() ? new Set(['hermes','cockpit-h5','work-log']) : new Set();
-    const buttons = [
-      { icon: '+', label: this._t('toolbar.new'), action: 'new', primary: true },
-      { icon: E.search, label: this._t('toolbar.search'), action: 'search' },
-      { icon: E.tag, label: this._t('toolbar.tag'), action: 'tag' },
-      { icon: E.graph, label: this._t('toolbar.graph'), action: 'graph' },
-      { icon: E.bolt, label: this._t('toolbar.command'), action: 'command' },
-      { icon: '🤖', label: this._toolbarCmds?.Hermes?.label || this._t('toolbar.hermes'), action: 'hermes' },
-      { icon: '🛩️', label: this._toolbarCmds?.['驾驶舱']?.label || this._t('toolbar.cockpit'), action: 'cockpit-h5' },
-      { icon: '📝', label: this._toolbarCmds?.['工作日志']?.label || this._t('toolbar.workLog'), action: 'work-log' },
-      { icon: E.cal, label: this._t('toolbar.todayNote'), action: 'today-note' },
-      { icon: '🔔', label: this._lang() === 'en' ? 'Notifications' : '通知设置', action: 'notifications' },
-      { icon: '🍅', label: this._t('toolbar.pomodoro'), action: 'pomodoro' }
-    ].filter((button) => !this._deletedToolbarActions.has(button.action) && !desktopOnly.has(button.action));
-    if (!this._isMobile()) return buttons;
-    const primary = buttons.filter((button) => ['new','search','pomodoro'].includes(button.action));
-    primary.push({ icon:'•••', label:this._lang() === 'en' ? 'More' : '更多', action:'more' });
-    return primary;
-  }
+  _toolbarButtons() { return cockpitToolbarButtonDefs(this); }
   _toolbarActionIds() {
-    return this._toolbarButtons().map((button) => button.action);
+    return cockpitToolbarButtonDefs(this).map((button) => button.action);
   }
   _toolbarActionLabel(action) {
-    const match = this._toolbarButtons().find((button) => button.action === action);
+    const match = cockpitToolbarButtonDefs(this).find((button) => button.action === action);
     return match ? match.label : action;
   }
   _normalizeModuleSubset(list) {
@@ -140,11 +121,7 @@ class CockpitView extends obs.ItemView {
     await this._saveActiveSceneLayout();
   }
   _normalizeToolbarActionSubset(list) {
-    const defaults = new Set(this._toolbarActionIds());
-    const seen = new Set();
-    return Array.isArray(list)
-      ? list.filter((id) => defaults.has(id) && !seen.has(id) && (seen.add(id), true))
-      : [];
+    return cockpitNormalizeToolbarActionSubset(this, list);
   }
   _isModuleHidden(moduleId) {
     return this._hiddenModules.has(moduleId);
@@ -375,16 +352,8 @@ class CockpitView extends obs.ItemView {
       data.toolbarOrder = (Array.isArray(data.toolbarOrder) ? data.toolbarOrder : []).filter((item) => item !== action);
     });
   }
-  _getModuleIdForElement(el) {
-    if (!(el instanceof HTMLElement)) return null;
-    if (el.tagName === 'STYLE') return null;
-    return this._moduleRegistry().find((module) => module.matches(el))?.id || null;
-  }
-  _clearModuleDropHints(root) {
-    root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
-      wrapper.classList.remove('dragging', 'drop-before', 'drop-after');
-    });
-  }
+  _getModuleIdForElement(el) { return cockpitGetModuleIdForElement(this, el); }
+  _clearModuleDropHints(root) { cockpitClearModuleDropHints(this, root); }
   _closeTodoEditor() {
     if (this._todoEditorEl && this._todoEditorEl.parentNode) this._todoEditorEl.remove();
     this._todoEditorEl = null;
@@ -400,40 +369,7 @@ class CockpitView extends obs.ItemView {
       el.classList.remove(PLUGIN_ID + '-onboarding-highlight');
     });
   }
-  _applyToolbarButtonEditState(root) {
-    const toolbar = root.querySelector('.' + PLUGIN_ID + '-toolbar');
-    if (!toolbar) return;
-    toolbar.classList.toggle(PLUGIN_ID + '-toolbar-editing', this._editMode);
-    toolbar.querySelectorAll('.' + PLUGIN_ID + '-toolslot').forEach((slot) => {
-      const action = slot.dataset.action;
-      const customId = slot.dataset.customId;
-      const hidden = this._isToolbarActionHidden(action);
-      const customHidden = customId && slot.dataset.hidden === 'true';
-      const label = customId ? (slot.dataset.label || customId) : this._toolbarActionLabel(action);
-      const btn = slot.querySelector('.' + PLUGIN_ID + '-toolbtn');
-      const isHidden = customId ? customHidden : hidden;
-      slot.classList.toggle('is-hidden', isHidden);
-      slot.style.display = !this._editMode && isHidden ? 'none' : '';
-      slot.draggable = this._editMode;
-      if (btn) {
-        btn.disabled = this._editMode;
-        btn.setAttribute('aria-label', label);
-      }
-      const visibility = slot.querySelector('.' + PLUGIN_ID + '-toolbtn-visibility');
-      if (visibility) {
-        visibility.textContent = isHidden ? this._t('layout.show') : this._t('layout.hide');
-        visibility.title = isHidden
-          ? (this._lang() === 'en' ? 'Show button' : '显示按钮')
-          : (this._lang() === 'en' ? 'Hide button' : '隐藏按钮');
-        visibility.classList.toggle('is-hidden', isHidden);
-        visibility.tabIndex = this._editMode ? 0 : -1;
-      }
-    });
-    const addCustom = toolbar.querySelector('.' + PLUGIN_ID + '-custom-toolbar-add');
-    if (addCustom) addCustom.style.display = this._editMode ? 'inline-flex' : 'none';
-    const logs = toolbar.querySelector('.' + PLUGIN_ID + '-custom-toolbar-logs');
-    if (logs) logs.style.display = this._editMode ? 'inline-flex' : 'none';
-  }
+  _applyToolbarButtonEditState(root) { cockpitApplyToolbarButtonEditState(this, root); }
 
   async _saveCustomToolbarButtons(buttons) {
     this._customToolbarButtons = normalizeCustomToolbarButtons(buttons);
@@ -517,328 +453,22 @@ class CockpitView extends obs.ItemView {
     this._plugin._cockpitFocusHistoryWrite = operation;
     return operation;
   }
-  _bindSilentRefreshSensors() {
-    this._unbindSilentRefreshSensors();
-    const container = this.containerEl.children[1];
-    if (!container) return;
-    this._interactionSensorEl = container;
-    this._interactionHandler = () => { this._lastInteractionAt = Date.now(); };
-    ['pointerdown', 'keydown', 'input'].forEach((eventName) => {
-      container.addEventListener(eventName, this._interactionHandler, true);
-    });
+  _bindSilentRefreshSensors() { cockpitBindSilentRefreshSensors(this); }
+  _unbindSilentRefreshSensors() { cockpitUnbindSilentRefreshSensors(this); }
+  _isSilentRefreshBlocked(ignoreRecentActivity) { return cockpitIsSilentRefreshBlocked(this, ignoreRecentActivity); }
+  _startSilentRefreshLoops() { cockpitStartSilentRefreshLoops(this); }
+  async _runSilentRefreshCycle(options = {}) { return cockpitRunSilentRefreshCycle(this, options); }
+  _registerVaultRefreshEvents() { cockpitRegisterVaultRefreshEvents(this); }
+  _closeVaultRefreshEvents() {
+    this._cockpitVaultRefreshCancel?.();
+    this._cockpitVaultRefreshCancel = null;
+    this._vaultRefreshPending = false;
   }
-  _unbindSilentRefreshSensors() {
-    if (!this._interactionSensorEl || !this._interactionHandler) return;
-    ['pointerdown', 'keydown', 'input'].forEach((eventName) => {
-      this._interactionSensorEl.removeEventListener(eventName, this._interactionHandler, true);
-    });
-    this._interactionSensorEl = null;
-    this._interactionHandler = null;
-  }
-  _isSilentRefreshBlocked(ignoreRecentActivity) {
-    if (this._todoEditorEl || this._welcomeCoverEl || this._editMode) return true;
-    if (!ignoreRecentActivity && Date.now() - (this._lastInteractionAt || 0) < 30 * 1000) return true;
-    const activeEl = document.activeElement;
-    if (!(activeEl instanceof HTMLElement)) return false;
-    if (!activeEl.closest('.' + PLUGIN_ID + '-root')) return false;
-    return activeEl.matches('input, textarea, select, [contenteditable="true"]');
-  }
-  _startSilentRefreshLoops() {
-    if (this._minuteRefreshTimer) clearInterval(this._minuteRefreshTimer);
-    if (this._refreshTimer) clearInterval(this._refreshTimer);
-    if (this._visibilityRefreshHandler) {
-      document.removeEventListener('visibilitychange', this._visibilityRefreshHandler);
-    }
-    this._refreshHeroSection();
-    this._lastCalendarDateKey = window.moment().format('YYYY-MM-DD');
-    this._minuteRefreshTimer = window.setInterval(() => {
-      try {
-        this._refreshHeroSection();
-        const dateKey = window.moment().format('YYYY-MM-DD');
-        if (dateKey !== this._lastCalendarDateKey) {
-          this._lastCalendarDateKey = dateKey;
-          if (!document.hidden && !this._isSilentRefreshBlocked(true)) this._refreshCalendarRef?.();
-        }
-      } catch (e) {
-        console.warn('Cockpit hero refresh failed', e);
-      }
-    }, 60 * 1000);
-    this._refreshTimer = window.setInterval(async () => {
-      try {
-        await this._runSilentRefreshCycle();
-      } catch (e) {
-        console.warn('Cockpit silent refresh failed', e);
-      }
-    }, 15 * 60 * 1000);
-    this._visibilityRefreshHandler = () => {
-      if (document.hidden) return;
-      this._runSilentRefreshCycle({ ignoreRecentActivity: true }).catch((e) => {
-        console.warn('Cockpit visibility refresh failed', e);
-      });
-    };
-    document.addEventListener('visibilitychange', this._visibilityRefreshHandler);
-  }
-  async _runSilentRefreshCycle(options = {}) {
-    this._refreshHeroSection();
-    if (document.hidden || this._isSilentRefreshBlocked(options.ignoreRecentActivity)) return;
-    const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
-    if (!root) return;
-    await this._reloadDashboardState();
-    this._allFiles = this.app.vault.getMarkdownFiles();
-    if (this._refreshCalendarRef) this._refreshCalendarRef();
-    if (this._refreshFocusChartRef) this._refreshFocusChartRef();
-    if (this._refreshTodosRef) await this._refreshTodosRef({ persist: false });
-    else if (this._updateStatsRef) this._updateStatsRef();
-    this._refreshHeroSection();
-    this._refreshRecentSection(root, this._allFiles);
-    await this._refreshBookmarkSection(root, this._allFiles);
-    this._rebuildRecentStars();
-  }
-  _applyModuleEditState(root) {
-    root.classList.toggle(PLUGIN_ID + '-layout-editing', this._editMode);
-    const quickDoneBtn = root.querySelector('.' + PLUGIN_ID + '-layout-done');
-    if (quickDoneBtn) {
-      quickDoneBtn.style.display = this._editMode ? 'inline-flex' : 'none';
-      quickDoneBtn.title = this._t('layout.done');
-      quickDoneBtn.setAttribute('aria-label', this._t('layout.done'));
-    }
-    root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
-      const moduleId = wrapper.dataset.moduleId;
-      const hidden = this._isModuleHidden(moduleId);
-      wrapper.classList.toggle('is-editing', this._editMode);
-      wrapper.classList.toggle('is-hidden', hidden);
-      wrapper.style.display = !this._editMode && hidden ? 'none' : '';
-      const handle = wrapper.querySelector('.' + PLUGIN_ID + '-module-handle');
-      const badge = wrapper.querySelector('.' + PLUGIN_ID + '-module-badge');
-      const visibilityBtn = wrapper.querySelector('.' + PLUGIN_ID + '-module-visibility');
-      const renameBtn = wrapper.querySelector('.' + PLUGIN_ID + '-module-rename');
-      const label = this._moduleLabel(moduleId);
-      if (badge) badge.textContent = hidden ? label + ' · ' + this._t('layout.hiddenTag') : label;
-      if (handle) {
-        handle.style.display = '';
-        handle.draggable = this._editMode;
-        handle.tabIndex = this._editMode ? 0 : -1;
-        handle.setAttribute('aria-hidden', this._editMode ? 'false' : 'true');
-      }
-      if (visibilityBtn) {
-        visibilityBtn.style.display = '';
-        visibilityBtn.textContent = hidden ? this._t('layout.show') : this._t('layout.hide');
-        visibilityBtn.title = hidden
-          ? this._t('layout.showModule', { module: label })
-          : this._t('layout.hideModule', { module: label });
-        visibilityBtn.tabIndex = this._editMode ? 0 : -1;
-        visibilityBtn.classList.toggle('is-hidden', hidden);
-      }
-      if (renameBtn) {
-        renameBtn.style.display = this._moduleTitleElement(wrapper) ? '' : 'none';
-        renameBtn.title = this._lang() === 'en' ? `Rename ${label}` : `重命名“${label}”`;
-        renameBtn.setAttribute('aria-label', renameBtn.title);
-        renameBtn.tabIndex = this._editMode ? 0 : -1;
-      }
-    });
-    root.querySelectorAll('.' + PLUGIN_ID + '-tip-manage').forEach((button) => {
-      button.style.display = this._editMode ? 'inline-flex' : 'none';
-    });
-    root.querySelectorAll('.' + PLUGIN_ID + '-stat').forEach((card) => {
-      const hidden = this._hiddenStatsCards.has(card.dataset.statId);
-      card.classList.toggle('is-stat-hidden', hidden);
-      card.classList.toggle('is-stat-editing', this._editMode);
-      card.draggable = this._editMode;
-      card.style.display = !this._editMode && hidden ? 'none' : '';
-      const hide = card.querySelector('.' + PLUGIN_ID + '-stat-hide');
-      if (hide) {
-        hide.textContent = hidden ? '＋' : '−';
-        hide.title = hidden ? (this._lang() === 'en' ? 'Show this card' : '显示这张卡片') : (this._lang() === 'en' ? 'Hide this card' : '隐藏这张卡片');
-        hide.setAttribute('aria-label', hide.title);
-      }
-    });
-    this._applyToolbarButtonEditState(root);
-  }
-  _wireModuleDnD(root) {
-    root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
-      const moduleId = wrapper.dataset.moduleId;
-      const label = this._moduleLabel(moduleId);
-      let tools = wrapper.querySelector(':scope > .' + PLUGIN_ID + '-module-tools');
-      let badge;
-      let handle;
-      let visibilityBtn;
-      let renameBtn;
-      if (!tools) {
-        tools = document.createElement('div');
-        tools.className = PLUGIN_ID + '-module-tools';
-        badge = document.createElement('span');
-        badge.className = PLUGIN_ID + '-module-badge';
-        visibilityBtn = document.createElement('button');
-        visibilityBtn.type = 'button';
-        visibilityBtn.className = PLUGIN_ID + '-module-visibility';
-        renameBtn = document.createElement('button');
-        renameBtn.type = 'button';
-        renameBtn.className = PLUGIN_ID + '-module-rename';
-        renameBtn.textContent = '✎';
-        handle = document.createElement('button');
-        handle.type = 'button';
-        handle.className = PLUGIN_ID + '-module-handle';
-        handle.textContent = '↕';
-        tools.appendChild(badge);
-        tools.appendChild(renameBtn);
-        tools.appendChild(visibilityBtn);
-        tools.appendChild(handle);
-        wrapper.prepend(tools);
-      } else {
-        badge = tools.querySelector('.' + PLUGIN_ID + '-module-badge');
-        visibilityBtn = tools.querySelector('.' + PLUGIN_ID + '-module-visibility');
-        renameBtn = tools.querySelector('.' + PLUGIN_ID + '-module-rename');
-        handle = tools.querySelector('.' + PLUGIN_ID + '-module-handle');
-      }
-      if (badge) badge.textContent = label;
-      if (visibilityBtn) {
-        visibilityBtn.onclick = async (evt) => {
-          evt.preventDefault();
-          evt.stopPropagation();
-          const nextHidden = !this._isModuleHidden(moduleId);
-          const hiddenModules = new Set(this._hiddenModules);
-          if (nextHidden) hiddenModules.add(moduleId);
-          else hiddenModules.delete(moduleId);
-          await this._saveHiddenModules(Array.from(hiddenModules));
-          this._applyModuleEditState(root);
-        };
-      }
-      if (renameBtn) {
-        renameBtn.onclick = async (evt) => {
-          evt.preventDefault(); evt.stopPropagation();
-          if (!this._editMode) return;
-          const titleEl = this._moduleTitleElement(wrapper);
-          const builtIn = titleEl?.dataset.defaultModuleTitle || this._moduleRegistry().find((module) => module.id === moduleId)?.label || moduleId;
-          const current = this._customModuleLabels[moduleId] || builtIn;
-          const input = window.prompt(this._lang() === 'en' ? 'Module title (leave empty to restore default)' : '组件标题（留空恢复默认名称）', current);
-          if (input === null) return;
-          const value = input.trim().slice(0,40);
-          if (!value || value === builtIn) delete this._customModuleLabels[moduleId];
-          else this._customModuleLabels[moduleId] = value;
-          await this._saveActiveSceneLayout();
-          this._applyCustomModuleTitle(wrapper, moduleId);
-          wrapper.dataset.moduleLabel = this._moduleLabel(moduleId);
-          this._applyModuleEditState(root);
-        };
-      }
-      if (handle) {
-        handle.title = this._t('layout.dragHandle', { module: label });
-        handle.draggable = this._editMode;
-        handle.tabIndex = this._editMode ? 0 : -1;
-        handle.ondragstart = (evt) => {
-          if (!this._editMode) {
-            evt.preventDefault();
-            return;
-          }
-          this._dragModuleId = moduleId;
-          wrapper.classList.add('dragging');
-          evt.dataTransfer.effectAllowed = 'move';
-          evt.dataTransfer.setData('text/plain', moduleId);
-        };
-        handle.ondragend = () => {
-          this._dragModuleId = null;
-          this._clearModuleDropHints(root);
-        };
-      }
-      wrapper.ondragover = (evt) => {
-        const draggedId = this._dragModuleId || evt.dataTransfer.getData('text/plain');
-        if (!this._editMode || !draggedId || draggedId === moduleId) return;
-        evt.preventDefault();
-        const rect = wrapper.getBoundingClientRect();
-        const before = evt.clientY < rect.top + rect.height / 2;
-        wrapper.classList.toggle('drop-before', before);
-        wrapper.classList.toggle('drop-after', !before);
-      };
-      wrapper.ondragleave = () => {
-        wrapper.classList.remove('drop-before', 'drop-after');
-      };
-      wrapper.ondrop = async (evt) => {
-        const draggedId = this._dragModuleId || evt.dataTransfer.getData('text/plain');
-        if (!this._editMode || !draggedId || draggedId === moduleId) return;
-        evt.preventDefault();
-        const dragged = root.querySelector('.' + PLUGIN_ID + '-module[data-module-id="' + draggedId + '"]');
-        if (!dragged) return;
-        const rect = wrapper.getBoundingClientRect();
-        const before = evt.clientY < rect.top + rect.height / 2;
-        if (before) root.insertBefore(dragged, wrapper);
-        else root.insertBefore(dragged, wrapper.nextSibling);
-        this._clearModuleDropHints(root);
-        await this._saveModuleOrder(Array.from(root.querySelectorAll('.' + PLUGIN_ID + '-module')).map((el) => el.dataset.moduleId));
-      };
-    });
-    this._applyModuleEditState(root);
-  }
-  _applyModuleLayout(root) {
-    Array.from(root.querySelectorAll(':scope > .' + PLUGIN_ID + '-module')).forEach((wrapper) => {
-      while (wrapper.firstChild) {
-        const child = wrapper.firstChild;
-        if (child.classList && child.classList.contains(PLUGIN_ID + '-module-tools')) {
-          child.remove();
-          continue;
-        }
-        root.insertBefore(child, wrapper);
-      }
-      wrapper.remove();
-    });
-    const groups = new Map(this._defaultModuleOrder().map((id) => [id, []]));
-    const unclassified = [];
-    Array.from(root.children).forEach((child) => {
-      if (child.tagName === 'STYLE') return;
-      const moduleId = this._getModuleIdForElement(child);
-      if (moduleId && groups.has(moduleId)) groups.get(moduleId).push(child);
-      else unclassified.push(child);
-    });
-    const fragment = document.createDocumentFragment();
-    this._normalizeModuleOrder(this._moduleOrder).forEach((moduleId) => {
-      const nodes = groups.get(moduleId) || [];
-      if (!nodes.length) return;
-      const wrapper = document.createElement('section');
-      wrapper.className = PLUGIN_ID + '-module';
-      wrapper.dataset.moduleId = moduleId;
-      wrapper.dataset.moduleLabel = this._moduleLabel(moduleId);
-      nodes.forEach((node) => wrapper.appendChild(node));
-      this._applyCustomModuleTitle(wrapper, moduleId);
-      fragment.appendChild(wrapper);
-    });
-    unclassified.forEach((node) => fragment.appendChild(node));
-    root.appendChild(fragment);
-    this._wireModuleDnD(root);
-  }
-  _makeModuleCollapsible(moduleId, titleEl, contentEl, defaultCollapsed) {
-    const module = this._moduleRegistry().find((entry) => entry.id === moduleId);
-    if (!module?.collapsible || !titleEl || !contentEl) return;
-    this._makeCollapsible(titleEl, contentEl, moduleId, defaultCollapsed);
-  }
-  _makeCollapsible(titleEl, contentEl, key, defaultCollapsed) {
-    if (titleEl.dataset.collapseBound === 'true') return;
-    const arrow = titleEl.createSpan({ cls: PLUGIN_ID+'-collapse-arrow', text: '▼', attr:{ style:'margin-left:6px;font-size:0.7em;opacity:0.45;transition:transform 0.2s;display:inline-block;' } });
-    titleEl.style.cursor = 'pointer';
-    titleEl.tabIndex = 0;
-    titleEl.setAttribute('role', 'button');
-    let collapsed = this._collapsed && this._collapsed[key];
-    if (collapsed === undefined) collapsed = defaultCollapsed || false;
-    const apply = () => {
-      contentEl.style.display = collapsed ? 'none' : '';
-      arrow.textContent = collapsed ? '▶' : '▼';
-      titleEl.setAttribute('aria-expanded', String(!collapsed));
-    };
-    apply();
-    titleEl.dataset.collapseBound = 'true';
-    const toggle = (e) => {
-      if (e.target.closest('button,input,a,textarea,select')) return;
-      collapsed = !collapsed;
-      apply();
-      this._collapsed[key] = collapsed;
-      this._mutatePluginData((data) => { data.collapsed = { ...this._collapsed }; })
-        .catch((ex) => console.warn('save collapsed', ex));
-    };
-    titleEl.addEventListener('click', toggle);
-    titleEl.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      e.preventDefault();
-      toggle(e);
-    });
-  }
+  _applyModuleEditState(root) { cockpitApplyModuleEditState(this, root); }
+  _wireModuleDnD(root) { cockpitWireModuleDnD(this, root); }
+  _applyModuleLayout(root) { cockpitApplyModuleLayout(this, root); }
+  _makeModuleCollapsible(moduleId, titleEl, contentEl, defaultCollapsed) { cockpitMakeModuleCollapsible(this, moduleId, titleEl, contentEl, defaultCollapsed); }
+  _makeCollapsible(titleEl, contentEl, key, defaultCollapsed) { cockpitMakeCollapsible(this, titleEl, contentEl, key, defaultCollapsed); }
   async _setLanguage(language) {
     const next = normalizeLang(language);
     if (next === this._language) return;
@@ -1027,15 +657,7 @@ class CockpitView extends obs.ItemView {
     this._toolbarCmds = await this._storage.loadToolbarCommands(this._defaultToolbarCommands());
   }
 
-  _defaultToolbarCommands() {
-    // 通用默认值：不含任何本机路径。个人命令通过工具栏配置写入 data.json。
-    if (this._isMobile()) return {};
-    return {
-      Hermes: { command:'', mode:'auto' },
-      '驾驶舱': { command:'', url:DEFAULT_COCKPIT_URL },
-      '工作日志': { command:'', url:'' }
-    };
-  }
+  _defaultToolbarCommands() { return cockpitDefaultToolbarCommands(this); }
 
   _shouldOpenContextMenu(target) {
     if (!(target instanceof HTMLElement)) return false;
@@ -1222,6 +844,7 @@ class CockpitView extends obs.ItemView {
     }
     this._bindSilentRefreshSensors();
     this._startSilentRefreshLoops();
+    this._registerVaultRefreshEvents();
     setTimeout(() => {
       const root = this.containerEl.children[1]?.querySelector('.'+PLUGIN_ID+'-root');
       if (!root || this._onboardingDone) return;
@@ -2189,7 +1812,7 @@ class CockpitView extends obs.ItemView {
           alarmBtn.onclick = async (e) => { e.stopPropagation(); await openTodoAlarm(todo); };
         }
         if (!done && aiReady && todo.text) {
-          const aiBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn ai', attr:{type:'button', title:lang === 'en' ? 'AI: break into subtasks' : 'AI 拆解为子任务', 'aria-label':lang === 'en' ? 'Break this task into subtasks with AI' : '用 AI 把这个任务拆解为子任务'} });
+          const aiBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn ai', attr:{type:'button', 'aria-label':lang === 'en' ? 'Break this task into subtasks with AI' : '用 AI 把这个任务拆解为子任务'} });
           obs.setIcon(aiBtn, 'sparkles');
           aiBtn.onclick = async (e) => {
             e.stopPropagation();
@@ -2931,6 +2554,7 @@ class CockpitView extends obs.ItemView {
       this._visibilityRefreshHandler = null;
     }
     this._unbindSilentRefreshSensors();
+    this._closeVaultRefreshEvents();
     if (this._viewportSyncHandler) {
       window.removeEventListener('resize', this._viewportSyncHandler);
       window.visualViewport?.removeEventListener('resize', this._viewportSyncHandler);
@@ -3221,45 +2845,7 @@ class CockpitPlugin extends obs.Plugin {
     this.registerView(AI_VIEW_TYPE, l=>new CockpitAIView(l, this));
     this.addRibbonIcon('layout-dashboard','Cockpit',()=>this._open());
     this._aiLauncherCleanup = mountAiLauncher(this);
-    this.addCommand({id:'open-cockpit',name:'打开 Cockpit 驾驶舱',callback:()=>this._open()});
-    this.addCommand({
-      id:'global-search',
-      name:'全局搜索（待办 / 笔记内容 / 文件名）',
-      callback:() => {
-        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view;
-        openGlobalSearch(this.app, this._lang?.() || DEFAULT_LANG, view || null);
-        if (!view) this._open();
-      }
-    });
-    this.addCommand({id:'open-cockpit-ai',name:'打开 Cockpit AI 助手',callback:()=>this.openAI()});
-    this.addCommand({
-      id:'send-morning-brief',
-      name:'发送晨间简报',
-      callback:async () => {
-        new obs.Notice('📮 正在发送晨间简报…');
-        try {
-          const ok = await this.morningBrief.sendNow();
-          new obs.Notice(ok ? '✅ 晨间简报已发送' : '⚠️ 没有已启用的推送渠道，请先在设置里配置');
-        } catch (e) {
-          new obs.Notice('❌ 晨间简报发送失败：' + (e?.message || 'unknown error'));
-        }
-      }
-    });
-    this.addCommand({
-      id:'export-data-backup',
-      name:'导出数据备份（待办/专注/习惯/收藏）',
-      callback:async () => {
-        try {
-          const path = await exportCockpitBackup(this);
-          new obs.Notice(path ? ('✅ 已备份到 ' + path) : '没有可备份的数据文件。', 8000);
-        } catch (e) {
-          console.warn('Cockpit backup export failed', e);
-          new obs.Notice('❌ 备份失败：' + (e?.message || 'unknown error'));
-        }
-      }
-    });
-    this.addCommand({ id:'global-search', name:'打开 Cockpit 全局搜索', callback:() => openGlobalSearch(this.app) });
-    this.addCommand({ id:'open-data-migration', name:'打开 Cockpit 数据迁移', callback:async () => { await this._open(); const view = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view; if (view) openStorageMigration(view); } });
+    registerCockpitCommands(this);
     const initialActiveFile = this.app.workspace.getActiveFile?.();
     this._lastActiveMarkdownFile = initialActiveFile?.extension === 'md' ? initialActiveFile : null;
     this.registerEvent(this.app.workspace.on('file-open', (file) => {

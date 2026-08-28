@@ -38,7 +38,7 @@ async function buildResurfaceModule(view, root) {
 
   const renderCard = async () => {
     body.empty();
-    const files = view.app.vault.getMarkdownFiles();
+    const files = getViewMarkdownFiles(view);
     const { list, kind } = pickCandidates(files);
     if (!list.length) {
       body.createDiv({ cls: PLUGIN_ID + '-resurface-empty', text: en

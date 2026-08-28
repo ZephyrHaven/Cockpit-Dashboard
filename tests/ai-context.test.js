@@ -107,9 +107,11 @@ assert.equal(ranked[0].path, 'Projects/Budget.md', 'Local lexical RAG ranks the 
     const previousCtor = globalThis.CockpitAiSearchIndex;
     let ensured = 0;
     let warmed = 0;
+    let indexReady = false;
     globalThis.CockpitAiSearchIndex = function () {
       return {
-        ensure:async () => { ensured += 1; return true; },
+        get ready() { return indexReady; },
+        ensure:async () => { ensured += 1; indexReady = true; return true; },
         warmUp() { warmed += 1; },
         query:() => [{ path:'Projects/Budget.md', score:9 }]
       };
@@ -123,11 +125,17 @@ assert.equal(ranked[0].path, 'Projects/Budget.md', 'Local lexical RAG ranks the 
       const indexedRag = new CockpitRagService({ app:{ vault:indexedVault } });
       indexedRag.warmUp();
       assert.equal(warmed, 1, 'Opening the AI view can pre-warm the search index.');
+      const warming = await indexedRag.prepare({ query:'财务审批金额', selectedPaths:[], attachments:[], maxChars:500 });
+      assert.equal(warming.mode, 'rag-warming', 'A still-building index skips injection instead of blocking the send path.');
+      assert.equal(warming.warming, true, 'The warming state is surfaced so the UI can explain the missing context.');
+      assert.equal(warming.searchedFiles, 0, 'No vault scan happens while the index is still building.');
+      assert.equal(ensured, 0, 'Preparation never waits for the index on the send path.');
+      // 索引就绪后（后台构建完成或 ensure 完成），同一条会话自动恢复完整 RAG。
+      indexReady = true;
       const indexed = await indexedRag.prepare({ query:'财务审批金额', selectedPaths:[], attachments:[], maxChars:500 });
-      assert.equal(indexed.mode, 'rag-global', 'Index-backed retrieval still reports the auto-RAG mode.');
+      assert.equal(indexed.mode, 'rag-global', 'A ready index reports the auto-RAG mode again.');
       assert.equal(indexed.contexts[0].path, 'Projects/Budget.md', 'Only the candidate note enters the context.');
       assert.equal(indexed.searchedFiles, 1, 'The retrieval report reflects the reduced candidate set.');
-      assert.equal(ensured, 1, 'Preparation waits for the index to become ready.');
     } finally {
       if (previousCtor === undefined) delete globalThis.CockpitAiSearchIndex;
       else globalThis.CockpitAiSearchIndex = previousCtor;
