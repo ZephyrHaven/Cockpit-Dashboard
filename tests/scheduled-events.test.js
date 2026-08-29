@@ -36,10 +36,12 @@ const tasks = api.normalizeScheduledTasks([
     schedule:{type:'event', event:'todo-completed'}, createdAt:'2026-08-12T00:00:00Z' },
   { id:'on-pomo', name:'番茄钟推送', kind:'push', command:'专注 {time} 结束，休息一下', enabled:true,
     schedule:{type:'event', event:'pomodoro-finished'}, createdAt:'2026-08-12T00:00:00Z' },
+  { id:'on-report', name:'周报保存后复盘', kind:'append-daily', command:'- 周报已保存', enabled:true,
+    schedule:{type:'event', event:'weekly-report-saved'}, createdAt:'2026-08-12T00:00:00Z' },
   { id:'on-create', name:'每天建一条', kind:'create-todo', command:'回顾 {date}', enabled:true,
     schedule:{type:'daily', time:'20:00'}, createdAt:'2026-08-12T00:00:00Z' }
 ]);
-assert.equal(tasks.length, 5);
+assert.equal(tasks.length, 6);
 assert.equal(tasks[0].schedule.event, 'file-saved', 'Legacy tasks gain event defaults without changing their schedule type.');
 assert.equal(tasks[0].schedule.type, 'daily');
 assert.equal(tasks[1].schedule.type, 'event');
@@ -55,6 +57,7 @@ assert.match(api.scheduleLabel(tasks[1], 'zh'), /触发于笔记保存/);
 assert.match(api.scheduleLabel(tasks[1], 'en'), /Note saved/);
 assert.match(api.scheduleLabel(tasks[1], 'zh'), /Projects/, 'Folder filters surface in the schedule label.');
 assert.match(api.scheduleLabel(tasks[2], 'zh'), /待办完成/);
+assert.match(api.scheduleLabel(tasks[4], 'zh'), /周报已保存/);
 
 // ── 路径匹配 ────────────────────────────────────────────────────────────────
 assert.equal(api.eventTaskMatchesPath(tasks[1], ['Projects/Alpha.md']), true);

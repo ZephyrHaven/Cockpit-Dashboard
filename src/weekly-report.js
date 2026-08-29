@@ -6,6 +6,42 @@
 
 const WEEKLY_REPORT_CONFIG_KEY = 'weeklyReport';
 const WEEKLY_REPORT_RECORD_LIMIT = 20;
+const WEEKLY_REPORT_AI_HISTORY_CHARS = 6800;
+
+function weeklyReportAiStyleInstruction(style, en) {
+  const labels = {
+    professional: en ? 'Use a professional, clear operations-report tone.' : '使用专业、清晰的运维周报语气。',
+    concise: en ? 'Make the report concise. Remove repetition while keeping every important fact.' : '尽量精简，去掉重复表达，但保留所有重要事实。',
+    executive: en ? 'Prioritize outcomes, impact, risks, and next actions for management readers.' : '面向管理者，突出结果、影响、风险和下一步行动。',
+    preserve: en ? 'Polish wording and structure lightly while preserving the original voice.' : '只轻度润色措辞和结构，尽量保留原有表达风格。'
+  };
+  return labels[style] || labels.professional;
+}
+
+function weeklyReportAiPrompt(style, en) {
+  const styleInstruction = weeklyReportAiStyleInstruction(style, en);
+  return en
+    ? [
+      'Rewrite the supplied weekly report as polished Markdown.',
+      styleInstruction,
+      'Preserve all facts, dates, numbers, system names, outcomes, risks, and next-week plans.',
+      'Do not invent work, incidents, causes, owners, metrics, or conclusions.',
+      'Keep useful Markdown headings and lists. Return only the revised report, with no preface or explanation.'
+    ].join(' ')
+    : [
+      '请将提供的周报优化为可直接保存的 Markdown。',
+      styleInstruction,
+      '必须保留全部事实、日期、数字、系统名称、工作结果、风险和下周计划。',
+      '不得编造工作、故障、原因、负责人、指标或结论。',
+      '保留有用的 Markdown 标题与列表，只输出优化后的周报正文，不要附加解释或前言。'
+    ].join('');
+}
+
+function weeklyReportNextSelectedId(selectedId, recordId) {
+  const current = String(selectedId || '');
+  const target = String(recordId || '');
+  return target && current !== target ? target : null;
+}
 
 function weeklyReportId() {
   try { return 'wr-' + globalThis.crypto?.randomUUID?.().replace(/-/g, '').slice(0, 16); } catch (e) {}
@@ -175,6 +211,15 @@ async function runWeeklyReportCommand(plugin, record, preset, system) {
   const start = (matched && matched[1]) || window.moment().format('YYYY-MM-DD');
   try {
     const path = await weeklyReportSaveToVault(plugin.app, record, result.stdout, start, system ? [system] : []);
+    if (typeof cockpitEmit === 'function') cockpitEmit('weekly-report-saved', {
+      path,
+      recordId:record.id,
+      recordName:record.name,
+      version:'original',
+      start,
+      systems:system ? [system] : [],
+      savedAt:new Date().toISOString()
+    });
     new obs.Notice((en ? '✅ Weekly report saved: ' : '✅ 周报已保存：') + path, 8000);
   } catch (e) {
     new obs.Notice((en ? '❌ Save failed: ' : '❌ 保存失败：') + (e?.message || e), 8000);
@@ -355,36 +400,242 @@ function recordNameForTask(en, record, suffixLabel) {
 
 function openWeeklyReportPreview(view, draft) {
   const en = view._lang() === 'en';
+  let abortController = null;
+  let aiSessionId = '';
+  let optimizing = false;
+  let activePane = 'original';
   const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-scheduler-backdrop';
-  const panel = overlay.createDiv({ cls: PLUGIN_ID + '-scheduler-dialog logs' });
+  const panel = overlay.createDiv({ cls: PLUGIN_ID + '-scheduler-dialog logs ' + PLUGIN_ID + '-report-preview' });
   const head = panel.createDiv({ cls: PLUGIN_ID + '-scheduler-dialog-head' });
-  head.createDiv({ cls: PLUGIN_ID + '-scheduler-dialog-title', text: en ? 'Weekly report preview' : '周报预览（保存前可修改）' });
+  const heading = head.createDiv({ cls: PLUGIN_ID + '-report-preview-heading' });
+  heading.createDiv({ cls: PLUGIN_ID + '-scheduler-dialog-title', text: en ? 'Weekly report workbench' : '周报优化工作台' });
+  heading.createDiv({ cls: PLUGIN_ID + '-report-preview-subtitle', text: en ? 'Compare both versions, then choose which one to save.' : '对照两个版本，再选择最终保存哪一版。' });
   const controls = head.createDiv({ cls: PLUGIN_ID + '-scheduler-dialog-controls' });
   const close = controls.createEl('button', { attr: { type: 'button', 'aria-label': en ? 'Close' : '关闭' } });
-  obs.setIcon(close, 'x'); close.onclick = () => overlay.remove();
+  const closePreview = () => { abortController?.abort(); overlay.remove(); };
+  obs.setIcon(close, 'x'); close.onclick = closePreview;
   makeCockpitDialogDraggable(panel, head, { label: en ? 'Drag preview window' : '拖动预览窗口' });
-  const editor = panel.createEl('textarea', { attr: { rows: '18', spellcheck: 'false' } });
-  editor.value = draft.body;
+
+  const aiBar = panel.createDiv({ cls: PLUGIN_ID + '-report-ai-bar' });
+  const aiBarMain = aiBar.createDiv({ cls: PLUGIN_ID + '-report-ai-bar-main' });
+  const profileBadge = aiBarMain.createDiv({ cls: PLUGIN_ID + '-report-ai-profile', text: en ? 'Loading AI profile…' : '正在读取 AI 配置…' });
+  aiBarMain.createDiv({ cls: PLUGIN_ID + '-report-ai-privacy', text: en
+    ? 'AI Optimize sends the current report text to your configured model provider.'
+    : '点击 AI 优化后，当前周报内容会发送到你配置的模型服务商。' });
+  const aiActions = aiBar.createDiv({ cls: PLUGIN_ID + '-report-ai-actions' });
+  const style = aiActions.createEl('select', { attr: { 'aria-label': en ? 'Optimization style' : '优化风格' } });
+  [['professional', en ? 'Professional' : '专业清晰'], ['concise', en ? 'Concise' : '精简提炼'], ['executive', en ? 'Executive' : '管理视角'], ['preserve', en ? 'Light polish' : '轻度润色']]
+    .forEach(([value, label]) => style.createEl('option', { text: label, attr: { value } }));
+  const optimize = aiActions.createEl('button', { cls: 'primary', text: en ? 'AI Optimize' : 'AI 优化', attr: { type: 'button' } });
+  const stop = aiActions.createEl('button', { text: en ? 'Stop' : '停止', attr: { type: 'button' } });
+  stop.disabled = true;
+  const openAgent = aiActions.createEl('button', { text: en ? 'Continue in Agent' : '在 Agent 中继续', attr: { type: 'button' } });
+  openAgent.disabled = true;
+
+  const status = panel.createDiv({ cls: PLUGIN_ID + '-report-ai-status', attr: { role: 'status', 'aria-live': 'polite' } });
+  status.createSpan({ cls: PLUGIN_ID + '-report-ai-status-dot' });
+  const statusText = status.createSpan({ text: en ? 'Original report is ready. AI optimization is optional.' : '原稿已生成；AI 优化为可选操作。' });
+
+  const tabs = panel.createDiv({ cls: PLUGIN_ID + '-report-version-tabs' });
+  const originalTab = tabs.createEl('button', { cls: 'active', text: en ? 'Original' : '原稿', attr: { type: 'button', 'aria-pressed': 'true' } });
+  const aiTab = tabs.createEl('button', { text: en ? 'AI version' : 'AI 优化稿', attr: { type: 'button', 'aria-pressed': 'false' } });
+  const compare = panel.createDiv({ cls: PLUGIN_ID + '-report-compare' });
+  const makeVersion = (kind, titleText, badgeText) => {
+    const card = compare.createDiv({ cls: PLUGIN_ID + '-report-version ' + kind + (kind === 'original' ? ' active' : '') });
+    const cardHead = card.createDiv({ cls: PLUGIN_ID + '-report-version-head' });
+    const label = cardHead.createDiv({ cls: PLUGIN_ID + '-report-version-label' });
+    label.createSpan({ text: titleText });
+    label.createSpan({ cls: PLUGIN_ID + '-report-version-badge', text: badgeText });
+    const copy = cardHead.createEl('button', { attr: { type: 'button', 'aria-label': en ? 'Copy this version' : '复制这个版本' } });
+    obs.setIcon(copy, 'copy');
+    const editor = card.createEl('textarea', { attr: { spellcheck: 'false', 'aria-label': titleText } });
+    copy.onclick = () => weeklyReportCopyText(view, editor.value);
+    return { card, editor };
+  };
+  const originalVersion = makeVersion('original', en ? 'Original report' : '原始版本', en ? 'Script output' : '脚本生成');
+  const aiVersion = makeVersion('ai', en ? 'AI optimized report' : 'AI 优化版本', en ? 'Not generated' : '尚未生成');
+  originalVersion.editor.value = draft.body;
+  aiVersion.editor.placeholder = en ? 'Click AI Optimize to generate a second version. Your original stays unchanged.' : '点击「AI 优化」生成第二个版本；原稿始终保持不变。';
+
+  const switchPane = (pane) => {
+    activePane = pane === 'ai' ? 'ai' : 'original';
+    originalVersion.card.toggleClass('active', activePane === 'original');
+    aiVersion.card.toggleClass('active', activePane === 'ai');
+    originalTab.toggleClass('active', activePane === 'original');
+    aiTab.toggleClass('active', activePane === 'ai');
+    originalTab.setAttribute('aria-pressed', String(activePane === 'original'));
+    aiTab.setAttribute('aria-pressed', String(activePane === 'ai'));
+  };
+  originalTab.onclick = () => switchPane('original');
+  aiTab.onclick = () => switchPane('ai');
+
   const footer = panel.createDiv({ cls: PLUGIN_ID + '-scheduler-footer' });
-  const copy = footer.createEl('button', { text: en ? 'Copy content' : '复制内容', attr: { type: 'button' } });
-  copy.onclick = () => weeklyReportCopyText(view, editor.value);
-  const cancel = footer.createEl('button', { text: en ? 'Cancel' : '取消', attr: { type: 'button' } }); cancel.onclick = () => overlay.remove();
-  const save = footer.createEl('button', { cls: 'primary', text: en ? 'Save to vault' : '保存到库内', attr: { type: 'button' } });
-  save.onclick = async () => {
-    save.disabled = true;
+  const cancel = footer.createEl('button', { text: en ? 'Cancel' : '取消', attr: { type: 'button' } }); cancel.onclick = closePreview;
+  const saveOriginal = footer.createEl('button', { text: en ? 'Save original' : '保存原稿', attr: { type: 'button' } });
+  const saveAi = footer.createEl('button', { cls: 'primary', text: en ? 'Save AI version' : '保存 AI 版', attr: { type: 'button' } });
+  saveAi.disabled = true;
+
+  const setStatus = (text, state = '') => {
+    statusText.setText(text);
+    status.classList.remove('working', 'success', 'error');
+    if (state) status.addClass(state);
+  };
+  const setOptimizing = (value) => {
+    optimizing = value;
+    optimize.disabled = value;
+    stop.disabled = !value;
+    style.disabled = value;
+    saveOriginal.disabled = value;
+    saveAi.disabled = value || !aiVersion.editor.value.trim();
+    optimize.setText(value ? (en ? 'Optimizing…' : '优化中…') : (aiVersion.editor.value.trim() ? (en ? 'Optimize again' : '重新优化') : (en ? 'AI Optimize' : 'AI 优化')));
+  };
+  const emitSaved = (path, version) => {
+    if (typeof cockpitEmit !== 'function') return;
+    cockpitEmit('weekly-report-saved', {
+      path,
+      recordId:draft.record?.id || '',
+      recordName:draft.record?.name || '',
+      version,
+      start:draft.start,
+      systems:Array.isArray(draft.systems) ? draft.systems.slice() : [],
+      savedAt:new Date().toISOString()
+    });
+  };
+  const saveVersion = async (version) => {
+    if (optimizing) return;
+    const editor = version === 'ai' ? aiVersion.editor : originalVersion.editor;
+    if (!editor.value.trim()) {
+      new obs.Notice(en ? 'This version is empty.' : '这个版本还是空的。');
+      return;
+    }
+    saveOriginal.disabled = true; saveAi.disabled = true;
     try {
       const path = await weeklyReportSaveToVault(view.app, draft.record, editor.value, draft.start, draft.systems);
-      overlay.remove();
-      new obs.Notice((en ? 'Saved: ' : '已保存：') + path);
+      emitSaved(path, version);
+      closePreview();
+      new obs.Notice((version === 'ai' ? (en ? 'AI version saved: ' : 'AI 优化版已保存：') : (en ? 'Original saved: ' : '原稿已保存：')) + path);
     } catch (e) {
       new obs.Notice((en ? 'Save failed: ' : '保存失败：') + (e?.message || e));
-      save.disabled = false;
+      saveOriginal.disabled = false;
+      saveAi.disabled = !aiVersion.editor.value.trim();
     }
   };
-  overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
-  overlay.addEventListener('keydown', (event) => { if (event.key === 'Escape') { event.preventDefault(); overlay.remove(); } });
+  saveOriginal.onclick = () => saveVersion('original');
+  saveAi.onclick = () => saveVersion('ai');
+
+  const loadProfile = async () => {
+    if (!view._plugin?.ai) throw new Error(en ? 'AI service is unavailable.' : 'AI 服务当前不可用。');
+    const config = await view._plugin.ai.getConfig();
+    const profile = getActiveAiProfile(config);
+    profileBadge.setText(profile?.model ? `${profile.name || (en ? 'Current profile' : '当前配置')} · ${profile.model}` : (en ? 'AI model is not configured' : '尚未配置 AI 模型'));
+    return { config, profile };
+  };
+  loadProfile().then(({ profile }) => {
+    if (!profile?.model) optimize.disabled = true;
+  }).catch((error) => {
+    profileBadge.setText(en ? 'AI configuration unavailable' : 'AI 配置不可用');
+    optimize.disabled = true;
+    setStatus((en ? 'Could not load AI settings: ' : '无法读取 AI 设置：') + (error?.message || error), 'error');
+  });
+
+  optimize.onclick = async () => {
+    if (optimizing) return;
+    const source = originalVersion.editor.value.trim();
+    if (!source) { setStatus(en ? 'The original report is empty.' : '原稿为空，无法优化。', 'error'); return; }
+    let config;
+    let profile;
+    try {
+      ({ config, profile } = await loadProfile());
+      if (!profile?.model) throw new Error(en ? 'Configure an AI model first.' : '请先配置 AI 模型。');
+      if (source.length > config.maxContextChars) throw new Error(en
+        ? `The report has ${source.length} characters, above the current AI context limit of ${config.maxContextChars}. Shorten it or raise the limit in AI settings.`
+        : `当前周报共 ${source.length} 字，超过 AI 设置中的 ${config.maxContextChars} 字上下文上限；请先精简，或调高 AI 上限。`);
+    } catch (error) {
+      setStatus(error?.message || String(error), 'error');
+      return;
+    }
+
+    abortController = new AbortController();
+    aiVersion.editor.value = '';
+    aiVersion.editor.placeholder = en ? 'The optimized report will appear here as it is generated…' : '优化内容会在这里实时生成…';
+    aiVersion.card.querySelector('.' + PLUGIN_ID + '-report-version-badge')?.setText(en ? 'Generating' : '生成中');
+    switchPane('ai');
+    setOptimizing(true);
+    setStatus(en ? 'Connecting to the configured model provider…' : '正在连接已配置的模型服务商…', 'working');
+
+    try {
+      if (view._plugin.aiHistory) {
+        const session = await view._plugin.aiHistory.create({
+          title:(en ? 'Weekly report polish · ' : '周报优化 · ') + (draft.record?.name || draft.start || ''),
+          language:en ? 'en' : 'zh-CN',
+          profileId:config.activeProfileId,
+          contextPaths:[]
+        });
+        aiSessionId = session?.id || '';
+        if (aiSessionId) {
+          await view._plugin.aiHistory.appendMessage(aiSessionId, {
+            role:'user',
+            language:en ? 'en' : 'zh-CN',
+            content:weeklyReportAiPrompt(style.value, en) + '\n\n' + source.slice(0, WEEKLY_REPORT_AI_HISTORY_CHARS)
+          });
+          openAgent.disabled = false;
+        }
+      }
+    } catch (error) {
+      console.warn('[Cockpit weekly report] could not create AI history', error);
+    }
+
+    try {
+      const result = await view._plugin.ai.completeStream({
+        language:en ? 'en' : 'zh-CN',
+        action:'custom',
+        question:weeklyReportAiPrompt(style.value, en),
+        contexts:[{ path:(draft.record?.name || 'weekly-report') + '-' + draft.start + '.md', content:source, source:'upload' }]
+      }, (event) => {
+        if (event?.type === 'status') setStatus(event.stage === 'fallback'
+          ? (en ? 'Streaming is unavailable; waiting for the complete response…' : '当前接口不支持流式输出，正在等待完整结果…')
+          : (en ? 'The model is preparing the report…' : '模型正在准备优化内容…'), 'working');
+        if (event?.type === 'content' && event.text) {
+          aiVersion.editor.value += event.text;
+          aiVersion.editor.scrollTop = aiVersion.editor.scrollHeight;
+          saveAi.disabled = true;
+          setStatus(en ? 'AI version is being generated. The original is unchanged.' : 'AI 优化稿正在生成，原稿不会被改动。', 'working');
+        }
+      }, abortController.signal);
+      if (!aiVersion.editor.value.trim() && result?.content) aiVersion.editor.value = result.content;
+      aiVersion.editor.value = aiVersion.editor.value.trim();
+      aiVersion.card.querySelector('.' + PLUGIN_ID + '-report-version-badge')?.setText(en ? 'AI generated' : 'AI 生成');
+      if (aiSessionId && aiVersion.editor.value) {
+        try { await view._plugin.aiHistory.appendMessage(aiSessionId, { role:'assistant', language:en ? 'en' : 'zh-CN', content:aiVersion.editor.value }); }
+        catch (error) { console.warn('[Cockpit weekly report] could not save AI answer history', error); }
+      }
+      setStatus(en ? 'Optimization complete. Review both versions before saving.' : '优化完成，请对照检查后选择保存版本。', 'success');
+    } catch (error) {
+      const stopped = abortController?.signal?.aborted || error?.name === 'AbortError' || error?.code === 'AI_ABORTED';
+      aiVersion.card.querySelector('.' + PLUGIN_ID + '-report-version-badge')?.setText(aiVersion.editor.value.trim() ? (en ? 'Partial draft' : '未完成草稿') : (en ? 'Not generated' : '尚未生成'));
+      setStatus(stopped
+        ? (en ? 'AI optimization stopped. The original is safe; you can retry.' : '已停止 AI 优化；原稿未受影响，可以重新尝试。')
+        : ((en ? 'AI optimization failed: ' : 'AI 优化失败：') + (error?.message || error)), stopped ? '' : 'error');
+    } finally {
+      abortController = null;
+      setOptimizing(false);
+    }
+  };
+  stop.onclick = () => abortController?.abort();
+  openAgent.onclick = async () => {
+    if (!aiSessionId) return;
+    try {
+      await view._plugin.aiHistory?.setActive(aiSessionId);
+      await view._plugin.openAI?.();
+    } catch (error) {
+      new obs.Notice((en ? 'Could not open Agent: ' : '无法打开 Agent：') + (error?.message || error));
+    }
+  };
+
+  overlay.onclick = (event) => { if (event.target === overlay) closePreview(); };
+  overlay.addEventListener('keydown', (event) => { if (event.key === 'Escape') { event.preventDefault(); closePreview(); } });
   document.body.appendChild(overlay);
-  setTimeout(() => editor.focus(), 20);
+  setTimeout(() => originalVersion.editor.focus(), 20);
 }
 
 function buildWeeklyReportModule(view, root) {
@@ -431,16 +682,11 @@ function buildWeeklyReportModule(view, root) {
       const toggleRecord = (event) => {
         event?.preventDefault?.();
         event?.stopPropagation?.();
-        if (isActive) {
-          state.selectedId = null;
-          item.removeClass('expanded');
-          item.querySelector('.' + PLUGIN_ID + '-report-studio-composer')?.remove();
-          toggle.setAttribute('aria-expanded', 'false');
-          nameBtn.setAttribute('aria-expanded', 'false');
-          return;
+        const nextSelectedId = weeklyReportNextSelectedId(state.selectedId, record.id);
+        if (nextSelectedId) {
+          state.preset = 'this'; state.start = ''; state.end = ''; state.systems = new Set(); state.plans = ''; state.status = ''; state.error = false;
         }
-        state.selectedId = record.id;
-        state.preset = 'this'; state.start = ''; state.end = ''; state.systems = new Set(); state.plans = ''; state.status = ''; state.error = false;
+        state.selectedId = nextSelectedId;
         render();
       };
       toggle.onpointerdown = (event) => { event.stopPropagation(); };
@@ -584,3 +830,12 @@ function buildWeeklyReportModule(view, root) {
   view._makeModuleCollapsible('reportStudio', title, body);
   return render;
 }
+
+if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports={
+  normalizeWeeklyReportRecord,
+  normalizeWeeklyReportConfig,
+  weeklyReportAiStyleInstruction,
+  weeklyReportAiPrompt,
+  weeklyReportNextSelectedId,
+  WEEKLY_REPORT_AI_HISTORY_CHARS
+};

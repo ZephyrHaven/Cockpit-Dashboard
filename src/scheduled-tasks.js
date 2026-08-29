@@ -5,7 +5,7 @@ const SCHEDULED_TASK_LIMIT = 50;
 const SCHEDULED_LOG_LIMIT = 500;
 const SCHEDULED_LOG_MAX_BYTES = 5 * 1024 * 1024;
 // 事件触发的任务类型与动作类型（append-daily/create-todo/push 的 command 字段存放文本模板）。
-const SCHEDULED_EVENT_NAMES = ['file-saved', 'todo-completed', 'pomodoro-finished'];
+const SCHEDULED_EVENT_NAMES = ['file-saved', 'todo-completed', 'pomodoro-finished', 'weekly-report-saved'];
 const SCHEDULED_TEMPLATE_KINDS = ['append-daily', 'create-todo', 'push'];
 const SCHEDULED_TASK_KINDS = ['obsidian-command', 'toolbar-action', 'shell', ...SCHEDULED_TEMPLATE_KINDS, 'workflow'];
 // 事件任务的最小重跑间隔：动作若会改写被监听的文件夹，冷却期兜底防止事件风暴。
@@ -141,7 +141,8 @@ function scheduleLabel(task, lang = 'zh') {
     const names = {
       'file-saved': en ? 'Note saved' : '笔记保存',
       'todo-completed': en ? 'Todo completed' : '待办完成',
-      'pomodoro-finished': en ? 'Pomodoro finished' : '番茄钟结束'
+      'pomodoro-finished': en ? 'Pomodoro finished' : '番茄钟结束',
+      'weekly-report-saved': en ? 'Weekly report saved' : '周报已保存'
     };
     const base = (en ? 'On ' : '触发于') + (names[schedule.event] || schedule.event);
     return schedule.event === 'file-saved' && schedule.folder ? base + (en ? ' in ' : ' · ') + schedule.folder : base;
@@ -244,7 +245,8 @@ class ScheduledTaskService {
       };
       this._unbindCockpitEvents = [
         typeof cockpitOn === 'function' ? cockpitOn('todo-completed', (payload) => this.dispatchEventTrigger('todo-completed', payload || {}).catch((e) => console.warn('[Cockpit event trigger]', e))) : null,
-        typeof cockpitOn === 'function' ? cockpitOn('pomodoro-finished', (payload) => this.dispatchEventTrigger('pomodoro-finished', payload || {}).catch((e) => console.warn('[Cockpit event trigger]', e))) : null
+        typeof cockpitOn === 'function' ? cockpitOn('pomodoro-finished', (payload) => this.dispatchEventTrigger('pomodoro-finished', payload || {}).catch((e) => console.warn('[Cockpit event trigger]', e))) : null,
+        typeof cockpitOn === 'function' ? cockpitOn('weekly-report-saved', (payload) => this.dispatchEventTrigger('weekly-report-saved', payload || {}).catch((e) => console.warn('[Cockpit event trigger]', e))) : null
       ].filter(Boolean);
     } catch (e) { console.warn('[Cockpit scheduler] event trigger binding failed', e); }
   }
@@ -531,7 +533,7 @@ async function openScheduledTaskEditor(view, existing, options = {}) {
   const interval=field(en?'Interval minutes':'间隔分钟数').createEl('input',{attr:{type:'number',min:'1',max:'10080'}}); interval.value=String(draft.schedule.intervalMinutes);
   const time=field(en?'Run time':'运行时间').createEl('input',{attr:{type:'time'}}); time.value=draft.schedule.time;
   const days=field(en?'Weekdays (0=Sun … 6=Sat)':'星期（0=周日 … 6=周六）').createEl('input',{attr:{type:'text',placeholder:'1,2,3,4,5'}}); days.value=draft.schedule.weekdays.join(',');
-  const eventNames={'file-saved':[en?'Note saved':'笔记保存'],'todo-completed':[en?'Todo completed':'待办完成'],'pomodoro-finished':[en?'Pomodoro finished':'番茄钟结束']};
+  const eventNames={'file-saved':[en?'Note saved':'笔记保存'],'todo-completed':[en?'Todo completed':'待办完成'],'pomodoro-finished':[en?'Pomodoro finished':'番茄钟结束'],'weekly-report-saved':[en?'Weekly report saved':'周报已保存']};
   const eventSel=field(en?'Trigger event':'触发事件').createEl('select'); Object.keys(eventNames).forEach((value)=>eventSel.createEl('option',{text:eventNames[value][0],attr:{value}})); eventSel.value=draft.schedule.event||'file-saved';
   const eventFolder=field(en?'Folder filter (empty = any)':'文件夹过滤（留空 = 任意）').createEl('input',{attr:{type:'text',maxlength:'200',placeholder:'Projects'}}); eventFolder.value=draft.schedule.folder||'';
   const missed=field(en?'After the app was closed':'应用关闭期间错过后').createEl('select'); missed.createEl('option',{text:en?'Run once on next launch':'下次启动补跑一次',attr:{value:'run-once'}}); missed.createEl('option',{text:en?'Skip missed runs':'跳过错过的运行',attr:{value:'skip'}}); missed.value=draft.missedPolicy;
