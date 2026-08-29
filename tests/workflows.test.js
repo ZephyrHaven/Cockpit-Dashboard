@@ -19,6 +19,10 @@ const notices = [];
 
 const api = require('../src/workflows.js');
 
+assert.equal(api.workflowTimeoutMs(30), 30000, 'Shell timeout seconds are converted to milliseconds for execFile.');
+assert.equal(api.workflowTimeoutMs(1), 5000, 'Shell timeout respects the configured minimum before conversion.');
+assert.equal(api.workflowTimeoutMs(99999), 1800000, 'Shell timeout respects the configured maximum before conversion.');
+
 // ── 数据模型 ────────────────────────────────────────────────────────────────
 {
   const normalized = api.normalizeWorkflows([

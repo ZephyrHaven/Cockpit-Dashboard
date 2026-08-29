@@ -232,7 +232,7 @@ function openWeeklyReportScheduledTask(view, taskName, fullCommandId) {
     timeoutSeconds: 300,
     createdAt: new Date().toISOString()
   };
-  openScheduledTaskEditor(view, draft);
+  openScheduledTaskEditor(view, draft, { asNew:true });
 }
 
 // 记录编辑器：新增/编辑一条周报配置。existing 为空即新增。
@@ -401,11 +401,12 @@ function buildWeeklyReportModule(view, root) {
     const cfg = await readWeeklyReportConfig(view._plugin);
     const records = cfg.records;
 
-    // ── 记录列表头部：数量 + 新增 ──
-    const header = body.createDiv({ cls: PLUGIN_ID + '-report-studio-row' });
-    header.createDiv({ cls: PLUGIN_ID + '-report-studio-label', text: en
-      ? records.length + ' record' + (records.length === 1 ? '' : 's') + ' · each record is one independent report config'
-      : records.length + ' 条配置 · 每条是一份独立的周报来源' });
+    // ── 每条配置都是一张独立的折叠卡片；默认只显示摘要。 ──
+    const header = body.createDiv({ cls: PLUGIN_ID + '-report-studio-header' });
+    const headerCopy = header.createDiv({ cls: PLUGIN_ID + '-report-studio-header-copy' });
+    headerCopy.createDiv({ cls: PLUGIN_ID + '-report-studio-label', text: en
+      ? records.length + ' report config' + (records.length === 1 ? '' : 's')
+      : records.length + ' 条周报配置' });
     const add = header.createEl('button', { cls: 'primary', text: '+ ' + (en ? 'New record' : '新增配置'), attr: { type: 'button' } });
     add.onclick = () => openWeeklyReportRecordEditor(view, null, () => render());
 
@@ -416,24 +417,47 @@ function buildWeeklyReportModule(view, root) {
       return;
     }
 
-    // ── 记录列表 ──
+    // ── 配置卡片 ──
     const list = body.createDiv({ cls: PLUGIN_ID + '-report-studio-list' });
+    let activeHost = null;
     records.forEach((record) => {
-      const row = list.createDiv({ cls: PLUGIN_ID + '-report-studio-record' + (state.selectedId === record.id || (!state.selectedId && record.id === records[0].id) ? ' active' : '') });
-      const nameBtn = row.createEl('button', { cls: PLUGIN_ID + '-report-studio-record-name', text: record.name, attr: { type: 'button' } });
-      nameBtn.onclick = () => {
+      const isActive = state.selectedId === record.id;
+      const item = list.createDiv({ cls: PLUGIN_ID + '-report-studio-item' + (isActive ? ' expanded' : '') });
+      const row = item.createDiv({ cls: PLUGIN_ID + '-report-studio-record' });
+      if (isActive) activeHost = item;
+      const toggle = row.createEl('button', { cls: PLUGIN_ID + '-report-studio-record-toggle', attr: { type: 'button', 'aria-label': isActive ? (en ? 'Collapse report config' : '收起周报配置') : (en ? 'Expand report config' : '展开周报配置'), 'aria-expanded': String(isActive) } });
+      obs.setIcon(toggle, 'chevron-right');
+      const nameBtn = row.createEl('button', { cls: PLUGIN_ID + '-report-studio-record-name', text: record.name, attr: { type: 'button', 'aria-expanded': String(isActive) } });
+      const toggleRecord = (event) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        if (isActive) {
+          state.selectedId = null;
+          item.removeClass('expanded');
+          item.querySelector('.' + PLUGIN_ID + '-report-studio-composer')?.remove();
+          toggle.setAttribute('aria-expanded', 'false');
+          nameBtn.setAttribute('aria-expanded', 'false');
+          return;
+        }
         state.selectedId = record.id;
         state.preset = 'this'; state.start = ''; state.end = ''; state.systems = new Set(); state.plans = ''; state.status = ''; state.error = false;
         render();
       };
+      toggle.onpointerdown = (event) => { event.stopPropagation(); };
+      toggle.onclick = toggleRecord;
+      nameBtn.onpointerdown = (event) => { event.stopPropagation(); };
+      nameBtn.onclick = toggleRecord;
       row.createDiv({ cls: PLUGIN_ID + '-report-studio-record-meta', text:
         (record.scriptPath ? record.scriptPath.split('/').pop() : (en ? 'no script' : '未配脚本'))
         + ' · ' + (record.vaultFolder || (en ? 'no folder' : '未配目录'))
         + (record.xlsxPath ? ' · xlsx' : '') });
-      const edit = row.createEl('button', { cls: PLUGIN_ID + '-scheduler-icon-btn', attr: { type: 'button', 'aria-label': en ? 'Edit' : '编辑' } });
+      const actions = row.createDiv({ cls: PLUGIN_ID + '-report-studio-record-actions' });
+      actions.onpointerdown = (event) => { event.stopPropagation(); };
+      actions.onclick = (event) => { event.stopPropagation(); };
+      const edit = actions.createEl('button', { cls: PLUGIN_ID + '-scheduler-icon-btn', attr: { type: 'button', 'aria-label': en ? 'Edit' : '编辑' } });
       obs.setIcon(edit, 'settings');
       edit.onclick = () => openWeeklyReportRecordEditor(view, record, () => render());
-      const del = row.createEl('button', { cls: PLUGIN_ID + '-scheduler-icon-btn', attr: { type: 'button', 'aria-label': en ? 'Delete' : '删除' } });
+      const del = actions.createEl('button', { cls: PLUGIN_ID + '-scheduler-icon-btn', attr: { type: 'button', 'aria-label': en ? 'Delete' : '删除' } });
       obs.setIcon(del, 'trash');
       del.onclick = async () => {
         if (!window.confirm(en ? 'Delete this report record?' : '删除这条周报配置？')) return;
@@ -442,21 +466,36 @@ function buildWeeklyReportModule(view, root) {
         refreshWeeklyReportCommands(view._plugin);
         render();
       };
+      row.onpointerdown = (event) => { event.stopPropagation(); };
+      row.onclick = (event) => {
+        if (event.target.closest('.' + PLUGIN_ID + '-report-studio-record-actions')) return;
+        toggleRecord(event);
+      };
     });
 
-    // ── 选中记录的生成面板 ──
-    const record = records.find((item) => item.id === state.selectedId) || records[0];
-    if (state.selectedId !== record.id) state.selectedId = record.id;
+    // 默认保持折叠；仅为当前展开的配置创建生成区域。
+    const record = records.find((item) => item.id === state.selectedId);
+    if (!record || !activeHost) return;
 
-    const rowTop = body.createDiv({ cls: PLUGIN_ID + '-report-studio-row' });
-    const presetGroup = rowTop.createDiv({ cls: PLUGIN_ID + '-report-studio-chips' });
+    const composer = activeHost.createDiv({ cls: PLUGIN_ID + '-report-studio-composer' });
+    const composerHead = composer.createDiv({ cls: PLUGIN_ID + '-report-studio-composer-head' });
+    const composerTitle = composerHead.createDiv();
+    composerTitle.createDiv({ cls: PLUGIN_ID + '-report-studio-eyebrow', text: en ? 'CREATE REPORT' : '生成周报' });
+    composerTitle.createDiv({ cls: PLUGIN_ID + '-report-studio-composer-title', text: record.name });
+    composerHead.createDiv({ cls: PLUGIN_ID + '-report-studio-ready', text: weeklyReportMissingConfig(record) ? (en ? 'Setup required' : '待完善配置') : (en ? 'Ready' : '已就绪') });
+
+    const rowTop = composer.createDiv({ cls: PLUGIN_ID + '-report-studio-section' });
+    rowTop.createDiv({ cls: PLUGIN_ID + '-report-studio-section-label', text: en ? '01 · Period' : '01 · 周报周期' });
+    const periodControls = rowTop.createDiv({ cls: PLUGIN_ID + '-report-studio-period-controls' });
+    const presetGroup = periodControls.createDiv({ cls: PLUGIN_ID + '-report-studio-chips' });
     const presets = [['this', en ? 'This period' : '本周期'], ['last', en ? 'Last period' : '上一周期'], ['custom', en ? 'Custom' : '自定义']];
     presets.forEach(([value, label]) => {
-      const chip = presetGroup.createEl('button', { cls: PLUGIN_ID + '-report-studio-chip' + (state.preset === value ? ' active' : ''), text: label, attr: { type: 'button' } });
+      const chip = presetGroup.createEl('button', { cls: PLUGIN_ID + '-report-studio-chip' + (state.preset === value ? ' active' : ''), text: label, attr: { type: 'button', 'aria-pressed': String(state.preset === value) } });
       chip.onclick = () => { state.preset = value; render(); };
     });
-    const dateGroup = rowTop.createDiv({ cls: PLUGIN_ID + '-report-studio-dates' });
+    const dateGroup = periodControls.createDiv({ cls: PLUGIN_ID + '-report-studio-dates' });
     const startInput = dateGroup.createEl('input', { attr: { type: 'date', 'aria-label': en ? 'Start date' : '开始日期' } });
+    dateGroup.createSpan({ cls: PLUGIN_ID + '-report-studio-date-separator', text: '→' });
     const endInput = dateGroup.createEl('input', { attr: { type: 'date', 'aria-label': en ? 'End date' : '结束日期' } });
     if (state.preset === 'custom') {
       if (!state.start || !state.end) {
@@ -480,25 +519,26 @@ function buildWeeklyReportModule(view, root) {
     }
 
     if (record.systems.length) {
-      const rowSystems = body.createDiv({ cls: PLUGIN_ID + '-report-studio-row' });
-      rowSystems.createDiv({ cls: PLUGIN_ID + '-report-studio-label', text: en ? 'System' : '系统' });
+      const rowSystems = composer.createDiv({ cls: PLUGIN_ID + '-report-studio-section' });
+      rowSystems.createDiv({ cls: PLUGIN_ID + '-report-studio-section-label', text: en ? '02 · Scope' : '02 · 系统范围' });
       const chips = rowSystems.createDiv({ cls: PLUGIN_ID + '-report-studio-chips' });
-      const all = chips.createEl('button', { cls: PLUGIN_ID + '-report-studio-chip' + (state.systems.size ? '' : ' active'), text: en ? 'All' : '全部', attr: { type: 'button' } });
+      const all = chips.createEl('button', { cls: PLUGIN_ID + '-report-studio-chip' + (state.systems.size ? '' : ' active'), text: en ? 'All systems' : '全部系统', attr: { type: 'button', 'aria-pressed': String(!state.systems.size) } });
       all.onclick = () => { state.systems.clear(); render(); };
       record.systems.forEach((sysName) => {
         const active = state.systems.has(sysName);
-        const chip = chips.createEl('button', { cls: PLUGIN_ID + '-report-studio-chip' + (active ? ' active' : ''), text: sysName, attr: { type: 'button' } });
+        const chip = chips.createEl('button', { cls: PLUGIN_ID + '-report-studio-chip' + (active ? ' active' : ''), text: sysName, attr: { type: 'button', 'aria-pressed': String(active) } });
         chip.onclick = () => { active ? state.systems.delete(sysName) : state.systems.add(sysName); render(); };
       });
     }
 
-    const rowPlan = body.createDiv({ cls: PLUGIN_ID + '-report-studio-row column' });
-    rowPlan.createDiv({ cls: PLUGIN_ID + '-report-studio-label', text: en ? 'Next-week plan (one per line, blank = script presets)' : '下周计划（每行一条，留空用脚本预设）' });
+    const rowPlan = composer.createDiv({ cls: PLUGIN_ID + '-report-studio-section' });
+    rowPlan.createDiv({ cls: PLUGIN_ID + '-report-studio-section-label', text: en ? (record.systems.length ? '03 · Next week' : '02 · Next week') : (record.systems.length ? '03 · 下周计划' : '02 · 下周计划') });
+    rowPlan.createDiv({ cls: PLUGIN_ID + '-report-studio-section-hint', text: en ? 'One item per line · leave blank to use script presets' : '每行一条 · 留空则使用脚本预设' });
     const planInput = rowPlan.createEl('textarea', { attr: { rows: '3', placeholder: en ? 'e.g. Daily ops support' : '例如：系统日常使用的运维' } });
     planInput.value = state.plans || '';
     planInput.oninput = () => { state.plans = planInput.value; };
 
-    const rowAction = body.createDiv({ cls: PLUGIN_ID + '-report-studio-row' });
+    const rowAction = composer.createDiv({ cls: PLUGIN_ID + '-report-studio-actions' });
     const generate = rowAction.createEl('button', { cls: 'primary', text: state.busy ? (en ? 'Generating…' : '生成中…') : (en ? 'Generate report' : '生成周报'), attr: { type: 'button' } });
     generate.disabled = state.busy;
     const status = rowAction.createDiv({ cls: PLUGIN_ID + '-report-studio-status', text: state.status || '' });

@@ -44,6 +44,11 @@ function workflowStepLabel(type, en = false) {
   return labels[type] || type;
 }
 
+function workflowTimeoutMs(timeoutSeconds) {
+  const seconds = Math.max(WORKFLOW_LIMITS.stepTimeoutMin, Math.min(WORKFLOW_LIMITS.stepTimeoutMax, Math.round(Number(timeoutSeconds) || 300)));
+  return seconds * 1000;
+}
+
 function normalizeWorkflows(raw) {
   const seen = new Set();
   return (Array.isArray(raw) ? raw : []).slice(0, WORKFLOW_LIMITS.maxWorkflows).map((item) => {
@@ -164,7 +169,7 @@ class CockpitWorkflowEngine {
     };
   }
   _runShell(command, timeoutSeconds) {
-    const timeout = Math.max(WORKFLOW_LIMITS.stepTimeoutMin, Math.min(WORKFLOW_LIMITS.stepTimeoutMax, Math.round(Number(timeoutSeconds) || 300)));
+    const timeout = workflowTimeoutMs(timeoutSeconds);
     return new Promise((resolve, reject) => {
       execFile('/bin/zsh', ['-lc', command], { timeout, maxBuffer:1024 * 1024, encoding:'utf8' }, (error, stdout, stderr) => {
         if (error) { error.message = (error.message || 'shell-failed') + (stderr ? ('\n' + String(stderr).slice(0, 500)) : ''); reject(error); return; }
@@ -330,6 +335,26 @@ function workflowOpenOverlay(view, titleText) {
   return { overlay, panel };
 }
 
+function openWorkflowSchedule(view, workflow) {
+  const en = view._lang() === 'en';
+  const draft = {
+    id:scheduledTaskId(),
+    name:workflow.name + (en ? ' · schedule' : ' · 定时运行'),
+    kind:'workflow',
+    command:workflow.id,
+    enabled:true,
+    trusted:false,
+    schedule:{ type:'daily', intervalMinutes:60, time:'09:00', weekdays:[1,2,3,4,5] },
+    missedPolicy:'run-once',
+    timeoutSeconds:300,
+    createdAt:new Date().toISOString()
+  };
+  openScheduledTaskEditor(view, draft, { asNew:true }).catch((error) => {
+    console.warn('[Cockpit workflow schedule editor]', error);
+    new obs.Notice((en ? 'Could not open schedule editor: ' : '无法打开定时设置：') + (error?.message || error));
+  });
+}
+
 function buildWorkflowsModule(view, root) {
   const plugin = view._plugin;
   const engine = plugin.workflows;
@@ -339,15 +364,22 @@ function buildWorkflowsModule(view, root) {
   title.dataset.section = 'workflows-title';
   const body = root.createDiv({ cls:PLUGIN_ID+'-workflows' });
   body.dataset.section = 'workflows-body';
+  const openEditor = (workflowIdValue = null) => openWorkflowEditor(view, workflowIdValue).catch((error) => {
+    console.warn('[Cockpit workflows editor]', error);
+    new obs.Notice((en ? 'Could not open workflow editor: ' : '无法打开流程编辑器：') + (error?.message || error));
+  });
+  let renderRevision = 0;
 
   const render = async () => {
-    body.empty();
+    const revision = ++renderRevision;
     const workflows = await engine.load();
+    if (revision !== renderRevision) return;
+    body.empty();
     const top = body.createDiv({ cls:PLUGIN_ID+'-scheduler-summary' });
     top.createDiv({ cls:PLUGIN_ID+'-scheduler-summary-text', text:en ? `${workflows.length} pipelines · run manually or via schedules/events` : `${workflows.length} 条流程 · 手动运行或按时间/事件触发` });
     const controls = top.createDiv({ cls:PLUGIN_ID+'-scheduler-controls' });
     const add = controls.createEl('button', { cls:'primary', text:'+ ' + (en ? 'New workflow' : '新建流程'), attr:{ type:'button' } });
-    add.onclick = () => openWorkflowEditor(view);
+    add.onclick = () => openEditor();
     if (!workflows.length) {
       body.createDiv({ cls:PLUGIN_ID+'-scheduler-empty', text:en ? 'No workflows yet. Start from an inspection template (disk / website / backup freshness).' : '暂无自动化流程。可从巡检模板开始（磁盘空间 / 网站可达性 / 备份新鲜度）。' });
     }
@@ -356,20 +388,23 @@ function buildWorkflowsModule(view, root) {
       const row = list.createDiv({ cls:PLUGIN_ID+'-scheduler-row' });
       const main = row.createDiv({ cls:PLUGIN_ID+'-scheduler-main' });
       const name = main.createEl('button', { cls:PLUGIN_ID+'-scheduler-name', text:workflow.name, attr:{ type:'button' } });
-      name.onclick = () => openWorkflowEditor(view, workflow.id);
+      name.onclick = () => openEditor(workflow.id);
       const lastText = workflow.lastRunAt
         ? workflowRunStatusText(workflow.lastStatus, en) + ' · ' + window.moment(workflow.lastRunAt).format('MM-DD HH:mm')
         : (en ? 'Never run' : '未运行');
       main.createDiv({ cls:PLUGIN_ID+'-scheduler-meta', text:workflow.steps.length + (en ? ' steps · ' : ' 步 · ') + lastText + (workflow.enabled ? '' : ' · ' + (en ? 'Paused' : '已停用')) });
-      const status = row.createSpan({ cls:PLUGIN_ID+'-scheduler-status ' + (workflow.lastStatus || 'idle'), text:workflow.lastStatus || (en ? 'Not run' : '未运行') });
+      const status = row.createSpan({ cls:PLUGIN_ID+'-scheduler-status ' + (workflow.lastStatus || 'idle'), text:workflow.lastStatus ? workflowRunStatusText(workflow.lastStatus, en) : (en ? 'Not run' : '未运行') });
       // 图标按钮收进一个容器，保持 -scheduler-row 的四列网格不换行：信息 | 状态 | 图标组 | 运行
       const actions = row.createDiv({ cls:PLUGIN_ID+'-workflow-actions' });
       const history = actions.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':en ? 'Run history' : '运行历史' } });
       obs.setIcon(history, 'history');
       history.onclick = () => openWorkflowRuns(view, workflow.id);
+      const schedule = actions.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':en ? 'Schedule workflow' : '定时运行' } });
+      obs.setIcon(schedule, 'calendar-clock');
+      schedule.onclick = () => openWorkflowSchedule(view, workflow);
       const edit = actions.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':en ? 'Edit' : '编辑' } });
       obs.setIcon(edit, 'pencil');
-      edit.onclick = () => openWorkflowEditor(view, workflow.id);
+      edit.onclick = () => openEditor(workflow.id);
       const toggle = actions.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':workflow.enabled ? (en ? 'Pause' : '停用') : (en ? 'Enable' : '启用') } });
       obs.setIcon(toggle, workflow.enabled ? 'pause' : 'play');
       toggle.onclick = async () => { await engine.upsert({ ...workflow, enabled:!workflow.enabled, updatedAt:new Date().toISOString() }); };
@@ -420,6 +455,7 @@ async function openWorkflowEditor(view, workflowIdValue = null) {
   const existing = workflowIdValue ? all.find((item) => item.id === workflowIdValue) : null;
   const draft = existing ? JSON.parse(JSON.stringify(existing)) : { id:workflowId(), name:'', enabled:false, trusted:false, notifyOnFailure:true, logNote:'', steps:[] };
   const { overlay, panel } = workflowOpenOverlay(view, existing ? (en ? 'Edit workflow' : '编辑流程') : (en ? 'New workflow' : '新建流程'));
+  panel.classList.add(PLUGIN_ID+'-workflow-editor');
   const field = (label) => { const wrap = panel.createDiv({ cls:PLUGIN_ID+'-scheduler-field' }); wrap.createDiv({ cls:PLUGIN_ID+'-scheduler-label', text:label }); return wrap; };
 
   const nameInput = field(en ? 'Name' : '名称').createEl('input', { attr:{ type:'text', maxlength:String(WORKFLOW_LIMITS.nameChars), placeholder:en ? 'e.g. Disk inspection' : '例如：磁盘空间巡检' } });
@@ -431,14 +467,16 @@ async function openWorkflowEditor(view, workflowIdValue = null) {
   WORKFLOW_TEMPLATES.forEach((template, index) => templateSel.createEl('option', { text:template.name, attr:{ value:String(index) } }));
 
   const stepsWrap = field(en ? 'Steps (run top to bottom)' : '步骤（自上而下执行）');
+  stepsWrap.addClass(PLUGIN_ID+'-workflow-steps-field');
   const stepsList = stepsWrap.createDiv({ cls:PLUGIN_ID+'-workflow-steps' });
-  const addStep = stepsWrap.createEl('button', { text:en ? '+ Add step' : '+ 添加步骤', attr:{ type:'button' } });
+  const addStep = stepsWrap.createEl('button', { cls:PLUGIN_ID+'-workflow-add-step', text:en ? '+ Add step' : '+ 添加步骤', attr:{ type:'button' } });
 
   const rebuildSteps = () => {
     stepsList.empty();
     draft.steps.forEach((step, index) => {
       const row = stepsList.createDiv({ cls:PLUGIN_ID+'-workflow-step' });
       const head = row.createDiv({ cls:PLUGIN_ID+'-workflow-step-head' });
+      head.createSpan({ cls:PLUGIN_ID+'-workflow-step-index', text:String(index + 1).padStart(2, '0') });
       const typeSel = head.createEl('select');
       WORKFLOW_STEP_TYPES.forEach((type) => typeSel.createEl('option', { text:workflowStepLabel(type, en), attr:{ value:type } }));
       typeSel.value = step.type;
@@ -451,6 +489,8 @@ async function openWorkflowEditor(view, workflowIdValue = null) {
       };
       const up = head.createEl('button', { attr:{ type:'button', 'aria-label':en ? 'Move up' : '上移' } }); obs.setIcon(up, 'arrow-up'); up.onclick = () => move(-1);
       const down = head.createEl('button', { attr:{ type:'button', 'aria-label':en ? 'Move down' : '下移' } }); obs.setIcon(down, 'arrow-down'); down.onclick = () => move(1);
+      up.disabled = index === 0;
+      down.disabled = index === draft.steps.length - 1;
       const remove = head.createEl('button', { attr:{ type:'button', 'aria-label':en ? 'Remove' : '删除' } }); obs.setIcon(remove, 'trash-2'); remove.onclick = () => { draft.steps.splice(index, 1); rebuildSteps(); };
 
       if (step.type === 'wait') {
@@ -458,26 +498,27 @@ async function openWorkflowEditor(view, workflowIdValue = null) {
         waitRow.createSpan({ text:en ? 'Seconds' : '秒数' });
         const waitInput = waitRow.createEl('input', { attr:{ type:'number', min:'1', max:String(WORKFLOW_LIMITS.waitMax) } });
         waitInput.value = String(step.waitSeconds || 5);
-        waitInput.onchange = () => { step.waitSeconds = Math.max(1, Math.min(WORKFLOW_LIMITS.waitMax, Math.round(Number(waitInput.value) || 5))); };
+        waitInput.oninput = () => { step.waitSeconds = Math.max(1, Math.min(WORKFLOW_LIMITS.waitMax, Math.round(Number(waitInput.value) || 5))); };
       } else {
         const textArea = row.createEl('textarea', { attr:{ rows:step.type === 'shell' ? '3' : '2', maxlength:String(WORKFLOW_LIMITS.textChars), placeholder:step.type === 'shell' ? (en ? 'Shell command; {{last_output}} carries the previous step output' : 'Shell 命令；{{last_output}} 引用上一步输出') : (en ? 'Content / target. Supports {date} {time} {datetime} and {{last_output}}' : '内容 / 目标，支持 {date} {time} {datetime} 与 {{last_output}}') } });
         textArea.value = step.text;
-        textArea.onchange = () => { step.text = textArea.value; };
+        textArea.oninput = () => { step.text = textArea.value; };
       }
       if (step.type === 'shell') {
         const shellRow = row.createDiv({ cls:PLUGIN_ID+'-workflow-step-opts' });
         shellRow.createSpan({ text:en ? 'Timeout(s)' : '超时(秒)' });
         const timeoutInput = shellRow.createEl('input', { attr:{ type:'number', min:String(WORKFLOW_LIMITS.stepTimeoutMin), max:String(WORKFLOW_LIMITS.stepTimeoutMax) } });
         timeoutInput.value = String(step.timeoutSeconds || 300);
-        timeoutInput.onchange = () => { step.timeoutSeconds = Math.max(WORKFLOW_LIMITS.stepTimeoutMin, Math.min(WORKFLOW_LIMITS.stepTimeoutMax, Math.round(Number(timeoutInput.value) || 300))); };
+        timeoutInput.oninput = () => { step.timeoutSeconds = Math.max(WORKFLOW_LIMITS.stepTimeoutMin, Math.min(WORKFLOW_LIMITS.stepTimeoutMax, Math.round(Number(timeoutInput.value) || 300))); };
         shellRow.createSpan({ text:en ? 'Retries' : '重试' });
         const retryInput = shellRow.createEl('input', { attr:{ type:'number', min:'0', max:String(WORKFLOW_LIMITS.retryMax) } });
         retryInput.value = String(step.retryCount || 0);
-        retryInput.onchange = () => { step.retryCount = Math.max(0, Math.min(WORKFLOW_LIMITS.retryMax, Math.round(Number(retryInput.value) || 0))); };
-        const continueLabel = shellRow.createLabel({ text:en ? 'Continue on error' : '失败后继续' });
-        const continueCheck = continueLabel.createEl('input', { attr:{ type:'checkbox' } });
+        retryInput.oninput = () => { step.retryCount = Math.max(0, Math.min(WORKFLOW_LIMITS.retryMax, Math.round(Number(retryInput.value) || 0))); };
+        const continueLabel = shellRow.createEl('label', { cls:PLUGIN_ID+'-workflow-inline-toggle' });
+        const continueCheck = continueLabel.createEl('input', { cls:PLUGIN_ID+'-workflow-switch', attr:{ type:'checkbox', role:'switch' } });
         continueCheck.checked = step.continueOnError === true;
         continueCheck.onchange = () => { step.continueOnError = continueCheck.checked; };
+        continueLabel.createSpan({ text:en ? 'Continue on error' : '失败后继续' });
       }
       const condRow = row.createDiv({ cls:PLUGIN_ID+'-workflow-step-opts' });
       condRow.createSpan({ text:en ? 'Run when' : '执行条件' });
@@ -488,16 +529,25 @@ async function openWorkflowEditor(view, workflowIdValue = null) {
       if (['last-output-contains', 'last-output-not-contains'].includes(whenSel.value)) {
         const condInput = condRow.createEl('input', { attr:{ type:'text', maxlength:String(WORKFLOW_LIMITS.conditionChars), placeholder:en ? 'e.g. DISK_FULL' : '例如 DISK_FULL' } });
         condInput.value = step.condition?.text || '';
-        condInput.onchange = () => { step.condition = { when:whenSel.value, text:condInput.value }; };
+        condInput.oninput = () => { step.condition = { when:whenSel.value, text:condInput.value }; };
       }
     });
     if (!draft.steps.length) stepsList.createDiv({ cls:PLUGIN_ID+'-workflow-steps-empty', text:en ? 'No steps yet.' : '还没有步骤。' });
+    addStep.setText((en ? '+ Add step' : '+ 添加步骤') + `  ${draft.steps.length}/${WORKFLOW_LIMITS.maxSteps}`);
+    addStep.disabled = draft.steps.length >= WORKFLOW_LIMITS.maxSteps;
   };
-  addStep.onclick = () => {
+  const appendStep = () => {
     if (draft.steps.length >= WORKFLOW_LIMITS.maxSteps) { new obs.Notice(en ? 'Step limit reached.' : '步骤数量已达上限。'); return; }
-    draft.steps.push({ id:'s' + (draft.steps.length + 1), type:'shell', text:'', timeoutSeconds:300, continueOnError:false, retryCount:0, condition:{ when:'always', text:'' }, waitSeconds:5 });
+    draft.steps.push({ id:'s-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6), type:'shell', text:'', timeoutSeconds:300, continueOnError:false, retryCount:0, condition:{ when:'always', text:'' }, waitSeconds:5 });
     rebuildSteps();
+    const lastStep = stepsList.lastElementChild;
+    // 强制一次布局提交，避免宿主 WebView 将连续新增延迟到下一个输入事件才绘制。
+    void stepsList.offsetHeight;
+    window.requestAnimationFrame(() => lastStep?.scrollIntoView?.({ behavior:'auto', block:'nearest' }));
   };
+  // 指针按下时就完成新增，避免按钮点击被当前输入框的 blur / DOM 重建吞掉。
+  addStep.onpointerdown = (event) => { if (event.button !== 0) return; event.preventDefault(); appendStep(); };
+  addStep.onclick = (event) => { if (event.detail === 0) appendStep(); };
   templateSel.onchange = () => {
     const template = WORKFLOW_TEMPLATES[Number(templateSel.value)];
     if (!template || draft.steps.length) return;
@@ -518,13 +568,21 @@ async function openWorkflowEditor(view, workflowIdValue = null) {
   logInput.value = draft.logNote || '';
 
   const hasShell = () => draft.steps.some((step) => step.type === 'shell');
-  const trustLabel = field(en ? 'Shell trust' : 'Shell 信任确认').createDiv({ cls:PLUGIN_ID+'-scheduler-check' });
-  const trustCheck = trustLabel.createEl('input', { attr:{ type:'checkbox' } });
+  const permissions = panel.createDiv({ cls:PLUGIN_ID+'-workflow-permissions' });
+  permissions.createDiv({ cls:PLUGIN_ID+'-workflow-permissions-title', text:en ? 'Run permissions' : '运行权限' });
+  permissions.createDiv({ cls:PLUGIN_ID+'-workflow-permissions-hint', text:en ? 'Shell workflows require explicit trust before they can be enabled.' : '含 Shell 命令的流程需要先确认信任，之后才能启用。' });
+  const trustLabel = permissions.createEl('label', { cls:PLUGIN_ID+'-workflow-permission-row' });
+  const trustCopy = trustLabel.createDiv({ cls:PLUGIN_ID+'-workflow-permission-copy' });
+  trustCopy.createSpan({ text:en ? 'Trust Shell commands' : '信任 Shell 命令' });
+  trustCopy.createEl('small', { text:en ? 'I have reviewed the commands and confirm they are safe on this machine.' : '我已检查流程中的命令，并确认可在本机安全运行。' });
+  const trustCheck = trustLabel.createEl('input', { cls:PLUGIN_ID+'-workflow-switch', attr:{ type:'checkbox', role:'switch' } });
   trustCheck.checked = draft.trusted === true;
-  trustLabel.createSpan({ text:en ? 'I confirm these shell commands are safe to run on this machine (required to enable shell steps)' : '我确认这些 Shell 命令在本机运行是安全的（含 Shell 的流程必须确认后才能启用）' });
 
-  const enableLabel = field(en ? 'Enabled' : '启用').createDiv({ cls:PLUGIN_ID+'-scheduler-check' });
-  const enableCheck = enableLabel.createEl('input', { attr:{ type:'checkbox' } });
+  const enableLabel = permissions.createEl('label', { cls:PLUGIN_ID+'-workflow-permission-row' });
+  const enableCopy = enableLabel.createDiv({ cls:PLUGIN_ID+'-workflow-permission-copy' });
+  enableCopy.createSpan({ text:en ? 'Enable workflow' : '启用流程' });
+  enableCopy.createEl('small', { text:en ? 'Allow manual, scheduled, and event-triggered runs.' : '允许手动运行，以及定时和事件触发。' });
+  const enableCheck = enableLabel.createEl('input', { cls:PLUGIN_ID+'-workflow-switch', attr:{ type:'checkbox', role:'switch' } });
   enableCheck.checked = draft.enabled === true;
   const refreshEnable = () => { enableCheck.disabled = hasShell() && !trustCheck.checked; };
   enableCheck.onchange = () => { draft.enabled = enableCheck.checked; };
@@ -560,7 +618,7 @@ function createWorkflowEngine(plugin, dependencies = {}) {
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
   module.exports = {
     WORKFLOW_LIMITS, WORKFLOW_STEP_TYPES, WORKFLOW_CONDITION_WHEN, WORKFLOW_TEMPLATES,
-    workflowId, workflowStepLabel, normalizeWorkflows, workflowInterpolate,
+    workflowId, workflowStepLabel, workflowTimeoutMs, normalizeWorkflows, workflowInterpolate,
     stepConditionAllows, CockpitWorkflowEngine, createWorkflowEngine
   };
 }
