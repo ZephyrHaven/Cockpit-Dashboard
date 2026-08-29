@@ -39,6 +39,7 @@ const I18N = {
       projects: '🎯 项目进度',
       resurface: '🕰 旧笔记重现',
       scheduledTasks: '⏱ 定时任务',
+      workflows: '🔀 自动化流程',
       heatmap: '📈 编辑热力图（近30天）'
     },
     greetings: {
@@ -320,6 +321,7 @@ const I18N = {
       projects: '🎯 Project Progress',
       resurface: '🕰 Resurface Old Notes',
       scheduledTasks: '⏱ Scheduled Tasks',
+      workflows: '🔀 Workflows',
       heatmap: '📈 Edit Heatmap (30d)'
     },
     greetings: {
