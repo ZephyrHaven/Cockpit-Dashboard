@@ -179,6 +179,37 @@ function writeAndReport(filePath, content, label) {
   console.log(`✅ ${label}: ${filePath} (${size} bytes, ${lines} 行)`);
 }
 
+// ===== 体积治理 =====
+// 产物是单文件分发（宿主商店只下发 main.js/styles.css/manifest.json 三个文件，
+// 无法拆分为多个 JS 分片），体积只能靠源头治理。这里让每个模块的体积占比
+// 在每次构建时可见，并用预算线拦截失控增长：新功能合入时一眼看出谁在变胖。
+const SIZE_BUDGET = { warnBytes: 700 * 1024, failBytes: 1024 * 1024 };
+
+function reportModuleSizes(moduleBodies) {
+  const rows = moduleBodies
+    .map(({ name, code }) => ({ name, bytes: Buffer.byteLength(code) }))
+    .sort((a, b) => b.bytes - a.bytes);
+  const total = rows.reduce((sum, row) => sum + row.bytes, 0);
+  console.log('📦 模块体积 TOP10（拼接前源码）：');
+  rows.slice(0, 10).forEach(({ name, bytes }, index) => {
+    const pct = ((bytes / total) * 100).toFixed(1).padStart(4);
+    console.log(`   ${String(index + 1).padStart(2)}. ${name.padEnd(24)} ${ (bytes / 1024).toFixed(1).padStart(7)} KB  ${pct}%`);
+  });
+  console.log(`   合计 ${(total / 1024).toFixed(1)} KB（${rows.length} 个模块）`);
+}
+
+function checkSizeBudget(finalBytes) {
+  const kb = (finalBytes / 1024).toFixed(1);
+  if (finalBytes > SIZE_BUDGET.failBytes) {
+    console.error(`❌ JS 产物 ${kb} KB 超过硬上限 ${SIZE_BUDGET.failBytes / 1024} KB：先做体积治理（拆分插件/裁剪功能）再发布`);
+    process.exitCode = 1;
+  } else if (finalBytes > SIZE_BUDGET.warnBytes) {
+    console.warn(`⚠️ JS 产物 ${kb} KB 已超过预算告警线 ${SIZE_BUDGET.warnBytes / 1024} KB，新增功能请同步评估体积`);
+  } else {
+    console.log(`📦 体积预算: ${kb} KB / 告警 ${SIZE_BUDGET.warnBytes / 1024} KB / 上限 ${SIZE_BUDGET.failBytes / 1024} KB ✅`);
+  }
+}
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const rawCss = readFileOrExit(CSS_FILE, 'styles.css');
@@ -192,15 +223,18 @@ async function main() {
   // CSS 不再内嵌进 main.js：宿主会自动加载插件目录的 styles.css，
   // 视图侧仅保留 _ensureStylesheetLoaded() 兜底探测。
   const bundle = buildBundle(moduleBodies);
+  reportModuleSizes(moduleBodies);
   const best = await minifyJsBest(bundle);
   if (best) {
     fs.writeFileSync(path.join(OUT_DIR, 'main.js.map'), best.map || '');
     writeAndReport(OUT_FILE, best.map ? best.code + '\n//# sourceMappingURL=main.js.map' : best.code, `构建完成(压缩产物, ${best.engine})`);
     const ratio = ((1 - Buffer.byteLength(best.code) / Buffer.byteLength(bundle)) * 100).toFixed(1);
     console.log(`ℹ️ 胜出引擎: ${best.engine}，JS 压缩率 ${ratio}%`);
+    checkSizeBudget(Buffer.byteLength(best.code));
   } else {
     writeAndReport(OUT_FILE, bundle, '构建完成(未压缩回退)');
     console.log('⚠️ 未安装任何压缩引擎（npm install 后重跑），本次 dist/main.js 为未压缩版本');
+    checkSizeBudget(Buffer.byteLength(bundle));
   }
 }
 
