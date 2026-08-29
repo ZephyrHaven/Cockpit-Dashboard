@@ -362,13 +362,15 @@ function buildWorkflowsModule(view, root) {
         : (en ? 'Never run' : '未运行');
       main.createDiv({ cls:PLUGIN_ID+'-scheduler-meta', text:workflow.steps.length + (en ? ' steps · ' : ' 步 · ') + lastText + (workflow.enabled ? '' : ' · ' + (en ? 'Paused' : '已停用')) });
       const status = row.createSpan({ cls:PLUGIN_ID+'-scheduler-status ' + (workflow.lastStatus || 'idle'), text:workflow.lastStatus || (en ? 'Not run' : '未运行') });
-      const history = row.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':en ? 'Run history' : '运行历史' } });
+      // 图标按钮收进一个容器，保持 -scheduler-row 的四列网格不换行：信息 | 状态 | 图标组 | 运行
+      const actions = row.createDiv({ cls:PLUGIN_ID+'-workflow-actions' });
+      const history = actions.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':en ? 'Run history' : '运行历史' } });
       obs.setIcon(history, 'history');
       history.onclick = () => openWorkflowRuns(view, workflow.id);
-      const edit = row.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':en ? 'Edit' : '编辑' } });
+      const edit = actions.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':en ? 'Edit' : '编辑' } });
       obs.setIcon(edit, 'pencil');
       edit.onclick = () => openWorkflowEditor(view, workflow.id);
-      const toggle = row.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':workflow.enabled ? (en ? 'Pause' : '停用') : (en ? 'Enable' : '启用') } });
+      const toggle = actions.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':workflow.enabled ? (en ? 'Pause' : '停用') : (en ? 'Enable' : '启用') } });
       obs.setIcon(toggle, workflow.enabled ? 'pause' : 'play');
       toggle.onclick = async () => { await engine.upsert({ ...workflow, enabled:!workflow.enabled, updatedAt:new Date().toISOString() }); };
       const run = row.createEl('button', { cls:PLUGIN_ID+'-scheduler-run', text:engine.running.has(workflow.id) ? (en ? 'Running…' : '运行中…') : (en ? 'Run now' : '立即运行'), attr:{ type:'button' } });

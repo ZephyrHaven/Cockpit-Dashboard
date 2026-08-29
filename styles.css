@@ -4423,3 +4423,27 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
 @media (max-width:520px) {
   .cockpit-dashboard-workflow-step-opts select { max-width:100%; }
 }
+
+/* ===== 5.8 周报工坊（与 -scheduler-* 同一视觉语言） ===== */
+.cockpit-dashboard-report-studio { display:flex; flex-direction:column; gap:8px; }
+.cockpit-dashboard-report-studio-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.cockpit-dashboard-report-studio-row.column { flex-direction:column; align-items:stretch; }
+.cockpit-dashboard-report-studio-label { flex:1; min-width:120px; color:var(--text-muted); font-size:.66em; font-weight:750; }
+.cockpit-dashboard-report-studio-row.column .cockpit-dashboard-report-studio-label { flex:none; }
+.cockpit-dashboard-report-studio-list { display:flex; flex-direction:column; gap:6px; }
+.cockpit-dashboard-report-studio-record { display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; gap:8px; align-items:center; min-height:52px; padding:8px 10px; border:1px solid var(--background-modifier-border); border-radius:12px; background:var(--background-secondary); }
+.cockpit-dashboard-report-studio-record.active { border-color:color-mix(in srgb,var(--interactive-accent) 55%,transparent); background:color-mix(in srgb,var(--interactive-accent) 8%,var(--background-secondary)); }
+.cockpit-dashboard-report-studio-record-name { max-width:100%; padding:0; border:0; background:transparent; color:var(--text-normal); font-size:.76em; font-weight:800; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+.cockpit-dashboard-report-studio-record-meta { grid-column:1 / -1; margin-top:-2px; color:var(--text-muted); font-size:.62em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cockpit-dashboard-report-studio-dates { display:flex; align-items:center; gap:6px; }
+.cockpit-dashboard-report-studio-dates input[type="date"] { max-width:150px; }
+.cockpit-dashboard-report-studio-chips { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.cockpit-dashboard-report-studio-chip { padding:5px 12px; border:1px solid var(--background-modifier-border); border-radius:999px; background:var(--background-secondary); color:var(--text-muted); font-size:.66em; font-weight:750; white-space:nowrap; }
+.cockpit-dashboard-report-studio-chip:hover { color:var(--text-normal); border-color:color-mix(in srgb,var(--interactive-accent) 40%,transparent); }
+.cockpit-dashboard-report-studio-chip.active { border-color:color-mix(in srgb,var(--interactive-accent) 60%,transparent); background:color-mix(in srgb,var(--interactive-accent) 14%,var(--background-secondary)); color:var(--text-normal); }
+.cockpit-dashboard-report-studio-status { flex:1; min-width:100px; color:var(--text-muted); font-size:.64em; line-height:1.5; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.cockpit-dashboard-report-studio-status.error { color:#f87171; }
+.cockpit-dashboard-report-studio-row textarea { width:100%; min-height:56px; font-size:.72em; line-height:1.5; }
+@media (max-width:520px) {
+  .cockpit-dashboard-report-studio-record { grid-template-columns:minmax(0,1fr) auto auto; }
+}
