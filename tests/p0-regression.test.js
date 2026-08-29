@@ -24,7 +24,7 @@ assert.match(framework, /mobileDevice\s*=\s*this\._isMobile\(\)[\s\S]*?classList
 assert.match(framework, /initialClasses[\s\S]*?this\._isMobile\(\) \|\| initialWidth < 680[\s\S]*?_buildAll\(root\)/, 'Responsive classes are applied before first-paint modules are built.');
 assert.match(framework, /new ResizeObserver\(this\._viewportSyncHandler\)/, 'Split-pane and rotation changes continuously resync the container layout.');
 assert.match(framework, /typeof ResizeObserver === 'function'/, 'Older runtimes safely skip the optional container observer.');
-assert.match(framework, /new Set\(\['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows'\]\)/, 'Advanced modules stay hidden until the user opts in on a fresh dashboard.');
+assert.match(framework, /new Set\(\['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio'\]\)/, 'Advanced modules stay hidden until the user opts in on a fresh dashboard.');
 assert.match(framework, /const hadSavedLayout/, 'Scheduler migration distinguishes a user-saved layout from first-run layout initialization.');
 assert.match(framework, /const hasUserLayout = hadSavedLayout/, 'Scheduler visibility is preserved for existing user layouts.');
 assert.match(layoutEdit, /titleEl\.setAttribute\('role', 'button'\)/, 'Collapsible module headings have a semantic keyboard-operable role.');

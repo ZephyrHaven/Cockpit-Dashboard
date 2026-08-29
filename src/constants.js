@@ -19,7 +19,7 @@ const LANG_OPTIONS = [
 
 const E = { wave:'👋', search:'🔍', tag:'🏷️', graph:'🕸️', bolt:'⚡', folder:'📂', rule:'📋', gear:'⚙️', robot:'🤖', box:'📦', chart:'📊', pencil:'✏️', check:'✅', save:'💾', edit:'✏️', del:'✕', cal:'📅' };
 // 可选仪表盘模块：首次引入且用户布局未提及时默认隐藏，用户可在编辑模式里自行开启。
-const OPTIONAL_DASH_MODULES = ['habits', 'weeklyReview', 'projects', 'resurface', 'agenda'];
+const OPTIONAL_DASH_MODULES = ['habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'reportStudio'];
 const COLORS = ['#818cf8','#f59e0b','#3b82f6','#22c55e','#ec4899','#14b8a6','#f97316','#6366f1'];
 const ICONS  = ['📁','📂','🗂️','📋','📌','🏷️','🔖','📊'];
 const I18N = {
@@ -40,6 +40,7 @@ const I18N = {
       resurface: '🕰 旧笔记重现',
       scheduledTasks: '⏱ 定时任务',
       workflows: '🔀 自动化流程',
+      reportStudio: '📊 周报工坊',
       heatmap: '📈 编辑热力图（近30天）'
     },
     greetings: {
@@ -322,6 +323,7 @@ const I18N = {
       resurface: '🕰 Resurface Old Notes',
       scheduledTasks: '⏱ Scheduled Tasks',
       workflows: '🔀 Workflows',
+      reportStudio: '📊 Weekly Report Studio',
       heatmap: '📈 Edit Heatmap (30d)'
     },
     greetings: {

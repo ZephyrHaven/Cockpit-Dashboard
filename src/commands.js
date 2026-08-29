@@ -49,4 +49,6 @@ function registerCockpitCommands(plugin) {
       if (view) openStorageMigration(view);
     }
   });
+  // 周报工坊命令（全局两条 + 按用户配置的系统清单动态注册分系统命令）
+  refreshWeeklyReportCommands(plugin);
 }

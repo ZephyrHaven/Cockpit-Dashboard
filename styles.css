@@ -4398,42 +4398,28 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   font-size:1.05em; letter-spacing:0; text-transform:none;
 }
 
-/* ===== 5.7 自动化流程模块 ===== */
+/* ===== 5.7 自动化流程模块（模块行与弹窗复用 -scheduler-* 视觉规范） ===== */
 .cockpit-dashboard-workflows { display:flex; flex-direction:column; gap:8px; }
-.cockpit-dashboard-workflows-header { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
-.cockpit-dashboard-workflows-caption { flex:1; color:var(--text-muted); font-size:.62em; line-height:1.5; }
-.cockpit-dashboard-workflow-add { padding:5px 12px; border:1px solid var(--background-modifier-border); border-radius:9px; background:var(--background-secondary); color:var(--text-normal); font-size:.68em; font-weight:750; white-space:nowrap; }
-.cockpit-dashboard-workflow-add:hover { border-color:color-mix(in srgb,var(--interactive-accent) 45%,transparent); }
-.cockpit-dashboard-workflows-empty { padding:20px 12px; border:1px dashed var(--background-modifier-border); border-radius:12px; color:var(--text-muted); font-size:.7em; text-align:center; }
-.cockpit-dashboard-workflow-card { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; min-height:54px; padding:9px 10px; border:1px solid var(--background-modifier-border); border-radius:12px; background:var(--background-secondary); }
-.cockpit-dashboard-workflow-card.disabled { opacity:.55; }
-.cockpit-dashboard-workflow-main { min-width:0; }
-.cockpit-dashboard-workflow-name { color:var(--text-normal); font-size:.78em; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.cockpit-dashboard-workflow-meta { margin-top:3px; color:var(--text-muted); font-size:.62em; }
-.cockpit-dashboard-workflow-actions { display:flex; gap:6px; }
-.cockpit-dashboard-workflow-actions button { padding:4px 10px; border:1px solid var(--background-modifier-border); border-radius:9px; background:var(--background-secondary); color:var(--text-muted); font-size:.62em; font-weight:750; white-space:nowrap; }
-.cockpit-dashboard-workflow-actions button:hover:not(:disabled) { color:var(--text-normal); border-color:color-mix(in srgb,var(--interactive-accent) 40%,transparent); }
-.cockpit-dashboard-workflow-actions button:disabled { opacity:.5; }
 .cockpit-dashboard-workflow-steps { display:flex; flex-direction:column; gap:10px; }
-.cockpit-dashboard-workflow-steps-empty { padding:14px; border:1px dashed var(--background-modifier-border); border-radius:10px; color:var(--text-muted); font-size:.7em; text-align:center; }
-.cockpit-dashboard-workflow-step { padding:10px; border:1px solid var(--background-modifier-border); border-radius:12px; background:var(--background-secondary); display:flex; flex-direction:column; gap:8px; }
+.cockpit-dashboard-workflow-steps-empty { padding:14px; border:1px dashed var(--background-modifier-border); border-radius:10px; color:var(--text-muted); font-size:.72em; text-align:center; }
+.cockpit-dashboard-workflow-step { display:flex; flex-direction:column; gap:8px; padding:10px; border:1px solid var(--background-modifier-border); border-radius:12px; background:var(--background-secondary); }
 .cockpit-dashboard-workflow-step-head { display:flex; align-items:center; gap:6px; }
-.cockpit-dashboard-workflow-step-head select { flex:1; max-width:55%; }
-.cockpit-dashboard-workflow-step-head button { width:28px; height:28px; padding:0; border:1px solid var(--background-modifier-border); border-radius:8px; background:var(--background-primary); color:var(--text-muted); }
-.cockpit-dashboard-workflow-step-head button:hover { color:var(--text-normal); }
-.cockpit-dashboard-workflow-step textarea { width:100%; min-height:44px; font-family:var(--font-monospace); font-size:.68em; }
-.cockpit-dashboard-workflow-step-opts { display:flex; flex-wrap:wrap; align-items:center; gap:8px; color:var(--text-muted); font-size:.64em; font-weight:750; }
-.cockpit-dashboard-workflow-step-opts input[type="number"] { width:72px; }
-.cockpit-dashboard-workflow-step-opts input[type="text"] { flex:1; min-width:120px; }
-.cockpit-dashboard-workflow-step-opts label { display:flex; align-items:center; gap:4px; }
-.cockpit-dashboard-workflow-check { display:flex; align-items:center; gap:8px; color:var(--text-muted); font-size:.7em; line-height:1.5; }
+.cockpit-dashboard-workflow-step-head select { flex:1; }
+.cockpit-dashboard-workflow-step-head button { width:30px; height:30px; padding:0; display:flex; align-items:center; justify-content:center; border:1px solid var(--background-modifier-border); border-radius:8px; background:var(--background-primary); color:var(--text-muted); }
+.cockpit-dashboard-workflow-step-head button:hover:not(:disabled) { color:var(--text-normal); border-color:color-mix(in srgb,var(--interactive-accent) 40%,transparent); }
+.cockpit-dashboard-workflow-step-head button svg { width:14px; height:14px; }
+.cockpit-dashboard-workflow-step > textarea { width:100%; min-height:46px; font-family:var(--font-monospace); font-size:.72em; line-height:1.5; }
+.cockpit-dashboard-workflow-step-opts { display:flex; flex-wrap:wrap; align-items:center; gap:8px; color:var(--text-muted); font-size:.66em; font-weight:750; }
+.cockpit-dashboard-workflow-step-opts input[type="number"] { width:74px; }
+.cockpit-dashboard-workflow-step-opts input[type="text"] { flex:1; min-width:130px; }
+.cockpit-dashboard-workflow-step-opts label { display:flex; align-items:center; gap:4px; white-space:nowrap; }
+.cockpit-dashboard-workflow-step-opts select { max-width:160px; }
 .cockpit-dashboard-workflow-runs { display:flex; flex-direction:column; gap:10px; }
 .cockpit-dashboard-workflow-run { padding:10px 12px; border:1px solid var(--background-modifier-border); border-radius:12px; background:var(--background-secondary); }
 .cockpit-dashboard-workflow-run.ok { border-left:3px solid rgba(34,197,94,.65); }
 .cockpit-dashboard-workflow-run.bad { border-left:3px solid rgba(239,68,68,.65); }
-.cockpit-dashboard-workflow-run-head { color:var(--text-normal); font-size:.7em; font-weight:800; }
-.cockpit-dashboard-workflow-run-step { margin-top:4px; color:var(--text-muted); font-size:.64em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cockpit-dashboard-workflow-run-head { color:var(--text-normal); font-size:.72em; font-weight:800; }
+.cockpit-dashboard-workflow-run-step { margin-top:4px; color:var(--text-muted); font-size:.66em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 @media (max-width:520px) {
-  .cockpit-dashboard-workflow-card { grid-template-columns:minmax(0,1fr); }
-  .cockpit-dashboard-workflows-header { flex-direction:column; align-items:stretch; }
+  .cockpit-dashboard-workflow-step-opts select { max-width:100%; }
 }

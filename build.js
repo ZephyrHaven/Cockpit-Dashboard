@@ -61,6 +61,7 @@ const MODULES = [
   'scenes.js',
   'scheduled-tasks.js',
   'workflows.js',
+  'weekly-report.js',
   'alarm-core.js',
   'alarm.js',
   'agenda.js',
