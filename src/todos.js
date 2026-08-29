@@ -122,6 +122,28 @@ function buildPatchedTodoContent(content, todos) {
   return body.endsWith('\n') ? body : body + '\n';
 }
 
+// 待办完成事件：对比写入前后的完成态，把「未完成 → 已完成」的翻转广播给
+// 自动化服务（事件触发器）。解析失败绝不阻断保存本身。
+function emitCompletedTodoEvents(previousContent, todos) {
+  try {
+    if (typeof cockpitEmit !== 'function' || typeof previousContent !== 'string') return;
+    const wasDone = new Map();
+    parseTodosContent(previousContent).forEach((todo) => {
+      if (todo?.id || todo?.text) wasDone.set(todo.id || todo.text, todo.done === true);
+    });
+    (Array.isArray(todos) ? todos : []).forEach((todo) => {
+      const key = todo?.id || todo?.text;
+      if (!key) return;
+      if (todo?.done === true && wasDone.get(key) === false) {
+        cockpitEmit('todo-completed', {
+          id:String(todo.id || ''), text:String(todo.text || ''),
+          tags:Array.isArray(todo.tags) ? todo.tags.slice(0, 8) : [], priority:todo.priority || 'mid'
+        });
+      }
+    });
+  } catch (e) { console.warn('emit todo events', e); }
+}
+
 async function writeTodosUnlocked(vault, todos) {
   try {
     const dir = TODO_FILE.split('/')[0];
@@ -141,7 +163,10 @@ async function writeTodosUnlocked(vault, todos) {
     const patched = buildPatchedTodoContent(content, todos);
     // 文件里已没有任何可识别的待办行且也没有新行要追加时，说明是空结构文件，
     // 保持原样即可（清空全部待办后不应被默认内容或模板重写）。
-    if (patched !== null && patched !== content) await vault.modify(file, patched);
+    if (patched !== null && patched !== content) {
+      await vault.modify(file, patched);
+      emitCompletedTodoEvents(content, todos);
+    }
     return true;
   } catch(e) { console.warn('saveTodos',e); return false; }
 }

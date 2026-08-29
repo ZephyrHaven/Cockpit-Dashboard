@@ -270,6 +270,12 @@ class CockpitView extends obs.ItemView {
     this._pomodoroTaskStats = outcome.stats;
     this._pomodoroCompletions = outcome.completions;
     this._pomodoroSession = nextSession;
+    // 广播番茄钟完成事件，供自动化事件触发器使用；失败绝不影响统计本身。
+    try {
+      if (outcome.entry && typeof cockpitEmit === 'function') {
+        cockpitEmit('pomodoro-finished', { minutes:Number(input?.minutes) || 0, taskId:String(input?.id || ''), completedAt:new Date().toISOString() });
+      }
+    } catch (e) { console.warn('emit pomodoro event', e); }
     if (this._refreshTodosRef) await this._refreshTodosRef({ persist:false });
     return outcome;
   }
@@ -2816,7 +2822,8 @@ class CockpitPlugin extends obs.Plugin {
     try {
       this.agentTools = createCockpitAgentToolHub(this, [
         createCockpitLocalToolsRegistry(this),
-        createCockpitWorkspaceToolsRegistry(this)
+        createCockpitWorkspaceToolsRegistry(this),
+        createCockpitVaultToolsRegistry(this)
       ]);
       // 本地命令允许列表来自 AI 配置：启动时同步一次，配置变更后自动刷新。
       this.ai.getConfig().then((config) => this.agentTools.sync?.(config)).catch(() => {});

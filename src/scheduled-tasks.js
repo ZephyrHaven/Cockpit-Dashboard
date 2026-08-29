@@ -4,10 +4,35 @@
 const SCHEDULED_TASK_LIMIT = 50;
 const SCHEDULED_LOG_LIMIT = 500;
 const SCHEDULED_LOG_MAX_BYTES = 5 * 1024 * 1024;
+// 事件触发的任务类型与动作类型（append-daily/create-todo/push 的 command 字段存放文本模板）。
+const SCHEDULED_EVENT_NAMES = ['file-saved', 'todo-completed', 'pomodoro-finished'];
+const SCHEDULED_TEMPLATE_KINDS = ['append-daily', 'create-todo', 'push'];
+const SCHEDULED_TASK_KINDS = ['obsidian-command', 'toolbar-action', 'shell', ...SCHEDULED_TEMPLATE_KINDS];
+// 事件任务的最小重跑间隔：动作若会改写被监听的文件夹，冷却期兜底防止事件风暴。
+const SCHEDULED_EVENT_COOLDOWN_MS = 20000;
 
 function scheduledTaskId() {
   try { return 'job-' + globalThis.crypto?.randomUUID?.().replace(/-/g, '').slice(0, 16); } catch (e) {}
   return 'job-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+
+function scheduledTemplateText(template) {
+  const now = window.moment();
+  return String(template || '')
+    .replace(/\{date\}/g, now.format('YYYY-MM-DD'))
+    .replace(/\{time\}/g, now.format('HH:mm'))
+    .replace(/\{datetime\}/g, now.format('YYYY-MM-DD HH:mm'));
+}
+
+// 事件任务与文件路径的匹配：folder 为空匹配任意路径，否则按前缀匹配。
+function eventTaskMatchesPath(task, paths) {
+  const folder = String(task?.schedule?.folder || '');
+  const list = Array.isArray(paths) ? paths : [];
+  if (!folder) return list.length > 0;
+  return list.some((path) => {
+    const value = String(path || '');
+    return value === folder || value.startsWith(folder + '/');
+  });
 }
 
 function normalizeScheduledTasks(raw) {
@@ -17,20 +42,22 @@ function normalizeScheduledTasks(raw) {
     const name = String(item?.name || '').trim().slice(0, 80);
     if (!id || seen.has(id) || !name) return null;
     seen.add(id);
-    const kind = ['obsidian-command','toolbar-action'].includes(item?.kind) ? item.kind : 'shell';
-    const command = String(item?.command || '').trim().slice(0, 12000);
+    const kind = SCHEDULED_TASK_KINDS.includes(item?.kind) ? item.kind : 'shell';
+    const command = String(item?.command || '').trim().slice(0, kind === 'shell' ? 12000 : 4000);
     if (!command) return null;
-    const scheduleType = ['interval','daily','weekly'].includes(item?.schedule?.type) ? item.schedule.type : 'daily';
+    const scheduleType = ['interval', 'daily', 'weekly', 'event'].includes(item?.schedule?.type) ? item.schedule.type : 'daily';
     const intervalMinutes = Math.max(1, Math.min(10080, Math.round(Number(item?.schedule?.intervalMinutes) || 60)));
     const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(item?.schedule?.time || '') ? item.schedule.time : '09:00';
     const weekdays = Array.from(new Set((Array.isArray(item?.schedule?.weekdays) ? item.schedule.weekdays : [1,2,3,4,5])
       .map(Number).filter((day) => day >= 0 && day <= 6))).sort();
+    const event = SCHEDULED_EVENT_NAMES.includes(item?.schedule?.event) ? item.schedule.event : 'file-saved';
+    const folder = String(item?.schedule?.folder || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '').slice(0, 200);
     const createdAt = Number.isFinite(Date.parse(item?.createdAt || '')) ? new Date(item.createdAt).toISOString() : new Date().toISOString();
     return {
       id, name, kind, command,
       enabled:item?.enabled === true && (kind !== 'shell' || item?.trusted === true),
       trusted:item?.trusted === true,
-      schedule:{ type:scheduleType, intervalMinutes, time, weekdays:weekdays.length ? weekdays : [1,2,3,4,5] },
+      schedule:{ type:scheduleType, intervalMinutes, time, weekdays:weekdays.length ? weekdays : [1,2,3,4,5], event, folder },
       missedPolicy:item?.missedPolicy === 'skip' ? 'skip' : 'run-once',
       timeoutSeconds:Math.max(5, Math.min(3600, Math.round(Number(item?.timeoutSeconds) || 300))),
       createdAt,
@@ -60,6 +87,7 @@ function scheduledToolbarActions(view) {
 function scheduledSlot(task, nowValue = Date.now()) {
   const now = window.moment(nowValue);
   const schedule = task?.schedule || {};
+  if (schedule.type === 'event') return null;
   if (schedule.type === 'interval') {
     const base = window.moment(task.lastScheduledAt || task.createdAt);
     const step = Math.max(1, Number(schedule.intervalMinutes) || 60);
@@ -84,6 +112,7 @@ function scheduledSlot(task, nowValue = Date.now()) {
 function nextScheduledRun(task, nowValue = Date.now()) {
   const now = window.moment(nowValue);
   const schedule = task?.schedule || {};
+  if (schedule.type === 'event') return null;
   if (schedule.type === 'interval') {
     const base = window.moment(task.lastScheduledAt || task.createdAt);
     const step = Math.max(1, Number(schedule.intervalMinutes) || 60);
@@ -108,6 +137,15 @@ function nextScheduledRun(task, nowValue = Date.now()) {
 function scheduleLabel(task, lang = 'zh') {
   const en = lang === 'en';
   const schedule = task.schedule;
+  if (schedule.type === 'event') {
+    const names = {
+      'file-saved': en ? 'Note saved' : '笔记保存',
+      'todo-completed': en ? 'Todo completed' : '待办完成',
+      'pomodoro-finished': en ? 'Pomodoro finished' : '番茄钟结束'
+    };
+    const base = (en ? 'On ' : '触发于') + (names[schedule.event] || schedule.event);
+    return schedule.event === 'file-saved' && schedule.folder ? base + (en ? ' in ' : ' · ') + schedule.folder : base;
+  }
   if (schedule.type === 'interval') return en ? `Every ${schedule.intervalMinutes} min` : `每 ${schedule.intervalMinutes} 分钟`;
   if (schedule.type === 'daily') return en ? `Daily at ${schedule.time}` : `每天 ${schedule.time}`;
   const labels = en ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] : ['日','一','二','三','四','五','六'];
@@ -174,8 +212,61 @@ class ScheduledTaskService {
     const timer = window.setInterval(() => this.tick().catch((e) => console.warn('[Cockpit scheduler]', e)), 30000);
     this.plugin.registerInterval(timer);
     this.plugin.app.workspace.onLayoutReady(() => this.tick().catch((e) => console.warn('[Cockpit scheduler]', e)));
+    this._bindEventTriggers();
   }
-  stop() { this.started = false; this.listeners.clear(); }
+  stop() { this.started = false; this.listeners.clear(); this._unbindEventTriggers?.(); this._unbindEventTriggers = null; }
+  _bindEventTriggers() {
+    // 事件触发器：库内文件事件挂宿主事件注册表（随插件卸载自动解绑），
+    // 待办/番茄钟事件走插件内部事件总线。文件事件统一防抖后批量匹配任务。
+    try {
+      let debounceTimer = null;
+      const pendingPaths = new Set();
+      const flush = () => {
+        debounceTimer = null;
+        const paths = Array.from(pendingPaths);
+        pendingPaths.clear();
+        this.dispatchEventTrigger('file-saved', { paths }).catch((e) => console.warn('[Cockpit event trigger]', e));
+      };
+      const onVaultChange = (file) => {
+        const path = String(file?.path || '');
+        if (!path || !path.toLowerCase().endsWith('.md')) return;
+        // 面板自管理的数据文件不作为「笔记保存」事件源（待办变化有专属事件）。
+        if (path === TODO_FILE || path === FOCUS_FILE || (typeof DAILY_DIR === 'string' && path.startsWith(DAILY_DIR + '/'))) return;
+        pendingPaths.add(path);
+        if (debounceTimer) window.clearTimeout(debounceTimer);
+        debounceTimer = window.setTimeout(flush, 2500);
+      };
+      this.plugin.registerEvent(this.plugin.app.vault.on('modify', onVaultChange));
+      this.plugin.registerEvent(this.plugin.app.vault.on('rename', (file) => onVaultChange(file)));
+      this._unbindVaultEvents = () => {
+        if (debounceTimer) { window.clearTimeout(debounceTimer); debounceTimer = null; }
+        pendingPaths.clear();
+      };
+      this._unbindCockpitEvents = [
+        typeof cockpitOn === 'function' ? cockpitOn('todo-completed', (payload) => this.dispatchEventTrigger('todo-completed', payload || {}).catch((e) => console.warn('[Cockpit event trigger]', e))) : null,
+        typeof cockpitOn === 'function' ? cockpitOn('pomodoro-finished', (payload) => this.dispatchEventTrigger('pomodoro-finished', payload || {}).catch((e) => console.warn('[Cockpit event trigger]', e))) : null
+      ].filter(Boolean);
+    } catch (e) { console.warn('[Cockpit scheduler] event trigger binding failed', e); }
+  }
+  _unbindEventTriggers() {
+    this._unbindVaultEvents?.();
+    this._unbindVaultEvents = null;
+    this._unbindCockpitEvents?.forEach((off) => { try { off(); } catch (e) {} });
+    this._unbindCockpitEvents = null;
+  }
+  async dispatchEventTrigger(eventName, payload = {}) {
+    if (!this.started) return;
+    const tasks = await this.load();
+    const now = Date.now();
+    tasks.forEach((task) => {
+      if (!task.enabled || task.schedule.type !== 'event' || task.schedule.event !== eventName) return;
+      if (this.running.has(task.id)) return;
+      // 冷却期：上次运行后短时间内不重复触发，防止「动作改写被监听文件」造成事件风暴。
+      if (task.lastRunAt && now - Date.parse(task.lastRunAt) < SCHEDULED_EVENT_COOLDOWN_MS) return;
+      if (eventName === 'file-saved' && !eventTaskMatchesPath(task, payload.paths || [])) return;
+      this.runTask(task.id, { trigger:'event', scheduledAt:new Date().toISOString() }).catch((e) => console.warn('[Cockpit event run]', e));
+    });
+  }
   _toolbarView() {
     return this.plugin.app.workspace.getLeavesOfType(VIEW_TYPE)
       .map((leaf) => leaf?.view)
@@ -247,6 +338,12 @@ class ScheduledTaskService {
       } else if (task.kind === 'toolbar-action') {
         const result = await this.runToolbarAction(task.command);
         stdout = result.stdout; stderr = result.stderr;
+      } else if (task.kind === 'append-daily') {
+        stdout = await this.appendDailyNote(task.command);
+      } else if (task.kind === 'create-todo') {
+        stdout = await this.createTodoFromTemplate(task.command);
+      } else if (task.kind === 'push') {
+        stdout = await this.pushNotification(task.command);
       } else {
         const result = await new Promise((resolve, reject) => {
           const { execFile } = require('child_process');
@@ -275,6 +372,50 @@ class ScheduledTaskService {
       this.running.delete(id); this.notify();
     }
     return status === 'success';
+  }
+  async appendDailyNote(template) {
+    const text = scheduledTemplateText(template).slice(0, 4000);
+    if (!text) throw new Error('empty-template');
+    const dir = typeof DAILY_DIR === 'string' ? DAILY_DIR : '_daily';
+    const path = dir + '/' + window.moment().format('YYYY-MM-DD') + '.md';
+    const vault = this.plugin.app.vault;
+    if (!vault.getAbstractFileByPath(dir)) await vault.createFolder(dir);
+    const file = vault.getAbstractFileByPath(path);
+    if (!file) {
+      await vault.create(path, '# ' + window.moment().format('YYYY-MM-DD') + '\n\n' + text + '\n');
+      return 'Created daily note: ' + path;
+    }
+    const content = typeof vault.read === 'function' ? await vault.read(file) : '';
+    const separator = content && !content.endsWith('\n') ? '\n\n' : '\n';
+    await vault.modify(file, content + separator + text + '\n');
+    return 'Appended to daily note: ' + path;
+  }
+  async createTodoFromTemplate(template) {
+    const text = scheduledTemplateText(template).replace(/[\r\n\0]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
+    if (!text) throw new Error('empty-template');
+    if (typeof mutateTodos !== 'function' || typeof createTodoId !== 'function') throw new Error('todo-layer-unavailable');
+    const outcome = await mutateTodos(this.plugin.app.vault, (todos) => {
+      todos.push({ id:createTodoId(), text, tags:[], priority:'mid', dueDate:null, dueHasTime:false, done:false, created:window.moment(), doneDate:null });
+      return true;
+    });
+    if (!outcome?.saved) throw new Error('todo-create-failed');
+    // 打开的驾驶舱需要同步新待办：复用 Agent 工具的刷新链路（闹钟同步 + 视图重载）。
+    if (typeof refreshCockpitAfterAgentMutation === 'function') {
+      await refreshCockpitAfterAgentMutation(this.plugin, outcome.todos).catch((e) => console.warn('[Cockpit scheduler] dashboard refresh failed', e));
+    }
+    return 'Todo created: ' + text;
+  }
+  async pushNotification(template) {
+    const message = scheduledTemplateText(template).slice(0, 500);
+    if (!message) throw new Error('empty-template');
+    const config = await this.plugin.serverChan?.getConfig?.();
+    const channels = config?.channels || {};
+    const ids = Object.keys(channels).filter((id) => channels[id]?.enabled);
+    if (!ids.length) throw new Error('push-channel-unconfigured');
+    const results = await Promise.allSettled(ids.map((id) => sendNotificationChannel(id, channels[id], 'Cockpit', message)));
+    const failed = results.filter((result) => result.status === 'rejected').length;
+    if (failed >= ids.length) throw new Error('push-failed');
+    return 'Push sent via ' + (ids.length - failed) + '/' + ids.length + ' channel(s)';
   }
   logPath() {
     const path = require('path');
@@ -362,8 +503,8 @@ function openScheduledTaskEditor(view, existing) {
   makeCockpitDialogDraggable(panel, head, { label:en ? 'Drag scheduled task editor' : '拖动定时任务编辑窗口' });
   const field=(label)=>{const wrap=panel.createDiv({cls:PLUGIN_ID+'-scheduler-field'});wrap.createDiv({cls:PLUGIN_ID+'-scheduler-label',text:label});return wrap;};
   const name=field(en?'Name':'名称').createEl('input',{attr:{type:'text',maxlength:'80',placeholder:en?'e.g. Daily backup':'例如：每日备份'}}); name.value=draft.name;
-  const kind=field(en?'Task type':'任务类型').createEl('select'); kind.createEl('option',{text:en?'Toolbar action':'Toolbar 动作',attr:{value:'toolbar-action'}}); kind.createEl('option',{text:en?'Obsidian command':'Obsidian 命令',attr:{value:'obsidian-command'}}); kind.createEl('option',{text:en?'Shell command (desktop)':'Shell 命令（仅桌面端）',attr:{value:'shell'}}); kind.value=draft.kind;
-  const commandWrap=field(en?'Command':'命令'); const command=commandWrap.createEl('textarea',{attr:{rows:'5',maxlength:'12000'}}); command.value=draft.command;
+  const kind=field(en?'Task type':'任务类型').createEl('select'); kind.createEl('option',{text:en?'Toolbar action':'Toolbar 动作',attr:{value:'toolbar-action'}}); kind.createEl('option',{text:en?'Obsidian command':'Obsidian 命令',attr:{value:'obsidian-command'}}); kind.createEl('option',{text:en?'Shell command (desktop)':'Shell 命令（仅桌面端）',attr:{value:'shell'}}); kind.createEl('option',{text:en?'Append to daily note':'追加到今日日记',attr:{value:'append-daily'}}); kind.createEl('option',{text:en?'Create a todo':'创建待办',attr:{value:'create-todo'}}); kind.createEl('option',{text:en?'Push notification':'推送通知',attr:{value:'push'}}); kind.value=draft.kind;
+  const commandWrap=field(en?'Command':'命令'); const commandLabel=commandWrap.querySelector('.'+PLUGIN_ID+'-scheduler-label'); const command=commandWrap.createEl('textarea',{attr:{rows:'5',maxlength:'12000'}}); command.value=draft.command;
   const commandPicker=commandWrap.createEl('select'); commandPicker.createEl('option',{text:en?'Choose an app command…':'选择应用命令…',attr:{value:''}});
   (view.app.commands.listCommands?.()||[]).sort((a,b)=>a.name.localeCompare(b.name)).forEach((item)=>commandPicker.createEl('option',{text:item.name,attr:{value:item.id}}));
   commandPicker.value=draft.kind==='obsidian-command'?draft.command:''; commandPicker.onchange=()=>{if(commandPicker.value)command.value=commandPicker.value;};
@@ -372,18 +513,21 @@ function openScheduledTaskEditor(view, existing) {
   toolbarActions.forEach((action)=>(action.custom?customGroup:builtinGroup).createEl('option',{text:action.label,attr:{value:action.id}}));
   if(draft.kind==='toolbar-action'&&draft.command&&!toolbarActions.some((action)=>action.id===draft.command))toolbarPicker.createEl('option',{text:(en?'Unavailable: ':'已失效：')+draft.command,attr:{value:draft.command,disabled:'disabled'}});
   toolbarPicker.value=draft.kind==='toolbar-action'?draft.command:''; toolbarPicker.onchange=()=>{if(toolbarPicker.value)command.value=toolbarPicker.value;};
-  const scheduleType=field(en?'Schedule':'运行计划').createEl('select'); [['interval',en?'Interval':'按间隔'],['daily',en?'Daily':'每天'],['weekly',en?'Weekly':'每周']].forEach(([value,label])=>scheduleType.createEl('option',{text:label,attr:{value}})); scheduleType.value=draft.schedule.type;
+  const scheduleType=field(en?'Schedule':'运行计划').createEl('select'); [['interval',en?'Interval':'按间隔'],['daily',en?'Daily':'每天'],['weekly',en?'Weekly':'每周'],['event',en?'On event':'事件触发']].forEach(([value,label])=>scheduleType.createEl('option',{text:label,attr:{value}})); scheduleType.value=draft.schedule.type;
   const interval=field(en?'Interval minutes':'间隔分钟数').createEl('input',{attr:{type:'number',min:'1',max:'10080'}}); interval.value=String(draft.schedule.intervalMinutes);
   const time=field(en?'Run time':'运行时间').createEl('input',{attr:{type:'time'}}); time.value=draft.schedule.time;
   const days=field(en?'Weekdays (0=Sun … 6=Sat)':'星期（0=周日 … 6=周六）').createEl('input',{attr:{type:'text',placeholder:'1,2,3,4,5'}}); days.value=draft.schedule.weekdays.join(',');
+  const eventNames={'file-saved':[en?'Note saved':'笔记保存'],'todo-completed':[en?'Todo completed':'待办完成'],'pomodoro-finished':[en?'Pomodoro finished':'番茄钟结束']};
+  const eventSel=field(en?'Trigger event':'触发事件').createEl('select'); Object.keys(eventNames).forEach((value)=>eventSel.createEl('option',{text:eventNames[value][0],attr:{value}})); eventSel.value=draft.schedule.event||'file-saved';
+  const eventFolder=field(en?'Folder filter (empty = any)':'文件夹过滤（留空 = 任意）').createEl('input',{attr:{type:'text',maxlength:'200',placeholder:'Projects'}}); eventFolder.value=draft.schedule.folder||'';
   const missed=field(en?'After the app was closed':'应用关闭期间错过后').createEl('select'); missed.createEl('option',{text:en?'Run once on next launch':'下次启动补跑一次',attr:{value:'run-once'}}); missed.createEl('option',{text:en?'Skip missed runs':'跳过错过的运行',attr:{value:'skip'}}); missed.value=draft.missedPolicy;
   const trusted=field(en?'Shell permission':'Shell 权限').createEl('label',{cls:PLUGIN_ID+'-scheduler-check'}); const trustBox=trusted.createEl('input',{attr:{type:'checkbox'}}); trustBox.checked=draft.trusted; trusted.createSpan({text:en?'I understand this command can change files and system data.':'我了解此命令可能修改文件与系统数据。'});
   const enabled=field(en?'Status':'状态').createEl('label',{cls:PLUGIN_ID+'-scheduler-check'}); const enabledBox=enabled.createEl('input',{attr:{type:'checkbox'}}); enabledBox.checked=draft.enabled; enabled.createSpan({text:en?'Enable this schedule':'启用此计划'});
   const error=panel.createDiv({cls:PLUGIN_ID+'-scheduler-error'}); const footer=panel.createDiv({cls:PLUGIN_ID+'-scheduler-footer'});
   if(existing){const remove=footer.createEl('button',{cls:'danger',text:en?'Delete':'删除',attr:{type:'button'}});remove.onclick=async()=>{if(!window.confirm(en?'Delete this scheduled task?':'删除这个定时任务？'))return;await view._plugin.scheduledTasks.remove(draft.id);overlay.remove();};}
   const cancel=footer.createEl('button',{text:en?'Cancel':'取消',attr:{type:'button'}});cancel.onclick=()=>overlay.remove(); const save=footer.createEl('button',{cls:'primary',text:en?'Save':'保存',attr:{type:'button'}});
-  const syncVisibility=()=>{const shell=kind.value==='shell';const obsidianCommand=kind.value==='obsidian-command';command.style.display=shell?'':'none';commandPicker.style.display=obsidianCommand?'':'none';toolbarPicker.style.display=kind.value==='toolbar-action'?'':'none';interval.parentElement.style.display=scheduleType.value==='interval'?'':'none';time.parentElement.style.display=scheduleType.value==='interval'?'none':'';days.parentElement.style.display=scheduleType.value==='weekly'?'':'none';trusted.parentElement.style.display=shell?'':'none';}; kind.onchange=syncVisibility;scheduleType.onchange=syncVisibility;syncVisibility();
-  save.onclick=async()=>{error.setText('');const selectedCommand=kind.value==='shell'?command.value.trim():(kind.value==='toolbar-action'?toolbarPicker.value:commandPicker.value);const task={...draft,name:name.value.trim(),kind:kind.value,command:selectedCommand,enabled:enabledBox.checked,trusted:trustBox.checked,schedule:{type:scheduleType.value,intervalMinutes:Number(interval.value),time:time.value,weekdays:days.value.split(',').map(Number)},missedPolicy:missed.value,updatedAt:new Date().toISOString()};if(!task.name||!task.command){error.setText(en?'Name and action are required.':'名称和执行动作不能为空。');return;}if(task.kind==='obsidian-command'&&!commandPicker.value){error.setText(en?'Choose an available Obsidian command.':'请选择一个可用的 Obsidian 命令。');return;}if(task.kind==='toolbar-action'&&!toolbarActions.some((action)=>action.id===toolbarPicker.value)){error.setText(en?'Choose an available Toolbar action.':'请选择一个当前可用的 Toolbar 动作。');return;}if(task.kind==='shell'&&task.enabled&&!task.trusted){error.setText(en?'Confirm Shell permission before enabling.':'启用 Shell 任务前请确认权限。');return;}save.disabled=true;try{await view._plugin.scheduledTasks.upsert(task);overlay.remove();}catch(e){error.setText((en?'Could not save: ':'保存失败：')+(e?.message||e));save.disabled=false;}};
+  const syncVisibility=()=>{const shell=kind.value==='shell';const obsidianCommand=kind.value==='obsidian-command';const isTemplate=SCHEDULED_TEMPLATE_KINDS.includes(kind.value);const isEvent=scheduleType.value==='event';command.style.display=shell||isTemplate?'':'none';commandPicker.style.display=obsidianCommand?'':'none';toolbarPicker.style.display=kind.value==='toolbar-action'?'':'none';if(commandLabel){const labels={shell:[en?'Command':'命令'],'obsidian-command':[en?'Command':'命令'],'toolbar-action':[en?'Command':'命令'],'append-daily':[en?'Diary text':'日记内容'],'create-todo':[en?'Todo text':'待办文本'],push:[en?'Message':'消息内容']};commandLabel.textContent=(labels[kind.value]||labels.shell)[0];}command.placeholder=isTemplate?(kind.value==='append-daily'?(en?'Text appended to today\'s daily note. Supports {date} {time} {datetime}':'追加到今日日记的文本，支持 {date} {time} {datetime}'):(kind.value==='create-todo'?(en?'Todo text. Supports {date} {time} {datetime}':'待办文本，支持 {date} {time} {datetime}'):(en?'Push message. Supports {date} {time} {datetime}':'推送消息，支持 {date} {time} {datetime}'))):'';interval.parentElement.style.display=!isEvent&&scheduleType.value==='interval'?'':'none';time.parentElement.style.display=!isEvent&&scheduleType.value!=='interval'?'':'none';days.parentElement.style.display=scheduleType.value==='weekly'?'':'none';eventSel.parentElement.style.display=isEvent?'':'none';eventFolder.parentElement.style.display=isEvent&&eventSel.value==='file-saved'?'':'none';missed.parentElement.style.display=isEvent?'none':'';trusted.parentElement.style.display=shell?'':'none';}; kind.onchange=syncVisibility;scheduleType.onchange=syncVisibility;eventSel.onchange=syncVisibility;syncVisibility();
+  save.onclick=async()=>{error.setText('');const selectedCommand=kind.value==='shell'?command.value.trim():(kind.value==='toolbar-action'?toolbarPicker.value:commandPicker.value);const task={...draft,name:name.value.trim(),kind:kind.value,command:selectedCommand,enabled:enabledBox.checked,trusted:trustBox.checked,schedule:scheduleType.value==='event'?{type:'event',event:eventSel.value,folder:eventFolder.value.trim()}:{type:scheduleType.value,intervalMinutes:Number(interval.value),time:time.value,weekdays:days.value.split(',').map(Number)},missedPolicy:missed.value,updatedAt:new Date().toISOString()};if(!task.name||!task.command){error.setText(en?'Name and action are required.':'名称和执行动作不能为空。');return;}if(task.kind==='obsidian-command'&&!commandPicker.value){error.setText(en?'Choose an available Obsidian command.':'请选择一个可用的 Obsidian 命令。');return;}if(task.kind==='toolbar-action'&&!toolbarActions.some((action)=>action.id===toolbarPicker.value)){error.setText(en?'Choose an available Toolbar action.':'请选择一个当前可用的 Toolbar 动作。');return;}if(task.kind==='shell'&&task.enabled&&!task.trusted){error.setText(en?'Confirm Shell permission before enabling.':'启用 Shell 任务前请确认权限。');return;}save.disabled=true;try{await view._plugin.scheduledTasks.upsert(task);overlay.remove();}catch(e){error.setText((en?'Could not save: ':'保存失败：')+(e?.message||e));save.disabled=false;}};
   overlay.onclick=(event)=>{if(event.target===overlay)overlay.remove();};overlay.addEventListener('keydown',(event)=>{if(event.key==='Escape'){event.preventDefault();overlay.remove();}});document.body.appendChild(overlay);setTimeout(()=>name.focus(),20);
 }
 
@@ -392,8 +536,8 @@ function buildScheduledTasksModule(view, root) {
   const body=root.createDiv({cls:PLUGIN_ID+'-scheduler'});body.dataset.section='scheduled-tasks-body';
   const render=async()=>{body.empty();const tasks=await view._plugin.scheduledTasks.load();const top=body.createDiv({cls:PLUGIN_ID+'-scheduler-summary'});top.createDiv({cls:PLUGIN_ID+'-scheduler-summary-text',text:en?`${tasks.filter(t=>t.enabled).length} enabled · ${tasks.length} total`:`已启用 ${tasks.filter(t=>t.enabled).length} 项 · 共 ${tasks.length} 项`});const controls=top.createDiv({cls:PLUGIN_ID+'-scheduler-controls'});const logs=controls.createEl('button',{text:en?'Logs':'审计日志',attr:{type:'button'}});logs.onclick=()=>openScheduledTaskLogs(view);const add=controls.createEl('button',{cls:'primary',text:'+ '+(en?'New task':'新建任务'),attr:{type:'button'}});add.onclick=()=>openScheduledTaskEditor(view);
     if(!tasks.length)body.createDiv({cls:PLUGIN_ID+'-scheduler-empty',text:en?'No scheduled tasks. Automate Toolbar actions, app commands, or desktop Shell commands.':'暂无定时任务。你可以自动运行 Toolbar 动作、应用命令或桌面端 Shell 命令。'});
-    const list=body.createDiv({cls:PLUGIN_ID+'-scheduler-list'});tasks.forEach((task)=>{const row=list.createDiv({cls:PLUGIN_ID+'-scheduler-row'});const main=row.createDiv({cls:PLUGIN_ID+'-scheduler-main'});const name=main.createEl('button',{cls:PLUGIN_ID+'-scheduler-name',text:task.name,attr:{type:'button'}});name.onclick=()=>openScheduledTaskEditor(view,task);const kindLabel=task.kind==='shell'?'Shell':(task.kind==='toolbar-action'?'Toolbar':'App');main.createDiv({cls:PLUGIN_ID+'-scheduler-meta',text:scheduleLabel(task,view._lang())+' · '+kindLabel});const next=nextScheduledRun(task);main.createDiv({cls:PLUGIN_ID+'-scheduler-next',text:task.enabled&&next?(en?'Next: ':'下次：')+next.format('MM-DD HH:mm'):(en?'Paused':'已暂停')});const status=row.createSpan({cls:PLUGIN_ID+'-scheduler-status '+(task.lastStatus||'idle'),text:task.lastStatus||(en?'Not run':'未运行')});const toggle=row.createEl('button',{cls:PLUGIN_ID+'-scheduler-icon-btn',attr:{type:'button','aria-label':task.enabled?(en?'Pause':'暂停'):(en?'Enable':'启用')}});obs.setIcon(toggle,task.enabled?'pause':'play');toggle.onclick=async()=>{if(task.kind==='shell'&&!task.trusted){new obs.Notice(en?'Edit the task and confirm Shell permission first.':'请先编辑任务并确认 Shell 权限。');return;}await view._plugin.scheduledTasks.toggle(task.id);};const run=row.createEl('button',{cls:PLUGIN_ID+'-scheduler-run',text:view._plugin.scheduledTasks.running.has(task.id)?(en?'Running…':'运行中…'):(en?'Run now':'立即运行'),attr:{type:'button'}});run.disabled=view._plugin.scheduledTasks.running.has(task.id)||view.app.isMobile&&task.kind==='shell';run.onclick=async()=>{run.disabled=true;run.setText(en?'Running…':'运行中…');try{const ok=await view._plugin.scheduledTasks.runTask(task.id,{trigger:'manual'});new obs.Notice(ok?(en?'Task succeeded.':'任务运行成功。'):(en?'Task failed. Check the audit log.':'任务运行失败，请查看审计日志。'));}catch(error){new obs.Notice((en?'Could not run task: ':'无法运行任务：')+(error?.message||error));}};});};
+    const list=body.createDiv({cls:PLUGIN_ID+'-scheduler-list'});tasks.forEach((task)=>{const row=list.createDiv({cls:PLUGIN_ID+'-scheduler-row'});const main=row.createDiv({cls:PLUGIN_ID+'-scheduler-main'});const name=main.createEl('button',{cls:PLUGIN_ID+'-scheduler-name',text:task.name,attr:{type:'button'}});name.onclick=()=>openScheduledTaskEditor(view,task);const kindLabels={shell:'Shell','toolbar-action':'Toolbar','obsidian-command':en?'App':'应用','append-daily':en?'Daily':'日记','create-todo':en?'Todo':'待办','push':en?'Push':'推送'};const kindLabel=kindLabels[task.kind]||task.kind;main.createDiv({cls:PLUGIN_ID+'-scheduler-meta',text:scheduleLabel(task,view._lang())+' · '+kindLabel});const next=nextScheduledRun(task);main.createDiv({cls:PLUGIN_ID+'-scheduler-next',text:task.enabled?(next?(en?'Next: ':'下次：')+next.format('MM-DD HH:mm'):(en?'On event':'事件触发')):(en?'Paused':'已暂停')});const status=row.createSpan({cls:PLUGIN_ID+'-scheduler-status '+(task.lastStatus||'idle'),text:task.lastStatus||(en?'Not run':'未运行')});const toggle=row.createEl('button',{cls:PLUGIN_ID+'-scheduler-icon-btn',attr:{type:'button','aria-label':task.enabled?(en?'Pause':'暂停'):(en?'Enable':'启用')}});obs.setIcon(toggle,task.enabled?'pause':'play');toggle.onclick=async()=>{if(task.kind==='shell'&&!task.trusted){new obs.Notice(en?'Edit the task and confirm Shell permission first.':'请先编辑任务并确认 Shell 权限。');return;}await view._plugin.scheduledTasks.toggle(task.id);};const run=row.createEl('button',{cls:PLUGIN_ID+'-scheduler-run',text:view._plugin.scheduledTasks.running.has(task.id)?(en?'Running…':'运行中…'):(en?'Run now':'立即运行'),attr:{type:'button'}});run.disabled=view._plugin.scheduledTasks.running.has(task.id)||view.app.isMobile&&task.kind==='shell';run.onclick=async()=>{run.disabled=true;run.setText(en?'Running…':'运行中…');try{const ok=await view._plugin.scheduledTasks.runTask(task.id,{trigger:'manual'});new obs.Notice(ok?(en?'Task succeeded.':'任务运行成功。'):(en?'Task failed. Check the audit log.':'任务运行失败，请查看审计日志。'));}catch(error){new obs.Notice((en?'Could not run task: ':'无法运行任务：')+(error?.message||error));}};});};
   view._scheduledTasksUnsubscribe?.();view._scheduledTasksUnsubscribe=view._plugin.scheduledTasks.subscribe(()=>render().catch((e)=>console.warn('[Cockpit scheduler UI]',e)));render();view._makeModuleCollapsible('scheduledTasks',title,body);return render;
 }
 
-if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports={normalizeScheduledTasks,scheduledSlot,nextScheduledRun,scheduleLabel,scheduledToolbarActions};
+if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports={normalizeScheduledTasks,scheduledSlot,nextScheduledRun,scheduleLabel,scheduledToolbarActions,scheduledTemplateText,eventTaskMatchesPath,SCHEDULED_EVENT_COOLDOWN_MS,ScheduledTaskService};
