@@ -34,6 +34,14 @@ assert.equal(api.nextScheduledRun(tasks[0], now).toISOString(), '2026-08-13T09:3
 assert.equal(api.nextScheduledRun(tasks[2], now).toISOString(), '2026-08-12T11:00:00.000Z');
 assert.match(api.scheduleLabel(tasks[0], 'en'), /Daily/);
 
+const countdownEditorSchedule = api.scheduledTaskEditorSchedule({
+  type:'event', event:'countdown-finished', sourceId:'release', sourceLabel:'版本发布'
+});
+assert.equal(countdownEditorSchedule.type, 'event', 'Countdown linkage remains an event schedule in the editor.');
+assert.equal(countdownEditorSchedule.event, 'countdown-finished');
+assert.deepEqual(countdownEditorSchedule.weekdays, [1,2,3,4,5], 'Event schedules receive safe editor-only weekday defaults instead of calling join on undefined.');
+assert.equal(countdownEditorSchedule.time, '09:00');
+
 const toolbarActions = api.scheduledToolbarActions({
   _toolbarButtons:() => [{ action:'new', label:'New note' }, { action:'search', label:'Search' }, { action:'more', label:'More' }],
   _customToolbarButtons:[{ id:'daily-review', label:'Daily review', type:'script', hidden:true }]

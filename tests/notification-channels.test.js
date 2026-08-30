@@ -36,11 +36,14 @@ assert.deepEqual(
 assert.equal(api.normalizeCockpitSettingsSection('schedule'), 'schedule');
 assert.equal(api.normalizeCockpitSettingsSection('unknown'), 'ai', 'Invalid remembered tabs safely fall back to the AI module.');
 
-assert.deepEqual(Object.keys(api.NOTIFICATION_CHANNELS), ['serverChan', 'bark', 'meow']);
+assert.deepEqual(Object.keys(api.NOTIFICATION_CHANNELS), ['serverChan', 'bark', 'meow', 'email']);
 assert.equal(api.normalizeServerChanConfig({ apiUrl: 'https://5923.push.ft07.com/send/key.send' }).channels.serverChan.enabled, true, 'Legacy ServerChan config migrates to the shared channel shape.');
 assert.equal(api.normalizeServerChanConfig({}).channels.serverChan.enabled, false, 'A fresh install never enables an unconfigured channel.');
 assert.equal(api.safeHttpsBase('http://unsafe.example', 'https://api.day.app'), 'https://api.day.app', 'Bark credentials never fall back to HTTP.');
 assert.equal(api.normalizeServerChanConfig({ channels:{ meow:{ nickname:'a/b' } } }).channels.meow.nickname, 'ab', 'MEOW nickname cannot inject URL path separators.');
+const email = api.normalizeServerChanConfig({ channels:{ email:{ enabled:true, apiKey:'re_test', from:'Cockpit <ops@example.com>', to:'one@example.com, two@example.com' } } }).channels.email;
+assert.equal(email.enabled, true);
+assert.deepEqual(Array.from(email.to), ['one@example.com','two@example.com']);
 assert.deepEqual(Array.from(api.normalizeNotificationTimes(['18:00', '09:30:00', '18:00:00', 'bad'])), ['18:00:00', '09:30:00'], 'Notification times are valid, unique, normalized to seconds, and keep the user-visible row order.');
 assert.deepEqual(Array.from(api.normalizeServerChanConfig({ time:'11:30:00' }).times), ['11:30:00'], 'Legacy single-time settings migrate without changing the selected time.');
 assert.equal(api.normalizeServerChanConfig({ times:['08:00', '20:15'] }).time, '08:00:00', 'The legacy time alias follows the first normalized time.');
@@ -55,7 +58,7 @@ assert.equal(api.getServerChanScheduleSlot(multiTimeConfig, fakeNow('2026-08-13'
 const previousTimes = api.normalizeServerChanConfig({ times:['11:30'] });
 const editedTimes = api.normalizeServerChanConfig({ ...previousTimes, times:['11:30', '09:00', '18:00'] });
 const suppressed = api.suppressElapsedNotificationSlots(previousTimes, editedTimes, fakeNow('2026-08-13', '12:00:00'));
-assert.deepEqual(Object.keys(suppressed.sentReminders['2026-08-13|09:00:00']).sort(), ['bark', 'meow', 'serverChan'], 'Editing a time into the past suppresses an immediate push through every channel.');
+assert.deepEqual(Object.keys(suppressed.sentReminders['2026-08-13|09:00:00']).sort(), ['bark', 'email', 'meow', 'serverChan'], 'Editing a time into the past suppresses an immediate push through every channel.');
 assert.equal(suppressed.sentReminders['2026-08-13|18:00:00'], undefined, 'A newly configured future time remains eligible later today.');
 
 (async () => {
@@ -65,5 +68,9 @@ assert.equal(suppressed.sentReminders['2026-08-13|18:00:00'], undefined, 'A newl
   await api.sendNotificationChannel('meow', { nickname:'John Doe' }, 'Title', 'Body');
   assert.equal(requests[1].url, 'https://api.chuckfang.com/John%20Doe?msgType=markdown');
   assert.deepEqual(JSON.parse(requests[1].body), { title:'Title', msg:'Body' });
+  await api.sendNotificationChannel('email', { apiKey:'re_test', from:'Cockpit <ops@example.com>', to:['one@example.com'] }, 'Title', 'Body');
+  assert.equal(requests[2].url, 'https://api.resend.com/emails');
+  assert.equal(requests[2].headers.Authorization, 'Bearer re_test');
+  assert.deepEqual(JSON.parse(requests[2].body).to, ['one@example.com']);
   console.log('Notification channel regression checks passed');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

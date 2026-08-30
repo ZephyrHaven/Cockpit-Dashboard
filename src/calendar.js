@@ -1,7 +1,7 @@
 // calendar.js — 日历看板模块
 
 function buildCalendar(root, todos, opts) {
-  const { language, t, openTodoEditor, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, initialViewMode, onViewModeChange, lunarEnabled } = opts;
+  const { language, t, openTodoEditor, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, onAutomationOpen, onAutomationRun, initialViewMode, onViewModeChange, lunarEnabled } = opts;
   // 刷新时必须读取视图的最新待办数组；不能闭包捕获初次渲染的旧快照。
   const getTodos = typeof todos === 'function' ? todos : () => todos;
   let calYear = window.moment().year();
@@ -13,6 +13,8 @@ function buildCalendar(root, todos, opts) {
   let rssButtonEl = null;
   let followsToday = true;
   let viewMode = initialViewMode === 'week' ? 'week' : 'month';
+  let flowFilter = 'all';
+  let detailRequest = 0;
   const getSelectedDate = () => window.moment([calYear, calMonth, selDay]);
   const updateCalendarSubtitle = () => {
     if (subtitleEl) subtitleEl.setText(formatCalendarDetailHeading(getSelectedDate(), language));
@@ -42,7 +44,7 @@ function buildCalendar(root, todos, opts) {
     }
     calRoot.empty();
   };
-  const renderDetail = (todoMap) => {
+  const renderLegacyDetail = (todoMap) => {
     const old = calRoot?.parentNode?.querySelector('.' + PLUGIN_ID + '-cal-detail');
     if (old) old.remove();
     if (!calRoot?.parentNode) return;
@@ -118,6 +120,28 @@ function buildCalendar(root, todos, opts) {
       check.onclick = async (event) => { event.stopPropagation(); await onTodoToggle(todo.raw.id, !todo.raw.done); };
       text.onclick = (event) => { event.stopPropagation(); openTodoEditor({ id:todo.raw.id }); };
       edit.onclick = (event) => { event.stopPropagation(); openTodoEditor({ id:todo.raw.id }); };
+    });
+  };
+  const renderDetail = (todoMap) => {
+    if (typeof renderCalendarDayFlow !== 'function') return renderLegacyDetail(todoMap);
+    const request = ++detailRequest;
+    const date = getSelectedDate();
+    const todosForDate = todoMap[date.format('YYYY-MM-DD')] || [];
+    const rssItems = (rss?.config.enabled ? rss.itemsForDate(date) : []).map((rssItem) => ({ kind:'rss', rssItem }));
+    return Promise.resolve(loadAutomationItems?.(date.clone()) || []).then((automationItems) => {
+      if (request !== detailRequest || !calRoot?.parentNode) return;
+      return renderCalendarDayFlow({
+        anchor:calRoot, date, language, t, todosForDate, rssItems,
+        automationItems:Array.isArray(automationItems) ? automationItems : [],
+        filter:flowFilter,
+        onFilterChange:(nextFilter) => { flowFilter=nextFilter; renderDetail(todoMap); },
+        openTodoEditor, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm,
+        openRss, onAutomationOpen, onAutomationRun,
+        rerender:() => renderDetail(todoMap), rss
+      });
+    }).catch((error) => {
+      console.warn('Cockpit calendar day flow failed', error);
+      if (request === detailRequest) renderLegacyDetail(todoMap);
     });
   };
   const renderAll = () => {

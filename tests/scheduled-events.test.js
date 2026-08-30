@@ -38,15 +38,19 @@ const tasks = api.normalizeScheduledTasks([
     schedule:{type:'event', event:'pomodoro-finished'}, createdAt:'2026-08-12T00:00:00Z' },
   { id:'on-report', name:'周报保存后复盘', kind:'append-daily', command:'- 周报已保存', enabled:true,
     schedule:{type:'event', event:'weekly-report-saved'}, createdAt:'2026-08-12T00:00:00Z' },
+  { id:'on-countdown', name:'发布倒计时结束', kind:'workflow', command:'release-flow', enabled:true,
+    schedule:{type:'event', event:'countdown-finished', sourceId:'release', sourceLabel:'版本发布'}, createdAt:'2026-08-12T00:00:00Z' },
   { id:'on-create', name:'每天建一条', kind:'create-todo', command:'回顾 {date}', enabled:true,
     schedule:{type:'daily', time:'20:00'}, createdAt:'2026-08-12T00:00:00Z' }
 ]);
-assert.equal(tasks.length, 6);
+assert.equal(tasks.length, 7);
 assert.equal(tasks[0].schedule.event, 'file-saved', 'Legacy tasks gain event defaults without changing their schedule type.');
 assert.equal(tasks[0].schedule.type, 'daily');
 assert.equal(tasks[1].schedule.type, 'event');
 assert.equal(tasks[1].schedule.folder, 'Projects');
 assert.equal(tasks[3].kind, 'push');
+assert.equal(tasks[5].schedule.sourceId, 'release', 'Countdown event rules preserve their source filter.');
+assert.equal(tasks[5].schedule.sourceLabel, '版本发布');
 
 // 事件任务永不进入时间轮询。
 const now = Date.parse('2026-08-12T10:00:00.000Z');
@@ -58,6 +62,8 @@ assert.match(api.scheduleLabel(tasks[1], 'en'), /Note saved/);
 assert.match(api.scheduleLabel(tasks[1], 'zh'), /Projects/, 'Folder filters surface in the schedule label.');
 assert.match(api.scheduleLabel(tasks[2], 'zh'), /待办完成/);
 assert.match(api.scheduleLabel(tasks[4], 'zh'), /周报已保存/);
+assert.match(api.scheduleLabel(tasks[5], 'zh'), /倒计时结束/);
+assert.match(api.scheduleLabel(tasks[5], 'zh'), /版本发布/, 'Countdown source filters are visible in rule summaries.');
 
 // ── 路径匹配 ────────────────────────────────────────────────────────────────
 assert.equal(api.eventTaskMatchesPath(tasks[1], ['Projects/Alpha.md']), true);
@@ -66,6 +72,11 @@ assert.equal(api.eventTaskMatchesPath(tasks[1], ['Notes/Idea.md']), false);
 assert.equal(api.eventTaskMatchesPath(tasks[1], []), false);
 const anyFolder = api.normalizeScheduledTasks([{ id:'x', name:'x', kind:'append-daily', command:'hi', schedule:{type:'event', event:'file-saved'} }])[0];
 assert.equal(api.eventTaskMatchesPath(anyFolder, ['Anywhere/Note.md']), true, 'An empty folder filter matches any saved note.');
+assert.equal(api.eventTaskMatchesPayload(tasks[5], 'countdown-finished', {countdownId:'release'}), true);
+assert.equal(api.eventTaskMatchesPayload(tasks[5], 'countdown-finished', {countdownId:'other'}), false, 'A countdown rule only accepts its selected countdown.');
+assert.equal(api.eventTaskMatchesPayload(tasks[5], 'todo-completed', {}), true, 'Existing event types remain payload-compatible.');
+const anyCountdown = api.normalizeScheduledTasks([{ id:'any-countdown', name:'任意倒计时', kind:'push', command:'done', schedule:{type:'event', event:'countdown-finished'} }])[0];
+assert.equal(api.eventTaskMatchesPayload(anyCountdown, 'countdown-finished', {countdownId:'anything'}), true, 'An empty countdown source filter matches any countdown.');
 
 // ── 模板占位符 ──────────────────────────────────────────────────────────────
 global.window.moment = () => new MiniMoment(Date.parse('2026-08-12T09:30:00.000Z'));
@@ -100,14 +111,18 @@ assert.equal(api.scheduledTemplateText('回顾 {date} 于 {time} ({datetime})'),
     modify:async (file, content) => { files.set(file.path, content); }
   };
   let saved = null;
+  const workflowRuns = [];
   const raw = { scheduledTasks: api.normalizeScheduledTasks([
     { id:'on-todo', name:'完成待办后追加', kind:'append-daily', command:'- 完成：{datetime}', enabled:true,
       schedule:{type:'event', event:'todo-completed'}, createdAt:'2026-08-12T00:00:00Z' },
     { id:'unrelated', name:'笔记任务', kind:'append-daily', command:'x', enabled:true,
-      schedule:{type:'event', event:'file-saved', folder:'Projects'}, createdAt:'2026-08-12T00:00:00Z' }
+      schedule:{type:'event', event:'file-saved', folder:'Projects'}, createdAt:'2026-08-12T00:00:00Z' },
+    { id:'on-countdown-flow', name:'发布后流程', kind:'workflow', command:'release-flow', enabled:true,
+      schedule:{type:'event', event:'countdown-finished', sourceId:'release', sourceLabel:'版本发布'}, createdAt:'2026-08-12T00:00:00Z' }
   ]) };
   const plugin = {
     app:{ isMobile:true, vault },
+    workflows:{ run:async (id, options) => { workflowRuns.push({id, options});return {ok:true,status:'success',record:{durationMs:1}};} },
     loadData:async () => raw,
     mutateData:async (mutator) => { const data = JSON.parse(JSON.stringify(raw)); mutator(data); raw.scheduledTasks = data.scheduledTasks; saved = raw.scheduledTasks; },
     registerEvent:() => {}, registerInterval:() => {}
@@ -138,6 +153,13 @@ assert.equal(api.scheduledTemplateText('回顾 {date} 于 {time} ({datetime})'),
   await service.dispatchEventTrigger('file-saved', { paths:['Projects/Alpha.md'] });
   await waitFor(() => raw.scheduledTasks.find((task) => task.id === 'unrelated').lastRunAt);
   assert.ok(raw.scheduledTasks.find((task) => task.id === 'unrelated').lastRunAt, 'A saved note inside the folder triggers the task.');
+
+  await service.dispatchEventTrigger('countdown-finished', {countdownId:'other',eventKey:'finished'});
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.equal(workflowRuns.length, 0, 'A different countdown never starts a source-filtered workflow.');
+  await service.dispatchEventTrigger('countdown-finished', {countdownId:'release',eventKey:'finished'});
+  await waitFor(() => workflowRuns.length === 1);
+  assert.deepEqual(workflowRuns[0], {id:'release-flow',options:{trigger:'event'}}, 'The selected countdown starts the linked workflow through the shared action engine.');
 }
 
 console.log('Scheduled event trigger checks passed');

@@ -47,8 +47,8 @@ function buildSceneSwitcher(view, parent) {
     };
     const create = createAction('plus', view._lang() === 'en' ? 'New scene' : '新建情景');
     create.onclick = async () => { close(); await view._createScene(); };
-    const edit = createAction(view._editMode ? 'check' : 'panels-top-left', view._editMode ? (view._lang() === 'en' ? 'Finish editing' : '完成布局编辑') : (view._lang() === 'en' ? 'Edit current layout' : '编辑当前布局'));
-    edit.onclick = () => { close(); view._toggleLayoutEdit(); };
+    const edit = createAction('blocks', view._lang() === 'en' ? 'Component store' : '组件商店');
+    edit.onclick = () => { close(); openComponentStore(view); };
     const automate = createAction('calendar-clock', view._lang() === 'en' ? 'Automatic schedule' : '自动切换规则');
     automate.onclick = () => { close(); new CockpitSceneScheduleModal(view.app, view).open(); };
     if (view._activeSceneId !== 'default') {

@@ -8,7 +8,7 @@ const BUILTIN_TOOLBAR_CONFIG = {
 
 function isConfigurableToolbarAction(action) { return !!BUILTIN_TOOLBAR_CONFIG[action]; }
 
-function openPomodoroToolbarConfigEditor(view, root) {
+function openPomodoroToolbarConfigEditor(view, root, options = {}) {
   const en = view._lang() === 'en';
   const overlay = document.createElement('div');
   overlay.className = PLUGIN_ID + '-custom-toolbar-backdrop';
@@ -29,7 +29,7 @@ function openPomodoroToolbarConfigEditor(view, root) {
   const cancel = footer.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-secondary', text:en?'Cancel':'取消', attr:{type:'button'} });
   cancel.onclick = () => overlay.remove();
   const save = footer.createEl('button', { cls:PLUGIN_ID + '-custom-toolbar-primary', text:en?'Save':'保存', attr:{type:'button'} });
-  save.onclick = async () => { await view._setPomodoroAutoShow(autoShow.checked); overlay.remove(); new obs.Notice(en?'Pomodoro settings saved.':'番茄钟设置已保存。'); };
+  save.onclick = async () => { await view._setPomodoroAutoShow(autoShow.checked); overlay.remove(); options.onChanged?.('saved'); new obs.Notice(en?'Pomodoro settings saved.':'番茄钟设置已保存。'); };
   panel.addEventListener('keydown', (evt) => { if (evt.key === 'Escape') overlay.remove(); });
   document.body.appendChild(overlay);
 }
@@ -47,7 +47,7 @@ function validateBuiltinToolbarConfig(command, url, spec, lang) {
   return null;
 }
 
-function openBuiltinToolbarConfigEditor(view, root, action) {
+function openBuiltinToolbarConfigEditor(view, root, action, options = {}) {
   if (view._isMobile && view._isMobile()) {
     new obs.Notice(view._lang() === 'en' ? 'This configuration is only available on desktop.' : '此配置仅在桌面端可用。');
     return;
@@ -105,6 +105,7 @@ function openBuiltinToolbarConfigEditor(view, root, action) {
     overlay.remove();
     new obs.Notice(en?'Toolbar configuration saved.':'Toolbar 配置已保存。');
     refreshToolbar(view, root);
+    options.onChanged?.('saved');
   };
   panel.addEventListener('keydown', (evt) => { if (evt.key === 'Escape') overlay.remove(); });
   document.body.appendChild(overlay);

@@ -185,7 +185,7 @@ async function openCustomToolbarLogs(view) {
   }
 }
 
-function openCustomToolbarButtonEditor(view, root, existing) {
+function openCustomToolbarButtonEditor(view, root, existing, options = {}) {
   const en = view._lang() === 'en';
   const PID = PLUGIN_ID;
   const draft = {
@@ -254,6 +254,7 @@ function openCustomToolbarButtonEditor(view, root, existing) {
       await view._saveCustomToolbarButtons(view._customToolbarButtons.filter((button) => button.id !== existing.id));
       overlay.remove();
       refreshToolbar(view, root);
+      options.onChanged?.('deleted');
     };
   }
   const cancel = footer.createEl('button', { cls: PID + '-custom-toolbar-secondary', text: en ? 'Cancel' : '取消', attr: { type:'button' } });
@@ -273,6 +274,7 @@ function openCustomToolbarButtonEditor(view, root, existing) {
     await view._saveCustomToolbarButtons(normalized);
     overlay.remove();
     refreshToolbar(view, root);
+    options.onChanged?.('saved');
   };
   panel.addEventListener('keydown', (evt) => { if (evt.key === 'Escape') overlay.remove(); });
   document.body.appendChild(overlay);

@@ -3,7 +3,8 @@
 const NOTIFICATION_CHANNELS = {
   serverChan: { id:'serverChan', label:'Server酱³' },
   bark: { id:'bark', label:'Bark' },
-  meow: { id:'meow', label:'MEOW' }
+  meow: { id:'meow', label:'MEOW' },
+  email: { id:'email', label:'Email' }
 };
 
 const SERVERCHAN_DEFAULTS = {
@@ -12,7 +13,8 @@ const SERVERCHAN_DEFAULTS = {
   channels:{
     serverChan:{ enabled:true, apiUrl:'', uid:'', sendKey:'' },
     bark:{ enabled:false, serverUrl:'https://api.day.app', deviceKey:'', group:'cockpit' },
-    meow:{ enabled:false, nickname:'' }
+    meow:{ enabled:false, nickname:'' },
+    email:{ enabled:false, apiKey:'', from:'', to:[] }
   }
 };
 
@@ -102,7 +104,8 @@ function normalizeServerChanConfig(raw) {
     channels:{
       serverChan:{ enabled:channels.serverChan ? legacyServerChan.enabled !== false : !!(value.apiUrl || value.uid || value.sendKey), apiUrl:safeText(legacyServerChan.apiUrl, 500), uid:safeText(legacyServerChan.uid, 32), sendKey:safeText(legacyServerChan.sendKey, 240) },
       bark:{ enabled:channels.bark?.enabled === true, serverUrl:safeHttpsBase(channels.bark?.serverUrl, 'https://api.day.app'), deviceKey:safeText(channels.bark?.deviceKey, 240), group:safeText(channels.bark?.group || 'cockpit', 64) || 'cockpit' },
-      meow:{ enabled:channels.meow?.enabled === true, nickname:safeText(channels.meow?.nickname, 64).replace(/\//g, '') }
+      meow:{ enabled:channels.meow?.enabled === true, nickname:safeText(channels.meow?.nickname, 64).replace(/\//g, '') },
+      email:{ enabled:channels.email?.enabled === true, apiKey:safeText(channels.email?.apiKey, 240), from:safeText(channels.email?.from, 200), to:normalizeEmailRecipients(channels.email?.to) }
     }
   };
 }
@@ -172,6 +175,18 @@ function parseResponse(response) {
   try { return JSON.parse(response.text || '{}'); } catch (e) { return {}; }
 }
 
+function normalizeEmailRecipients(value) {
+  const list = Array.isArray(value) ? value : String(value || '').split(/[,;\n]/);
+  return Array.from(new Set(list.map((item) => String(item || '').trim().toLowerCase())
+    .filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item)))).slice(0, 20);
+}
+
+function validEmailSender(value) {
+  const text = String(value || '').trim();
+  const address = /<([^<>]+)>$/.exec(text)?.[1] || text;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address);
+}
+
 async function sendNotificationChannel(channelId, channel, title, body) {
   let request;
   if (channelId === 'serverChan') {
@@ -182,6 +197,12 @@ async function sendNotificationChannel(channelId, channel, title, body) {
   } else if (channelId === 'meow') {
     if (!channel.nickname) throw new Error('请填写 MEOW 昵称');
     request = { url:'https://api.chuckfang.com/' + encodeURIComponent(channel.nickname) + '?msgType=markdown', method:'POST', contentType:'application/json', body:JSON.stringify({ title:String(title).slice(0,100), msg:String(body) }), throw:false };
+  } else if (channelId === 'email') {
+    const recipients = normalizeEmailRecipients(channel.to);
+    if (!String(channel.apiKey || '').startsWith('re_')) throw new Error('Resend API Key 无效');
+    if (!validEmailSender(channel.from)) throw new Error('发件人邮箱无效');
+    if (!recipients.length) throw new Error('请至少填写一个收件邮箱');
+    request = { url:'https://api.resend.com/emails', method:'POST', contentType:'application/json', headers:{ Authorization:'Bearer ' + channel.apiKey, 'User-Agent':'Cockpit-Dashboard/1.8.3' }, body:JSON.stringify({ from:String(channel.from).trim(), to:recipients, subject:String(title).slice(0,100), text:String(body) }), throw:false };
   } else throw new Error('未知推送渠道');
   const response = await obs.requestUrl(request);
   const payload = parseResponse(response);
@@ -189,6 +210,7 @@ async function sendNotificationChannel(channelId, channel, title, body) {
   if (channelId === 'serverChan' && payload.code != null && Number(payload.code) !== 0) throw new Error(payload.message || payload.msg || 'Server酱³ 推送失败');
   if (channelId === 'bark' && payload.code != null && ![0, 200].includes(Number(payload.code))) throw new Error(payload.message || 'Bark 推送失败');
   if (channelId === 'meow' && payload.status != null && Number(payload.status) !== 200) throw new Error(payload.message || payload.msg || 'MEOW 推送失败');
+  if (channelId === 'email' && payload.error) throw new Error(payload.error.message || payload.message || '邮件发送失败');
   return payload;
 }
 
@@ -196,12 +218,12 @@ function getServerChanSettingsCopy(language) {
   const en = language === 'en';
   return en ? {
     heading: 'Message notifications', intro:'Configure one or more delivery apps. Keys are saved only in this plugin’s private data.json.', enabled:'Enable scheduled reminders', enabledDesc:'Checks automatically while the app is running; each enabled channel sends once per schedule slot.',
-    channels:'Delivery channels', serverChan:'ServerChan³', bark:'Bark', meow:'MEOW', enableChannel:'Enable this channel', apiUrl:'Complete API URL (recommended)', apiUrlDesc:'Paste the ServerChan³ API URL, or use UID and SendKey below.', uid:'UID', sendKey:'SendKey', barkServer:'Bark server URL', barkKey:'Bark Device Key', barkGroup:'Bark group', meowName:'MEOW nickname',
+    channels:'Delivery channels', serverChan:'ServerChan³', bark:'Bark', meow:'MEOW', email:'Email (Resend)', enableChannel:'Enable this channel', apiUrl:'Complete API URL (recommended)', apiUrlDesc:'Paste the ServerChan³ API URL, or use UID and SendKey below.', uid:'UID', sendKey:'SendKey', barkServer:'Bark server URL', barkKey:'Bark Device Key', barkGroup:'Bark group', meowName:'MEOW nickname', emailApiKey:'Resend API Key', emailFrom:'Sender', emailTo:'Recipients', emailToDesc:'Comma-separated email addresses. The sender domain must be verified in Resend.',
     schedule:'Schedule', scheduleDesc:'Choose when the shared notification should be sent.', daily:'Every day', weekly:'Selected weekdays', monthly:'Selected month days', time:'Delivery times', timeDesc:'Choose one or more times. Each time is sent once per scheduled day.', addTime:'Add time', removeTime:'Remove time', weekdays:'Weekdays', weekdaysDesc:'Comma-separated: 1 = Monday through 7 = Sunday. Example: 1,3,5.', monthDays:'Month days', monthDaysDesc:'Comma-separated dates. Example: 1,15,28.',
     scope:'Task reminder scope', today:'Include tasks due today', todayDesc:'Includes incomplete tasks whose due date is today.', overdue:'Include overdue tasks', overdueDesc:'Includes incomplete tasks due before today.', custom:'Custom reminder body', customDesc:'Optional. Your text is sent unchanged, with the system date and time above it.', customPlaceholder:'For example: Remember to reserve an hour to plan next week.', test:'Test channel', testDesc:'Send a test only through this channel.', sendTest:'Send test', sent:'Test notification sent', failed:'Send failed: '
   } : {
     heading: '消息推送', intro:'可配置一个或多个推送 APP。密钥仅保存在本插件的私有 data.json 中。', enabled:'启用计划提醒', enabledDesc:'应用运行期间自动检查；每个已启用渠道在同一计划时段仅发送一次。',
-    channels:'推送渠道', serverChan:'Server酱³', bark:'Bark', meow:'MEOW', enableChannel:'启用此渠道', apiUrl:'完整 API URL（推荐）', apiUrlDesc:'粘贴 Server酱³ API URL，或使用下方 UID 与 SendKey。', uid:'UID', sendKey:'SendKey', barkServer:'Bark 服务地址', barkKey:'Bark Device Key', barkGroup:'Bark 分组', meowName:'MEOW 昵称',
+    channels:'推送渠道', serverChan:'Server酱³', bark:'Bark', meow:'MEOW', email:'邮件（Resend）', enableChannel:'启用此渠道', apiUrl:'完整 API URL（推荐）', apiUrlDesc:'粘贴 Server酱³ API URL，或使用下方 UID 与 SendKey。', uid:'UID', sendKey:'SendKey', barkServer:'Bark 服务地址', barkKey:'Bark Device Key', barkGroup:'Bark 分组', meowName:'MEOW 昵称', emailApiKey:'Resend API Key', emailFrom:'发件人', emailTo:'收件邮箱', emailToDesc:'多个邮箱用逗号分隔；发件域名需已在 Resend 验证。',
     schedule:'推送周期', scheduleDesc:'选择各渠道共用的发送时间。', daily:'每天', weekly:'每周指定星期', monthly:'每月指定日期', time:'推送时间', timeDesc:'可选择一个或多个时间点，每个时间点在计划日分别推送一次。', addTime:'添加时间', removeTime:'删除时间', weekdays:'每周提醒日', weekdaysDesc:'用逗号输入：1=周一，…，7=周日。例如 1,3,5。', monthDays:'每月提醒日', monthDaysDesc:'用逗号输入日期，例如 1,15,28。',
     scope:'待办提醒范围', today:'包含今日到期', todayDesc:'推送截止日期为当天的未完成待办。', overdue:'包含已逾期', overdueDesc:'推送截止日期早于当天的未完成待办。', custom:'自定义提醒内容', customDesc:'可选。用户输入内容会原样发送，系统仅在上方附上日期与时间。', customPlaceholder:'例如：今天记得留出一小时整理下周计划。', test:'测试渠道', testDesc:'仅通过此渠道发送测试通知。', sendTest:'发送测试', sent:'测试通知已发送', failed:'发送失败：'
   };
@@ -388,6 +410,11 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
       new obs.Setting(card).setName(copy.barkGroup).addText((text) => text.setValue(channel.group).onChange(async (value) => { channel.group = safeText(value, 64) || 'cockpit'; await save(); }));
     });
     addChannel('meow', (channel, save, card) => new obs.Setting(card).setName(copy.meowName).addText((text) => text.setValue(channel.nickname).onChange(async (value) => { channel.nickname = safeText(value, 64).replace(/\//g, ''); await save(); })));
+    addChannel('email', (channel, save, card) => {
+      new obs.Setting(card).setName(copy.emailApiKey).setDesc(en ? 'Stored in plain text in this plugin configuration.' : '以明文保存在本插件配置中。').addText((text) => { text.inputEl.type = 'password'; return text.setValue(channel.apiKey).onChange(async (value) => { channel.apiKey = safeText(value, 240); await save(); }); });
+      new obs.Setting(card).setName(copy.emailFrom).setDesc(en ? 'Example: Cockpit <alerts@example.com>' : '例如：Cockpit <alerts@example.com>').addText((text) => text.setValue(channel.from).onChange(async (value) => { channel.from = safeText(value, 200); await save(); }));
+      new obs.Setting(card).setName(copy.emailTo).setDesc(copy.emailToDesc).addTextArea((text) => text.setValue((channel.to || []).join(', ')).onChange(async (value) => { channel.to = normalizeEmailRecipients(value); await save(); }));
+    });
 
     addPanelIntro(panels.schedule, copy.schedule, copy.scheduleDesc);
     new obs.Setting(panels.schedule).setName(copy.schedule).setDesc(copy.scheduleDesc).addDropdown((dropdown) => dropdown.addOptions({ daily:copy.daily, weekly:copy.weekly, monthly:copy.monthly }).setValue(config.schedule).onChange(async (value) => { config.schedule = value; await save(); this._activeSection = 'schedule'; this.display(); }));
