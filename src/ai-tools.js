@@ -140,6 +140,7 @@ function resolveAgentToolDependencies(overrides = {}) {
 
 async function refreshCockpitAfterAgentMutation(plugin, todos) {
   await plugin.alarms?.syncTodos?.(todos).catch((error) => console.warn('Cockpit Agent alarm sync failed', error));
+  plugin.appleCalendar?.syncTodos?.(todos).catch((error) => console.warn('Cockpit Agent Apple calendar sync failed', error));
   const leaves = plugin.app.workspace.getLeavesOfType?.(typeof VIEW_TYPE === 'undefined' ? 'cockpit-dashboard-view' : VIEW_TYPE) || [];
   await Promise.all(leaves.map(async (leaf) => {
     const view = leaf?.view;

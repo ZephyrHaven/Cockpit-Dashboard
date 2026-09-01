@@ -2,6 +2,7 @@
 
 const COUNTDOWN_MAX_ITEMS = 50;
 const COUNTDOWN_MAX_THRESHOLDS = 8;
+const COUNTDOWN_MAX_EMAIL_RULES = 16;
 const COUNTDOWN_MAX_DELIVERY_ATTEMPTS = 3;
 const COUNTDOWN_CHANNEL_IDS = ['serverChan', 'bark', 'meow', 'email'];
 const COUNTDOWN_DURATION_UNITS = { minutes:60000, hours:3600000, days:86400000 };
@@ -22,10 +23,33 @@ function normalizeCountdownThreshold(raw, index = 0) {
   return { id, mode, value:Math.round(value * 100) / 100, unit:mode === 'duration' ? unit : 'percent' };
 }
 
-function normalizeCountdownDeliveries(raw, thresholdIds) {
+function normalizeCountdownRuleRecipients(value) {
+  const items = Array.isArray(value) ? value : String(value || '').split(/[,;\n]/);
+  return Array.from(new Set(items.map((item) => String(item || '').trim().toLowerCase())
+    .filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item)))).slice(0, 30);
+}
+
+function normalizeCountdownEmailRule(raw, index = 0, validEventKeys = []) {
+  if (!raw || typeof raw !== 'object') return null;
+  const allowedEvents = new Set(validEventKeys);
+  const eventKey = String(raw.eventKey || '');
+  const accountId = String(raw.accountId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+  const to = normalizeCountdownRuleRecipients(raw.to);
+  if (!allowedEvents.has(eventKey) || !accountId || !to.length) return null;
+  const id = String(raw.id || 'email-rule-' + (index + 1)).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'email-rule-' + (index + 1);
+  return {
+    id, eventKey, accountId, to,
+    cc:normalizeCountdownRuleRecipients(raw.cc), bcc:normalizeCountdownRuleRecipients(raw.bcc),
+    subject:String(raw.subject || '').trim().slice(0, 180),
+    body:String(raw.body || '').trim().slice(0, 10000),
+    enabled:raw.enabled !== false
+  };
+}
+
+function normalizeCountdownDeliveries(raw, thresholdIds, emailRuleIds = []) {
   const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
   const validKeys = new Set(['finished', ...thresholdIds.map((id) => 'threshold:' + id)]);
-  const validChannels = new Set([...COUNTDOWN_CHANNEL_IDS, 'local', 'event']);
+  const validChannels = new Set([...COUNTDOWN_CHANNEL_IDS, 'local', 'event', ...emailRuleIds.map((id) => 'smtp:' + id)]);
   const result = {};
   Object.entries(source).forEach(([eventKey, records]) => {
     if (!validKeys.has(eventKey) || !records || typeof records !== 'object' || Array.isArray(records)) return;
@@ -55,13 +79,19 @@ function normalizeCountdown(raw) {
     .filter((item) => item && !seenThresholds.has(item.id) && (seenThresholds.add(item.id), true));
   const channelIds = Array.from(new Set((Array.isArray(raw.channelIds) ? raw.channelIds : [])
     .filter((item) => COUNTDOWN_CHANNEL_IDS.includes(item))));
+  const eventKeys = ['finished', ...thresholds.map((item) => 'threshold:' + item.id)];
+  const seenEmailRules = new Set();
+  const emailRules = (Array.isArray(raw.emailRules) ? raw.emailRules : [])
+    .slice(0, COUNTDOWN_MAX_EMAIL_RULES)
+    .map((item, index) => normalizeCountdownEmailRule(item, index, eventKeys))
+    .filter((item) => item && !seenEmailRules.has(item.id) && (seenEmailRules.add(item.id), true));
   return {
     id, name, enabled:raw.enabled !== false,
     startAt:start.toISOString(), targetAt:target.toISOString(),
-    thresholds, channelIds,
+    thresholds, channelIds, emailRules,
     localNotification:raw.localNotification !== false,
     notifyAtEnd:raw.notifyAtEnd !== false,
-    deliveries:normalizeCountdownDeliveries(raw.deliveries, thresholds.map((item) => item.id)),
+    deliveries:normalizeCountdownDeliveries(raw.deliveries, thresholds.map((item) => item.id), emailRules.map((item) => item.id)),
     createdAt:Number.isFinite(Date.parse(raw.createdAt || '')) ? new Date(raw.createdAt).toISOString() : new Date().toISOString()
   };
 }
@@ -98,11 +128,21 @@ function pendingCountdownChannels(countdown, eventKey, availableChannelIds) {
   return (Array.isArray(availableChannelIds) ? availableChannelIds : []).filter((id) => {
     if (!allowed.has(id)) return false;
     const record = records[id];
-    return !record?.ok && (Number(record?.attempts) || 0) < COUNTDOWN_MAX_DELIVERY_ATTEMPTS;
+    return !record;
   });
 }
 
-function dueCountdownEvent(raw, nowValue = Date.now(), availableChannelIds = COUNTDOWN_CHANNEL_IDS) {
+function pendingCountdownEmailRules(countdown, eventKey, availableAccountIds) {
+  const available = new Set(Array.isArray(availableAccountIds) ? availableAccountIds : []);
+  const records = countdown.deliveries[eventKey] || {};
+  return countdown.emailRules.filter((rule) => {
+    if (!rule.enabled || rule.eventKey !== eventKey || !available.has(rule.accountId)) return false;
+    const record = records['smtp:' + rule.id];
+    return !record;
+  });
+}
+
+function dueCountdownEvent(raw, nowValue = Date.now(), availableChannelIds = COUNTDOWN_CHANNEL_IDS, availableAccountIds = []) {
   const countdown = normalizeCountdown(raw);
   if (!countdown || !countdown.enabled) return null;
   const state = countdownState(countdown, nowValue);
@@ -120,12 +160,14 @@ function dueCountdownEvent(raw, nowValue = Date.now(), availableChannelIds = COU
     eventKey = 'threshold:' + threshold.id;
   }
   const pendingChannelIds = countdown.notifyAtEnd || kind !== 'finished' ? pendingCountdownChannels(countdown, eventKey, availableChannelIds) : [];
+  // SMTP 规则本身就是显式订阅；到期总开关只控制旧版共享渠道与本机通知。
+  const pendingEmailRules = pendingCountdownEmailRules(countdown, eventKey, availableAccountIds);
   const localRecord = countdown.deliveries[eventKey]?.local;
-  const localPending = (countdown.notifyAtEnd || kind !== 'finished') && countdown.localNotification && !localRecord?.ok && (Number(localRecord?.attempts) || 0) < COUNTDOWN_MAX_DELIVERY_ATTEMPTS;
+  const localPending = (countdown.notifyAtEnd || kind !== 'finished') && countdown.localNotification && !localRecord;
   const eventRecord = countdown.deliveries[eventKey]?.event;
-  const eventPending = !eventRecord?.ok && (Number(eventRecord?.attempts) || 0) < COUNTDOWN_MAX_DELIVERY_ATTEMPTS;
-  if (!pendingChannelIds.length && !localPending && !eventPending) return null;
-  return { countdown, kind, threshold, eventKey, state, pendingChannelIds, localPending, eventPending };
+  const eventPending = !eventRecord;
+  if (!pendingChannelIds.length && !pendingEmailRules.length && !localPending && !eventPending) return null;
+  return { countdown, kind, threshold, eventKey, state, pendingChannelIds, pendingEmailRules, localPending, eventPending };
 }
 
 function formatCountdownRemaining(ms, language = 'zh-CN') {
@@ -143,5 +185,5 @@ function formatCountdownRemaining(ms, language = 'zh-CN') {
 }
 
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
-  module.exports = { COUNTDOWN_CHANNEL_IDS, COUNTDOWN_MAX_DELIVERY_ATTEMPTS, normalizeCountdownThreshold, normalizeCountdown, normalizeCountdowns, countdownThresholdMs, countdownState, dueCountdownEvent, formatCountdownRemaining };
+  module.exports = { COUNTDOWN_CHANNEL_IDS, COUNTDOWN_MAX_DELIVERY_ATTEMPTS, normalizeCountdownThreshold, normalizeCountdownEmailRule, normalizeCountdown, normalizeCountdowns, countdownThresholdMs, countdownState, dueCountdownEvent, formatCountdownRemaining };
 }

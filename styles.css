@@ -843,6 +843,34 @@
   min-height:40px;
   padding:0 12px;
 }
+.cockpit-dashboard-todo-editor-calendar-sync {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:12px 14px;
+  border:1px solid rgba(72,180,255,0.18);
+  border-radius:14px;
+  background:linear-gradient(135deg, rgba(72,180,255,0.09), rgba(167,139,250,0.06));
+  cursor:pointer;
+}
+.cockpit-dashboard-todo-editor-calendar-sync.is-disabled { opacity:0.52; cursor:not-allowed; }
+.cockpit-dashboard-todo-editor-calendar-copy { min-width:0; display:flex; flex-direction:column; gap:4px; }
+.cockpit-dashboard-todo-editor-calendar-heading { display:flex; align-items:center; flex-wrap:wrap; gap:7px; color:var(--text-normal); font-size:0.77em; font-weight:800; }
+.cockpit-dashboard-todo-editor-calendar-icon { width:14px; height:14px; display:inline-flex; align-items:center; justify-content:center; color:#73c8ff; }
+.cockpit-dashboard-todo-editor-calendar-icon svg { width:14px; height:14px; stroke-width:2.2; }
+.cockpit-dashboard-todo-editor-calendar-badge { padding:2px 7px; border-radius:999px; background:rgba(72,180,255,0.13); color:#78cfff; font-size:0.72em; font-weight:800; }
+.cockpit-dashboard-todo-editor-calendar-note { color:var(--text-muted); font-size:0.68em; line-height:1.45; }
+.cockpit-dashboard-todo-editor-calendar-toggle {
+  width:38px;
+  height:22px;
+  margin:0;
+  flex:0 0 auto;
+  accent-color:var(--interactive-accent);
+  cursor:pointer;
+}
+.cockpit-dashboard-todo-editor-calendar-toggle:disabled { cursor:not-allowed; }
+.cockpit-dashboard-todo-editor-calendar-toggle:focus-visible { outline:2px solid var(--interactive-accent); outline-offset:3px; }
 .cockpit-dashboard-todo-editor-quick,
 .cockpit-dashboard-todo-editor-tags,
 .cockpit-dashboard-todo-editor-selected-tags {
@@ -1551,14 +1579,27 @@
   transition:transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease, border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
 }
 .cockpit-dashboard-cal-mode-btn { min-height:34px; padding:5px 11px; border:1px solid var(--background-modifier-border); border-radius:10px; background:var(--background-secondary); color:var(--text-muted); font-weight:750; cursor:pointer; }
-.cockpit-dashboard-cal-week { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:8px; padding:10px 2px 4px; }
-.cockpit-dashboard-cal-week-day { min-height:112px; padding:12px 9px; display:flex; flex-direction:column; align-items:flex-start; gap:8px; border:1px solid var(--background-modifier-border); border-radius:14px; background:var(--background-primary); color:var(--text-normal); cursor:pointer; transition:.18s ease; }
-.cockpit-dashboard-cal-week-day:hover,.cockpit-dashboard-cal-week-day.selected { border-color:color-mix(in srgb,var(--interactive-accent) 55%,transparent); transform:translateY(-2px); box-shadow:0 10px 24px rgba(37,99,235,.1); }
-.cockpit-dashboard-cal-week-day.today { background:color-mix(in srgb,var(--interactive-accent) 8%,var(--background-primary)); }
-.cockpit-dashboard-cal-week-name { color:var(--text-muted); font-size:.72em; font-weight:750; }
-.cockpit-dashboard-cal-week-date { font-size:1.05em; font-weight:850; }
-.cockpit-dashboard-cal-week-metrics { display:flex; flex-direction:column; gap:4px; color:var(--text-accent); font-size:.68em; font-weight:750; }
-@media (max-width:700px) { .cockpit-dashboard-cal-week { grid-template-columns:repeat(2,minmax(0,1fr)); } .cockpit-dashboard-cal-week-day { min-height:82px; } }
+.cockpit-dashboard-cal-week { display:grid; grid-template-columns:repeat(7,minmax(104px,1fr)); gap:4px; padding:6px; overflow-x:auto; border:1px solid color-mix(in srgb,var(--interactive-accent) 14%,var(--background-modifier-border)); border-radius:18px; background:color-mix(in srgb,var(--background-secondary) 86%,transparent); scrollbar-width:thin; }
+.cockpit-dashboard-cal-week-day { position:relative; min-height:126px; padding:12px 11px 10px; display:flex; flex-direction:column; align-items:stretch; gap:7px; overflow:hidden; border:1px solid transparent; border-radius:13px; background:transparent; color:var(--text-normal); text-align:left; cursor:pointer; transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease; }
+.cockpit-dashboard-cal-week-day::before { content:""; position:absolute; top:0; left:12px; right:12px; height:2px; border-radius:0 0 4px 4px; background:transparent; transition:background-color .18s ease,box-shadow .18s ease; }
+.cockpit-dashboard-cal-week-day:hover { background:color-mix(in srgb,var(--interactive-accent) 6%,var(--background-primary)); border-color:color-mix(in srgb,var(--interactive-accent) 18%,transparent); transform:translateY(-1px); }
+.cockpit-dashboard-cal-week-day.selected { border-color:color-mix(in srgb,var(--interactive-accent) 40%,transparent); background:linear-gradient(155deg,color-mix(in srgb,var(--interactive-accent) 14%,var(--background-primary)),color-mix(in srgb,var(--interactive-accent) 4%,var(--background-primary))); box-shadow:0 8px 24px color-mix(in srgb,var(--interactive-accent) 12%,transparent); }
+.cockpit-dashboard-cal-week-day.selected::before { background:linear-gradient(90deg,var(--interactive-accent),#a78bfa); box-shadow:0 0 12px color-mix(in srgb,var(--interactive-accent) 50%,transparent); }
+.cockpit-dashboard-cal-week-day.today:not(.selected) { background:color-mix(in srgb,var(--interactive-accent) 6%,transparent); }
+.cockpit-dashboard-cal-week-head { min-height:18px; display:flex; align-items:center; justify-content:space-between; gap:5px; }
+.cockpit-dashboard-cal-week-name { color:var(--text-muted); font-size:.64em; font-weight:800; letter-spacing:.08em; }
+.cockpit-dashboard-cal-week-day.weekend .cockpit-dashboard-cal-week-name { color:color-mix(in srgb,#a78bfa 70%,var(--text-muted)); }
+.cockpit-dashboard-cal-week-today { padding:2px 5px; border-radius:999px; background:color-mix(in srgb,var(--interactive-accent) 16%,transparent); color:var(--text-accent); font-size:.46em; font-weight:850; letter-spacing:.05em; }
+.cockpit-dashboard-cal-week-date { display:flex; align-items:baseline; gap:5px; line-height:1; }
+.cockpit-dashboard-cal-week-day-number { color:var(--text-normal); font-size:1.38em; font-weight:900; font-variant-numeric:tabular-nums; letter-spacing:-.04em; }
+.cockpit-dashboard-cal-week-month { color:var(--text-faint); font-size:.52em; font-weight:750; text-transform:uppercase; }
+.cockpit-dashboard-cal-week-metrics { min-height:24px; display:flex; flex-wrap:wrap; align-items:flex-start; gap:4px; }
+.cockpit-dashboard-cal-week-metric { padding:3px 6px; border-radius:999px; background:color-mix(in srgb,var(--interactive-accent) 10%,transparent); color:var(--text-accent); font-size:.54em; font-weight:780; white-space:nowrap; }
+.cockpit-dashboard-cal-week-metric.is-rss { background:color-mix(in srgb,#a78bfa 11%,transparent); color:color-mix(in srgb,#a78bfa 78%,var(--text-normal)); }
+.cockpit-dashboard-cal-week-empty { color:var(--text-faint); font-size:.54em; }
+.cockpit-dashboard-cal-week-activity { height:3px; margin-top:auto; overflow:hidden; border-radius:999px; background:color-mix(in srgb,var(--text-faint) 10%,transparent); }
+.cockpit-dashboard-cal-week-activity span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--interactive-accent),#a78bfa); opacity:.78; }
+@media (max-width:900px) { .cockpit-dashboard-cal-week { grid-template-columns:repeat(7,minmax(112px,1fr)); } .cockpit-dashboard-cal-week-day { min-height:116px; } }
 .cockpit-dashboard-cal-nav-btn:hover { 
   border-color: rgba(72,180,255,0.28); 
   color: #7fd2ff; 
@@ -1836,10 +1877,11 @@
 .cockpit-dashboard-cal-timeline-node.p-low { background:#34d399; box-shadow:0 0 0 3px rgba(52,211,153,.16); }
 .cockpit-dashboard-cal-timeline-node.done { opacity:.72; }
 .cockpit-dashboard-cal-timeline-node svg { width:8px; height:8px; stroke-width:3; }
-.cockpit-dashboard-cal-timeline-node.source-rss,.cockpit-dashboard-cal-timeline-node.source-automation { width:19px; height:19px; min-width:19px; min-height:19px; border-width:2px; cursor:default; }
+.cockpit-dashboard-cal-timeline-node.source-rss,.cockpit-dashboard-cal-timeline-node.source-automation,.cockpit-dashboard-cal-timeline-node.source-countdown { width:19px; height:19px; min-width:19px; min-height:19px; border-width:2px; cursor:default; }
 .cockpit-dashboard-cal-timeline-node.source-rss { background:#8b5cf6; box-shadow:0 0 0 3px rgba(139,92,246,.14); }
 .cockpit-dashboard-cal-timeline-node.source-automation { background:#0ea5e9; box-shadow:0 0 0 3px rgba(14,165,233,.14); }
-.cockpit-dashboard-cal-timeline-node.source-rss svg,.cockpit-dashboard-cal-timeline-node.source-automation svg { width:10px; height:10px; stroke-width:2.4; }
+.cockpit-dashboard-cal-timeline-node.source-countdown { background:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.15); }
+.cockpit-dashboard-cal-timeline-node.source-rss svg,.cockpit-dashboard-cal-timeline-node.source-automation svg,.cockpit-dashboard-cal-timeline-node.source-countdown svg { width:10px; height:10px; stroke-width:2.4; }
 .cockpit-dashboard-cal-timeline-content { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; min-width:0; align-self:center; margin:2px 4px 2px 0; padding:5px 6px 5px 9px; border:1px solid transparent; border-radius:10px; background:transparent!important; box-shadow:none; transition:background .16s ease,border-color .16s ease,transform .16s ease; }
 .cockpit-dashboard-cal-timeline-summary { min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
 .cockpit-dashboard-cal-timeline-row.is-next .cockpit-dashboard-cal-timeline-content { border-color:rgba(129,140,248,.18); background:linear-gradient(90deg,rgba(99,102,241,.075),rgba(72,180,255,.02))!important; box-shadow:none; }
@@ -1849,7 +1891,7 @@
 .theme-dark .cockpit-dashboard-cal-timeline-content { background:transparent; border-color:transparent; box-shadow:none; }
 .theme-dark .cockpit-dashboard-cal-timeline-row:hover .cockpit-dashboard-cal-timeline-content,
 .theme-dark .cockpit-dashboard-cal-timeline-row:focus-within .cockpit-dashboard-cal-timeline-content { background:rgba(99,102,241,.09); border-color:rgba(129,140,248,.20); }
-.cockpit-dashboard-cal-timeline-summary > button.cockpit-dashboard-cal-timeline-title { flex:1 1 150px; min-width:100px; width:auto; min-height:22px; margin:0; padding:2px 0; border:0!important; border-radius:5px; background:transparent!important; box-shadow:none!important; color:var(--text-normal); font-size:.8em; font-weight:760; line-height:1.35; text-align:left!important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+.cockpit-dashboard-cal-timeline-summary > button.cockpit-dashboard-cal-timeline-title { flex:1 1 150px; min-width:100px; width:auto; min-height:22px; display:block; justify-content:flex-start; margin:0; padding:2px 0; border:0!important; border-radius:5px; background:transparent!important; box-shadow:none!important; color:var(--text-normal); font-size:.8em; font-weight:760; line-height:1.35; text-align:left!important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
 .cockpit-dashboard-cal-timeline-row.done .cockpit-dashboard-cal-timeline-title { color:var(--text-muted); text-decoration:line-through; background:transparent; }
 .cockpit-dashboard-cal-timeline-row.done .cockpit-dashboard-cal-timeline-node { color:white; }
 .cockpit-dashboard-cal-timeline-now { flex-shrink:0; padding:2px 6px; border-radius:999px; background:#6d75ff; color:white; font-size:.55em; font-weight:900; letter-spacing:.04em; }
@@ -1868,9 +1910,12 @@
 .cockpit-dashboard-cal-flow-chip { max-width:180px; min-height:23px; padding:2px 7px; display:inline-flex; align-items:center; overflow:hidden; border-radius:999px; background:rgba(148,163,184,.1); color:var(--text-muted); font-size:.61em; font-weight:740; line-height:1.25; text-overflow:ellipsis; white-space:nowrap; }
 .cockpit-dashboard-cal-flow-chip.source-rss { background:rgba(139,92,246,.11); color:#a78bfa; }
 .cockpit-dashboard-cal-flow-chip.source-automation { background:rgba(14,165,233,.11); color:#38bdf8; }
+.cockpit-dashboard-cal-flow-chip.source-countdown { background:rgba(245,158,11,.11); color:#f59e0b; }
 .cockpit-dashboard-cal-flow-chip.status-success { background:rgba(34,197,94,.1); color:#4ade80; }
 .cockpit-dashboard-cal-flow-chip.status-failed { background:rgba(239,68,68,.1); color:#f87171; }
 .cockpit-dashboard-cal-flow-chip.status-due { background:rgba(245,158,11,.11); color:#f59e0b; }
+.cockpit-dashboard-cal-flow-chip.status-pending { background:rgba(99,102,241,.1); color:#818cf8; }
+.cockpit-dashboard-cal-flow-chip.status-paused { background:rgba(148,163,184,.11); color:var(--text-muted); }
 .cockpit-dashboard-cal-flow-chip.status-listening { background:rgba(99,102,241,.11); color:#818cf8; }
 .cockpit-dashboard-cal-timeline-date svg,
 .cockpit-dashboard-cal-timeline-priority svg { width:13px; height:13px; stroke-width:2.2; }
@@ -2082,6 +2127,89 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
 .cockpit-dashboard-settings-channel-card .setting-item { padding: 12px 0; }
 .cockpit-dashboard-settings-channel-card .setting-item:last-child { border-bottom: 0; padding-bottom: 0; }
 .cockpit-dashboard-settings-channel-card input { max-width: 100%; }
+.cockpit-dashboard-smtp-settings { margin-top:20px; padding-top:18px; border-top:1px solid var(--background-modifier-border); }
+.cockpit-dashboard-smtp-settings-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
+.cockpit-dashboard-smtp-settings-head h3 { margin:0; color:var(--text-normal); font-size:15px; }
+.cockpit-dashboard-smtp-settings-head p { margin:5px 0 0; color:var(--text-muted); font-size:12px; line-height:1.5; }
+.cockpit-dashboard-smtp-settings-actions,.cockpit-dashboard-smtp-account-actions { display:flex; flex-wrap:wrap; gap:7px; }
+.cockpit-dashboard-smtp-settings-actions { flex:none; }
+.cockpit-dashboard-smtp-account-actions { margin-top:12px; }
+.cockpit-dashboard-smtp-account-actions button { font-size:12px; }
+.cockpit-dashboard-smtp-account-backdrop {
+  position:fixed;
+  inset:0;
+  z-index:2147483646;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(3,7,18,.74);
+  backdrop-filter:blur(7px) saturate(1.08);
+  -webkit-backdrop-filter:blur(7px) saturate(1.08);
+}
+.cockpit-dashboard-smtp-account-dialog {
+  width:min(660px,calc(100vw - 28px));
+  max-height:calc(100vh - 36px);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  border:1px solid color-mix(in srgb,var(--interactive-accent) 25%,var(--background-modifier-border));
+  border-radius:20px;
+  background:var(--background-primary);
+  box-shadow:0 32px 90px rgba(0,0,0,.5);
+}
+.cockpit-dashboard-smtp-account-dialog-head {
+  flex:none;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  padding:19px 20px 17px;
+  border-bottom:1px solid var(--background-modifier-border);
+  background:linear-gradient(135deg,color-mix(in srgb,var(--interactive-accent) 10%,var(--background-primary)),var(--background-primary) 58%);
+  cursor:grab;
+}
+.cockpit-dashboard-smtp-account-dialog-head:active { cursor:grabbing; }
+.cockpit-dashboard-smtp-account-heading { min-width:0; display:flex; align-items:center; gap:12px; }
+.cockpit-dashboard-smtp-account-heading-icon {
+  width:40px;
+  height:40px;
+  flex:none;
+  display:grid;
+  place-items:center;
+  border:1px solid color-mix(in srgb,var(--interactive-accent) 30%,transparent);
+  border-radius:12px;
+  background:color-mix(in srgb,var(--interactive-accent) 13%,var(--background-secondary));
+  color:var(--text-accent);
+}
+.cockpit-dashboard-smtp-account-heading-icon svg { width:19px; height:19px; }
+.cockpit-dashboard-smtp-account-kicker { margin-bottom:3px; color:var(--text-accent); font-size:10px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; }
+.cockpit-dashboard-smtp-account-heading h2 { margin:0; color:var(--text-normal); font-size:18px; line-height:1.25; }
+.cockpit-dashboard-smtp-account-heading p { margin:5px 0 0; max-width:480px; color:var(--text-muted); font-size:12px; line-height:1.5; }
+.cockpit-dashboard-smtp-account-close { width:32px; height:32px; flex:none; display:grid; place-items:center; padding:0; border-radius:9px; }
+.cockpit-dashboard-smtp-account-close svg { width:16px; height:16px; }
+.cockpit-dashboard-smtp-account-dialog-body { flex:1; min-height:0; padding:20px; overflow:auto; }
+.cockpit-dashboard-smtp-account-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 14px; }
+.cockpit-dashboard-smtp-account-field { min-width:0; display:flex; flex-direction:column; gap:6px; }
+.cockpit-dashboard-smtp-account-field.is-wide { grid-column:1 / -1; }
+.cockpit-dashboard-smtp-account-label { color:var(--text-normal); font-size:12px; font-weight:750; }
+.cockpit-dashboard-smtp-account-hint { min-height:17px; color:var(--text-muted); font-size:10.5px; line-height:1.45; }
+.cockpit-dashboard-smtp-account-field input,
+.cockpit-dashboard-smtp-account-field select { width:100%; min-width:0; min-height:38px; border-radius:9px; }
+.cockpit-dashboard-smtp-account-field input:focus,
+.cockpit-dashboard-smtp-account-field select:focus { border-color:color-mix(in srgb,var(--interactive-accent) 60%,var(--background-modifier-border)); box-shadow:0 0 0 3px color-mix(in srgb,var(--interactive-accent) 13%,transparent); }
+.cockpit-dashboard-smtp-account-server { align-self:flex-start; padding:3px 7px; border-radius:6px; background:var(--background-secondary); color:var(--text-muted); font-size:10px; font-family:var(--font-monospace); }
+.cockpit-dashboard-smtp-account-security,
+.cockpit-dashboard-smtp-account-enabled { margin-top:16px; display:flex; align-items:flex-start; gap:10px; padding:12px 13px; border:1px solid var(--background-modifier-border); border-radius:11px; background:var(--background-secondary); }
+.cockpit-dashboard-smtp-account-security { color:var(--text-muted); font-size:11px; line-height:1.55; }
+.cockpit-dashboard-smtp-account-security svg { width:16px; height:16px; flex:none; margin-top:1px; color:var(--color-green); }
+.cockpit-dashboard-smtp-account-enabled { cursor:pointer; }
+.cockpit-dashboard-smtp-account-enabled input { flex:none; margin:3px 0 0; accent-color:var(--interactive-accent); }
+.cockpit-dashboard-smtp-account-enabled > span { display:flex; flex-direction:column; gap:3px; color:var(--text-muted); font-size:11px; line-height:1.4; }
+.cockpit-dashboard-smtp-account-enabled strong { color:var(--text-normal); font-size:12px; }
+.cockpit-dashboard-smtp-account-error { min-height:18px; margin-top:10px; color:var(--text-error); font-size:11px; }
+.cockpit-dashboard-smtp-account-dialog-footer { flex:none; display:flex; justify-content:flex-end; gap:8px; padding:13px 20px 16px; border-top:1px solid var(--background-modifier-border); background:color-mix(in srgb,var(--background-secondary) 58%,var(--background-primary)); }
+.cockpit-dashboard-smtp-account-dialog-footer button { min-width:86px; }
 @keyframes cockpit-settings-panel-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 
 @media (max-width: 600px) {
@@ -2093,6 +2221,13 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   .cockpit-dashboard-settings-panel .setting-item-control input:not([type='checkbox']),
   .cockpit-dashboard-settings-panel .setting-item-control textarea,
   .cockpit-dashboard-settings-panel .setting-item-control select { width: 100%; }
+  .cockpit-dashboard-smtp-account-backdrop { padding:8px; }
+  .cockpit-dashboard-smtp-account-dialog { width:calc(100vw - 16px); max-height:calc(100vh - 16px); border-radius:15px; }
+  .cockpit-dashboard-smtp-account-dialog-head { padding:15px; }
+  .cockpit-dashboard-smtp-account-dialog-body { padding:15px; }
+  .cockpit-dashboard-smtp-account-form { grid-template-columns:minmax(0,1fr); gap:13px; }
+  .cockpit-dashboard-smtp-account-field.is-wide { grid-column:auto; }
+  .cockpit-dashboard-smtp-account-dialog-footer { padding:12px 15px 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cockpit-dashboard-settings-panel { animation: none; }
@@ -4494,29 +4629,40 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
 .cockpit-dashboard-countdown-title > .cockpit-dashboard-collapse-arrow { order:2; }
 .cockpit-dashboard-countdown-add { order:3; margin-left:auto; width:28px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:9px; }
 .cockpit-dashboard-countdown-add svg { width:15px; height:15px; }
-.cockpit-dashboard-countdowns { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:10px; margin-bottom:18px; }
-.cockpit-dashboard-countdown-card { position:relative; display:flex; flex-direction:column; gap:10px; padding:14px; overflow:hidden; border:1px solid color-mix(in srgb,var(--interactive-accent) 22%,var(--background-modifier-border)); border-radius:14px; background:linear-gradient(145deg,color-mix(in srgb,var(--interactive-accent) 8%,var(--background-secondary)),var(--background-secondary)); transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease; }
+.cockpit-dashboard-countdowns { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr)); gap:8px; margin-bottom:18px; }
+.cockpit-dashboard-countdown-card { position:relative; display:flex; flex-direction:column; gap:8px; min-height:112px; padding:12px 13px 10px; overflow:hidden; border:1px solid color-mix(in srgb,var(--interactive-accent) 18%,var(--background-modifier-border)); border-radius:13px; background:linear-gradient(145deg,color-mix(in srgb,var(--interactive-accent) 6%,var(--background-secondary)),var(--background-secondary)); transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease; }
 .cockpit-dashboard-countdown-card:hover { transform:translateY(-1px); border-color:color-mix(in srgb,var(--interactive-accent) 38%,var(--background-modifier-border)); box-shadow:0 9px 24px color-mix(in srgb,var(--background-modifier-box-shadow) 72%,transparent); }
 .cockpit-dashboard-countdown-card.disabled { opacity:.5; }
 .cockpit-dashboard-countdown-card.finished { border-color:color-mix(in srgb,#f59e0b 42%,var(--background-modifier-border)); }
+.cockpit-dashboard-countdown-card.is-urgent { border-color:color-mix(in srgb,#f59e0b 42%,var(--background-modifier-border)); background:linear-gradient(145deg,color-mix(in srgb,#f59e0b 9%,var(--background-secondary)),var(--background-secondary)); }
 .cockpit-dashboard-countdown-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
 .cockpit-dashboard-countdown-meta { min-width:0; }
 .cockpit-dashboard-countdown-name { color:var(--text-normal); font-size:.82em; font-weight:850; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cockpit-dashboard-countdown-target { margin-top:4px; color:var(--text-muted); font-size:.6em; }
-.cockpit-dashboard-countdown-remaining { flex:none; color:var(--text-accent); font-size:.92em; font-weight:900; font-variant-numeric:tabular-nums; }
-.cockpit-dashboard-countdown-progress { height:6px; overflow:hidden; border-radius:999px; background:color-mix(in srgb,var(--text-faint) 18%,transparent); }
+.cockpit-dashboard-countdown-remaining { flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:2px; color:var(--text-accent); font-size:.82em; font-weight:900; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.cockpit-dashboard-countdown-remaining-label { color:var(--text-faint); font-size:.48em; font-weight:800; letter-spacing:.1em; }
+.cockpit-dashboard-countdown-progress { height:4px; overflow:hidden; border-radius:999px; background:color-mix(in srgb,var(--text-faint) 16%,transparent); }
 .cockpit-dashboard-countdown-progress > div { height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--interactive-accent),#a78bfa); transition:width .4s ease; }
-.cockpit-dashboard-countdown-chips { min-height:22px; display:flex; flex-wrap:wrap; gap:5px; }
+.cockpit-dashboard-countdown-card-footer { min-height:28px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.cockpit-dashboard-countdown-chips { min-width:0; display:flex; flex-wrap:wrap; gap:4px; }
 .cockpit-dashboard-countdown-chips span { padding:3px 7px; border-radius:999px; background:color-mix(in srgb,var(--interactive-accent) 10%,var(--background-primary)); color:var(--text-muted); font-size:.56em; }
+.cockpit-dashboard-countdown-chips span.is-quiet { background:transparent; color:var(--text-faint); padding-left:0; }
 .cockpit-dashboard-countdown-actions { display:flex; align-items:center; justify-content:flex-end; gap:4px; }
-.cockpit-dashboard-countdown-actions input { margin-right:auto; accent-color:var(--interactive-accent); transition:transform .14s ease,filter .14s ease; cursor:pointer; }
-.cockpit-dashboard-countdown-actions input:active { transform:scale(.88); }
+.cockpit-dashboard-countdown-toggle { position:relative; width:28px; height:17px; flex:none; cursor:pointer; }
+.cockpit-dashboard-countdown-toggle input { position:absolute; opacity:0; pointer-events:none; }
+.cockpit-dashboard-countdown-toggle span { position:absolute; inset:0; border-radius:999px; background:color-mix(in srgb,var(--text-faint) 26%,transparent); transition:background-color .16s ease; }
+.cockpit-dashboard-countdown-toggle span::after { content:""; position:absolute; top:3px; left:3px; width:11px; height:11px; border-radius:50%; background:var(--text-muted); transition:transform .16s ease,background-color .16s ease; }
+.cockpit-dashboard-countdown-toggle input:checked + span { background:color-mix(in srgb,var(--interactive-accent) 42%,transparent); }
+.cockpit-dashboard-countdown-toggle input:checked + span::after { transform:translateX(11px); background:var(--text-on-accent); }
+.cockpit-dashboard-countdown-toggle input:focus-visible + span { outline:2px solid var(--interactive-accent); outline-offset:2px; }
 .cockpit-dashboard-countdown-actions button { width:28px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; transition:transform .14s cubic-bezier(.2,.8,.2,1),background-color .14s ease,border-color .14s ease,color .14s ease,box-shadow .14s ease; }
 .cockpit-dashboard-countdown-actions button:hover { transform:translateY(-1px); border-color:color-mix(in srgb,var(--interactive-accent) 42%,var(--background-modifier-border)); background:color-mix(in srgb,var(--interactive-accent) 12%,var(--background-secondary)); color:var(--text-accent); }
 .cockpit-dashboard-countdown-actions button:active { transform:scale(.9); box-shadow:none; }
 .cockpit-dashboard-countdown-actions button:focus-visible { outline:2px solid color-mix(in srgb,var(--interactive-accent) 72%,white); outline-offset:2px; }
 .cockpit-dashboard-countdown-actions button:disabled { opacity:.55; cursor:wait; }
-.cockpit-dashboard-countdown-actions .cockpit-dashboard-countdown-link-automation { width:auto; min-width:82px; gap:5px; padding:0 9px; color:var(--text-accent); font-size:.58em; font-weight:780; }
+.cockpit-dashboard-countdown-actions .cockpit-dashboard-countdown-link-automation,
+.cockpit-dashboard-countdown-actions .cockpit-dashboard-countdown-mail-rules { width:28px; min-width:28px; padding:0; color:var(--text-accent); }
+.cockpit-dashboard-countdown-actions .cockpit-dashboard-countdown-mail-rules { color:color-mix(in srgb,var(--color-green) 74%,var(--text-normal)); }
 .cockpit-dashboard-countdown-actions svg { width:13px; height:13px; }
 .cockpit-dashboard-countdown-empty { grid-column:1 / -1; min-height:110px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; border:1px dashed var(--background-modifier-border); border-radius:14px; color:var(--text-muted); font-size:.7em; }
 .cockpit-dashboard-countdown-empty svg { width:24px; height:24px; color:var(--text-accent); }
@@ -4538,6 +4684,14 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
 .cockpit-dashboard-countdown-channels { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px 12px; }
 .cockpit-dashboard-countdown-channels label { display:flex; align-items:center; gap:7px; color:var(--text-muted); font-size:.64em; }
 .cockpit-dashboard-countdown-note { padding:9px 10px; border-radius:9px; background:var(--background-secondary); color:var(--text-muted); font-size:.6em; line-height:1.5; }
+.cockpit-dashboard-countdown-email-title { display:flex; align-items:center; gap:7px; }
+.cockpit-dashboard-countdown-email-rules { display:flex; flex-direction:column; gap:9px; padding:2px; border-radius:12px; transition:background-color .22s ease,box-shadow .22s ease; }
+.cockpit-dashboard-countdown-email-rules.is-focused { background:color-mix(in srgb,var(--interactive-accent) 10%,transparent); box-shadow:0 0 0 3px color-mix(in srgb,var(--interactive-accent) 20%,transparent); }
+.cockpit-dashboard-countdown-email-rule { display:grid; grid-template-columns:minmax(130px,.8fr) minmax(160px,1fr); gap:8px; padding:11px; border:1px solid var(--background-modifier-border); border-radius:11px; background:var(--background-secondary); }
+.cockpit-dashboard-countdown-email-rule input,.cockpit-dashboard-countdown-email-rule select,.cockpit-dashboard-countdown-email-rule textarea { width:100%; min-width:0; }
+.cockpit-dashboard-countdown-email-rule textarea,.cockpit-dashboard-countdown-email-rule input[type='text'] { grid-column:1 / -1; }
+.cockpit-dashboard-countdown-email-rule button { grid-column:1 / -1; justify-self:end; display:inline-flex; align-items:center; gap:5px; font-size:.62em; }
+.cockpit-dashboard-countdown-email-rule button svg { width:13px; height:13px; }
 .cockpit-dashboard-countdown-error { min-height:18px; color:#f87171; font-size:.62em; }
 .cockpit-dashboard-countdown-editor-footer { flex:none; display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid var(--background-modifier-border); }
 .cockpit-dashboard-scheduler-context { display:flex; align-items:center; gap:8px; margin:12px 16px 0; padding:9px 11px; border:1px solid color-mix(in srgb,var(--interactive-accent) 24%,var(--background-modifier-border)); border-radius:10px; background:color-mix(in srgb,var(--interactive-accent) 8%,var(--background-secondary)); color:var(--text-muted); font-size:.64em; line-height:1.45; }
@@ -4546,7 +4700,10 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   .cockpit-dashboard-countdown-field { grid-template-columns:1fr; gap:5px; }
   .cockpit-dashboard-countdown-threshold-row { grid-template-columns:1fr 72px 78px 32px; }
   .cockpit-dashboard-countdown-channels { grid-template-columns:1fr; }
-  .cockpit-dashboard-countdown-card-top { flex-direction:column; gap:6px; }
+  .cockpit-dashboard-countdown-email-rule { grid-template-columns:1fr; }
+  .cockpit-dashboard-countdown-email-rule textarea,.cockpit-dashboard-countdown-email-rule input[type='text'],.cockpit-dashboard-countdown-email-rule button { grid-column:1; }
+  .cockpit-dashboard-countdown-card-top { gap:8px; }
+  .cockpit-dashboard-countdown-remaining { font-size:.76em; }
 }
 
 /* ===== Component Store ===== */

@@ -7,6 +7,7 @@ const path = require('node:path');
 const {
   normalizeCountdown,
   normalizeCountdowns,
+  normalizeCountdownEmailRule,
   countdownThresholdMs,
   countdownState,
   dueCountdownEvent,
@@ -54,9 +55,40 @@ event = dueCountdownEvent(retried, Date.parse('2026-09-07T00:03:00Z'), ['email']
 assert.deepEqual(event.pendingChannelIds, [], 'A failing notification channel stops retrying after the bounded attempt limit.');
 assert.equal(event.eventPending, true, 'Notification retry exhaustion does not suppress the independent module event.');
 
+const attemptedOnce = normalizeCountdown({
+  ...countdown,
+  localNotification:false,
+  deliveries:{ 'threshold:fixed-2d':{ email:{ ok:false, attempts:1, at:'2026-09-07T00:02:00Z', error:'timeout-after-accept' } } }
+});
+event = dueCountdownEvent(attemptedOnce, Date.parse('2026-09-07T00:03:00Z'), ['email']);
+assert.deepEqual(event.pendingChannelIds, [], 'A countdown channel is attempted at most once per trigger point, even when the final response is ambiguous.');
+
 event = dueCountdownEvent(countdown, Date.parse('2026-09-09T00:00:01Z'), ['email']);
 assert.equal(event.kind, 'finished', 'The deadline has its own configurable completion notification.');
 assert.equal(event.eventPending, true, 'A countdown lifecycle event is available for module automation.');
+
+const routedEmail = normalizeCountdown({
+  id:'routed-email', name:'分阶段邮件', enabled:true,
+  startAt:new Date(start).toISOString(), targetAt:new Date(target).toISOString(),
+  channelIds:[], localNotification:false, notifyAtEnd:true,
+  thresholds:[{ id:'one-day', mode:'duration', value:1, unit:'days' }],
+  emailRules:[
+    { id:'before', eventKey:'threshold:one-day', accountId:'qq-personal', to:['first@example.com'], subject:'还有一天' },
+    { id:'finish', eventKey:'finished', accountId:'work-163', to:['second@example.com','third@example.com'], subject:'已经结束' }
+  ]
+});
+assert.equal(routedEmail.emailRules.length, 2, 'Each countdown stores independent SMTP rules per trigger point.');
+assert.equal(normalizeCountdownEmailRule({ id:'bad', eventKey:'finished', accountId:'', to:['x@example.com'] }, 0, ['finished']), null);
+event = dueCountdownEvent(routedEmail, Date.parse('2026-09-08T00:00:01Z'), [], ['qq-personal','work-163']);
+assert.deepEqual(event.pendingEmailRules.map((rule) => rule.id), ['before']);
+const smtpAttemptedOnce = normalizeCountdown({
+  ...routedEmail,
+  deliveries:{ 'threshold:one-day':{ 'smtp:before':{ ok:false, attempts:1, at:'2026-09-08T00:00:02Z', error:'connection-closed-after-data' } } }
+});
+event = dueCountdownEvent(smtpAttemptedOnce, Date.parse('2026-09-08T00:01:00Z'), [], ['qq-personal','work-163']);
+assert.deepEqual(event.pendingEmailRules, [], 'An SMTP rule is never repeated after its trigger point has already been attempted.');
+event = dueCountdownEvent(routedEmail, Date.parse('2026-09-09T00:00:01Z'), [], ['qq-personal','work-163']);
+assert.deepEqual(event.pendingEmailRules.map((rule) => rule.id), ['finish']);
 
 const automationOnly = normalizeCountdown({
   id:'automation-only', name:'自动化截止点', enabled:true,
@@ -90,6 +122,7 @@ assert.match(framework, /buildCountdownModule/, 'The dashboard renders the count
 assert.match(framework, /new CountdownService/, 'The plugin owns a countdown scheduler.');
 assert.match(build, /'countdown-core\.js'[\s\S]*'countdown\.js'/, 'Countdown modules are included in the production bundle.');
 assert.match(countdownModule, /cockpitEmit\('countdown-'\s*\+\s*event\.kind/, 'Countdown threshold and completion signals enter the shared module event bus.');
+assert.match(countdownModule, /await this\._claim\(event\)[\s\S]*smtpMail\.send/, 'Countdown deliveries are claimed persistently before external messages are sent.');
 assert.match(countdownModule, /countdownAutomationDraft[\s\S]*countdown-finished[\s\S]*openScheduledTaskEditor/, 'A countdown card exposes a direct path for creating a linked automation.');
 const linkedDraft = countdownUi.countdownAutomationDraft(countdown, 'zh-CN');
 assert.equal(linkedDraft.kind, 'workflow', 'Countdown linkage opens with automation workflow selected instead of hiding it behind app commands.');

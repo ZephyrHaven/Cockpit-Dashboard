@@ -1,5 +1,5 @@
 class CockpitView extends obs.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._calendarAutomationUnsubscribe = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._countdownUnsubscribe = null; this._countdownDisplayTimer = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._calendarAutomationUnsubscribe = null; this._calendarCountdownUnsubscribe = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._countdownUnsubscribe = null; this._countdownDisplayTimer = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -344,6 +344,7 @@ class CockpitView extends obs.ItemView {
     });
     if (!outcome.saved || !outcome.todos) return false;
     this._todos = outcome.todos;
+    this._plugin.appleCalendar?.syncTodos(this._todos).catch((e) => console.warn('Cockpit pomodoro Apple calendar sync failed', e));
     if (this._refreshTodosRef) await this._refreshTodosRef({ persist:false });
     else {
       this._refreshCalendarRef?.();
@@ -664,6 +665,17 @@ class CockpitView extends obs.ItemView {
     await this._recoverPendingPomodoroCompletions();
 
     this._toolbarCmds = await this._storage.loadToolbarCommands(this._defaultToolbarCommands());
+    const hasSelectedCalendarTodo = this._todos.some((todo) => todo?.calendarSync === true && !todo.done && !!todo.dueDate);
+    if (hasSelectedCalendarTodo) {
+      try {
+        const calendarConfig = await this._plugin.appleCalendar.getConfig();
+        if (!calendarConfig.enabled || !calendarConfig.calendarName) await this._plugin.appleCalendar.ensureReady({ enable:true });
+      } catch (error) {
+        console.warn('Cockpit startup Apple calendar setup failed', error);
+        new obs.Notice(this._plugin.appleCalendar.userMessage(error, this._language), 10000);
+      }
+    }
+    this._plugin.appleCalendar?.syncTodos(this._todos).catch((e) => console.warn('Cockpit startup Apple calendar sync failed', e));
   }
 
   _defaultToolbarCommands() { return cockpitDefaultToolbarCommands(this); }
@@ -966,6 +978,7 @@ class CockpitView extends obs.ItemView {
       }
       this._todos = outcome.todos;
       await this._plugin.alarms.syncTodos(this._todos).catch((e) => console.warn('Cockpit todo alarm sync failed', e));
+      this._plugin.appleCalendar?.syncTodos(this._todos).catch((e) => console.warn('Cockpit todo Apple calendar sync failed', e));
       if (refreshTodosRef) await refreshTodosRef({ persist:false });
       else {
         refreshCalendarRef?.();
@@ -998,6 +1011,7 @@ class CockpitView extends obs.ItemView {
       tags: Array.isArray(todo?.tags) ? todo.tags.slice() : [],
       dueDate: cloneMomentOrNull(todo?.dueDate),
       dueHasTime: !!todo?.dueHasTime,
+      calendarSync: todo?.calendarSync === true,
       priority: todo?.priority || 'mid',
       ...overrides
     });
@@ -1153,6 +1167,28 @@ class CockpitView extends obs.ItemView {
         renderDueButtons();
       });
 
+      const calendarSyncSupported = this._plugin.appleCalendar?.isSupported?.() === true;
+      const calendarSyncField = body.createEl('label', { cls: PID + '-todo-editor-calendar-sync' + (calendarSyncSupported ? '' : ' is-disabled') });
+      const calendarSyncCopy = calendarSyncField.createDiv({ cls: PID + '-todo-editor-calendar-copy' });
+      const calendarSyncHeading = calendarSyncCopy.createDiv({ cls: PID + '-todo-editor-calendar-heading' });
+      const calendarSyncIcon = calendarSyncHeading.createSpan({ cls: PID + '-todo-editor-calendar-icon' });
+      obs.setIcon(calendarSyncIcon, 'calendar-days');
+      calendarSyncHeading.createSpan({ text:lang === 'en' ? 'Sync to iPhone calendar' : '同步到 iPhone 日历' });
+      calendarSyncHeading.createSpan({ cls: PID + '-todo-editor-calendar-badge', text:lang === 'en' ? 'Mac only' : '仅 Mac' });
+      calendarSyncCopy.createDiv({
+        cls:PID + '-todo-editor-calendar-note',
+        text:lang === 'en'
+          ? 'When this task has a due date, save it to the iCloud calendar selected in settings.'
+          : '有截止日期时，保存到设置中选择的 iCloud 日历，并同步到 iPhone。'
+      });
+      const calendarSyncInput = calendarSyncField.createEl('input', {
+        cls:PID + '-todo-editor-calendar-toggle',
+        attr:{ type:'checkbox', role:'switch', 'aria-label':lang === 'en' ? 'Sync this task to iPhone calendar' : '将这个待办同步到 iPhone 日历' }
+      });
+      calendarSyncInput.checked = draft.calendarSync;
+      calendarSyncInput.disabled = !calendarSyncSupported;
+      calendarSyncInput.addEventListener('change', () => { draft.calendarSync = calendarSyncInput.checked; });
+
       const fieldPriority = body.createDiv({ cls: PID + '-todo-editor-field' });
       fieldPriority.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorPriority') });
       const priorityRow = fieldPriority.createDiv({ cls: PID + '-todo-editor-segment' });
@@ -1259,12 +1295,18 @@ class CockpitView extends obs.ItemView {
           return;
         }
         saveLocked = true;
+        let calendarSetupError = null;
+        if (draft.calendarSync) {
+          try { await this._plugin.appleCalendar.ensureReady({ enable:true }); }
+          catch (error) { calendarSetupError = error; }
+        }
         const merged = mergeLegacyTodoInput(rawTitle, draft);
         const nextTodo = {
           text: merged.text,
           tags: merged.tags,
           dueDate: merged.dueDate,
           dueHasTime: merged.dueHasTime,
+          calendarSync: draft.calendarSync,
           priority: merged.priority,
           done: existingTodo ? !!existingTodo.done : false,
           created: existingTodo?.created || window.moment(),
@@ -1282,7 +1324,10 @@ class CockpitView extends obs.ItemView {
         }, isEditing
           ? (lang === 'en' ? 'This task changed elsewhere. Reopen it and try again.' : '这个待办已在其他窗口发生变化，请重新打开后再试。')
           : undefined);
-        if (saved) this._closeTodoEditor();
+        if (saved) {
+          this._closeTodoEditor();
+          if (calendarSetupError) new obs.Notice(this._plugin.appleCalendar.userMessage(calendarSetupError, lang), 10000);
+        }
         else saveLocked = false;
       };
 
@@ -1378,8 +1423,8 @@ class CockpitView extends obs.ItemView {
         const toolbarNames = new Map(scheduledToolbarActions(this).map((item) => [item.id,item.label]));
         const commandNames = new Map((this.app.commands.listCommands?.() || []).map((item) => [item.id,item.name]));
         const kindNames = lang === 'en'
-          ? { workflow:'Workflow', 'toolbar-action':'Toolbar', 'obsidian-command':'App command', shell:'Shell', 'append-daily':'Append daily note', 'create-todo':'Create todo', push:'Push' }
-          : { workflow:'自动化流程', 'toolbar-action':'Toolbar 动作', 'obsidian-command':'应用命令', shell:'Shell', 'append-daily':'写入今日日记', 'create-todo':'创建待办', push:'发送推送' };
+          ? { workflow:'Workflow', 'toolbar-action':'Toolbar', 'obsidian-command':'App command', shell:'Shell', 'append-daily':'Append daily note', 'create-todo':'Create todo', push:'Push', 'smtp-email':'SMTP email' }
+          : { workflow:'自动化流程', 'toolbar-action':'Toolbar 动作', 'obsidian-command':'应用命令', shell:'Shell', 'append-daily':'写入今日日记', 'create-todo':'创建待办', push:'发送推送', 'smtp-email':'SMTP 邮件' };
         return scheduledTaskDayPlan(tasks,date).map((item) => {
           const configuredTarget = String(item.command || '').replace(/\s+/g,' ').trim().slice(0,42);
           const target = item.kind === 'workflow' ? workflowNames.get(item.command) : item.kind === 'toolbar-action' ? toolbarNames.get(item.command) : item.kind === 'obsidian-command' ? commandNames.get(item.command) : configuredTarget;
@@ -1387,11 +1432,13 @@ class CockpitView extends obs.ItemView {
           return { ...item, scheduleLabel:scheduleLabel(item.task,lang), actionLabel };
         });
       },
+      loadCountdownItems:async() => this._plugin.countdowns.load(),
       onAutomationOpen:(task) => openScheduledTaskEditor(this,task),
       onAutomationRun:async(task) => {
         const ok = await this._plugin.scheduledTasks.runTask(task.id,{trigger:'manual'});
         new obs.Notice(ok ? (lang === 'en' ? 'Automation completed.' : '自动化执行完成。') : (lang === 'en' ? 'Automation failed. Check the audit log.' : '自动化执行失败，请查看审计日志。'));
       },
+      onCountdownOpen:(countdown) => openCountdownEditor(this,countdown),
       initialViewMode:this._calendarViewMode,
       onViewModeChange:(mode) => this._setCalendarViewMode(mode)
     });
@@ -1399,6 +1446,8 @@ class CockpitView extends obs.ItemView {
     this._refreshCalendarRef = refreshCalendar;
     this._calendarAutomationUnsubscribe?.();
     this._calendarAutomationUnsubscribe = this._plugin.scheduledTasks.subscribe(() => refreshCalendar());
+    this._calendarCountdownUnsubscribe?.();
+    this._calendarCountdownUnsubscribe = this._plugin.countdowns.subscribe(() => refreshCalendar());
 
     // ===== 3. Categories =====
     const catsTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: t('sections.cats') });
@@ -1934,6 +1983,7 @@ class CockpitView extends obs.ItemView {
       if (loaded) {
         this._todos = loaded;
         await this._plugin.alarms.syncTodos(this._todos).catch((e) => console.warn('Cockpit refreshed todo alarm sync failed', e));
+        this._plugin.appleCalendar?.syncTodos(this._todos).catch((e) => console.warn('Cockpit refreshed Apple calendar sync failed', e));
       }
       // loadTodos 已在同一队列内完成旧格式 ID 的一次性回写，无需再重复写文件。
       await renderTodos({ persist:false });
@@ -2625,6 +2675,8 @@ class CockpitView extends obs.ItemView {
     this._countdownUnsubscribe = null;
     this._calendarAutomationUnsubscribe?.();
     this._calendarAutomationUnsubscribe = null;
+    this._calendarCountdownUnsubscribe?.();
+    this._calendarCountdownUnsubscribe = null;
     if (this._countdownDisplayTimer) { clearInterval(this._countdownDisplayTimer); this._countdownDisplayTimer = null; }
     this._agendaAlarmUnsubscribe?.();
     this._agendaAlarmUnsubscribe = null;
@@ -2899,8 +2951,10 @@ class CockpitPlugin extends obs.Plugin {
         Notification.requestPermission?.().catch?.(() => {});
       }
     } catch (e) {}
+    this.smtpMail = new SmtpMailService(this);
     this.serverChan = new ServerChanService(this);
     this.serverChan.startScheduler();
+    this.appleCalendar = new AppleCalendarService(this);
     this.countdowns = new CountdownService(this);
     await this.countdowns.start();
     // 晨间简报：复用推送渠道与 AI 配置，独立调度与发送记录；失败不阻断插件加载。

@@ -30,6 +30,21 @@ function countdownMessage(event, language = 'zh-CN') {
   };
 }
 
+function countdownEmailRuleMessage(rule, event, language = 'zh-CN') {
+  const fallback = countdownMessage(event, language);
+  const target = new Date(event.countdown.targetAt).toLocaleString(language === 'en' ? 'en-US' : 'zh-CN', { hour12:false });
+  const values = {
+    countdown:event.countdown.name, target,
+    remaining:formatCountdownRemaining(event.state.remainingMs, language),
+    progress:String(event.state.progress)
+  };
+  const render = (template, fallbackValue) => {
+    const source = String(template || fallbackValue || '');
+    return source.replace(/\{(countdown|target|remaining|progress)\}/g, (_match, key) => values[key]);
+  };
+  return { subject:render(rule.subject, fallback.title), body:render(rule.body, fallback.body) };
+}
+
 function countdownAutomationDraft(countdown, language = 'zh-CN') {
   const en = language === 'en';
   return {
@@ -54,8 +69,8 @@ class CountdownService {
       const index = list.findIndex((item) => item.id === countdown.id);
       if (index >= 0) {
         const previous = list[index];
-        const before = JSON.stringify({ startAt:previous.startAt, targetAt:previous.targetAt, thresholds:previous.thresholds, channelIds:previous.channelIds, localNotification:previous.localNotification, notifyAtEnd:previous.notifyAtEnd });
-        const after = JSON.stringify({ startAt:countdown.startAt, targetAt:countdown.targetAt, thresholds:countdown.thresholds, channelIds:countdown.channelIds, localNotification:countdown.localNotification, notifyAtEnd:countdown.notifyAtEnd });
+        const before = JSON.stringify({ startAt:previous.startAt, targetAt:previous.targetAt, thresholds:previous.thresholds, channelIds:previous.channelIds, emailRules:previous.emailRules, localNotification:previous.localNotification, notifyAtEnd:previous.notifyAtEnd });
+        const after = JSON.stringify({ startAt:countdown.startAt, targetAt:countdown.targetAt, thresholds:countdown.thresholds, channelIds:countdown.channelIds, emailRules:countdown.emailRules, localNotification:countdown.localNotification, notifyAtEnd:countdown.notifyAtEnd });
         if (before !== after) countdown.deliveries = {};
         else countdown.deliveries = previous.deliveries;
         list[index] = countdown;
@@ -81,6 +96,29 @@ class CountdownService {
     });
     if (updated) this.notify(); return updated;
   }
+  async _claim(event) {
+    const requested = [
+      ...(event.eventPending ? ['event'] : []),
+      ...(event.localPending ? ['local'] : []),
+      ...event.pendingChannelIds,
+      ...event.pendingEmailRules.map((rule) => 'smtp:' + rule.id)
+    ];
+    const claimed = new Set();
+    if (!requested.length) return claimed;
+    await this.plugin.mutateData((data) => {
+      const list = normalizeCountdowns(data.countdowns); const item = list.find((entry) => entry.id === event.countdown.id);
+      if (!item) return;
+      const records = item.deliveries[event.eventKey] || (item.deliveries[event.eventKey] = {});
+      const at = new Date().toISOString();
+      requested.forEach((channelId) => {
+        if (records[channelId]) return;
+        records[channelId] = { ok:false, attempts:1, at, error:'sending' };
+        claimed.add(channelId);
+      });
+      data.countdowns = list;
+    });
+    return claimed;
+  }
   async _record(event, outcomes) {
     await this.plugin.mutateData((data) => {
       const list = normalizeCountdowns(data.countdowns); const item = list.find((entry) => entry.id === event.countdown.id);
@@ -88,7 +126,7 @@ class CountdownService {
       item.deliveries[event.eventKey] = item.deliveries[event.eventKey] || {};
       outcomes.forEach(({ channelId, ok, error }) => {
         const previous = item.deliveries[event.eventKey][channelId];
-        item.deliveries[event.eventKey][channelId] = { ok, attempts:Math.min(COUNTDOWN_MAX_DELIVERY_ATTEMPTS, (Number(previous?.attempts) || 0) + 1), at:new Date().toISOString(), error:String(error || '').slice(0, 240) };
+        item.deliveries[event.eventKey][channelId] = { ok, attempts:Math.max(1, Number(previous?.attempts) || 1), at:new Date().toISOString(), error:String(error || '').slice(0, 240) };
       });
       data.countdowns = list;
     });
@@ -107,12 +145,23 @@ class CountdownService {
     if (this.ticking) return;
     this.ticking = true;
     try {
-      const [items, config] = await Promise.all([this.load(), this.plugin.serverChan?.getConfig?.()]);
+      const [items, config, smtpAccounts] = await Promise.all([this.load(), this.plugin.serverChan?.getConfig?.(), this.plugin.smtpMail?.listAccounts?.() || []]);
       const enabledChannels = Object.keys(config?.channels || {}).filter((id) => config.channels[id]?.enabled && COUNTDOWN_CHANNEL_IDS.includes(id));
+      const enabledAccountIds = smtpAccounts.filter((account) => account.enabled).map((account) => account.id);
       let changed = false;
       for (const item of items) {
-        const event = dueCountdownEvent(item, nowValue, enabledChannels);
+        let event = dueCountdownEvent(item, nowValue, enabledChannels, enabledAccountIds);
         if (!event) continue;
+        const claimed = await this._claim(event);
+        if (!claimed.size) continue;
+        event = {
+          ...event,
+          eventPending:claimed.has('event'),
+          localPending:claimed.has('local'),
+          pendingChannelIds:event.pendingChannelIds.filter((channelId) => claimed.has(channelId)),
+          pendingEmailRules:event.pendingEmailRules.filter((rule) => claimed.has('smtp:' + rule.id))
+        };
+        changed = true;
         const language = (await this.plugin.loadData() || {}).language || DEFAULT_LANG;
         const message = countdownMessage(event, language);
         const outcomes = [];
@@ -131,6 +180,15 @@ class CountdownService {
         }
         const sent = await Promise.allSettled(event.pendingChannelIds.map((channelId) => this.plugin.serverChan.sendChannel(channelId, message.title, message.body)));
         sent.forEach((result, index) => outcomes.push({ channelId:event.pendingChannelIds[index], ok:result.status === 'fulfilled', error:result.status === 'rejected' ? (result.reason?.message || result.reason) : '' }));
+        const smtpSent = await Promise.allSettled(event.pendingEmailRules.map((rule) => {
+          const mail = countdownEmailRuleMessage(rule, event, language);
+          return this.plugin.smtpMail.send(rule.accountId, {
+            to:rule.to, cc:rule.cc, bcc:rule.bcc,
+            subject:mail.subject, body:mail.body,
+            messageId:[event.countdown.id, event.eventKey, rule.id].join('-')
+          });
+        }));
+        smtpSent.forEach((result, index) => outcomes.push({ channelId:'smtp:' + event.pendingEmailRules[index].id, ok:result.status === 'fulfilled', error:result.status === 'rejected' ? (result.reason?.message || result.reason) : '' }));
         if (outcomes.length) { await this._record(event, outcomes); changed = true; }
       }
       if (changed) this.notify();
@@ -151,9 +209,9 @@ function countdownEditorField(parent, label, control) {
   field.createDiv({ cls:PLUGIN_ID + '-countdown-label', text:label }); field.appendChild(control); return field;
 }
 
-async function openCountdownEditor(view, raw, onSaved) {
+async function openCountdownEditor(view, raw, onSaved, options = {}) {
   const en = view._lang() === 'en'; const existing = normalizeCountdown(raw);
-  const config = await view._plugin.serverChan.getConfig();
+  const [config, smtpAccounts] = await Promise.all([view._plugin.serverChan.getConfig(), view._plugin.smtpMail?.listAccounts?.() || []]);
   const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-countdown-backdrop';
   const sheet = overlay.createDiv({ cls:PLUGIN_ID + '-countdown-editor', attr:{role:'dialog','aria-modal':'true'} });
   const head = sheet.createDiv({ cls:PLUGIN_ID + '-countdown-editor-head' });
@@ -170,6 +228,7 @@ async function openCountdownEditor(view, raw, onSaved) {
   body.createDiv({ cls:PLUGIN_ID + '-countdown-subtitle', text:en ? 'Reminder thresholds' : '提醒阈值' });
   const thresholdList = body.createDiv({ cls:PLUGIN_ID + '-countdown-threshold-list' });
   const thresholdDrafts = existing?.thresholds?.map((item) => ({ ...item })) || [{ id:'threshold-1', mode:'percent', value:20, unit:'hours' }];
+  let renderEmailRules = () => {};
   const renderThresholds = () => {
     thresholdList.empty();
     thresholdDrafts.forEach((item, index) => {
@@ -184,7 +243,7 @@ async function openCountdownEditor(view, raw, onSaved) {
       mode.onchange = () => { item.mode = mode.value; unit.style.display = item.mode === 'duration' ? '' : 'none'; };
       value.oninput = () => { item.value = Number(value.value); }; unit.onchange = () => { item.unit = unit.value; };
       const remove = row.createEl('button', { attr:{type:'button','aria-label':en?'Remove threshold':'删除阈值'} }); obs.setIcon(remove,'trash-2');
-      remove.onclick = () => { thresholdDrafts.splice(index, 1); renderThresholds(); };
+      remove.onclick = () => { thresholdDrafts.splice(index, 1); renderThresholds(); renderEmailRules(); };
     });
   };
   renderThresholds();
@@ -201,7 +260,30 @@ async function openCountdownEditor(view, raw, onSaved) {
   });
   const localLabel = channelWrap.createEl('label'); const local = localLabel.createEl('input',{attr:{type:'checkbox'}}); local.checked = existing?.localNotification !== false; localLabel.createSpan({text:en?'Local system notification':'本机系统通知'});
   const endLabel = channelWrap.createEl('label'); const notifyEnd = endLabel.createEl('input',{attr:{type:'checkbox'}}); notifyEnd.checked = existing?.notifyAtEnd !== false; endLabel.createSpan({text:en?'Notify again at the deadline':'到达目标时间时再次通知'});
-  body.createDiv({ cls:PLUGIN_ID + '-countdown-note', text:en ? 'Checks run while the app is open. Email uses the Resend channel configured in Settings.' : '仅在应用运行时检查；邮件使用设置页中配置的 Resend 渠道。' });
+  body.createDiv({ cls:PLUGIN_ID + '-countdown-note', text:en ? 'Checks run while the app is open. Resend uses the shared channel above; SMTP rules below can use QQ or NetEase accounts.' : '仅在应用运行时检查；上方邮件渠道使用 Resend，下方 SMTP 规则可选择 QQ 或网易发件账户。' });
+
+  body.createDiv({ cls:PLUGIN_ID + '-countdown-subtitle ' + PLUGIN_ID + '-countdown-email-title', text:en ? 'SMTP email rules' : 'SMTP 邮件规则' });
+  const emailRuleList = body.createDiv({ cls:PLUGIN_ID + '-countdown-email-rules' });
+  const emailRuleDrafts = existing?.emailRules?.map((item) => ({ ...item, to:[...item.to], cc:[...item.cc], bcc:[...item.bcc] })) || [];
+  renderEmailRules = () => {
+    emailRuleList.empty();
+    if (!smtpAccounts.length) emailRuleList.createDiv({ cls:PLUGIN_ID + '-countdown-note', text:en ? 'Configure a QQ or NetEase SMTP account in Settings → Channels first.' : '请先到“设置 → 推送渠道”配置 QQ 或网易 SMTP 发件账户。' });
+    emailRuleDrafts.forEach((rule, index) => {
+      const card = emailRuleList.createDiv({ cls:PLUGIN_ID + '-countdown-email-rule' });
+      const trigger = card.createEl('select');
+      thresholdDrafts.forEach((threshold) => trigger.createEl('option',{text:countdownThresholdLabel(threshold,view._lang()),attr:{value:'threshold:'+threshold.id}}));
+      trigger.createEl('option',{text:en?'At the deadline':'倒计时结束',attr:{value:'finished'}}); trigger.value=rule.eventKey;
+      trigger.onchange=()=>{rule.eventKey=trigger.value;};
+      const account = card.createEl('select'); smtpAccounts.forEach((item)=>account.createEl('option',{text:item.name+' · '+item.email,attr:{value:item.id}}));account.value=rule.accountId;account.onchange=()=>{rule.accountId=account.value;};
+      const recipients=card.createEl('textarea',{attr:{rows:'2',placeholder:en?'Recipients, separated by commas':'收件邮箱，多个用逗号分隔'}});recipients.value=(rule.to||[]).join(', ');recipients.oninput=()=>{rule.to=normalizeCountdownRuleRecipients(recipients.value);};
+      const subject=card.createEl('input',{attr:{type:'text',maxlength:'180',placeholder:en?'Subject; supports {countdown} {target}':'主题；支持 {countdown} {target}'}});subject.value=rule.subject||'';subject.oninput=()=>{rule.subject=subject.value;};
+      const message=card.createEl('textarea',{attr:{rows:'3',maxlength:'10000',placeholder:en?'Body; supports {countdown} {target} {remaining} {progress}':'正文；支持 {countdown} {target} {remaining} {progress}'}});message.value=rule.body||'';message.oninput=()=>{rule.body=message.value;};
+      const remove=card.createEl('button',{attr:{type:'button','aria-label':en?'Remove email rule':'删除邮件规则'}});obs.setIcon(remove,'trash-2');remove.createSpan({text:en?'Remove':'删除'});remove.onclick=()=>{emailRuleDrafts.splice(index,1);renderEmailRules();};
+    });
+  };
+  renderEmailRules();
+  const addEmailRule=body.createEl('button',{cls:PLUGIN_ID+'-countdown-add-threshold',text:en?'+ Add SMTP email rule':'+ 添加 SMTP 邮件规则',attr:{type:'button'}});addEmailRule.disabled=!smtpAccounts.length;
+  addEmailRule.onclick=()=>{if(emailRuleDrafts.length>=COUNTDOWN_MAX_EMAIL_RULES||!smtpAccounts.length)return;const eventKey=thresholdDrafts.length?'threshold:'+thresholdDrafts[0].id:'finished';emailRuleDrafts.push({id:'email-rule-'+Date.now().toString(36),eventKey,accountId:smtpAccounts[0].id,to:[],cc:[],bcc:[],subject:'',body:'',enabled:true});renderEmailRules();};
   const error = body.createDiv({ cls:PLUGIN_ID + '-countdown-error' });
   const footer = sheet.createDiv({ cls:PLUGIN_ID + '-countdown-editor-footer' });
   const cancel = footer.createEl('button',{text:en?'Cancel':'取消',attr:{type:'button'}}); const save = footer.createEl('button',{cls:'mod-cta',text:en?'Save':'保存',attr:{type:'button'}});
@@ -212,12 +294,22 @@ async function openCountdownEditor(view, raw, onSaved) {
     const thresholds = thresholdDrafts.map(normalizeCountdownThreshold).filter(Boolean);
     if (!name.value.trim() || !Number.isFinite(startDate.getTime()) || !Number.isFinite(targetDate.getTime()) || targetDate <= startDate) { error.textContent = en ? 'Enter a name and choose a target later than the start.' : '请输入名称，并确保目标时间晚于开始时间。'; return; }
     if (!thresholds.length && !notifyEnd.checked) { error.textContent = en ? 'Add a threshold or enable the deadline notification.' : '请至少添加一个阈值，或开启到期通知。'; return; }
-    if (!local.checked && !selected.size) { error.textContent = en ? 'Choose at least one delivery method.' : '请至少选择一种通知方式。'; return; }
-    const value = normalizeCountdown({ ...existing, id:existing?.id || countdownId(), name:name.value, enabled:existing?.enabled !== false, startAt:startDate.toISOString(), targetAt:targetDate.toISOString(), thresholds, channelIds:Array.from(selected), localNotification:local.checked, notifyAtEnd:notifyEnd.checked, deliveries:existing?.deliveries || {} });
+    const validEventKeys=['finished',...thresholds.map((item)=>'threshold:'+item.id)];
+    const emailRules=emailRuleDrafts.map((item,index)=>normalizeCountdownEmailRule(item,index,validEventKeys)).filter(Boolean);
+    if (emailRules.length !== emailRuleDrafts.length) { error.textContent = en ? 'Complete the trigger, sending account, and recipients for every SMTP rule.' : '请为每条 SMTP 规则填写触发点、发件账户和收件邮箱。'; return; }
+    if (!local.checked && !selected.size && !emailRules.length) { error.textContent = en ? 'Choose at least one delivery method.' : '请至少选择一种通知方式。'; return; }
+    const value = normalizeCountdown({ ...existing, id:existing?.id || countdownId(), name:name.value, enabled:existing?.enabled !== false, startAt:startDate.toISOString(), targetAt:targetDate.toISOString(), thresholds, channelIds:Array.from(selected), emailRules, localNotification:local.checked, notifyAtEnd:notifyEnd.checked, deliveries:existing?.deliveries || {} });
     await view._plugin.countdowns.upsert(value); closeEditor(); onSaved?.();
   };
   makeCockpitDialogDraggable(sheet, head, { label:en?'Drag countdown editor':'拖动倒计时编辑窗口' });
-  document.body.appendChild(overlay); setTimeout(() => name.focus(), 20);
+  document.body.appendChild(overlay);
+  setTimeout(() => {
+    if (options.focusEmail) {
+      emailRuleList.scrollIntoView({ block:'center', behavior:'smooth' });
+      emailRuleList.classList.add('is-focused');
+      setTimeout(() => emailRuleList.classList.remove('is-focused'), 1400);
+    } else name.focus();
+  }, 20);
 }
 
 async function buildCountdownModule(view, root) {
@@ -228,9 +320,11 @@ async function buildCountdownModule(view, root) {
   const content = root.createDiv({ cls:PLUGIN_ID + '-countdowns' }); content.dataset.section = 'countdowns-body';
   const updateClocks = () => content.querySelectorAll('[data-countdown-id]').forEach((card) => {
     const item = card._countdown; const state = countdownState(item); if (!state) return;
-    card.querySelector('[data-role="remaining"]').textContent = state.finished ? (en?'Finished':'已结束') : formatCountdownRemaining(state.remainingMs, view._lang());
-    card.querySelector('[data-role="progress"]').style.width = state.progress + '%';
+    const remaining = card.querySelector('[data-role="remaining"]'); const progress = card.querySelector('[data-role="progress"]');
+    if (remaining) remaining.textContent = state.finished ? (en?'Finished':'已结束') : formatCountdownRemaining(state.remainingMs, view._lang());
+    if (progress) progress.style.width = state.progress + '%';
     card.classList.toggle('finished', state.finished);
+    card.classList.toggle('is-urgent', !state.finished && state.remainingMs <= 86400000);
   });
   const render = async () => {
     const items = await service.load(); content.empty();
@@ -239,17 +333,25 @@ async function buildCountdownModule(view, root) {
       empty.createDiv({text:en?'No countdowns yet':'还没有倒计时'});
       empty.createEl('button',{text:en?'Create countdown':'创建倒计时',attr:{type:'button'}}).onclick=()=>openCountdownEditor(view,null,render); return;
     }
-    items.slice().sort((a,b)=>new Date(a.targetAt)-new Date(b.targetAt)).forEach((item) => {
-      const state = countdownState(item); const card = content.createDiv({cls:PLUGIN_ID+'-countdown-card'+(item.enabled?'':' disabled'),attr:{'data-countdown-id':item.id}}); card._countdown = item;
+    items.slice().sort((a,b)=>{
+      const aState=countdownState(a), bState=countdownState(b); const aRank=(a.enabled?0:2)+(aState?.finished?1:0), bRank=(b.enabled?0:2)+(bState?.finished?1:0);
+      return aRank-bRank || new Date(a.targetAt)-new Date(b.targetAt);
+    }).forEach((item) => {
+      const state = countdownState(item); const card = content.createDiv({cls:PLUGIN_ID+'-countdown-card'+(item.enabled?'':' disabled')+(state?.finished?' finished':'')+(!state?.finished&&state?.remainingMs<=86400000?' is-urgent':''),attr:{'data-countdown-id':item.id}}); card._countdown = item;
       const top = card.createDiv({cls:PLUGIN_ID+'-countdown-card-top'}); const meta = top.createDiv({cls:PLUGIN_ID+'-countdown-meta'});
       meta.createDiv({cls:PLUGIN_ID+'-countdown-name',text:item.name});
       meta.createDiv({cls:PLUGIN_ID+'-countdown-target',text:(en?'Target: ':'目标：')+new Date(item.targetAt).toLocaleString(en?'en-US':'zh-CN',{hour12:false})});
-      top.createDiv({cls:PLUGIN_ID+'-countdown-remaining',text:state.finished?(en?'Finished':'已结束'):formatCountdownRemaining(state.remainingMs,view._lang()),attr:{'data-role':'remaining'}});
+      const remaining = top.createDiv({cls:PLUGIN_ID+'-countdown-remaining'}); remaining.createSpan({cls:PLUGIN_ID+'-countdown-remaining-label',text:en?'LEFT':'剩余'}); remaining.createSpan({text:state.finished?(en?'Finished':'已结束'):formatCountdownRemaining(state.remainingMs,view._lang()),attr:{'data-role':'remaining'}});
       const progress = card.createDiv({cls:PLUGIN_ID+'-countdown-progress'}); progress.createDiv({attr:{'data-role':'progress',style:'width:'+state.progress+'%'}});
-      const chips = card.createDiv({cls:PLUGIN_ID+'-countdown-chips'}); item.thresholds.forEach((threshold)=>chips.createSpan({text:countdownThresholdLabel(threshold,view._lang())}));
-      const actions = card.createDiv({cls:PLUGIN_ID+'-countdown-actions'});
-      const toggle = actions.createEl('input',{attr:{type:'checkbox','aria-label':en?'Enable countdown':'启用倒计时'}}); toggle.checked=item.enabled; toggle.onchange=(event)=>{event.stopPropagation();service.toggle(item.id,toggle.checked);};
-      const link=actions.createEl('button',{cls:PLUGIN_ID+'-countdown-link-automation',attr:{type:'button','aria-label':en?'Link automation workflow':'联动自动化流程'}});obs.setIcon(link.createSpan(),'workflow');link.createSpan({text:en?'Link flow':'联动流程'});link.onclick=async(event)=>{event.preventDefault();event.stopPropagation();link.disabled=true;try{await openScheduledTaskEditor(view,countdownAutomationDraft(item,view._lang()),{asNew:true});}catch(error){new obs.Notice((en?'Could not open automation: ':'无法打开自动化配置：')+(error?.message||error));}finally{link.disabled=false;}};
+      const footer = card.createDiv({cls:PLUGIN_ID+'-countdown-card-footer'});
+      const chips = footer.createDiv({cls:PLUGIN_ID+'-countdown-chips'});
+      if(item.thresholds.length)chips.createSpan({text:(en?'Reminders ':'提醒 ')+item.thresholds.length});
+      if(item.emailRules.length)chips.createSpan({text:(en?'Emails ':'邮件 ')+item.emailRules.length});
+      if(!item.thresholds.length&&!item.emailRules.length)chips.createSpan({cls:'is-quiet',text:en?'Deadline only':'仅到期提醒'});
+      const actions = footer.createDiv({cls:PLUGIN_ID+'-countdown-actions'});
+      const toggleLabel=actions.createEl('label',{cls:PLUGIN_ID+'-countdown-toggle',attr:{title:en?'Enable countdown':'启用倒计时'}});const toggle=toggleLabel.createEl('input',{attr:{type:'checkbox','aria-label':en?'Enable countdown':'启用倒计时'}});toggleLabel.createSpan(); toggle.checked=item.enabled; toggle.onchange=(event)=>{event.stopPropagation();service.toggle(item.id,toggle.checked);};
+      const mail=actions.createEl('button',{cls:PLUGIN_ID+'-countdown-mail-rules',attr:{type:'button',title:en?'Email rules':'邮件规则','aria-label':en?'Configure SMTP email notifications':'配置 SMTP 邮件通知'}});obs.setIcon(mail,'mail');mail.onclick=(event)=>{event.preventDefault();event.stopPropagation();openCountdownEditor(view,item,render,{focusEmail:true});};
+      const link=actions.createEl('button',{cls:PLUGIN_ID+'-countdown-link-automation',attr:{type:'button',title:en?'Link automation':'联动自动化','aria-label':en?'Link automation workflow':'联动自动化流程'}});obs.setIcon(link,'workflow');link.onclick=async(event)=>{event.preventDefault();event.stopPropagation();link.disabled=true;try{await openScheduledTaskEditor(view,countdownAutomationDraft(item,view._lang()),{asNew:true});}catch(error){new obs.Notice((en?'Could not open automation: ':'无法打开自动化配置：')+(error?.message||error));}finally{link.disabled=false;}};
       const edit=actions.createEl('button',{attr:{type:'button','aria-label':en?'Edit':'编辑'}});obs.setIcon(edit,'pencil');edit.onclick=(event)=>{event.preventDefault();event.stopPropagation();openCountdownEditor(view,item,render);};
       const remove=actions.createEl('button',{attr:{type:'button','aria-label':en?'Delete':'删除'}});obs.setIcon(remove,'trash-2');remove.onclick=async(event)=>{event.preventDefault();event.stopPropagation();if(window.confirm(en?'Delete this countdown?':'删除这个倒计时？'))await service.remove(item.id);};
     }); updateClocks();

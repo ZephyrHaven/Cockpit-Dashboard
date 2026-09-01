@@ -34,6 +34,7 @@ const { createAiSseParser } = require(path.join(root, 'src/ai.js'));
     '<!-- 手写的备注，必须保留 -->',
     '  - [ ] Indented child task',
     '- [ ] Buy milk | id:milk | owner:alice',
+    '- [ ] Calendar meeting | id:calendar | calendar: true',
     '## 自定义小节',
     '- [ ] Ship release | id:ship'
   ].join('\n') + '\n';
@@ -44,6 +45,10 @@ const { createAiSseParser } = require(path.join(root, 'src/ai.js'));
   };
 
   const outcome = await todoContext.mutateTodosForTest(patchVault, (todos) => {
+    const calendar = todos.find((t) => t.id === 'calendar');
+    assert.equal(calendar.calendarSync, true, 'The calendar checkbox is restored from managed todo metadata.');
+    const milk = todos.find((t) => t.id === 'milk');
+    assert.equal(milk.calendarSync, false, 'Existing todos default to local-only synchronization.');
     const ship = todos.find((t) => t.id === 'ship');
     ship.done = true;
     return true;
@@ -52,6 +57,7 @@ const { createAiSseParser } = require(path.join(root, 'src/ai.js'));
   assert.match(fileContent, /<!-- 手写的备注，必须保留 -->/, 'User comments survive todo updates.');
   assert.match(fileContent, /## 自定义小节/, 'Custom sections survive todo updates.');
   assert.match(fileContent, /owner:alice/, 'Unknown metadata on untouched lines survives.');
+  assert.match(fileContent, /Calendar meeting \| id:calendar \| calendar: true/, 'The calendar checkbox survives line-level todo writes.');
   assert.match(fileContent, /^ {2}- \[ \] Indented child task$/m, 'Indented lines keep their indentation.');
   assert.equal(fileContent.includes('- [x] Ship release | id:ship'), true, 'The targeted todo line is updated in place.');
   assert.equal(fileContent.includes('- [ ] Ship release'), false, 'No duplicate stale line is left behind.');

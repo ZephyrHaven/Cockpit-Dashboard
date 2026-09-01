@@ -34,6 +34,15 @@ assert.equal(api.nextScheduledRun(tasks[0], now).toISOString(), '2026-08-13T09:3
 assert.equal(api.nextScheduledRun(tasks[2], now).toISOString(), '2026-08-12T11:00:00.000Z');
 assert.match(api.scheduleLabel(tasks[0], 'en'), /Daily/);
 
+const smtpTask = api.normalizeScheduledTasks([{
+  id:'mail-deadline', name:'Email deadline', kind:'smtp-email', enabled:true,
+  smtp:{ accountId:'work-163', to:['owner@example.com'], subject:'Deadline {date}', body:'Finished at {datetime}' },
+  schedule:{type:'daily',time:'18:00'}, createdAt:'2026-08-01T00:00:00Z'
+}])[0];
+assert.equal(smtpTask.kind, 'smtp-email', 'SMTP email is a first-class scheduled task action.');
+assert.equal(smtpTask.smtp.accountId, 'work-163');
+assert.deepEqual(smtpTask.smtp.to, ['owner@example.com']);
+
 const countdownEditorSchedule = api.scheduledTaskEditorSchedule({
   type:'event', event:'countdown-finished', sourceId:'release', sourceLabel:'版本发布'
 });
@@ -64,6 +73,7 @@ assert.match(source, /runToolbarAction[\s\S]*loadData[\s\S]*normalizeCustomToolb
 assert.match(source, /plugin\._open[\s\S]*_toolbarView/, 'A due Toolbar action can safely restore the Cockpit view before execution.');
 assert.match(source, /Toolbar action no longer exists/, 'Deleted Toolbar actions fail explicitly instead of reporting a false success.');
 assert.match(source, /toolbar-action[\s\S]*toolbarPicker/, 'The scheduled task editor exposes a Toolbar action picker.');
+assert.match(source, /smtp-email[\s\S]*plugin\.smtpMail\.send/, 'Scheduled SMTP actions route through the configured mail-account service.');
 assert.doesNotMatch(source, /_data\/.+\.md/, 'Scheduled tasks do not add Markdown files under _data.');
 assert.match(framework, /id:'scheduledTasks'[\s\S]*collapsible:true/, 'The scheduler participates in layout, visibility, scenes, and collapse state.');
 assert.match(build, /'scheduled-tasks\.js'/);

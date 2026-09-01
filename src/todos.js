@@ -14,7 +14,7 @@ function splitTodoMeta(meta) {
   String(meta || '').split('|').forEach((segment) => {
     const part = segment.trim();
     if (!part) return;
-    const km = part.match(/^(id|created|done)\s*:\s*([\s\S]+)$/);
+    const km = part.match(/^(id|created|done|calendar)\s*:\s*([\s\S]+)$/);
     if (!km) { extra.push(part); return; }
     managed[km[1]] = km[2].trim();
   });
@@ -32,6 +32,7 @@ function parseTodoLine(line) {
   return {
     indent:m[1], id:managed.id || '', text:cleanText, tags, priority,
     dueDate, dueHasTime, done:m[2].toLowerCase() === 'x', created, doneDate,
+    calendarSync:managed.calendar === 'true',
     // 行上无法识别的元数据（如 owner:xxx）原样带回，写入时回填，避免被规范化抹掉。
     _extraMeta:extra
   };
@@ -42,7 +43,7 @@ function parseTodosContent(content) {
   for (const line of String(content || '').split('\n')) {
     const entry = parseTodoLine(line);
     if (!entry) continue;
-    todos.push({ id:entry.id, text:entry.text, tags:entry.tags, priority:entry.priority, dueDate:entry.dueDate, dueHasTime:entry.dueHasTime, done:entry.done, created:entry.created, doneDate:entry.doneDate, _extraMeta:entry._extraMeta });
+    todos.push({ id:entry.id, text:entry.text, tags:entry.tags, priority:entry.priority, dueDate:entry.dueDate, dueHasTime:entry.dueHasTime, done:entry.done, created:entry.created, doneDate:entry.doneDate, calendarSync:entry.calendarSync, _extraMeta:entry._extraMeta });
   }
   return todos;
 }
@@ -52,6 +53,7 @@ function buildTodoLine(t, indent = '') {
   if (t.id) meta.push('id:' + t.id);
   if (t.created) meta.push('created: ' + t.created.format('YYYY-MM-DD'));
   if (t.done && t.doneDate) meta.push('done: ' + t.doneDate.format('YYYY-MM-DD'));
+  if (t.calendarSync === true) meta.push('calendar: true');
   // 回填行上原有的非受管元数据段（如 owner:xxx）。
   if (Array.isArray(t._extraMeta)) {
     t._extraMeta.forEach((segment) => { const part = String(segment || '').trim(); if (part) meta.push(part); });

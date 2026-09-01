@@ -1,7 +1,7 @@
 // calendar.js — 日历看板模块
 
 function buildCalendar(root, todos, opts) {
-  const { language, t, openTodoEditor, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, onAutomationOpen, onAutomationRun, initialViewMode, onViewModeChange, lunarEnabled } = opts;
+  const { language, t, openTodoEditor, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, lunarEnabled } = opts;
   // 刷新时必须读取视图的最新待办数组；不能闭包捕获初次渲染的旧快照。
   const getTodos = typeof todos === 'function' ? todos : () => todos;
   let calYear = window.moment().year();
@@ -128,15 +128,19 @@ function buildCalendar(root, todos, opts) {
     const date = getSelectedDate();
     const todosForDate = todoMap[date.format('YYYY-MM-DD')] || [];
     const rssItems = (rss?.config.enabled ? rss.itemsForDate(date) : []).map((rssItem) => ({ kind:'rss', rssItem }));
-    return Promise.resolve(loadAutomationItems?.(date.clone()) || []).then((automationItems) => {
+    return Promise.all([
+      Promise.resolve(loadAutomationItems?.(date.clone()) || []),
+      Promise.resolve(loadCountdownItems?.(date.clone()) || [])
+    ]).then(([automationItems,countdownItems]) => {
       if (request !== detailRequest || !calRoot?.parentNode) return;
       return renderCalendarDayFlow({
         anchor:calRoot, date, language, t, todosForDate, rssItems,
         automationItems:Array.isArray(automationItems) ? automationItems : [],
+        countdownItems:Array.isArray(countdownItems) ? countdownItems : [],
         filter:flowFilter,
         onFilterChange:(nextFilter) => { flowFilter=nextFilter; renderDetail(todoMap); },
         openTodoEditor, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm,
-        openRss, onAutomationOpen, onAutomationRun,
+        openRss, onAutomationOpen, onAutomationRun, onCountdownOpen,
         rerender:() => renderDetail(todoMap), rss
       });
     }).catch((error) => {
@@ -183,9 +187,24 @@ function buildCalendar(root, todos, opts) {
       const start = getSelectedDate().clone().startOf('isoWeek');
       for (let offset = 0; offset < 7; offset++) {
         const date = start.clone().add(offset, 'day'); const key = date.format('YYYY-MM-DD'); const dayTodos = todoMap[key] || []; const dayRss = rss?.config.enabled ? rss.itemsForDate(date) : [];
-        const day = week.createEl('button', { cls:PLUGIN_ID + '-cal-week-day' + (date.isSame(now,'day')?' today':'') + (date.isSame(getSelectedDate(),'day')?' selected':''), attr:{type:'button'} });
-        day.createDiv({ cls:PLUGIN_ID+'-cal-week-name', text:getWeekdayLabels(language,'short')[date.day()] }); day.createDiv({ cls:PLUGIN_ID+'-cal-week-date', text:date.format('MM/DD') });
-        const metrics=day.createDiv({cls:PLUGIN_ID+'-cal-week-metrics'}); if(dayTodos.length)metrics.createSpan({text:(language==='en'?'Tasks ':'待办 ')+dayTodos.length});if(dayRss.length)metrics.createSpan({text:'RSS '+dayRss.length});
+        const isToday = date.isSame(now,'day'); const isSelected = date.isSame(getSelectedDate(),'day'); const totalItems = dayTodos.length + dayRss.length;
+        const label = formatCalendarDetailHeading(date, language) + (totalItems ? ' · ' + (language === 'en' ? totalItems + ' items' : '共 ' + totalItems + ' 项') : '');
+        const day = week.createEl('button', {
+          cls:PLUGIN_ID + '-cal-week-day' + (isToday?' today':'') + (isSelected?' selected':'') + (totalItems?' has-events':'') + ([0,6].includes(date.day())?' weekend':''),
+          attr:{type:'button', title:label, 'aria-label':label, 'aria-pressed':String(isSelected)}
+        });
+        const head = day.createDiv({ cls:PLUGIN_ID + '-cal-week-head' });
+        head.createSpan({ cls:PLUGIN_ID+'-cal-week-name', text:getWeekdayLabels(language,'short')[date.day()] });
+        if (isToday) head.createSpan({ cls:PLUGIN_ID+'-cal-week-today', text:language === 'en' ? 'TODAY' : '今天' });
+        const dateLine = day.createDiv({ cls:PLUGIN_ID+'-cal-week-date' });
+        dateLine.createSpan({ cls:PLUGIN_ID+'-cal-week-day-number', text:date.format('D') });
+        dateLine.createSpan({ cls:PLUGIN_ID+'-cal-week-month', text:language === 'en' ? date.format('MMM').toUpperCase() : date.format('M月') });
+        const metrics=day.createDiv({cls:PLUGIN_ID+'-cal-week-metrics'});
+        if(dayTodos.length)metrics.createSpan({cls:PLUGIN_ID+'-cal-week-metric is-todo',text:(language==='en'?'Tasks ':'待办 ')+dayTodos.length});
+        if(dayRss.length)metrics.createSpan({cls:PLUGIN_ID+'-cal-week-metric is-rss',text:'RSS '+dayRss.length});
+        if(!totalItems)metrics.createSpan({cls:PLUGIN_ID+'-cal-week-empty',text:language==='en'?'Clear':'无事项'});
+        const activity = day.createDiv({ cls:PLUGIN_ID+'-cal-week-activity', attr:{'aria-hidden':'true'} });
+        activity.createSpan({ attr:{style:'width:' + (totalItems ? Math.min(100, 18 + totalItems * 8) : 0) + '%'} });
         day.addEventListener('dragover',(event)=>{if(!event.dataTransfer?.types?.includes('application/x-cockpit-todo'))return;event.preventDefault();day.classList.add('todo-drop-target');});day.addEventListener('dragleave',()=>day.classList.remove('todo-drop-target'));day.addEventListener('drop',async(event)=>{const id=event.dataTransfer?.getData('application/x-cockpit-todo');if(!id)return;event.preventDefault();day.classList.remove('todo-drop-target');await onTodoSchedule?.(id,date.clone().startOf('day'));});
         day.onclick=()=>{calYear=date.year();calMonth=date.month();selDay=date.date();followsToday=date.isSame(window.moment(),'day');renderAll();};
       }

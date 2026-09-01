@@ -31,6 +31,13 @@ assert.equal(rssSummary.count, 3, 'Calendar RSS is aggregated instead of renderi
 assert.equal(rssSummary.unreadCount, 2);
 assert.deepEqual(rssSummary.sources, ['运维','资讯']);
 
+const countdownItems = dayFlowApi.calendarCountdownItemsForDate([
+  {id:'today-deadline',name:'今日截止',enabled:true,startAt:'2026-08-10T00:00:00Z',targetAt:'2026-08-12T15:30:00Z'},
+  {id:'tomorrow-deadline',name:'明日截止',enabled:true,startAt:'2026-08-10T00:00:00Z',targetAt:'2026-08-13T09:00:00Z'}
+], '2026-08-12');
+assert.deepEqual(countdownItems.map((item)=>item.id), ['today-deadline'], 'The daily overview includes countdowns on their completion date only.');
+assert.equal(countdownItems[0].time, '15:30', 'Countdown rows expose the completion time.');
+
 const tasks = api.normalizeScheduledTasks([
   {id:'daily',name:'日报归档',kind:'workflow',command:'daily-flow',enabled:true,schedule:{type:'daily',time:'09:30'},createdAt:'2026-08-01T00:00:00Z',lastRunAt:'2026-08-12T09:31:00Z',lastStatus:'success'},
   {id:'weekly',name:'周中备份',kind:'shell',command:'backup',trusted:true,enabled:true,schedule:{type:'weekly',time:'11:00',weekdays:[3]},createdAt:'2026-08-01T00:00:00Z'},
@@ -62,10 +69,12 @@ assert.match(calendar, /loadAutomationItems/, 'The calendar day flow loads autom
 assert.match(dayFlow, /summarizeCalendarRss/, 'RSS entries are condensed into one daily summary row.');
 assert.doesNotMatch(dayFlow, /\.\.\.articles\.map\(\(rssItem\)/, 'The calendar no longer expands every RSS article into the timeline.');
 assert.match(dayFlow, /cal-flow-filter[\s\S]*automation[\s\S]*rss/, 'The combined day flow can be filtered by source.');
+assert.match(dayFlow, /countdownItems[\s\S]*kind:'countdown'/, 'Countdown completions participate in the shared daily timeline.');
 assert.match(dayFlow, /if \(todo && todo === nextTimed\)/, 'Only the actual next todo receives the NOW badge.');
 assert.match(dayFlow, /cal-timeline-summary/, 'Timeline titles and metadata share a bounded summary region before the action rail.');
 assert.match(styles, /\.cockpit-dashboard-cal-timeline-content\s*\{[^}]*grid-template-columns:minmax\(0,1fr\) auto/, 'Timeline actions stay in a dedicated trailing column instead of wrapping under metadata.');
 assert.match(styles, /\.cockpit-dashboard-cal-timeline-summary\s*\{[^}]*min-width:0/, 'Timeline summary content can shrink without displacing its actions.');
+assert.match(styles, /cal-timeline-summary > button\.cockpit-dashboard-cal-timeline-title\s*\{[^}]*display:block[^}]*justify-content:flex-start/, 'Timeline titles override the host button centering and align from one common left edge.');
 assert.match(calendar, /onAutomationOpen[\s\S]*onAutomationRun/, 'Automation rows expose inspect and run-now actions.');
 assert.match(build, /'calendar-day-flow\.js'[\s\S]*'calendar\.js'/, 'The day-flow renderer is bundled before the calendar module.');
 

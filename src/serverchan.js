@@ -324,7 +324,11 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
   constructor(app, plugin) { super(app, plugin); this.plugin = plugin; this._displayVersion = 0; this._activeSection = 'ai'; }
   async display() {
     const { containerEl } = this; const renderVersion = ++this._displayVersion; containerEl.empty();
-    const [config, language] = await Promise.all([this.plugin.serverChan.getConfig(), getServerChanSettingsLanguage(this.plugin)]);
+    const [config, language, appleCalendarConfig] = await Promise.all([
+      this.plugin.serverChan.getConfig(),
+      getServerChanSettingsLanguage(this.plugin),
+      this.plugin.appleCalendar?.getConfig?.() || normalizeAppleCalendarConfig(null)
+    ]);
     if (renderVersion !== this._displayVersion) return; containerEl.empty();
     const en = language === 'en';
     containerEl.addClass(PLUGIN_ID + '-settings-root');
@@ -415,6 +419,10 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
       new obs.Setting(card).setName(copy.emailFrom).setDesc(en ? 'Example: Cockpit <alerts@example.com>' : '例如：Cockpit <alerts@example.com>').addText((text) => text.setValue(channel.from).onChange(async (value) => { channel.from = safeText(value, 200); await save(); }));
       new obs.Setting(card).setName(copy.emailTo).setDesc(copy.emailToDesc).addTextArea((text) => text.setValue((channel.to || []).join(', ')).onChange(async (value) => { channel.to = normalizeEmailRecipients(value); await save(); }));
     });
+    try {
+      await renderSmtpMailSettings(panels.channels, this.plugin, language);
+    } catch (e) { console.warn('Cockpit SMTP settings failed', e); }
+    if (renderVersion !== this._displayVersion) return;
 
     addPanelIntro(panels.schedule, copy.schedule, copy.scheduleDesc);
     new obs.Setting(panels.schedule).setName(copy.schedule).setDesc(copy.scheduleDesc).addDropdown((dropdown) => dropdown.addOptions({ daily:copy.daily, weekly:copy.weekly, monthly:copy.monthly }).setValue(config.schedule).onChange(async (value) => { config.schedule = value; await save(); this._activeSection = 'schedule'; this.display(); }));
@@ -478,5 +486,88 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
           : '在月视图标注农历日期、传统节日、法定假日与调休上班日；关闭后日历保持简洁样式。')
         .addToggle((toggle) => toggle.setValue(lunarOn).onChange((value) => applyLunarSetting(value)));
     } catch (e) { console.warn('Cockpit calendar settings failed', e); }
+
+    const appleService = this.plugin.appleCalendar;
+    const appleSupported = appleService?.isSupported?.() === true;
+    const appleOnlyMac = en ? 'Enable Apple Calendar channel (Mac only)' : '启用 Apple 日历通道（仅 Mac 可用）';
+    new obs.Setting(panels.calendar)
+      .setName(appleOnlyMac)
+      .setDesc(en
+        ? 'First use automatically reuses or creates a dedicated Cockpit calendar in the system default calendar account. Only selected tasks are written.'
+        : '首次使用会在系统默认日历账户中自动复用或创建专用的“Cockpit”日历；只有勾选同步的待办才会写入。')
+      .addToggle((toggle) => {
+        toggle.setValue(appleSupported && appleCalendarConfig.enabled).setDisabled(!appleSupported);
+        toggle.onChange(async (value) => {
+          toggle.setDisabled(true);
+          try {
+            if (!value) {
+              await appleService.saveConfig({ ...appleCalendarConfig, enabled:false });
+              return;
+            }
+            await appleService.ensureReady({ enable:true });
+            const todos = await loadTodos(this.plugin.app.vault) || [];
+            await appleService.syncTodos(todos, { silent:false });
+            new obs.Notice(en ? 'Apple Calendar is ready.' : 'Apple 日历已自动配置完成。');
+            this.display();
+          } catch (error) {
+            toggle.setValue(false);
+            new obs.Notice(appleService.userMessage(error, language), 10000);
+          } finally {
+            toggle.setDisabled(false);
+          }
+        });
+      });
+
+    const cachedCalendars = appleService?.getCachedCalendars?.() || [];
+    const targetSetting = new obs.Setting(panels.calendar)
+      .setName(en ? 'Target calendar' : '目标日历')
+      .setDesc(appleSupported
+        ? (en ? 'Usually configured automatically. Read or switch calendars here only when you want an advanced override.' : '通常会自动配置；只有需要手动切换目标时，才使用这里的读取和选择功能。')
+        : (en ? 'This feature requires the Mac desktop app.' : '此功能仅支持 Mac 桌面端，其他平台不会执行系统命令。'));
+    targetSetting.addDropdown((dropdown) => {
+      dropdown.addOption('', en ? 'Not selected' : '未选择');
+      cachedCalendars.forEach((calendar) => dropdown.addOption(calendar.id, calendar.name));
+      if (appleCalendarConfig.calendarId && !cachedCalendars.some((calendar) => calendar.id === appleCalendarConfig.calendarId)) {
+        dropdown.addOption(appleCalendarConfig.calendarId, appleCalendarConfig.calendarName || (en ? 'Current calendar' : '当前日历'));
+      }
+      dropdown.setValue(appleCalendarConfig.calendarId || '').setDisabled(!appleSupported);
+      dropdown.onChange(async (calendarId) => {
+        const selected = cachedCalendars.find((calendar) => calendar.id === calendarId);
+        try {
+          await appleService.selectCalendar(calendarId, selected?.name || '');
+          this.display();
+        } catch (error) { new obs.Notice(appleService.userMessage(error, language), 10000); }
+      });
+    });
+    targetSetting.addButton((button) => {
+      button.setButtonText(en ? 'Read calendars' : '读取日历').setDisabled(!appleSupported);
+      button.onClick(async () => {
+        button.setDisabled(true);
+        try {
+          const calendars = await appleService.listCalendars();
+          new obs.Notice(calendars.length ? (en ? 'Writable calendars loaded.' : '已读取可写日历。') : (en ? 'No writable calendars were found.' : '没有找到可写日历。'));
+          this.display();
+        } catch (error) {
+          new obs.Notice(appleService.userMessage(error, language), 10000);
+          button.setDisabled(false);
+        }
+      });
+    });
+
+    new obs.Setting(panels.calendar)
+      .setName(en ? 'Synchronize now' : '立即同步')
+      .setDesc(en ? 'Reconcile selected tasks now. Date-only tasks become all-day events; completed, deleted, or unselected tasks remove their managed event.' : '立即校准已勾选同步的待办：仅日期待办写为全天事件；完成、删除或取消勾选后，会移除对应的受管事件。')
+      .addButton((button) => {
+        button.setButtonText(en ? 'Sync now' : '立即同步').setDisabled(!appleSupported || !appleCalendarConfig.enabled || !appleCalendarConfig.calendarId);
+        button.onClick(async () => {
+          button.setDisabled(true);
+          try {
+            const todos = await loadTodos(this.plugin.app.vault) || [];
+            await appleService.syncTodos(todos, { silent:false });
+            new obs.Notice(en ? 'Apple Calendar is up to date.' : 'Apple 日历已同步。');
+          } catch (error) { new obs.Notice(appleService.userMessage(error, language), 10000); }
+          finally { button.setDisabled(false); }
+        });
+      });
   }
 }
