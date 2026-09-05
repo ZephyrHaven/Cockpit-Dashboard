@@ -2908,6 +2908,8 @@ class CockpitPlugin extends obs.Plugin {
     return mutatePluginData(this, mutator);
   }
   async onload() {
+    this.lanSync = new CockpitLanSync(this);
+    void this.lanSync.initialize();
     this.rag = new CockpitRagService(this);
     this.registerEvent(this.app.vault.on('modify', (file) => {
       this.rag.invalidatePath(file?.path);
@@ -2990,7 +2992,7 @@ class CockpitPlugin extends obs.Plugin {
       if (!leaf) leaf = this.app.workspace.getLeaf('split','vertical');
       await leaf.setViewState({ type:AI_VIEW_TYPE, active:true });
     }
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
     this._syncAiLauncher?.();
     return leaf;
   }
@@ -3003,6 +3005,8 @@ class CockpitPlugin extends obs.Plugin {
     return this.openAI();
   }
   async onunload() {
+    this._lanSettingsCleanup?.();
+    this.lanSync?.stop();
     // 官方审查要求：插件卸载时清理全部全局资源；且不得在 onunload 中 detach leaves，
     // 更新/禁用后由宿主应用原位恢复视图位置。番茄钟浮层带会话销毁，重新启用时自动恢复倒计时。
     try {

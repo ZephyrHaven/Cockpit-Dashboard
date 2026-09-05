@@ -239,6 +239,7 @@ function getCockpitSettingsSections(language) {
   const en = language === 'en';
   return [
     { id:'ai', label:en ? 'AI models' : 'AI 模型', icon:'bot-message-square' },
+    { id:'sync', label:en ? 'Nearby devices' : '附近设备', icon:'scan-line' },
     { id:'channels', label:en ? 'Channels' : '推送渠道', icon:'send' },
     { id:'brief', label:en ? 'Morning brief' : '晨间简报', icon:'sunrise' },
     { id:'schedule', label:en ? 'Schedule' : '提醒计划', icon:'calendar-clock' },
@@ -249,7 +250,7 @@ function getCockpitSettingsSections(language) {
 
 function normalizeCockpitSettingsSection(value) {
   const id = String(value || '');
-  return ['ai','channels','brief','schedule','scope','calendar'].includes(id) ? id : 'ai';
+  return ['ai','sync','channels','brief','schedule','scope','calendar'].includes(id) ? id : 'ai';
 }
 
 class ServerChanService {
@@ -373,6 +374,7 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     });
     activate(this._activeSection);
 
+    await renderLanSyncSettings(panels.sync, this.plugin, language);
     await renderAiSettings(panels.ai, this.plugin, language);
     if (renderVersion !== this._displayVersion) return;
     // 晨间简报面板：复用下方「推送渠道」的渠道配置，只管理自己的内容与发送时间。

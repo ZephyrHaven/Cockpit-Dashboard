@@ -8,9 +8,12 @@
 }
 
 .cockpit-dashboard-root { 
-  padding: 16px 24px; 
-  max-width: 960px; 
-  margin: 0 auto; 
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  box-sizing: border-box;
+  padding: 16px clamp(16px, calc(var(--cockpit-available-width, 1200px) * 0.02), 48px);
+  margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
   position: relative;
   --accent: var(--cockpit-accent);
@@ -2611,7 +2614,7 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
 /* Responsive dashboard: compact tablets keep the desktop hierarchy, while
    phones prioritise readable cards, touch targets, and a single scroll path. */
 @media (max-width: 900px) {
-  .cockpit-dashboard-root { max-width:760px; padding:14px 18px calc(22px + env(safe-area-inset-bottom)); }
+  .cockpit-dashboard-root { max-width:none; padding:14px 18px calc(22px + env(safe-area-inset-bottom)); }
   .cockpit-dashboard-hero { padding:18px 126px 16px 18px; }
   .cockpit-dashboard-hero-controls { top:12px; right:12px; }
   .cockpit-dashboard-toolbar { gap:8px; }
@@ -3447,7 +3450,7 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   display: grid;
   grid-template-rows: auto auto auto minmax(160px, 1fr) auto;
   gap: 14px;
-  width: min(100%, 760px);
+  width: 100%;
   height: 100%;
   min-height: 0;
   margin: 0 auto;
@@ -3901,7 +3904,7 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   grid-template-rows:auto minmax(0,1fr) auto;
   gap:0;
   width:100%;
-  max-width:780px;
+  max-width:none;
   height:100%;
   padding:0 14px 12px;
 }
@@ -4932,3 +4935,18 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   .cockpit-dashboard-report-preview > .cockpit-dashboard-scheduler-footer { display:grid; grid-template-columns:1fr 1fr; }
   .cockpit-dashboard-report-preview > .cockpit-dashboard-scheduler-footer button.primary { grid-column:1 / -1; }
 }
+
+/* Nearby devices: settings-only panels and pairing dialogs. */
+.cockpit-lan-card { padding:18px; margin:16px 0; border:1px solid var(--background-modifier-border); border-radius:14px; background:var(--background-secondary); }
+.cockpit-lan-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.cockpit-lan-actions button { min-height:34px; }
+.cockpit-lan-muted { color:var(--text-muted); font-size:12px; line-height:1.7; overflow-wrap:anywhere; }
+.cockpit-lan-device { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 0; border-bottom:1px solid var(--background-modifier-border); }
+.cockpit-lan-device > div { min-width:0; overflow-wrap:anywhere; }
+.cockpit-lan-device p { margin:5px 0 0; }
+.cockpit-lan-qr { display:block; max-width:100%; height:auto!important; margin:18px auto; border-radius:12px; }
+.cockpit-lan-modal { max-width:560px; }
+.cockpit-lan-video { width:100%; max-height:320px; margin:14px 0; border-radius:12px; background:#111; object-fit:contain; }
+.cockpit-lan-video[hidden] { display:none; }
+.cockpit-lan-paste { display:block; width:100%; margin:12px 0; resize:vertical; }
+.cockpit-lan-conflict { white-space:pre-wrap; overflow-wrap:anywhere; max-height:160px; overflow:auto; font-size:12px; }

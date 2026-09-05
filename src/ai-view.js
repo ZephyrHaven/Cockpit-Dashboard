@@ -32,12 +32,42 @@ class CockpitAIView extends obs.ItemView {
   getIcon() { return 'bot-message-square'; }
   _activeSession() { return this._historyState.sessions.find((session) => session.id === this._activeSessionId) || null; }
   async onOpen() {
+    if (this._opening) return this._opening;
+    this._opening = this._openWithFeedback();
+    try { await this._opening; } finally { this._opening = null; }
+  }
+  async _openWithFeedback() {
+    this._aiConfigUnsubscribe?.();
+    this._aiConfigUnsubscribe = null;
+    this.contentEl.empty();
+    this.contentEl.removeClass(PLUGIN_ID + '-ai-view');
+    const status = this.contentEl.createEl('p', { text:'正在打开 AI 助手… / Opening AI…', attr:{ role:'status' } });
+    this._openStage = 'settings';
+    try {
+      await this._initializeView();
+    } catch (error) {
+      console.error('Cockpit AI initialization failed at ' + this._openStage, error);
+      this._aiConfigUnsubscribe?.();
+      this._aiConfigUnsubscribe = null;
+      this.contentEl.empty();
+      this.contentEl.removeClass(PLUGIN_ID + '-ai-view');
+      const en = this._language === 'en';
+      this.contentEl.createEl('h3', { text:en ? 'Could not open AI' : 'AI 助手打开失败' });
+      this.contentEl.createEl('p', { text:(en ? 'Failed stage: ' : '失败阶段：') + this._openStage, attr:{ role:'alert' } });
+      this.contentEl.createEl('p', { text:en ? 'Retry, or share this stage and the console error with support.' : '请重试；若仍失败，请将失败阶段和开发者控制台报错反馈给我们。' });
+      const retry = this.contentEl.createEl('button', { text:en ? 'Retry' : '重试', attr:{ type:'button' } });
+      retry.onclick = () => this.onOpen();
+    } finally { status.remove(); }
+  }
+  async _initializeView() {
     const data = await this.plugin.loadData() || {};
     this._language = normalizeLang(data.language || DEFAULT_LANG);
     const config = await this.plugin.ai.getConfig();
+    this._openStage = 'history-read';
     this._historyState = await this.plugin.aiHistory.load();
     let session = this._historyState.sessions.find((item) => item.id === this._historyState.activeSessionId);
     if (!session) {
+      this._openStage = 'history-create';
       session = await this.plugin.aiHistory.create({ language:this._language, profileId:config.activeProfileId, contextPaths:[] });
       this._historyState = await this.plugin.aiHistory.load();
     }
@@ -50,6 +80,7 @@ class CockpitAIView extends obs.ItemView {
     if (session.profileId && config.profiles.some((profile) => profile.id === session.profileId) && session.profileId !== config.activeProfileId) {
       await this.plugin.ai.setActiveProfile(session.profileId);
     }
+    this._openStage = 'render';
     await this._render();
     this._aiConfigUnsubscribe?.();
     this._aiConfigUnsubscribe = this.plugin.ai.subscribeConfig((savedConfig) => {
@@ -60,6 +91,8 @@ class CockpitAIView extends obs.ItemView {
     try { await this._restoreSessionWorkspace(session); } catch (error) { console.warn('Cockpit AI workspace restore failed', error); }
     // 后台预热本地检索索引：用户开始输入前就把自动 RAG 准备好，首问不再等待全库构建。
     try { this.plugin.rag?.warmUp?.(); } catch (error) { console.warn('Cockpit AI warm-up failed', error); }
+    if (this._fileOpenRegistered) return;
+    this._fileOpenRegistered = true;
     this.registerEvent(this.app.workspace.on('file-open', async (file) => {
       if (file?.extension !== 'md' || this._busy) return;
       await this._refreshContextOptions();
@@ -97,7 +130,10 @@ class CockpitAIView extends obs.ItemView {
     await this._refreshContextOptions();
     this._renderActiveSession();
     this._renderSessionList();
-    this.registerDomEvent(document, 'click', () => this._closeContextPopover());
+    if (!this._contextClickRegistered) {
+      this._contextClickRegistered = true;
+      this.registerDomEvent(document, 'click', () => this._closeContextPopover());
+    }
   }
   _buildSessionDrawer(shell) {
     const en = this._language === 'en';

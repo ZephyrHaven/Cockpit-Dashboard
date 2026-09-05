@@ -7,6 +7,14 @@
 
 Cockpit Dashboard is a local-first Obsidian home-page plugin that brings todos, calendar, RSS, search, an AI assistant, statistics, focus tracking, and local automation together in one freely arrangeable cockpit. This document covers the project positioning and how it works under the hood.
 
+## 1.8.6 update
+
+- The dashboard now fills its available pane instead of stopping at 960 px, with adaptive side spacing for large displays and split views.
+- Nearby devices (preview) adds QR pairing and encrypted LAN synchronization for tasks, bookmarks, display name and language, with backups and conflict review.
+- AI startup failures now show the failed stage and a retry button instead of leaving an unexplained blank panel; this improves diagnosis but does not establish the cause of every Windows startup issue.
+
+LAN sync remains opt-in and in preview: real Windows/macOS device pairing, camera permissions and firewall behavior still need cross-device acceptance testing.
+
 ## Core Features
 
 - **Dashboard workbench**: today todo queue, a refined calendar board (month/week views, drag-to-schedule, lunar calendar with statutory holidays & make-up workdays, toggleable), and a per-day operations view that brings todos, scheduled/event automations, their concrete actions and status, plus a compact RSS digest into one timeline; the independent today agenda remains available alongside stat cards, edit heatmap, project progress bars, category cards, recent updates, starred files, quick-capture capsules, and resurfacing old notes; event-driven refresh keeps panel data in sync seconds after a file is saved
@@ -22,10 +30,10 @@ Cockpit Dashboard is a local-first Obsidian home-page plugin that brings todos, 
 
 ### Build System
 
-The plugin uses no bundler: `build.js` concatenates the modules under `src/` in a fixed order, then races esbuild against terser and keeps the smaller minified output in `dist/` — `dist/main.js` plus a standalone `dist/styles.css` (loaded by the host, never embedded in the JS); a sourcemap is written locally for debugging only:
+The plugin bundles its QR generation/decoding dependencies locally with esbuild; for its own source, `build.js` concatenates the modules under `src/` in a fixed order, then races esbuild against terser and keeps the smaller minified output in `dist/` — `dist/main.js` plus a standalone `dist/styles.css` (loaded by the host, never embedded in the JS); a sourcemap is written locally for debugging only:
 
 ```text
-constants → data-store → ai-index → ai-context → ai … → ai-launcher
+constants → data-store → lan-sync (core / transport / store / service / UI) → ai-index → ai-context → ai … → ai-launcher
 → daily-tips → utils → todos → apple-calendar → todo-focus → focus-insights → share-card
 → habits → weekly-review → projects → resurface → morning-brief
 → serverchan → bookmarks → rss → lunar → calendar → search → toolbar
@@ -35,18 +43,29 @@ constants → data-store → ai-index → ai-context → ai … → ai-launcher
 
 Modules share scope through top-level function declarations, so each module can be `require`d directly by Node for unit testing. Tests are framework-free assertion scripts (pure-function assertions plus source-pattern assertions) run file by file.
 
+### Nearby devices (preview)
+
+Open **Settings → Cockpit → Nearby devices**. On the first computer choose **Show pairing QR**; on the other choose **Scan / import QR**. You can use its camera, import a saved QR image, or paste the pairing information. Confirm on the first computer to begin two-way synchronization. No address entry, account, cloud service, or command execution is required.
+
+This preview supports desktop IPv4 private networks. Both applications must be running and the private-network firewall must permit incoming connections. Each paired computer polls every 30 seconds; **Sync now** performs a manual round. **Pause sync** closes the listener and persists the disabled state. **Unpair** revokes the local pairing key. Changing IP addresses may require pairing again; automatic discovery and mobile devices are not yet supported.
+
+Tasks are matched by stable IDs. Bookmarks sync membership, preserving each device's order; their target notes must already exist on the receiving device. Only display name and language preferences are included; profile preference changes take effect on reopening the dashboard. Concurrent edits keep both versions under **Review conflicts**; choose one to propagate the resolution. Deletions retain tombstones so an older device cannot restore them silently. Sync writes do not emit task-completion automation events.
+
+Backups are named `lan-sync-<machine>.json.backup-0.json` through `backup-4.json` in the plugin folder. Each contains the previous task file text, bookmarks, preferences and sync versions. If recovery is needed, pause sync on **all** devices first, keep a copy of the current files, and restore the required content from a backup. Do not delete version metadata as a routine cleanup step. Avoid running another synchronization tool against these same data files. This first version caps the sync document at 1,500 records (including deletion markers), 16 version-vector devices and eight paired peers; exceeding a limit stops the operation instead of dropping records.
+
 ### Data & Storage Principles
 
 | Storage | Contents |
 |---|---|
 | `_data/todos.md` | Todos (inline `id:`/`due:`/`p:` metadata maintained by the plugin) |
 | `_data/focus.md` | Focus history accumulated per day |
+| Plugin `lan-sync-<machine>.json` and backup files | Opt-in LAN sync: device identity, pairing secrets (plain text locally), record versions, deletion markers, unresolved conflicts, and the last five pre-merge backups |
 | Plugin `data.json` | Storage V2 settings, layout scenes, toolbar, RSS config, Apple Calendar target/event-UID mappings, AI model config (**API keys are stored here in plain text**) |
 | Plugin-private `ai-history.json` | Up to 30 AI sessions (no attachment bodies / RAG excerpts / reasoning) |
 | Plugin-private `ai-index.json` | Inverted-index snapshot |
 | IndexedDB | Device-local RSS article cache and read state |
 
-No telemetry, no background uploads. Apple Calendar sync is Mac-only and sends no calendar data to the plugin developer: only after you explicitly select synchronization does the fixed local automation request access, reuse or create the dedicated calendar, and write selected open todos with due dates into it; `data.json` keeps only the target calendar name and managed event UIDs for safe updates/deletions. Only when you actively send an AI request are selected note excerpts, attachments, truncated RAG matches, or the weekly-report draft you explicitly choose to optimize sent to the model service you configured; free-form Q&A performs retrieval locally and never uploads your whole vault. Weekly-report AI optimization keeps the script output unchanged, streams a separate editable version, and saves only the version you select; a bounded original/optimized excerpt is retained in the private local AI history so you can continue the same request in Agent. The agent's vault note tools only ever create, append to, move, or inline-tag notes (never delete), and every mutation requires your per-action confirmation in the chat; under read-only permission they are not exposed at all. Scheduled-task and countdown messages are sent only to the notification channels you enable. The optional Resend channel sends the notification title, body, sender, and recipient addresses to Resend; its API key and addresses are stored in plain text in the plugin configuration. Optional QQ and NetEase SMTP accounts send countdown subjects, bodies, sender addresses, and recipients directly to the configured mail provider over TLS; their client authorization codes and addresses are also stored in plain text in the plugin configuration. Workflow run history stays in the local config file (last 20 runs per workflow); if you fill in a run-log note, the run summary is appended to that note only; failure pushes likewise go only to the push channels you have enabled.
+No telemetry or uploads to the plugin developer. Optional LAN sync sends only tasks, bookmark paths, display name and language to computers you explicitly pair; once enabled it checks every 30 seconds while both apps run. Payloads are authenticated and encrypted with AES-256-GCM over a local HTTP connection; QR generation and decoding happen locally. The pairing secret expires after five minutes and is replaced on acceptance. API keys, executable commands, workspace paths, AI history and note contents are excluded. Pairing keys are stored in plain text in the machine-specific plugin file; do not share this file or QR images. Conflicting versions and deletion markers are retained, and the last five pre-merge backups stay in the plugin folder. Apple Calendar sync is Mac-only and sends no calendar data to the plugin developer: only after you explicitly select synchronization does the fixed local automation request access, reuse or create the dedicated calendar, and write selected open todos with due dates into it; `data.json` keeps only the target calendar name and managed event UIDs for safe updates/deletions. Only when you actively send an AI request are selected note excerpts, attachments, truncated RAG matches, or the weekly-report draft you explicitly choose to optimize sent to the model service you configured; free-form Q&A performs retrieval locally and never uploads your whole vault. Weekly-report AI optimization keeps the script output unchanged, streams a separate editable version, and saves only the version you select; a bounded original/optimized excerpt is retained in the private local AI history so you can continue the same request in Agent. The agent's vault note tools only ever create, append to, move, or inline-tag notes (never delete), and every mutation requires your per-action confirmation in the chat; under read-only permission they are not exposed at all. Scheduled-task and countdown messages are sent only to the notification channels you enable. The optional Resend channel sends the notification title, body, sender, and recipient addresses to Resend; its API key and addresses are stored in plain text in the plugin configuration. Optional QQ and NetEase SMTP accounts send countdown subjects, bodies, sender addresses, and recipients directly to the configured mail provider over TLS; their client authorization codes and addresses are also stored in plain text in the plugin configuration. Workflow run history stays in the local config file (last 20 runs per workflow); if you fill in a run-log note, the run summary is appended to that note only; failure pushes likewise go only to the push channels you have enabled.
 
 ### AI Assistant Implementation
 

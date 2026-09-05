@@ -20,6 +20,11 @@ try { esbuild = require('esbuild'); } catch (e) { esbuild = null; }
 const MODULES = [
   'constants.js',
   'data-store.js',
+  'lan-sync-core.js',
+  'lan-sync-transport.js',
+  'lan-sync-store.js',
+  'lan-sync.js',
+  'lan-sync-ui.js',
   'ai-index.js',
   'ai-context.js',
   'ai-history.js',
@@ -233,9 +238,17 @@ async function main() {
 
   // CSS 不再内嵌进 main.js：宿主会自动加载插件目录的 styles.css，
   // 视图侧仅保留 _ensureStylesheetLoaded() 兜底探测。
-  const bundle = buildBundle(moduleBodies);
+  // 二维码依赖随插件打包；运行时不依赖 node_modules 或在线 CDN。
+  if (!esbuild) throw new Error('二维码依赖打包需要 esbuild，请先 npm install。');
+  const qr = esbuild.buildSync({
+    stdin:{ contents:"exports.encode = require('qrcode/lib/browser').toCanvas; exports.decode = require('jsqr');", resolveDir:__dirname },
+    bundle:true, write:false, format:'iife', globalName:'CockpitLanQr', platform:'browser', target:'es2020', minify:true, legalComments:'none'
+  }).outputFiles[0].text;
+  const bundle = qr + '\n' + buildBundle(moduleBodies);
   reportModuleSizes(moduleBodies);
   const best = await minifyJsBest(bundle);
+  const notices = '\n/*!\n' + readFileOrExit(path.join(__dirname, 'THIRD_PARTY_NOTICES.md'), 'third-party notices').replace(/\*\//g, '* /') + '\n*/\n';
+  if (best) best.code += notices;
   if (best) {
     fs.writeFileSync(path.join(OUT_DIR, 'main.js.map'), best.map || '');
     writeAndReport(OUT_FILE, best.map ? best.code + '\n//# sourceMappingURL=main.js.map' : best.code, `构建完成(压缩产物, ${best.engine})`);
