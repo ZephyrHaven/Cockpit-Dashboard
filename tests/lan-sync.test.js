@@ -21,6 +21,13 @@ for(let y=0;y<matrix.size;y++) for(let x=0;x<matrix.size;x++) if(matrix.get(y,x)
 assert.equal(decode(pixels,size,size)?.data, qrText);
 
 const A = 'a'.repeat(32), B = 'b'.repeat(32);
+const sameVersion = core.lanSyncCompatibility({ protocolVersion:1, pluginVersion:'1.8.7', capabilities:core.LAN_SYNC_CAPABILITIES }, { protocolVersion:1, pluginVersion:'1.8.7', capabilities:core.LAN_SYNC_CAPABILITIES });
+assert.equal(sameVersion.compatible, true);
+assert.deepEqual(sameVersion.unavailableThere, []);
+const olderPeer = core.lanSyncCompatibility({ protocolVersion:1, pluginVersion:'1.9.0', capabilities:core.LAN_SYNC_CAPABILITIES }, { protocolVersion:1, pluginVersion:'1.8.7', capabilities:['todos','bookmarks'] });
+assert.deepEqual(olderPeer.unavailableThere, ['display-name','language']);
+assert.deepEqual(Object.keys(core.lanSyncFilterCapabilities({ 'todo:one':[{ clock:{ [A]:1 }, value:'- [ ] Task | id:one' }], 'pref:language':[{ clock:{ [A]:1 }, value:'en' }] }, olderPeer.shared)), ['todo:one']);
+assert.equal(core.lanSyncCompatibility({ protocolVersion:2 }, { protocolVersion:1 }).compatible, false);
 const initial = core.lanSyncCapture({}, {}, { 'todo:one':'- [ ] Task | id:one' }, A);
 const aEdit = core.lanSyncCapture(initial, core.lanSyncProjection(initial), { 'todo:one':'- [x] Task | id:one' }, A);
 const bEdit = core.lanSyncCapture(initial, core.lanSyncProjection(initial), { 'todo:one':'- [ ] Revised | id:one' }, B);

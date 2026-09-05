@@ -239,6 +239,7 @@ function getCockpitSettingsSections(language) {
   const en = language === 'en';
   return [
     { id:'ai', label:en ? 'AI models' : 'AI 模型', icon:'bot-message-square' },
+    { id:'updates', label:en ? 'Updates' : '软件更新', icon:'download' },
     { id:'sync', label:en ? 'Nearby devices' : '附近设备', icon:'scan-line' },
     { id:'channels', label:en ? 'Channels' : '推送渠道', icon:'send' },
     { id:'brief', label:en ? 'Morning brief' : '晨间简报', icon:'sunrise' },
@@ -250,7 +251,7 @@ function getCockpitSettingsSections(language) {
 
 function normalizeCockpitSettingsSection(value) {
   const id = String(value || '');
-  return ['ai','sync','channels','brief','schedule','scope','calendar'].includes(id) ? id : 'ai';
+  return ['ai','updates','sync','channels','brief','schedule','scope','calendar'].includes(id) ? id : 'ai';
 }
 
 class ServerChanService {
@@ -374,6 +375,7 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     });
     activate(this._activeSection);
 
+    await renderUpdaterSettings(panels.updates, this.plugin, language);
     await renderLanSyncSettings(panels.sync, this.plugin, language);
     await renderAiSettings(panels.ai, this.plugin, language);
     if (renderVersion !== this._displayVersion) return;

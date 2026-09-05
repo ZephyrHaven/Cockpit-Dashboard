@@ -25,6 +25,7 @@ assert.deepEqual(
   JSON.parse(JSON.stringify(api.getCockpitSettingsSections('zh-CN'))),
   [
     { id:'ai', label:'AI 模型', icon:'bot-message-square' },
+    { id:'updates', label:'软件更新', icon:'download' },
     { id:'sync', label:'附近设备', icon:'scan-line' },
     { id:'channels', label:'推送渠道', icon:'send' },
     { id:'brief', label:'晨间简报', icon:'sunrise' },
@@ -35,6 +36,7 @@ assert.deepEqual(
   'Settings are grouped into clear user-facing modules.'
 );
 assert.equal(api.normalizeCockpitSettingsSection('schedule'), 'schedule');
+assert.equal(api.normalizeCockpitSettingsSection('updates'), 'updates');
 assert.equal(api.normalizeCockpitSettingsSection('unknown'), 'ai', 'Invalid remembered tabs safely fall back to the AI module.');
 
 assert.deepEqual(Object.keys(api.NOTIFICATION_CHANNELS), ['serverChan', 'bark', 'meow', 'email']);

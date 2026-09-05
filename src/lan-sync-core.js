@@ -2,6 +2,38 @@
 const LAN_SYNC_LIMIT = 1500;
 const LAN_SYNC_BYTES = 1024 * 1024;
 const LAN_SYNC_PREFS = ['username', 'language'];
+const LAN_SYNC_PROTOCOL_VERSION = 1;
+const LAN_SYNC_CAPABILITIES = Object.freeze(['todos', 'bookmarks', 'display-name', 'language']);
+function lanSyncMetadata(raw) {
+  const value = lanSyncObject(raw) ? raw : {};
+  const capabilities = Array.isArray(value.capabilities)
+    ? Array.from(new Set(value.capabilities.slice(0, 32).map(item => String(item).slice(0, 64)).filter(item => /^[a-z][a-z0-9-]{0,31}$/.test(item)))).slice(0, 16)
+    : LAN_SYNC_CAPABILITIES.slice();
+  const candidateVersion = String(value.pluginVersion || '').slice(0, 64);
+  const pluginVersion = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(candidateVersion) ? candidateVersion : '';
+  return { protocolVersion:Number.isInteger(value.protocolVersion) ? value.protocolVersion : LAN_SYNC_PROTOCOL_VERSION, pluginVersion, capabilities };
+}
+function lanSyncCapabilityForKey(key) {
+  if (key.startsWith('todo:')) return 'todos';
+  if (key.startsWith('bookmark:')) return 'bookmarks';
+  if (key === 'pref:username') return 'display-name';
+  if (key === 'pref:language') return 'language';
+  return '';
+}
+function lanSyncFilterCapabilities(doc, capabilities) {
+  const allowed = new Set(capabilities);
+  return Object.fromEntries(Object.entries(lanSyncValidate(doc)).filter(([key]) => allowed.has(lanSyncCapabilityForKey(key))));
+}
+function lanSyncCompatibility(localRaw, remoteRaw) {
+  const local = lanSyncMetadata(localRaw); const remote = lanSyncMetadata(remoteRaw);
+  const shared = local.capabilities.filter(item => remote.capabilities.includes(item));
+  return {
+    compatible:local.protocolVersion === remote.protocolVersion,
+    local, remote, shared,
+    unavailableHere:remote.capabilities.filter(item => !local.capabilities.includes(item)),
+    unavailableThere:local.capabilities.filter(item => !remote.capabilities.includes(item))
+  };
+}
 function lanSyncObject(value) { return value && typeof value === 'object' && !Array.isArray(value); }
 function lanSyncDevice(value) { return typeof value === 'string' && /^[a-f0-9]{32}$/.test(value); }
 function lanSyncBookmark(value) {
@@ -96,5 +128,5 @@ function lanSyncParseInvite(text, now = Date.now()) {
   return data;
 }
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
-  module.exports = { LAN_SYNC_BYTES, lanSyncValidate, lanSyncMerge, lanSyncProjection, lanSyncCapture, lanSyncConflicts, lanSyncResolve, lanSyncPrivateIp, lanSyncParseInvite, lanSyncBookmark, lanSyncDevice };
+  module.exports = { LAN_SYNC_BYTES, LAN_SYNC_PROTOCOL_VERSION, LAN_SYNC_CAPABILITIES, lanSyncMetadata, lanSyncFilterCapabilities, lanSyncCompatibility, lanSyncValidate, lanSyncMerge, lanSyncProjection, lanSyncCapture, lanSyncConflicts, lanSyncResolve, lanSyncPrivateIp, lanSyncParseInvite, lanSyncBookmark, lanSyncDevice };
 }

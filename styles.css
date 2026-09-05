@@ -2748,6 +2748,14 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
 .cockpit-dashboard-release-modal .modal {
   width: min(720px, calc(100vw - 32px));
 }
+.cockpit-dashboard-update-modal .modal { width:min(560px,calc(100vw - 28px)); }
+.cockpit-dashboard-update-body { display:grid; gap:14px; }
+.cockpit-dashboard-update-status { padding:13px 15px; border:1px solid var(--background-modifier-border); border-radius:12px; background:var(--background-secondary); color:var(--text-normal); font-weight:800; }
+.cockpit-dashboard-update-status.success { border-color:rgba(34,197,94,.35); color:#22c55e; }
+.cockpit-dashboard-update-status.available { border-color:rgba(72,180,255,.38); color:#48b4ff; }
+.cockpit-dashboard-update-status.error { border-color:rgba(239,68,68,.35); color:#ef4444; }
+.cockpit-dashboard-update-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
+.cockpit-dashboard-update-progress { color:var(--text-muted); font-size:.82em; }
 .cockpit-dashboard-release-top {
   display: flex;
   align-items: center;

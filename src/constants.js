@@ -90,7 +90,8 @@ const I18N = {
       openGraph: '打开图谱',
       startPomodoro: '启动番茄钟',
       exportBackup: '导出数据备份',
-      releaseNotes: '最近更新记录'
+      releaseNotes: '最近更新记录',
+      checkUpdate: '检查更新'
     },
     layout: {
       edit: '编辑模式',
@@ -375,7 +376,8 @@ const I18N = {
       openGraph: 'Open graph view',
       startPomodoro: 'Start Pomodoro',
       exportBackup: 'Export data backup',
-      releaseNotes: 'Recent updates'
+      releaseNotes: 'Recent updates',
+      checkUpdate: 'Check for updates'
     },
     layout: {
       edit: 'Edit Mode',

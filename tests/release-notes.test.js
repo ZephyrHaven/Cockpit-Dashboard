@@ -10,9 +10,20 @@ const {
   selectOnlineReleaseNotes,
   getCachedReleaseNotesModel,
   loadGitHubReleaseNotes,
+  compareReleaseVersions,
+  findAvailableUpdate,
   GITHUB_RELEASES_API_URL,
   RELEASE_NOTES_CACHE_TTL_MS
 } = require('../src/release-notes-core.js');
+
+assert.equal(compareReleaseVersions('v1.10.0', '1.9.9'), 1);
+assert.equal(compareReleaseVersions('1.8.7', '1.8.7'), 0);
+assert.equal(compareReleaseVersions('1.8.6', '1.8.7'), -1);
+assert.equal(findAvailableUpdate({ releases:[
+  { version:'2.0.0', prerelease:true },
+  { version:'1.9.0', prerelease:false },
+  { version:'1.10.0', prerelease:false }
+] }, '1.8.7').version, '1.10.0', 'Update checks choose the newest stable release.');
 
 const releases = Array.from({ length:12 }, (_, index) => ({
   tag_name:'1.' + (11 - index) + '.0',

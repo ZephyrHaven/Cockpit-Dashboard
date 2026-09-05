@@ -12,6 +12,7 @@ Cockpit Dashboard is a local-first Obsidian home-page plugin that brings todos, 
 - The dashboard now fills its available pane instead of stopping at 960 px, with adaptive side spacing for large displays and split views.
 - Dashboard content width is adjustable from the subtle grip on the right edge. Drag it to set a comfortable reading width; double-click the grip (or press End) to return to automatic full width. The preference is stored locally and re-clamped when the pane is smaller.
 - Nearby devices (preview) adds QR pairing and encrypted LAN synchronization for tasks, bookmarks, display name and language, with backups and conflict review.
+- Built-in software updates check GitHub Releases, validate the three standard release files, keep a rollback backup, and can optionally install updates automatically without replacing local settings.
 - AI startup failures now show the failed stage and a retry button instead of leaving an unexplained blank panel; this improves diagnosis but does not establish the cause of every Windows startup issue.
 
 LAN sync remains opt-in and in preview: real Windows/macOS device pairing, camera permissions and firewall behavior still need cross-device acceptance testing.
@@ -19,6 +20,11 @@ LAN sync remains opt-in and in preview: real Windows/macOS device pairing, camer
 ## 1.8.7 update
 
 The dashboard keeps automatic full width by default, while a subtle handle on the right edge lets you choose a comfortable content width. The choice is stored locally, follows the current pane size, and can be reset by double-clicking the handle or pressing End when it has focus.
+
+## 1.8.8 update
+
+- Software Update now checks GitHub Releases automatically, offers validated download-and-install with rollback backups, supports optional background installation, preserves all local settings, and moves manual update controls out of the Toolbar into Settings and the dashboard context menu.
+- Nearby-device sync now exchanges plugin, protocol, and capability versions so mismatched devices synchronize only mutually supported data while Settings clearly identifies unavailable features or blocks incompatible protocols.
 
 ## Core Features
 
@@ -54,6 +60,8 @@ Open **Settings → Cockpit → Nearby devices**. On the first computer choose *
 
 This preview supports desktop IPv4 private networks. Both applications must be running and the private-network firewall must permit incoming connections. Each paired computer polls every 30 seconds; **Sync now** performs a manual round. **Pause sync** closes the listener and persists the disabled state. **Unpair** revokes the local pairing key. Changing IP addresses may require pairing again; automatic discovery and mobile devices are not yet supported.
 
+Each encrypted sync handshake also exchanges the plugin version, sync protocol version, and a capability list. Different plugin versions continue syncing only the capabilities both sides support; the settings page lists unsupported items per device. A protocol mismatch blocks synchronization until the older side is updated. Existing peers that do not yet report version metadata use the legacy compatibility profile.
+
 Tasks are matched by stable IDs. Bookmarks sync membership, preserving each device's order; their target notes must already exist on the receiving device. Only display name and language preferences are included; profile preference changes take effect on reopening the dashboard. Concurrent edits keep both versions under **Review conflicts**; choose one to propagate the resolution. Deletions retain tombstones so an older device cannot restore them silently. Sync writes do not emit task-completion automation events.
 
 Backups are named `lan-sync-<machine>.json.backup-0.json` through `backup-4.json` in the plugin folder. Each contains the previous task file text, bookmarks, preferences and sync versions. If recovery is needed, pause sync on **all** devices first, keep a copy of the current files, and restore the required content from a backup. Do not delete version metadata as a routine cleanup step. Avoid running another synchronization tool against these same data files. This first version caps the sync document at 1,500 records (including deletion markers), 16 version-vector devices and eight paired peers; exceeding a limit stops the operation instead of dropping records.
@@ -66,9 +74,12 @@ Backups are named `lan-sync-<machine>.json.backup-0.json` through `backup-4.json
 | `_data/focus.md` | Focus history accumulated per day |
 | Plugin `lan-sync-<machine>.json` and backup files | Opt-in LAN sync: device identity, pairing secrets (plain text locally), record versions, deletion markers, unresolved conflicts, and the last five pre-merge backups |
 | Plugin `data.json` | Storage V2 settings, layout scenes, toolbar, RSS config, Apple Calendar target/event-UID mappings, AI model config (**API keys are stored here in plain text**) |
+| Plugin `.cockpit-update-backup/` | Previous `main.js`, `styles.css`, and `manifest.json` retained locally for update rollback; user settings are never included or replaced |
 | Plugin-private `ai-history.json` | Up to 30 AI sessions (no attachment bodies / RAG excerpts / reasoning) |
 | Plugin-private `ai-index.json` | Inverted-index snapshot |
 | IndexedDB | Device-local RSS article cache and read state |
+
+Automatic update checks send a standard HTTPS request to the project’s public GitHub Releases API at most once every 24 hours. Update installation downloads only `main.js`, `styles.css`, and `manifest.json` from that repository; it does not upload user data.
 
 No telemetry or uploads to the plugin developer. Optional LAN sync sends only tasks, bookmark paths, display name and language to computers you explicitly pair; once enabled it checks every 30 seconds while both apps run. Payloads are authenticated and encrypted with AES-256-GCM over a local HTTP connection; QR generation and decoding happen locally. The pairing secret expires after five minutes and is replaced on acceptance. API keys, executable commands, workspace paths, AI history and note contents are excluded. Pairing keys are stored in plain text in the machine-specific plugin file; do not share this file or QR images. Conflicting versions and deletion markers are retained, and the last five pre-merge backups stay in the plugin folder. Apple Calendar sync is Mac-only and sends no calendar data to the plugin developer: only after you explicitly select synchronization does the fixed local automation request access, reuse or create the dedicated calendar, and write selected open todos with due dates into it; `data.json` keeps only the target calendar name and managed event UIDs for safe updates/deletions. Only when you actively send an AI request are selected note excerpts, attachments, truncated RAG matches, or the weekly-report draft you explicitly choose to optimize sent to the model service you configured; free-form Q&A performs retrieval locally and never uploads your whole vault. Weekly-report AI optimization keeps the script output unchanged, streams a separate editable version, and saves only the version you select; a bounded original/optimized excerpt is retained in the private local AI history so you can continue the same request in Agent. The agent's vault note tools only ever create, append to, move, or inline-tag notes (never delete), and every mutation requires your per-action confirmation in the chat; under read-only permission they are not exposed at all. Scheduled-task and countdown messages are sent only to the notification channels you enable. The optional Resend channel sends the notification title, body, sender, and recipient addresses to Resend; its API key and addresses are stored in plain text in the plugin configuration. Optional QQ and NetEase SMTP accounts send countdown subjects, bodies, sender addresses, and recipients directly to the configured mail provider over TLS; their client authorization codes and addresses are also stored in plain text in the plugin configuration. Workflow run history stays in the local config file (last 20 runs per workflow); if you fill in a run-log note, the run summary is appended to that note only; failure pushes likewise go only to the push channels you have enabled.
 

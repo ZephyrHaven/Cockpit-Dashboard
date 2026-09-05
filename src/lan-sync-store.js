@@ -24,7 +24,8 @@ class CockpitLanStore {
       if (state.pending) lanSyncValidate(state.pending.doc);
       if (!lanSyncObject(state.observed)) throw new Error('同步快照无效。');
       for (const [key, value] of Object.entries(state.observed)) if (!lanSyncValue(key, value)) throw new Error('同步快照无效。');
-      if (state.peers.some(peer => !lanSyncDevice(peer.id) || !lanSyncDevice(peer.device) || !/^[a-f0-9]{64}$/.test(peer.key) || !Array.isArray(peer.hosts) || peer.hosts.length > 8 || !peer.hosts.every(lanSyncPrivateIp))) throw new Error('配对记录无效。');
+      if (state.peers.some(peer => !lanSyncDevice(peer.id) || !lanSyncDevice(peer.device) || !/^[a-f0-9]{64}$/.test(peer.key) || !Array.isArray(peer.hosts) || peer.hosts.length > 8 || !peer.hosts.every(lanSyncPrivateIp) || (peer.metadata != null && !lanSyncObject(peer.metadata)))) throw new Error('配对记录无效。');
+      state.peers.forEach(peer => { peer.metadata = lanSyncMetadata(peer.metadata); });
       this.state = state; this.lastSaved = text;
     } else this.state = { version:1, device:this.crypto.randomBytes(16).toString('hex'), enabled:false, port:0, peers:[], doc:{}, observed:{}, backupIndex:0 };
     return this.state;

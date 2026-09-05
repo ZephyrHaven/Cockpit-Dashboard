@@ -10,6 +10,24 @@ function normalizeReleaseVersion(value) {
   return String(value || '').trim().replace(/^v/i, '');
 }
 
+function compareReleaseVersions(left, right) {
+  const parse = (value) => normalizeReleaseVersion(value).split(/[+-]/)[0].split('.').map((part) => {
+    const number = Number.parseInt(part, 10);
+    return Number.isFinite(number) ? number : 0;
+  });
+  const a = parse(left); const b = parse(right);
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const difference = (a[index] || 0) - (b[index] || 0);
+    if (difference) return difference > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+function findAvailableUpdate(model, currentVersion) {
+  const releases = Array.isArray(model?.releases) ? model.releases.filter((release) => !release.prerelease) : [];
+  return releases.sort((a, b) => compareReleaseVersions(b.version, a.version))[0] || null;
+}
+
 function normalizeGitHubRelease(rawRelease) {
   if (!rawRelease || typeof rawRelease !== 'object' || rawRelease.draft === true) return null;
   const version = normalizeReleaseVersion(rawRelease.tag_name);
@@ -17,13 +35,19 @@ function normalizeGitHubRelease(rawRelease) {
   const publishedAt = String(rawRelease.published_at || rawRelease.created_at || '');
   const date = Number.isFinite(Date.parse(publishedAt)) ? new Date(publishedAt).toISOString().slice(0, 10) : '';
   const remoteUrl = String(rawRelease.html_url || '');
+  const assets = Array.isArray(rawRelease.assets) ? rawRelease.assets.map((asset) => ({
+    name:String(asset?.name || '').trim(),
+    size:Number(asset?.size || 0),
+    url:String(asset?.browser_download_url || '')
+  })).filter((asset) => asset.name && asset.size > 0 && asset.url.startsWith('https://github.com/' + GITHUB_REPOSITORY + '/releases/download/')).slice(0, 20) : [];
   return {
     version,
     title:String(rawRelease.name || rawRelease.tag_name || version).trim().slice(0, 160),
     body:String(rawRelease.body || '').slice(0, 100000),
     date,
     url:remoteUrl.startsWith('https://github.com/' + GITHUB_REPOSITORY + '/releases/') ? remoteUrl : GITHUB_RELEASES_URL,
-    prerelease:rawRelease.prerelease === true
+    prerelease:rawRelease.prerelease === true,
+    assets
   };
 }
 
@@ -88,6 +112,8 @@ if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'und
     selectOnlineReleaseNotes,
     getCachedReleaseNotesModel,
     createReleaseNotesCache,
+    compareReleaseVersions,
+    findAvailableUpdate,
     loadGitHubReleaseNotes
   };
 }

@@ -79,6 +79,8 @@ const MODULES = [
   'focus-chart.js',
   'release-notes-core.js',
   'release-notes.js',
+  'updater-core.js',
+  'updater.js',
   'toolbar-defs.js',
   'layout-edit.js',
   'component-store-core.js',

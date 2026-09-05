@@ -153,7 +153,13 @@ async function renderLanSyncSettings(container, plugin, language) {
     peers.forEach(peer => {
       const row = devices.createDiv({ cls:'cockpit-lan-device' });
       const copy = row.createDiv(); copy.createEl('strong', { text:peer.name });
-      copy.createEl('p', { text:peer.error || (peer.lastSync ? '上次同步 ' + new Date(peer.lastSync).toLocaleTimeString() : '已配对'), cls:'cockpit-lan-muted' });
+      const compatibility = lanSyncCompatibility(service.metadata(), peer.metadata);
+      const remoteVersion = compatibility.remote.pluginVersion || (en ? 'legacy / unknown' : '旧版 / 未知');
+      copy.createEl('p', { text:peer.error || (peer.lastSync ? (en ? 'Last sync ' : '上次同步 ') + new Date(peer.lastSync).toLocaleTimeString() : (en ? 'Paired' : '已配对')), cls:'cockpit-lan-muted' });
+      copy.createEl('p', { text:(en ? 'Version ' : '版本 ') + remoteVersion + ' · ' + (compatibility.compatible ? (en ? 'Protocol compatible' : '协议兼容') : (en ? 'Sync blocked: update required' : '无法同步：需要先更新版本')), cls:'cockpit-lan-muted' });
+      const labels = { todos:en?'tasks':'待办', bookmarks:en?'bookmarks':'收藏', 'display-name':en?'display name':'昵称', language:en?'language':'语言' };
+      const unavailable = [...compatibility.unavailableThere.map(id => (labels[id] || id) + (en ? ' (unsupported remotely)' : '（对方不支持）')), ...compatibility.unavailableHere.map(id => (labels[id] || id) + (en ? ' (unsupported here)' : '（本机不支持）'))];
+      copy.createEl('p', { text:unavailable.length ? (en ? 'Not synchronized: ' : '无法同步：') + unavailable.join(', ') : (compatibility.local.pluginVersion && compatibility.remote.pluginVersion && compatibility.local.pluginVersion !== compatibility.remote.pluginVersion ? (en ? 'Versions differ, but all current sync items remain compatible.' : '版本不同，但当前同步项目全部兼容。') : (en ? 'Sync items: tasks, bookmarks, display name, language.' : '同步项目：待办、收藏、昵称、语言。')), cls:'cockpit-lan-muted' });
       row.createEl('button', { text:en ? 'Unpair' : '解除配对' }).onclick = () => run(() => service.remove(peer.id));
     });
     const count = lanSyncConflicts(service.store.state.doc).length;

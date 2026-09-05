@@ -68,6 +68,8 @@ class CockpitLanTransport {
       for (const [id, time] of this.replays) if (Date.now() - time > 300000) this.replays.delete(id);
       if (!lanSyncDevice(request.rid) || !lanSyncDevice(request.device) || !Number.isFinite(request.time) || Math.abs(Date.now() - request.time) > 300000 || this.replays.has(request.rid)) throw new Error('Expired packet');
       this.replays.set(request.rid, Date.now());
+      const compatibility = lanSyncCompatibility(this.options.metadata?.(), request.metadata);
+      if (!compatibility.compatible) throw new Error('Incompatible sync protocol');
       let result;
       if (invitation && request.kind === 'pair' && request.device !== this.options.device()) {
         // 先占用这张邀请，重复扫码不会出现多个批准框。
@@ -78,11 +80,12 @@ class CockpitLanTransport {
         const pairedKey = this.crypto.randomBytes(32).toString('hex');
         const hosts = Array.isArray(request.hosts) ? request.hosts.filter(lanSyncPrivateIp).slice(0, 8) : [];
         const port = Number.isInteger(request.port) && request.port >= 1024 && request.port <= 65535 ? request.port : 0;
-        await this.options.addPeer({ id:frame.id, key:pairedKey, device:request.device, name, hosts, port });
-        result = { key:pairedKey, device:this.options.device(), name:this.options.name() };
+        await this.options.addPeer({ id:frame.id, key:pairedKey, device:request.device, name, hosts, port, metadata:lanSyncMetadata(request.metadata) });
+        result = { key:pairedKey, device:this.options.device(), name:this.options.name(), metadata:this.options.metadata?.() };
       } else if (peer && request.kind === 'sync' && peer.device === request.device && this.options.peers().some(item => item.id === frame.id)) {
         lanSyncValidate(request.doc);
-        result = { doc:await this.options.merge(request.doc) };
+        const merged = await this.options.merge(lanSyncFilterCapabilities(request.doc, compatibility.shared));
+        result = { doc:lanSyncFilterCapabilities(merged, compatibility.shared), metadata:this.options.metadata?.() };
       } else throw new Error('Unauthorized request');
       if (this.closed) throw new Error('Stopped');
       const reply = JSON.stringify(lanSyncSeal(this.crypto, key, frame.id, { rid:request.rid, ...result }, 'response'));
@@ -92,7 +95,7 @@ class CockpitLanTransport {
   }
   async request(peer, kind, extra = {}) {
     const rid = this.crypto.randomBytes(16).toString('hex');
-    const payload = { rid, time:Date.now(), kind, device:this.options.device(), name:this.options.name(), hosts:this.addresses(), port:this.server?.address()?.port || 0, ...extra };
+    const payload = { rid, time:Date.now(), kind, device:this.options.device(), name:this.options.name(), hosts:this.addresses(), port:this.server?.address()?.port || 0, metadata:this.options.metadata?.(), ...extra };
     const body = JSON.stringify(lanSyncSeal(this.crypto, peer.key, peer.id, payload, 'request'));
     if (Buffer.byteLength(body) > LAN_SYNC_BYTES) throw new Error('同步数据过大，请减少待办后重试。');
     let lastError;

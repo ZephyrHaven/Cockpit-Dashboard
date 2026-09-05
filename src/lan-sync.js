@@ -5,6 +5,7 @@ class CockpitLanSync {
     this.listeners = new Set(); this.status = '尚未开启'; this.running = false; this.stopped = false; this.confirmModal = null; this.modals = new Set();
   }
   notify(status) { if (status) this.status = status; this.listeners.forEach(fn => { try { fn(); } catch (error) { console.warn('LAN sync status refresh failed'); } }); }
+  metadata() { return { protocolVersion:LAN_SYNC_PROTOCOL_VERSION, pluginVersion:String(this.plugin.manifest?.version || ''), capabilities:LAN_SYNC_CAPABILITIES.slice() }; }
   async initialize() {
     try { await this.store.load(); if (this.store.state.enabled && !this.stopped) await this.start(); }
     catch (error) { this.notify(error.message); }
@@ -21,6 +22,7 @@ class CockpitLanSync {
     const transport = new CockpitLanTransport({
       device:() => this.store.state.device,
       name:() => require('os').hostname().slice(0, 60),
+      metadata:() => this.metadata(),
       peers:() => this.store.state.peers,
       confirm:name => new Promise(resolve => { this.confirmModal = new CockpitLanConfirmModal(this.plugin.app, name, resolve); this.confirmModal.open(); }),
       addPeer:peer => this.store.configure(state => {
@@ -56,7 +58,7 @@ class CockpitLanSync {
     if (!lanSyncDevice(result.device) || !/^[a-f0-9]{64}$/.test(result.key) || result.device === this.store.state.device) throw new Error('无法与本机或无效设备配对。');
     await this.store.configure(state => {
       if (state.peers.length >= 8) throw new Error('最多配对 8 台设备。');
-      state.peers = [...state.peers.filter(peer => peer.device !== result.device), { id:invite.id, key:result.key, device:result.device, name:String(result.name || '另一台电脑').slice(0, 60), hosts:invite.hosts, port:invite.port }];
+      state.peers = [...state.peers.filter(peer => peer.device !== result.device), { id:invite.id, key:result.key, device:result.device, name:String(result.name || '另一台电脑').slice(0, 60), hosts:invite.hosts, port:invite.port, metadata:lanSyncMetadata(result.metadata) }];
     });
     this.notify('配对成功 · 开始首次同步'); await this.sync();
   }
@@ -70,12 +72,16 @@ class CockpitLanSync {
       for (const peer of [...this.store.state.peers]) {
         if (!peer.hosts.length || !peer.port) continue;
         try {
-          const result = await transport.request(peer, 'sync', { doc });
+          const compatibility = lanSyncCompatibility(this.metadata(), peer.metadata);
+          if (!compatibility.compatible) { peer.error = '版本协议不兼容，请先更新版本。'; continue; }
+          const result = await transport.request(peer, 'sync', { doc:lanSyncFilterCapabilities(doc, compatibility.shared) });
           if (this.transport !== transport || !this.store.state.peers.some(item => item.id === peer.id)) return;
+          peer.metadata = lanSyncMetadata(result.metadata);
           doc = await this.store.exchange(result.doc); count++;
           peer.lastSync = Date.now(); peer.error = '';
         } catch (error) { peer.error = '连接失败：请检查网络、对端开关或重新配对。'; }
       }
+      await this.store.save();
       this.notify(count ? '已同步 · ' + new Date().toLocaleTimeString() : this.store.state.peers.length ? '设备暂未连接 · 联网后自动重试' : '已开启 · 尚未配对设备');
     } finally { this.running = false; }
   }

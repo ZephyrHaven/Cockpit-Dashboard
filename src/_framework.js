@@ -769,6 +769,11 @@ class CockpitView extends obs.ItemView {
         }
       },
       {
+        title: this._t('contextMenu.checkUpdate'),
+        icon: 'download',
+        onClick: () => this._checkForUpdates()
+      },
+      {
         title: this._lang() === 'en' ? 'Component store' : '组件商店',
         icon: 'blocks',
         onClick: () => {
@@ -795,6 +800,9 @@ class CockpitView extends obs.ItemView {
     new obs.Notice(message);
     this._refreshCalendarRef?.();
     return result;
+  }
+  async _checkForUpdates() {
+    this._plugin.updater?.open(this._language);
   }
   _openDashboardMenu(anchorEl, sourceEvent) {
     const menu = new obs.Menu();
@@ -2950,6 +2958,8 @@ class CockpitPlugin extends obs.Plugin {
     return mutatePluginData(this, mutator);
   }
   async onload() {
+    this.updater = new CockpitUpdater(this);
+    void this.updater.start().catch((error) => console.warn('Cockpit updater initialization failed', error));
     this.lanSync = new CockpitLanSync(this);
     void this.lanSync.initialize();
     this.rag = new CockpitRagService(this);
@@ -3047,6 +3057,7 @@ class CockpitPlugin extends obs.Plugin {
     return this.openAI();
   }
   async onunload() {
+    this.updater?.stop();
     this._lanSettingsCleanup?.();
     this.lanSync?.stop();
     // 官方审查要求：插件卸载时清理全部全局资源；且不得在 onunload 中 detach leaves，
