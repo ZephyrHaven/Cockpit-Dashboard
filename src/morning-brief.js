@@ -6,6 +6,7 @@ const MORNING_BRIEF_DEFAULTS = {
   enabled:false,
   time:'08:30',
   aiPolish:true,
+  includeTeamTodos:false,
   includeTodayTodos:true,
   includeOverdue:true,
   includeHabits:true,
@@ -45,6 +46,7 @@ function normalizeMorningBriefConfig(raw) {
     enabled:value.enabled === true,
     time:normalizeMorningBriefTime(value.time),
     aiPolish:value.aiPolish !== false,
+    includeTeamTodos:value.includeTeamTodos === true,
     includeTodayTodos:value.includeTodayTodos !== false,
     includeOverdue:value.includeOverdue !== false,
     includeHabits:value.includeHabits !== false,
@@ -139,7 +141,7 @@ function buildBriefingMessage({ lang, username, facts, now, aiSummary }) {
   lines.push(now.format(en ? 'MMM D' : 'M月D日') + ' · ' + weekdayNames[now.day()]);
   lines.push('');
 
-  const isEmptyDay = !facts.dueToday.length && !facts.overdue.length && !facts.pendingHabitNames.length;
+  const isEmptyDay = !facts.teamTodos?.length && !facts.dueToday.length && !facts.overdue.length && !facts.pendingHabitNames.length;
   if (isEmptyDay) {
     lines.push('🗓 ' + (en ? 'Nothing scheduled today. Enjoy the open day.' : '今天没有排期任务，享受自由的一天。'));
     lines.push('');
@@ -152,6 +154,11 @@ function buildBriefingMessage({ lang, username, facts, now, aiSummary }) {
   if (facts.overdue.length) {
     lines.push('⚠️ ' + (en ? 'Overdue · ' : '已逾期 · ') + facts.overdue.length + (en ? '' : ' 项'));
     facts.overdue.slice(0, 5).forEach((item) => lines.push('· ' + item.text));
+    lines.push('');
+  }
+  if (facts.teamTodos?.length) {
+    lines.push('👥 ' + (en ? 'Team tasks · ' : '团队待办 · ') + facts.teamTodos.length);
+    facts.teamTodos.slice(0, 8).forEach(item => lines.push('· ' + item.text + ' · ' + item.dueDate.format('YYYY-MM-DD HH:mm:ss')));
     lines.push('');
   }
   if (facts.pendingHabitNames.length && facts.habitTotal > 0) {
@@ -172,7 +179,7 @@ function buildBriefingMessage({ lang, username, facts, now, aiSummary }) {
 
 function buildBriefingTitle({ lang, username, facts }) {
   const en = lang === 'en';
-  const total = facts.dueToday.length + facts.overdue.length;
+  const total = facts.dueToday.length + facts.overdue.length + (facts.teamTodos?.length || 0);
   if (!total) return en ? '☀️ ' + username + ', an easy day ahead' : '☀️ 早安 ' + username + '，今天是轻快的一天';
   return en
     ? '☀️ ' + username + ', ' + total + ' task(s) waiting today'
@@ -259,6 +266,10 @@ class CockpitMorningBriefService {
     });
     if (!config.includeTodayTodos) facts.dueToday = [];
     if (!config.includeOverdue) facts.overdue = [];
+
+    facts.teamTodos = config.includeTeamTodos && this.plugin.teamSync
+      ? (await this.plugin.teamSync.notificationTodos()).filter(todo => !todo.done &&
+        (todo.dueDate.isSame(now, 'day') || todo.dueDate.isBefore(now, 'day'))) : [];
 
     let aiSummary = null;
     if (config.aiPolish && this.plugin.ai) aiSummary = await polishBriefingWithAi(this.plugin, language, facts);
@@ -369,6 +380,8 @@ async function renderMorningBriefSettings(panel, plugin, language) {
     .addText((text) => { text.inputEl.type = 'time'; text.setValue(config.time).onChange(async (value) => { config.time = normalizeMorningBriefTime(value); await save(); }); });
 
   panel.createDiv({ cls:PLUGIN_ID + '-settings-panel-header' }).createEl('h3', { text:copy.sections });
+  new obs.Setting(panel).setName(en ? 'Team tasks' : '团队待办').setDesc(en ? 'Include visible team tasks due today or overdue.' : '包含当前设备有权查看的今日到期、逾期团队待办。')
+    .addToggle(toggle => toggle.setValue(config.includeTeamTodos).onChange(async value => { config.includeTeamTodos = value; await save(); }));
   new obs.Setting(panel).setName(copy.todayTodos).addToggle((toggle) => toggle.setValue(config.includeTodayTodos).onChange(async (value) => { config.includeTodayTodos = value; await save(); }));
   new obs.Setting(panel).setName(copy.overdue).addToggle((toggle) => toggle.setValue(config.includeOverdue).onChange(async (value) => { config.includeOverdue = value; await save(); }));
   new obs.Setting(panel).setName(copy.habits).addToggle((toggle) => toggle.setValue(config.includeHabits).onChange(async (value) => { config.includeHabits = value; await save(); }));

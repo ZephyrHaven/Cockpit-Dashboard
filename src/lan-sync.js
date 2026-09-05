@@ -51,6 +51,7 @@ class CockpitLanSync {
   async offer() { await this.start(); const offer = this.transport.offer(); this.notify('等待配对 · 二维码五分钟内有效'); return JSON.stringify(offer); }
   async pair(text) {
     const invite = lanSyncParseInvite(text);
+    if (invite.scope && invite.scope !== 'personal') throw new Error('这是团队邀请，请从「团队待办」加入。');
     await this.start();
     this.notify('请在另一台电脑上确认配对…');
     const transport = this.transport;

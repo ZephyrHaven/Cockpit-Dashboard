@@ -26,6 +26,12 @@ The dashboard keeps automatic full width by default, while a subtle handle on th
 - Software Update now checks GitHub Releases automatically, offers validated download-and-install with rollback backups, supports optional background installation, preserves all local settings, and moves manual update controls out of the Toolbar into Settings and the dashboard context menu.
 - Nearby-device sync now exchanges plugin, protocol, and capability versions so mismatched devices synchronize only mutually supported data while Settings clearly identifies unavailable features or blocks incompatible protocols.
 
+## 1.8.9 update
+
+- Team tasks now use the personal-todo interaction model for compact lists, tags, priorities, second-precision due dates, creation and editing; the editor shows one consistent close control.
+- Team tasks are mirrored to a readable `_data/team-todos.md` file, appear separately in the calendar, preserve their source device, and can be included explicitly in morning briefs and message notifications.
+- Team spaces add host-managed roles, visibility and synchronization permissions, encrypted approved-device sharing, unique device names, offline drafts and conflict review.
+
 ## Core Features
 
 - **Dashboard workbench**: today todo queue, a refined calendar board (month/week views, drag-to-schedule, lunar calendar with statutory holidays & make-up workdays, toggleable), and a per-day operations view that brings todos, scheduled/event automations, their concrete actions and status, plus a compact RSS digest into one timeline; the independent today agenda remains available alongside stat cards, edit heatmap, project progress bars, category cards, recent updates, starred files, quick-capture capsules, and resurfacing old notes; event-driven refresh keeps panel data in sync seconds after a file is saved
@@ -66,6 +72,16 @@ Tasks are matched by stable IDs. Bookmarks sync membership, preserving each devi
 
 Backups are named `lan-sync-<machine>.json.backup-0.json` through `backup-4.json` in the plugin folder. Each contains the previous task file text, bookmarks, preferences and sync versions. If recovery is needed, pause sync on **all** devices first, keep a copy of the current files, and restore the required content from a backup. Do not delete version metadata as a routine cleanup step. Avoid running another synchronization tool against these same data files. This first version caps the sync document at 1,500 records (including deletion markers), 16 version-vector devices and eight paired peers; exceeding a limit stops the operation instead of dropping records.
 
+### Team space (preview)
+
+Use the **Team tasks** dashboard module, **Nearby devices → Manage team**, or the **Open team space** command. Create a team on the computer that will act as host; other computers scan/import its invitation or paste its pairing information. The host approves each device as an editor or viewer and selects its visibility (all team tasks or assigned tasks only), creation/deletion permissions, and whether team tasks may be synchronized. Editors can modify only tasks assigned to their own device; reassignment is host-only. Viewers cannot write. The host checks current permissions on every operation, including queued offline edits.
+
+Personal tasks remain separate. **Share personal task** copies one selected task into a new team task after review; future changes are independent. Team cards show the original device, latest editing device, assignee, priority, due date and synchronization state. Forwarding through the host does not change the original source. The module supports layout ordering, visibility, persistent collapse, edit mode and scenes through the standard module registry. Team tasks do not enter personal statistics, calendar export, AI context or completion automations.
+
+The host must be running for changes to reach other members. Members retain a local snapshot and a durable pending queue while offline; enabled clients poll every 30 seconds and submit immediately after saving. Concurrent modifications are retained as member drafts and host conflicts; the host explicitly chooses a version. Offline changes rejected by newly restricted permissions remain local drafts. Full authorized snapshots replace only the team cache: reducing visibility removes cached rows on the next connection without deleting the host's tasks. Unpairing prevents future access but cannot recall previously downloaded copies. No automatic host failover is provided. Re-pair with a fresh host invitation after an address change. One team per device, up to eight member devices, 400 task records including deletion markers, and 100 pending operations/drafts/conflicts per collection are supported; limits stop writes rather than silently discard data.
+
+Team storage is separate from personal sync and personal preferences. The machine-specific `team-sync-<machine>.json` file holds the team identity, device label, pairing secrets, policies, tasks, source metadata, acknowledged operation sequence and offline queues. `_data/team-todos.md` is maintained as a readable in-vault mirror for search, inspection and backup; authorization metadata remains private and is still authoritative, so editing the mirror cannot bypass permissions. A `.next` recovery journal and five rotating `.backup-N.json` copies protect writes. Existing personal-sync data requires no migration and is never imported automatically. To restore, pause team sync on all computers and preserve both the main file and journal before choosing a coherent backup; restoring an older host can trigger a revision mismatch on members. Exiting clears the local active team state after backing it up; keep a separate copy of a backup before it rotates out.
+
 ### Data & Storage Principles
 
 | Storage | Contents |
@@ -73,6 +89,7 @@ Backups are named `lan-sync-<machine>.json.backup-0.json` through `backup-4.json
 | `_data/todos.md` | Todos (inline `id:`/`due:`/`p:` metadata maintained by the plugin) |
 | `_data/focus.md` | Focus history accumulated per day |
 | Plugin `lan-sync-<machine>.json` and backup files | Opt-in LAN sync: device identity, pairing secrets (plain text locally), record versions, deletion markers, unresolved conflicts, and the last five pre-merge backups |
+| Plugin `team-sync-<machine>.json`, `.next` and backups | Opt-in team sync: team tasks, device names and source IDs, member permissions, local plaintext pairing secrets, offline edits and conflicts; sent only to the approved LAN host/members using the existing AES-256-GCM transport |
 | Plugin `data.json` | Storage V2 settings, layout scenes, toolbar, RSS config, Apple Calendar target/event-UID mappings, AI model config (**API keys are stored here in plain text**) |
 | Plugin `.cockpit-update-backup/` | Previous `main.js`, `styles.css`, and `manifest.json` retained locally for update rollback; user settings are never included or replaced |
 | Plugin-private `ai-history.json` | Up to 30 AI sessions (no attachment bodies / RAG excerpts / reasoning) |

@@ -8,7 +8,7 @@ const NOTIFICATION_CHANNELS = {
 };
 
 const SERVERCHAN_DEFAULTS = {
-  enabled:false, notifyToday:true, notifyOverdue:true, schedule:'daily', time:'09:00:00', times:['09:00:00'],
+  enabled:false, includeTeamTodos:false, notifyToday:true, notifyOverdue:true, schedule:'daily', time:'09:00:00', times:['09:00:00'],
   weekdays:[1,2,3,4,5], monthDays:[1], messageTemplate:'', sentReminders:{},
   channels:{
     serverChan:{ enabled:true, apiUrl:'', uid:'', sendKey:'' },
@@ -95,6 +95,7 @@ function normalizeServerChanConfig(raw) {
   const times = normalizeNotificationTimes(Array.isArray(value.times) && value.times.length ? value.times : value.time);
   return {
     ...SERVERCHAN_DEFAULTS,
+    includeTeamTodos:value.includeTeamTodos === true,
     enabled:value.enabled === true, notifyToday:value.notifyToday !== false, notifyOverdue:value.notifyOverdue !== false,
     schedule:['daily','weekly','monthly'].includes(value.schedule) ? value.schedule : 'daily',
     time:times[0], times,
@@ -287,15 +288,20 @@ class ServerChanService {
     if (!config.enabled || !isServerChanScheduleDue(config, now) || !key || allEnabledChannelsSent(config, key)) return false;
     if (!getEnabledChannels(config).length) return false;
     const due = (todos || []).filter((todo) => !todo.done && todo.dueDate && ((config.notifyToday && todo.dueDate.isSame(day, 'day')) || (config.notifyOverdue && todo.dueDate.isBefore(day, 'day'))));
-    if (!due.length && !config.messageTemplate) return false;
+    const teamDue = config.includeTeamTodos && this.plugin.teamSync
+      ? (await this.plugin.teamSync.notificationTodos()).filter(todo => !todo.done &&
+        ((config.notifyToday && todo.dueDate.isSame(day, 'day')) || (config.notifyOverdue && todo.dueDate.isBefore(day, 'day')))) : [];
+    if (!due.length && !teamDue.length && !config.messageTemplate) return false;
     const name = safeText(username || '你', 80) || '你'; const dateTime = formatServerChanDateTime(now); const todayItems = due.filter((todo) => todo.dueDate.isSame(day, 'day')); const overdueItems = due.filter((todo) => todo.dueDate.isBefore(day, 'day'));
     let title; let body;
     if (config.messageTemplate) { title = name + '，提醒时间到了'; body = dateTime + '\n\n' + config.messageTemplate; }
     else {
       title = todayItems.length && overdueItems.length ? name + '，' + due.length + ' 项待办等你处理' : todayItems.length ? name + '，' + todayItems.length + ' 项待办今天到期' : name + '，' + overdueItems.length + ' 项待办已经逾期';
+      if (teamDue.length) title = name + '，' + (due.length + teamDue.length) + ' 项待办等你处理';
       const sections = [];
       if (todayItems.length) sections.push('今日到期 · ' + todayItems.length + ' 项\n' + todayItems.map((todo) => '• ' + todo.text + '（截止 ' + todo.dueDate.format('YYYY-MM-DD') + '）').join('\n'));
       if (overdueItems.length) sections.push('已逾期 · ' + overdueItems.length + ' 项\n' + overdueItems.map((todo) => '• ' + todo.text + '（截止 ' + todo.dueDate.format('YYYY-MM-DD') + '）').join('\n'));
+      if (teamDue.length) sections.push('团队待办 · ' + teamDue.length + ' 项\n' + teamDue.map(todo => '• ' + todo.text + '（截止 ' + todo.dueDate.format('YYYY-MM-DD HH:mm:ss') + '）').join('\n'));
       body = name + '，你好！\n\n' + dateTime + '\n\n' + sections.join('\n\n');
     }
     // 只对“未发送且未用尽重试次数”的渠道发起推送；失败的渠道记录明确状态，
@@ -461,6 +467,8 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     if (config.schedule === 'monthly') new obs.Setting(panels.schedule).setName(copy.monthDays).setDesc(copy.monthDaysDesc).addText((text) => text.setValue(config.monthDays.join(',')).onChange(async (value) => { config.monthDays = normalizeNumberList(value,1,31,SERVERCHAN_DEFAULTS.monthDays); await save(); }));
 
     addPanelIntro(panels.scope, copy.scope, en ? 'Choose which tasks are included and optionally add a custom message.' : '选择提醒包含的待办范围，也可以附加自定义消息。');
+    new obs.Setting(panels.scope).setName(en ? 'Team tasks' : '团队待办').setDesc(en ? 'Include visible team tasks in the selected due-date range. Custom messages replace task summaries.' : '按下方到期范围包含有权查看的团队待办；填写自定义消息时，以自定义内容替代待办摘要。')
+      .addToggle(toggle => toggle.setValue(config.includeTeamTodos).onChange(async value => { config.includeTeamTodos = value; await save(); }));
     new obs.Setting(panels.scope).setName(copy.today).setDesc(copy.todayDesc).addToggle((toggle) => toggle.setValue(config.notifyToday).onChange(async (value) => { config.notifyToday = value; await save(); }));
     new obs.Setting(panels.scope).setName(copy.overdue).setDesc(copy.overdueDesc).addToggle((toggle) => toggle.setValue(config.notifyOverdue).onChange(async (value) => { config.notifyOverdue = value; await save(); }));
     new obs.Setting(panels.scope).setName(copy.custom).setDesc(copy.customDesc).addTextArea((text) => text.setPlaceholder(copy.customPlaceholder).setValue(config.messageTemplate).onChange(async (value) => { config.messageTemplate = safeText(value,4000); await save(); }));

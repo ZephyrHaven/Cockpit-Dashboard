@@ -16,8 +16,8 @@ class CockpitLanPairModal extends obs.Modal {
   constructor(app, service, mode) { super(app); this.service = service; this.mode = mode; this.closed = false; this.stream = null; }
   async onOpen() {
     this.contentEl.addClass('cockpit-lan-modal');
-    this.contentEl.createEl('h2', { text:this.mode === 'show' ? '让另一台电脑扫这里' : '连接我的另一台电脑' });
-    this.contentEl.createEl('p', { text:'两台电脑连接同一 Wi-Fi 或有线局域网，并开启 Cockpit。首次连接还需在对方电脑确认。', cls:'cockpit-lan-muted' });
+    this.contentEl.createEl('h2', { text:this.service.isTeam ? (this.mode === 'show' ? '邀请同事加入团队' : '加入团队 / 重新连接主设备') : (this.mode === 'show' ? '让另一台电脑扫这里' : '连接我的另一台电脑') });
+    this.contentEl.createEl('p', { text:this.service.isTeam ? '连接同一局域网，由主设备确认设备身份和权限。加入团队不会上传个人待办或个人设置。' : '两台电脑连接同一 Wi-Fi 或有线局域网，并开启 Cockpit。首次连接还需在对方电脑确认。', cls:'cockpit-lan-muted' });
     this.status = this.contentEl.createEl('p', { attr:{ role:'status', 'aria-live':'polite' } });
     if (this.mode === 'show') {
       try {
@@ -120,6 +120,9 @@ class CockpitLanConflictsModal extends obs.Modal {
 }
 async function renderLanSyncSettings(container, plugin, language) {
   const en = language === 'en'; const service = plugin.lanSync;
+  container.createEl('h2', { text:en ? 'Team space' : '团队空间' });
+  container.createEl('p', { text:en ? 'A host approves devices and controls team task permissions. Personal tasks stay separate.' : '主设备审批成员并控制团队待办的同步范围和权限，个人待办独立保留。' });
+  teamSyncButton(container, en ? 'Manage team' : '创建 / 加入 / 管理团队', () => plugin.teamSync?.open());
   container.createEl('h2', { text:en ? 'Nearby devices · Preview' : '附近设备 · 预览版' });
   container.createEl('p', { cls:'cockpit-lan-muted', text:en ? 'Pair your computers on the same network. Sync tasks, bookmarks, display name and language.' : '把你的电脑连接起来。在同一网络下，共享待办、收藏、昵称和语言。' });
   if (!service) { container.createEl('p', { text:'同步服务不可用，请重新加载插件。' }); return; }

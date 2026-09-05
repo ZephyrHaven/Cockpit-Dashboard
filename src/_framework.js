@@ -7,14 +7,26 @@ class CockpitView extends obs.ItemView {
   _t(key, vars) { return getText(this._language, key, vars); }
   _isMobile() { return this.app.isMobile === true; }
   _syncResponsiveViewport() {
-    const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
+    const container = this.containerEl.children[1];
+    const roots = container ? Array.from(container.querySelectorAll(':scope > .' + PLUGIN_ID + '-root')) : [];
+    // During a scene/component-store crossfade there are two roots. The first
+    // one is the leaving layout; applying its width makes the entering layout
+    // fall back to the max width until a manual refresh. Always size the live,
+    // last-mounted root instead.
+    const root = roots[roots.length - 1];
     if (!root) return;
-    const rect = root.parentElement?.getBoundingClientRect() || root.getBoundingClientRect();
+    const parent = root.parentElement;
+    const rect = parent?.getBoundingClientRect?.() || root.getBoundingClientRect();
     const viewport = window.visualViewport;
-    const width = Math.round(rect.width || window.innerWidth);
+    const width = Math.round(parent?.clientWidth || rect.width || window.innerWidth);
     const height = Math.round(Math.min(viewport?.height || window.innerHeight, window.innerHeight));
     root.style.setProperty('--cockpit-available-width', width + 'px');
-    root.style.setProperty('--cockpit-content-width', Number.isFinite(this._contentWidth) ? Math.min(this._contentWidth, width) + 'px' : '100%');
+    const contentWidth = Number.isFinite(this._contentWidth) ? Math.min(this._contentWidth, width) : null;
+    root.style.setProperty('--cockpit-content-width', contentWidth ? contentWidth + 'px' : '100%');
+    // Keep a concrete inline width as well as the CSS variable. Host reflows
+    // and crossfades can briefly recalculate custom properties before the new
+    // root has a stable parent; inline width survives that pass.
+    root.style.width = contentWidth ? contentWidth + 'px' : '100%';
     root.style.setProperty('--cockpit-available-height', height + 'px');
     const mobileDevice = this._isMobile();
     root.classList.toggle(PLUGIN_ID + '-phone-narrow', width < 390);
@@ -36,7 +48,7 @@ class CockpitView extends obs.ItemView {
       handle.setAttribute('aria-valuemax', String(available));
       handle.setAttribute('aria-valuenow', String(this._contentWidth || available));
       handle.setAttribute('aria-valuetext', this._contentWidth ? `${this._contentWidth}px` : '自动宽度');
-      if (persist) this._mutatePluginData(data => { data.dashboardContentWidth = this._contentWidth; }).catch(error => console.warn('Cockpit: save content width failed', error));
+      if (persist) this._saveContentWidth().catch(error => console.warn('Cockpit: save content width failed', error));
     };
     handle.addEventListener('pointerdown', event => {
       if (event.button !== 0 || this._isMobile()) return;
@@ -55,8 +67,21 @@ class CockpitView extends obs.ItemView {
       apply(next, true);
     };
     handle.ondblclick = () => apply(viewportWidth(), true);
-    this._contentResizeCleanup = () => { handle.remove(); this._contentResizeCleanup = null; };
+    const parent = root.parentElement;
+    const observer = typeof ResizeObserver === 'function' && parent ? new ResizeObserver(() => this._syncResponsiveViewport()) : null;
+    observer?.observe(parent);
+    this._contentResizeCleanup = () => { observer?.disconnect(); handle.remove(); this._contentResizeCleanup = null; };
     this._syncResponsiveViewport();
+    // Scene/component-store crossfades can report a zero or stale parent width
+    // during the first layout pass. Re-apply the saved scene width after the
+    // entering root is attached and after the host has completed its reflow.
+    cancelAnimationFrame(this._contentWidthFrame);
+    this._contentWidthFrame = requestAnimationFrame(() => {
+      this._syncResponsiveViewport();
+      this._contentWidthFrame = requestAnimationFrame(() => this._syncResponsiveViewport());
+    });
+    clearTimeout(this._contentWidthTimer);
+    this._contentWidthTimer = setTimeout(() => this._syncResponsiveViewport(), 90);
   }
   // 模块契约：新增模块必须在此注册 id、默认排序、编辑态显示名与 DOM 归属规则。
   // 布局编辑、排序、隐藏和情景布局都只认这份注册表，避免新模块成为页面里的“例外”。
@@ -72,6 +97,7 @@ class CockpitView extends obs.ItemView {
       { id:'cats', label:this._t('sections.cats'), collapsible:true, matches:(el) => el.dataset.section === 'cats-title' || el.classList.contains(PLUGIN_ID + '-cats') },
       { id:'stats', label:this._t('sections.stats'), collapsible:true, matches:(el) => el.dataset.section === 'stats-title' || el.classList.contains(PLUGIN_ID + '-stats') },
       { id:'todos', label:this._t('sections.todos'), collapsible:true, matches:(el) => el.classList.contains(PLUGIN_ID + '-todo-header') || el.dataset.section === 'todos-body' },
+      { id:'teamTodos', label:this._lang() === 'en' ? 'Team tasks' : '团队待办', collapsible:true, matches:(el) => el.dataset.section === 'teamTodos-title' || el.dataset.section === 'teamTodos-body' },
       { id:'habits', label:this._t('layout.modules.habits'), collapsible:true, matches:(el) => el.dataset.section === 'habits-title' || el.dataset.section === 'habits-body' || el.classList.contains(PLUGIN_ID + '-habits') },
       { id:'projects', label:this._t('layout.modules.projects'), collapsible:true, matches:(el) => el.dataset.section === 'projects-title' || el.dataset.section === 'projects-body' || el.classList.contains(PLUGIN_ID + '-projects') },
       { id:'focusChart', label:this._t('layout.modules.focusChart'), collapsible:true, matches:(el) => el.dataset.section === 'focus-chart-title' || el.dataset.section === 'focus-chart' },
@@ -170,12 +196,16 @@ class CockpitView extends obs.ItemView {
   _isToolbarActionHidden(action) {
     return this._hiddenToolbarActions.has(action);
   }
-  _sceneSnapshot() { return { moduleOrder:[...this._moduleOrder], hiddenModules:Array.from(this._hiddenModules), toolbarOrder:[...this._toolbarOrder], hiddenToolbarActions:Array.from(this._hiddenToolbarActions), statsCardOrder:[...this._statsCardOrder], hiddenStatsCards:Array.from(this._hiddenStatsCards), moduleLabels:{...this._customModuleLabels} }; }
+  _sceneSnapshot() { return { moduleOrder:[...this._moduleOrder], hiddenModules:Array.from(this._hiddenModules), toolbarOrder:[...this._toolbarOrder], hiddenToolbarActions:Array.from(this._hiddenToolbarActions), statsCardOrder:[...this._statsCardOrder], hiddenStatsCards:Array.from(this._hiddenStatsCards), moduleLabels:{...this._customModuleLabels}, contentWidth:Number.isFinite(this._contentWidth) ? this._contentWidth : null }; }
   _sceneLabel(scene) { return scene?.id === 'default' ? (this._lang() === 'en' ? 'Default layout' : '默认布局') : (scene?.name || (this._lang() === 'en' ? 'Untitled scene' : '未命名情景')); }
   _sceneList() { return Object.values(this._sceneLayouts); }
   _getActiveScene() { return this._sceneLayouts[this._activeSceneId] || this._sceneLayouts.default; }
   _applySceneSnapshot(scene) {
     const layout = scene?.layout || {};
+    const sceneWidth = Number(layout.contentWidth);
+    if (Object.prototype.hasOwnProperty.call(layout, 'contentWidth')) {
+      this._contentWidth = Number.isFinite(sceneWidth) && sceneWidth >= 480 ? Math.round(sceneWidth) : null;
+    }
     this._moduleOrder = this._normalizeModuleOrder(layout.moduleOrder);
     this._hiddenModules = new Set(this._normalizeModuleSubset(layout.hiddenModules));
     this._toolbarOrder = normalizeToolbarOrder(this, layout.toolbarOrder);
@@ -195,10 +225,27 @@ class CockpitView extends obs.ItemView {
       data.activeSceneId = this._activeSceneId;
       data.moduleOrder = this._moduleOrder; data.hiddenModules = Array.from(this._hiddenModules);
       data.toolbarOrder = this._toolbarOrder; data.hiddenToolbarActions = Array.from(this._hiddenToolbarActions);
+      // Keep the legacy fallback aligned with the active scene for upgrades
+      // from versions that stored one global dashboard width.
+      data.dashboardContentWidth = this._contentWidth;
+    });
+  }
+  async _saveContentWidth() {
+    const scene = this._getActiveScene();
+    if (scene) scene.layout = { ...(scene.layout || {}), contentWidth:Number.isFinite(this._contentWidth) ? this._contentWidth : null };
+    await this._mutatePluginData((data) => {
+      data.sceneLayouts = this._sceneLayouts;
+      data.activeSceneId = this._activeSceneId;
+      // Keep the legacy field as a fallback for older layouts and safe downgrade.
+      data.dashboardContentWidth = this._contentWidth;
     });
   }
   async _switchScene(id) {
     const scene = this._sceneLayouts[id]; if (!scene || id === this._activeSceneId) return;
+    // A drag save is intentionally debounced by the browser event loop. Flush the
+    // current scene before changing the active id so the latest width cannot race
+    // with the scene snapshot and be replaced by the viewport width.
+    await this._saveContentWidth();
     this._activeSceneId = id; this._editMode = false; this._applySceneSnapshot(scene);
     await this._saveActiveSceneLayout();
     await this._renderDashboard(false, true);
@@ -610,6 +657,14 @@ class CockpitView extends obs.ItemView {
         });
       }
       this._activeSceneId = this._sceneLayouts[pluginData?.activeSceneId] ? pluginData.activeSceneId : 'default';
+      // 宽度从全局配置迁移到情景布局：旧版本的宽度作为所有既有情景的初始值，
+      // 此后每个情景独立保存，切换情景不会再回到最大默认宽度。
+      const legacyWidth = Number(pluginData?.dashboardContentWidth);
+      if (Number.isFinite(legacyWidth) && legacyWidth >= 480) {
+        Object.values(this._sceneLayouts).forEach((scene) => {
+          if (!Number.isFinite(Number(scene?.layout?.contentWidth))) scene.layout = { ...(scene.layout || {}), contentWidth:Math.round(legacyWidth) };
+        });
+      }
       this._applySceneSnapshot(this._getActiveScene());
       if (!pluginData.focusChartIntroduced) {
         Object.values(this._sceneLayouts).forEach((scene) => {
@@ -838,6 +893,7 @@ class CockpitView extends obs.ItemView {
   }
 
   async _renderDashboard(reloadState, crossfadeScene) {
+    this._teamUnsubscribe?.(); this._teamUnsubscribe = null; this._teamBuildToken = null;
     if (reloadState) await this._reloadDashboardState();
     this._blankContextMenuItems = [];
     this._heroRefs = null;
@@ -1448,6 +1504,14 @@ class CockpitView extends obs.ItemView {
       lunarEnabled: this._calendarLunarEnabled !== false,
       t,
       openTodoEditor,
+      onTeamTodoOpen:(todo) => {
+        const record = this._plugin.teamSync?.state?.tasks?.[todo?.id];
+        if (record) this._plugin.teamSync.openModal(new CockpitTeamEditorModal(this.app, this._plugin.teamSync, record));
+      },
+      onTeamTodoToggle:(todo, done) => {
+        const record = this._plugin.teamSync?.state?.tasks?.[todo?.id];
+        return record ? this._plugin.teamSync.submit(record.id, record.revision, { ...record.value, done }) : null;
+      },
       onTodoAlarm: openTodoAlarm,
       hasLinkedTodoAlarm: (todoId) => linkedAlarmTodoIds.has(todoId),
       onTodoToggle: async (todoId, done) => commitTodoMutation((todos) => {
@@ -1481,6 +1545,10 @@ class CockpitView extends obs.ItemView {
         });
       },
       loadCountdownItems:async() => this._plugin.countdowns.load(),
+      teamTodos:() => Object.values(this._plugin.teamSync?.state?.tasks || {}).filter((task) => task?.value?.due).map((task) => ({
+        id:task.id, text:task.value.text, done:task.value.done, priority:task.value.priority, dueDate:window.moment(task.value.due, task.value.due.length > 10 ? (task.value.due.length > 16 ? 'YYYY-MM-DDTHH:mm:ss' : 'YYYY-MM-DDTHH:mm') : 'YYYY-MM-DD', true), dueHasTime:task.value.due.length > 10, teamTodo:true,
+        origin:task.origin, updatedBy:task.updatedBy
+      })),
       onAutomationOpen:(task) => openScheduledTaskEditor(this,task),
       onAutomationRun:async(task) => {
         const ok = await this._plugin.scheduledTasks.runTask(task.id,{trigger:'manual'});
@@ -2044,6 +2112,9 @@ class CockpitView extends obs.ItemView {
     addBtn.onclick = async ()=>{
       openTodoEditor();
     };
+
+    try { await buildTeamTodosModule(this, root); }
+    catch (error) { console.warn('Cockpit team module failed; dashboard basics remain available', error); }
 
     // ===== 5.3 习惯打卡（独立模块；数据在 _data/habits.md） =====
     try {
@@ -2699,6 +2770,9 @@ class CockpitView extends obs.ItemView {
     } catch (e) { console.warn('Cockpit: stylesheet probe failed', e); }
   }
   async onClose() {
+    cancelAnimationFrame(this._contentWidthFrame); this._contentWidthFrame = null;
+    clearTimeout(this._contentWidthTimer); this._contentWidthTimer = null;
+    this._teamUnsubscribe?.(); this._teamUnsubscribe = null; this._teamBuildToken = null;
     this._contentResizeCleanup?.();
     if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; }
     if (this._minuteRefreshTimer) { clearInterval(this._minuteRefreshTimer); this._minuteRefreshTimer = null; }
@@ -2962,6 +3036,8 @@ class CockpitPlugin extends obs.Plugin {
     void this.updater.start().catch((error) => console.warn('Cockpit updater initialization failed', error));
     this.lanSync = new CockpitLanSync(this);
     void this.lanSync.initialize();
+    this.teamSync = new CockpitTeamSync(this);
+    void this.teamSync.initialize();
     this.rag = new CockpitRagService(this);
     this.registerEvent(this.app.vault.on('modify', (file) => {
       this.rag.invalidatePath(file?.path);
@@ -3059,6 +3135,7 @@ class CockpitPlugin extends obs.Plugin {
   async onunload() {
     this.updater?.stop();
     this._lanSettingsCleanup?.();
+    this.teamSync?.stop();
     this.lanSync?.stop();
     // 官方审查要求：插件卸载时清理全部全局资源；且不得在 onunload 中 detach leaves，
     // 更新/禁用后由宿主应用原位恢复视图位置。番茄钟浮层带会话销毁，重新启用时自动恢复倒计时。
