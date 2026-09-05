@@ -1,5 +1,5 @@
 class CockpitView extends obs.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._calendarAutomationUnsubscribe = null; this._calendarCountdownUnsubscribe = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._countdownUnsubscribe = null; this._countdownDisplayTimer = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._calendarAutomationUnsubscribe = null; this._calendarCountdownUnsubscribe = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._countdownUnsubscribe = null; this._countdownDisplayTimer = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; this._contentWidth = null; this._contentResizeCleanup = null; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -14,11 +14,49 @@ class CockpitView extends obs.ItemView {
     const width = Math.round(rect.width || window.innerWidth);
     const height = Math.round(Math.min(viewport?.height || window.innerHeight, window.innerHeight));
     root.style.setProperty('--cockpit-available-width', width + 'px');
+    root.style.setProperty('--cockpit-content-width', Number.isFinite(this._contentWidth) ? Math.min(this._contentWidth, width) + 'px' : '100%');
     root.style.setProperty('--cockpit-available-height', height + 'px');
     const mobileDevice = this._isMobile();
     root.classList.toggle(PLUGIN_ID + '-phone-narrow', width < 390);
     root.classList.toggle(PLUGIN_ID + '-phone', mobileDevice || width < 680);
     root.classList.toggle(PLUGIN_ID + '-tablet', !mobileDevice && width >= 680 && width < 980);
+  }
+  _attachContentResizeHandle(root) {
+    this._contentResizeCleanup?.();
+    const handle = root.createEl('button', { cls:PLUGIN_ID + '-content-resize-handle', attr:{ type:'button', title:'拖动调整内容宽度；双击恢复自动宽度', 'aria-label':'调整仪表盘内容宽度', 'aria-orientation':'horizontal' } });
+    obs.setIcon(handle, 'grip-vertical');
+    let drag = null;
+    const viewportWidth = () => root.parentElement?.getBoundingClientRect?.().width || window.innerWidth;
+    const apply = (value, persist = false) => {
+      const available = Math.round(viewportWidth());
+      const next = Math.max(480, Math.min(available, Math.round(value)));
+      this._contentWidth = next >= available - 8 ? null : next;
+      this._syncResponsiveViewport();
+      handle.setAttribute('aria-valuemin', '480');
+      handle.setAttribute('aria-valuemax', String(available));
+      handle.setAttribute('aria-valuenow', String(this._contentWidth || available));
+      handle.setAttribute('aria-valuetext', this._contentWidth ? `${this._contentWidth}px` : '自动宽度');
+      if (persist) this._mutatePluginData(data => { data.dashboardContentWidth = this._contentWidth; }).catch(error => console.warn('Cockpit: save content width failed', error));
+    };
+    handle.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || this._isMobile()) return;
+      drag = { startX:event.clientX, startWidth:root.getBoundingClientRect().width };
+      handle.setPointerCapture?.(event.pointerId); root.classList.add(PLUGIN_ID + '-content-resizing'); event.preventDefault();
+    });
+    handle.addEventListener('pointermove', event => { if (!drag) return; apply(drag.startWidth + (event.clientX - drag.startX)); event.preventDefault(); });
+    const finish = event => { if (!drag) return; const width = root.getBoundingClientRect().width; drag = null; root.classList.remove(PLUGIN_ID + '-content-resizing'); try { handle.releasePointerCapture?.(event.pointerId); } catch (error) {} apply(width, true); };
+    handle.addEventListener('pointerup', finish); handle.addEventListener('pointercancel', finish);
+    handle.onkeydown = event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return;
+      event.preventDefault();
+      const available = Math.round(viewportWidth());
+      const current = this._contentWidth || available;
+      const next = event.key === 'Home' ? 480 : event.key === 'End' ? available : current + (event.key === 'ArrowRight' ? 40 : -40);
+      apply(next, true);
+    };
+    handle.ondblclick = () => apply(viewportWidth(), true);
+    this._contentResizeCleanup = () => { handle.remove(); this._contentResizeCleanup = null; };
+    this._syncResponsiveViewport();
   }
   // 模块契约：新增模块必须在此注册 id、默认排序、编辑态显示名与 DOM 归属规则。
   // 布局编辑、排序、隐藏和情景布局都只认这份注册表，避免新模块成为页面里的“例外”。
@@ -543,6 +581,8 @@ class CockpitView extends obs.ItemView {
       this._calendarViewMode = pluginData?.calendarViewMode === 'week' ? 'week' : 'month';
       this._calendarLunarEnabled = pluginData?.calendarLunarEnabled !== false;
       this._username = pluginData?.username || this._t('hero.defaultName');
+      const savedContentWidth = Number(pluginData?.dashboardContentWidth);
+      this._contentWidth = Number.isFinite(savedContentWidth) && savedContentWidth >= 480 ? Math.round(savedContentWidth) : null;
       this._collapsed = pluginData?.collapsed || {};
       this._moduleOrder = this._normalizeModuleOrder(pluginData?.moduleOrder);
       this._hiddenModules = new Set(this._normalizeModuleSubset(pluginData?.hiddenModules));
@@ -2315,6 +2355,7 @@ class CockpitView extends obs.ItemView {
       if (this._sceneSwitcherRefresh) this._sceneSwitcherRefresh();
     };
     this._applyModuleEditState(root);
+    this._attachContentResizeHandle(root);
 
     // ===== 番茄钟浮动组件 =====
     if (this._pomodoroAutoShow || this._pomodoroSession?.active) buildPomodoro(this, root);
@@ -2650,6 +2691,7 @@ class CockpitView extends obs.ItemView {
     } catch (e) { console.warn('Cockpit: stylesheet probe failed', e); }
   }
   async onClose() {
+    this._contentResizeCleanup?.();
     if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; }
     if (this._minuteRefreshTimer) { clearInterval(this._minuteRefreshTimer); this._minuteRefreshTimer = null; }
     if (this._sceneAutoTimer) { clearInterval(this._sceneAutoTimer); this._sceneAutoTimer = null; }

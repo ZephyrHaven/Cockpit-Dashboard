@@ -8,17 +8,45 @@
 }
 
 .cockpit-dashboard-root { 
-  width: 100%;
+  width: min(100%, var(--cockpit-content-width, 100%));
   min-width: 0;
   max-width: none;
   box-sizing: border-box;
   padding: 16px clamp(16px, calc(var(--cockpit-available-width, 1200px) * 0.02), 48px);
-  margin: 0;
+  margin: 0 auto;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
   position: relative;
   --accent: var(--cockpit-accent);
   --accent-light: var(--cockpit-accent-light);
 }
+.cockpit-dashboard-content-resize-handle {
+  position: absolute;
+  top: 50%;
+  right: -10px;
+  z-index: 20;
+  width: 20px;
+  height: 72px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: ew-resize;
+  opacity: .35;
+  transform: translateY(-50%);
+  transition: opacity .16s ease, color .16s ease, background .16s ease;
+}
+.cockpit-dashboard-content-resize-handle:hover,
+.cockpit-dashboard-root.cockpit-dashboard-content-resizing .cockpit-dashboard-content-resize-handle {
+  opacity: 1;
+  color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+}
+.cockpit-dashboard-content-resize-handle svg { width: 13px; height: 28px; }
+.cockpit-dashboard-root.cockpit-dashboard-content-resizing { user-select: none; }
+.cockpit-dashboard-root.cockpit-dashboard-phone .cockpit-dashboard-content-resize-handle { display: none; }
 .cockpit-dashboard-root.cockpit-dashboard-initializing { visibility:hidden; }
 .cockpit-dashboard-root ::selection {
   background: rgba(72,180,255,0.18);

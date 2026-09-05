@@ -10,10 +10,15 @@ Cockpit Dashboard is a local-first Obsidian home-page plugin that brings todos, 
 ## 1.8.6 update
 
 - The dashboard now fills its available pane instead of stopping at 960 px, with adaptive side spacing for large displays and split views.
+- Dashboard content width is adjustable from the subtle grip on the right edge. Drag it to set a comfortable reading width; double-click the grip (or press End) to return to automatic full width. The preference is stored locally and re-clamped when the pane is smaller.
 - Nearby devices (preview) adds QR pairing and encrypted LAN synchronization for tasks, bookmarks, display name and language, with backups and conflict review.
 - AI startup failures now show the failed stage and a retry button instead of leaving an unexplained blank panel; this improves diagnosis but does not establish the cause of every Windows startup issue.
 
 LAN sync remains opt-in and in preview: real Windows/macOS device pairing, camera permissions and firewall behavior still need cross-device acceptance testing.
+
+## 1.8.7 update
+
+The dashboard keeps automatic full width by default, while a subtle handle on the right edge lets you choose a comfortable content width. The choice is stored locally, follows the current pane size, and can be reset by double-clicking the handle or pressing End when it has focus.
 
 ## Core Features
 
