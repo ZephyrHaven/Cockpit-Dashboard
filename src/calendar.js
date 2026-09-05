@@ -1,7 +1,7 @@
 // calendar.js — 日历看板模块
 
 function buildCalendar(root, todos, opts) {
-  const { language, t, openTodoEditor, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, lunarEnabled } = opts;
+  const { language, t, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, lunarEnabled, teamTodos } = opts;
   // 刷新时必须读取视图的最新待办数组；不能闭包捕获初次渲染的旧快照。
   const getTodos = typeof todos === 'function' ? todos : () => todos;
   let calYear = window.moment().year();
@@ -31,6 +31,11 @@ function buildCalendar(root, todos, opts) {
       if (!todo.dueDate) return;
       const key = todo.dueDate.format('YYYY-MM-DD');
       (map[key] ||= []).push({ ...todo, raw: todo });
+    });
+    (typeof teamTodos === 'function' ? teamTodos() : teamTodos || []).forEach((todo) => {
+      if (!todo?.dueDate) return;
+      const key = todo.dueDate.format('YYYY-MM-DD');
+      (map[key] ||= []).push({ ...todo, raw: todo, teamTodo:true });
     });
     return map;
   };
@@ -139,7 +144,7 @@ function buildCalendar(root, todos, opts) {
         countdownItems:Array.isArray(countdownItems) ? countdownItems : [],
         filter:flowFilter,
         onFilterChange:(nextFilter) => { flowFilter=nextFilter; renderDetail(todoMap); },
-        openTodoEditor, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm,
+        openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm,
         openRss, onAutomationOpen, onAutomationRun, onCountdownOpen,
         rerender:() => renderDetail(todoMap), rss
       });

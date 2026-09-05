@@ -106,7 +106,9 @@ function cockpitRegisterVaultRefreshEvents(view) {
   const isSelfManagedPath = (filePath) => {
     if (!filePath) return true;
     return filePath === TODO_FILE || filePath === FOCUS_FILE
-      || (DAILY_DIR && filePath.startsWith(DAILY_DIR + '/'));
+      || (DAILY_DIR && filePath.startsWith(DAILY_DIR + '/'))
+      || filePath === '_data/team-todos.md'
+      || filePath === view._plugin.teamSync?.path;
   };
   const scheduleVaultRefresh = () => {
     if (debounceTimer) window.clearTimeout(debounceTimer);

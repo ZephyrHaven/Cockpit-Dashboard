@@ -3,7 +3,7 @@
 const COMPONENT_STORE_META = {
   hero:{icon:'sparkles',category:'basic'}, tip:{icon:'lightbulb',category:'basic',manager:'tip'}, toolbar:{icon:'panels-top-left',category:'basic',manager:'toolbar'},
   alarms:{icon:'alarm-clock',category:'focus'}, countdowns:{icon:'timer-reset',category:'focus'}, agenda:{icon:'clock-3',category:'planning'}, calendar:{icon:'calendar-days',category:'planning'},
-  cats:{icon:'folders',category:'knowledge'}, stats:{icon:'chart-no-axes-column-increasing',category:'insights',manager:'stats'}, todos:{icon:'list-checks',category:'planning'},
+  cats:{icon:'folders',category:'knowledge'}, stats:{icon:'chart-no-axes-column-increasing',category:'insights',manager:'stats'}, todos:{icon:'list-checks',category:'planning'}, teamTodos:{icon:'users',category:'planning'},
   habits:{icon:'flame',category:'focus'}, projects:{icon:'target',category:'planning'}, focusChart:{icon:'chart-line',category:'insights'}, bookmarks:{icon:'star',category:'knowledge'},
   flash:{icon:'zap',category:'knowledge'}, resurface:{icon:'history',category:'knowledge'}, heatmap:{icon:'grid-3x3',category:'insights'}, weeklyReview:{icon:'calendar-check',category:'insights'},
   scheduledTasks:{icon:'calendar-clock',category:'automation'}, workflows:{icon:'workflow',category:'automation'}, reportStudio:{icon:'file-chart-column',category:'automation'},
@@ -28,9 +28,9 @@ function componentStoreCopy(view) { return view._lang() === 'en' ? COMPONENT_STO
 function componentStoreDescriptions(view) {
   const en = view._lang() === 'en';
   return en ? {
-    hero:'Greeting and today overview',tip:'Daily prompt and personal tip library',toolbar:'Built-in and custom quick actions',alarms:'Recurring and one-time alarms',countdowns:'Deadline countdowns and notifications',agenda:'Today timeline',calendar:'Month and week planning',cats:'Knowledge-area shortcuts',stats:'Progress and activity cards',todos:'Task management',habits:'Habit check-ins',projects:'Project progress',focusChart:'Focus trends',bookmarks:'Starred notes',flash:'Quick capture inbox',resurface:'Bring old notes back',heatmap:'Recent editing activity',weeklyReview:'Weekly reflection',scheduledTasks:'Time and event automations',workflows:'Multi-step operations',reportStudio:'Weekly report generation',footer:'Dashboard footer',recent:'Recently opened and edited notes'
+    hero:'Greeting and today overview',tip:'Daily prompt and personal tip library',toolbar:'Built-in and custom quick actions',alarms:'Recurring and one-time alarms',countdowns:'Deadline countdowns and notifications',agenda:'Today timeline',calendar:'Month and week planning',cats:'Knowledge-area shortcuts',stats:'Progress and activity cards',todos:'Task management',teamTodos:'Team tasks with device permissions',habits:'Habit check-ins',projects:'Project progress',focusChart:'Focus trends',bookmarks:'Starred notes',flash:'Quick capture inbox',resurface:'Bring old notes back',heatmap:'Recent editing activity',weeklyReview:'Weekly reflection',scheduledTasks:'Time and event automations',workflows:'Multi-step operations',reportStudio:'Weekly report generation',footer:'Dashboard footer',recent:'Recently opened and edited notes'
   } : {
-    hero:'问候与今日概览',tip:'每日提示与个人提示库',toolbar:'内置和自定义快捷操作',alarms:'重复及单次闹钟',countdowns:'截止倒计时与多渠道提醒',agenda:'今日时间线',calendar:'月视图和周视图计划',cats:'知识分类入口',stats:'进度与活动统计卡片',todos:'待办事项管理',habits:'习惯打卡',projects:'项目进度',focusChart:'专注趋势',bookmarks:'收藏文件',flash:'快速记录入口',resurface:'重新发现旧笔记',heatmap:'近期编辑活跃度',weeklyReview:'每周回顾',scheduledTasks:'时间与事件自动化',workflows:'多步骤运维流程',reportStudio:'周报生成与优化',footer:'驾驶舱页脚',recent:'最近打开和修改的内容'
+    hero:'问候与今日概览',tip:'每日提示与个人提示库',toolbar:'内置和自定义快捷操作',alarms:'重复及单次闹钟',countdowns:'截止倒计时与多渠道提醒',agenda:'今日时间线',calendar:'月视图和周视图计划',cats:'知识分类入口',stats:'进度与活动统计卡片',todos:'待办事项管理',teamTodos:'局域网团队待办与设备权限',habits:'习惯打卡',projects:'项目进度',focusChart:'专注趋势',bookmarks:'收藏文件',flash:'快速记录入口',resurface:'重新发现旧笔记',heatmap:'近期编辑活跃度',weeklyReview:'每周回顾',scheduledTasks:'时间与事件自动化',workflows:'多步骤运维流程',reportStudio:'周报生成与优化',footer:'驾驶舱页脚',recent:'最近打开和修改的内容'
   };
 }
 
@@ -59,7 +59,7 @@ function renderComponentPreview(parent, entry, variant='card') {
     const grid=frame.createDiv({cls:PLUGIN_ID+'-component-preview-calendar'});for(let i=0;i<28;i+=1)grid.createSpan({cls:[5,11,12,18,24].includes(i)?'active':''});
   }else if(id==='stats'||id==='focusChart'){
     const cards=frame.createDiv({cls:PLUGIN_ID+'-component-preview-stats'});[72,48,86].forEach((width)=>{const card=cards.createDiv();card.createSpan();const bar=card.createDiv();bar.createSpan({attr:{style:`width:${width}%`}});});
-  }else if(id==='todos'||id==='habits'||id==='projects'||id==='agenda'){
+  }else if(id==='todos'||id==='teamTodos'||id==='habits'||id==='projects'||id==='agenda'){
     const list=frame.createDiv({cls:PLUGIN_ID+'-component-preview-list'});for(let i=0;i<3;i+=1){const row=list.createDiv();row.createSpan({cls:i===0?'checked':''});row.createSpan();row.createSpan();}
   }else if(id==='countdowns'||id==='alarms'){
     const timer=frame.createDiv({cls:PLUGIN_ID+'-component-preview-timer'});timer.createDiv({text:id==='countdowns'?'03 : 08 : 24':'08 : 30'});const progress=timer.createDiv();progress.createSpan();const chips=timer.createDiv();chips.createSpan();chips.createSpan();
@@ -91,6 +91,7 @@ class CockpitComponentStoreModal extends obs.Modal {
   _markGlobalChanged() { this.globalChanged=true; this.draft.toolbarOrder=normalizeToolbarOrder(this.view,this.draft.toolbarOrder); this.render(); }
   async apply() {
     if (this.sceneId !== this.view._activeSceneId) { new obs.Notice(componentStoreCopy(this.view).sceneChanged); this.close(); return; }
+    const preservedWidth = this.view._contentWidth;
     this.view._moduleOrder=this.view._normalizeModuleOrder(this.draft.moduleOrder);
     this.view._hiddenModules=new Set(this.view._normalizeModuleSubset(this.draft.hiddenModules));
     this.view._toolbarOrder=normalizeToolbarOrder(this.view,this.draft.toolbarOrder);
@@ -98,6 +99,7 @@ class CockpitComponentStoreModal extends obs.Modal {
     this.view._statsCardOrder=this.view._normalizeStatsCardOrder(this.draft.statsCardOrder);
     this.view._hiddenStatsCards=new Set(this.view._normalizeStatsCardSubset(this.draft.hiddenStatsCards));
     this.view._customModuleLabels=Object.fromEntries(Object.entries(this.draft.moduleLabels||{}).filter(([id,label])=>this.view._defaultModuleOrder().includes(id)&&typeof label==='string'&&label.trim()).map(([id,label])=>[id,label.trim().slice(0,40)]));
+    this.view._contentWidth = preservedWidth;
     await this.view._saveActiveSceneLayout(); this.applied=true; this.close();
   }
   render() {

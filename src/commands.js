@@ -3,6 +3,7 @@
 // shell 类能力未配置时必须只提示、不执行（见 toolbar-custom 的配置编辑器）。
 
 function registerCockpitCommands(plugin) {
+  plugin.addCommand({id:'open-team-space',name:'打开团队空间',callback:() => plugin.teamSync?.open()});
   plugin.addCommand({id:'open-cockpit',name:'打开 Cockpit 驾驶舱',callback:() => plugin._open()});
   plugin.addCommand({
     id:'global-search',
