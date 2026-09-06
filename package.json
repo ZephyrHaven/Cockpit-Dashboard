@@ -1,6 +1,6 @@
 {
   "name": "cockpit-dashboard",
-  "version": "1.8.9",
+  "version": "1.8.10",
   "private": true,
   "description": "Build tooling for the Cockpit Dashboard plugin",
   "scripts": {

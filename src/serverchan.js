@@ -8,7 +8,7 @@ const NOTIFICATION_CHANNELS = {
 };
 
 const SERVERCHAN_DEFAULTS = {
-  enabled:false, includeTeamTodos:false, notifyToday:true, notifyOverdue:true, schedule:'daily', time:'09:00:00', times:['09:00:00'],
+  enabled:false, sendTeamTodosSeparately:false, notifyToday:true, notifyOverdue:true, schedule:'daily', time:'09:00:00', times:['09:00:00'],
   weekdays:[1,2,3,4,5], monthDays:[1], messageTemplate:'', sentReminders:{},
   channels:{
     serverChan:{ enabled:true, apiUrl:'', uid:'', sendKey:'' },
@@ -95,7 +95,8 @@ function normalizeServerChanConfig(raw) {
   const times = normalizeNotificationTimes(Array.isArray(value.times) && value.times.length ? value.times : value.time);
   return {
     ...SERVERCHAN_DEFAULTS,
-    includeTeamTodos:value.includeTeamTodos === true,
+    // 旧 includeTeamTodos 的含义不够明确，容易和晨报形成重复通知。升级后仅新的明确开关生效。
+    sendTeamTodosSeparately:value.sendTeamTodosSeparately === true,
     enabled:value.enabled === true, notifyToday:value.notifyToday !== false, notifyOverdue:value.notifyOverdue !== false,
     schedule:['daily','weekly','monthly'].includes(value.schedule) ? value.schedule : 'daily',
     time:times[0], times,
@@ -144,7 +145,7 @@ function getServerChanScheduleSlot(config, now) {
 }
 function formatServerChanDateTime(now) {
   const weekdays = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
-  return now.format('YYYY 年 M 月 D 日') + ' · ' + weekdays[now.day()] + ' · ' + now.format('HH:mm:ss');
+  return '📅 ' + now.format('YYYY 年 M 月 D 日') + ' · ' + weekdays[now.day()] + ' · ' + now.format('HH:mm');
 }
 function getEnabledChannels(config) { return Object.keys(NOTIFICATION_CHANNELS).filter((id) => config.channels[id]?.enabled); }
 // 兼容两种记录形态：旧版时间戳字符串（视为已发送）与新版 { at, ok, attempts } 对象。
@@ -288,7 +289,7 @@ class ServerChanService {
     if (!config.enabled || !isServerChanScheduleDue(config, now) || !key || allEnabledChannelsSent(config, key)) return false;
     if (!getEnabledChannels(config).length) return false;
     const due = (todos || []).filter((todo) => !todo.done && todo.dueDate && ((config.notifyToday && todo.dueDate.isSame(day, 'day')) || (config.notifyOverdue && todo.dueDate.isBefore(day, 'day'))));
-    const teamDue = config.includeTeamTodos && this.plugin.teamSync
+    const teamDue = config.sendTeamTodosSeparately && this.plugin.teamSync
       ? (await this.plugin.teamSync.notificationTodos()).filter(todo => !todo.done &&
         ((config.notifyToday && todo.dueDate.isSame(day, 'day')) || (config.notifyOverdue && todo.dueDate.isBefore(day, 'day')))) : [];
     if (!due.length && !teamDue.length && !config.messageTemplate) return false;
@@ -299,10 +300,10 @@ class ServerChanService {
       title = todayItems.length && overdueItems.length ? name + '，' + due.length + ' 项待办等你处理' : todayItems.length ? name + '，' + todayItems.length + ' 项待办今天到期' : name + '，' + overdueItems.length + ' 项待办已经逾期';
       if (teamDue.length) title = name + '，' + (due.length + teamDue.length) + ' 项待办等你处理';
       const sections = [];
-      if (todayItems.length) sections.push('今日到期 · ' + todayItems.length + ' 项\n' + todayItems.map((todo) => '• ' + todo.text + '（截止 ' + todo.dueDate.format('YYYY-MM-DD') + '）').join('\n'));
-      if (overdueItems.length) sections.push('已逾期 · ' + overdueItems.length + ' 项\n' + overdueItems.map((todo) => '• ' + todo.text + '（截止 ' + todo.dueDate.format('YYYY-MM-DD') + '）').join('\n'));
-      if (teamDue.length) sections.push('团队待办 · ' + teamDue.length + ' 项\n' + teamDue.map(todo => '• ' + todo.text + '（截止 ' + todo.dueDate.format('YYYY-MM-DD HH:mm:ss') + '）').join('\n'));
-      body = name + '，你好！\n\n' + dateTime + '\n\n' + sections.join('\n\n');
+      if (todayItems.length) sections.push('今日到期 · ' + todayItems.length + ' 项\n\n' + todayItems.map((todo, index) => formatTodoNotificationLine(todo, 'zh-CN', index, now)).join('\n\n'));
+      if (overdueItems.length) sections.push('已逾期 · ' + overdueItems.length + ' 项\n\n' + overdueItems.map((todo, index) => formatTodoNotificationLine(todo, 'zh-CN', index, now, true)).join('\n\n'));
+      if (teamDue.length) sections.push('团队待办 · ' + teamDue.length + ' 项\n\n' + teamDue.map((todo, index) => formatTeamTodoNotification(todo, 'zh-CN', index, now)).join('\n\n'));
+      body = dateTime + '\n\n' + sections.join('\n\n');
     }
     // 只对“未发送且未用尽重试次数”的渠道发起推送；失败的渠道记录明确状态，
     // 允许有限次重试，而不是像旧版那样把失败也标成已发送（通知静默丢失）。
@@ -467,8 +468,8 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     if (config.schedule === 'monthly') new obs.Setting(panels.schedule).setName(copy.monthDays).setDesc(copy.monthDaysDesc).addText((text) => text.setValue(config.monthDays.join(',')).onChange(async (value) => { config.monthDays = normalizeNumberList(value,1,31,SERVERCHAN_DEFAULTS.monthDays); await save(); }));
 
     addPanelIntro(panels.scope, copy.scope, en ? 'Choose which tasks are included and optionally add a custom message.' : '选择提醒包含的待办范围，也可以附加自定义消息。');
-    new obs.Setting(panels.scope).setName(en ? 'Team tasks' : '团队待办').setDesc(en ? 'Include visible team tasks in the selected due-date range. Custom messages replace task summaries.' : '按下方到期范围包含有权查看的团队待办；填写自定义消息时，以自定义内容替代待办摘要。')
-      .addToggle(toggle => toggle.setValue(config.includeTeamTodos).onChange(async value => { config.includeTeamTodos = value; await save(); }));
+    new obs.Setting(panels.scope).setName(en ? 'Send team tasks separately' : '单独发送团队待办').setDesc(en ? 'Off by default because team tasks are included in the morning brief. Turn this on only when you want an additional scheduled reminder.' : '团队待办默认合并进晨报。仅在确实需要额外收到一条计划提醒时开启。')
+      .addToggle(toggle => toggle.setValue(config.sendTeamTodosSeparately).onChange(async value => { config.sendTeamTodosSeparately = value; await save(); }));
     new obs.Setting(panels.scope).setName(copy.today).setDesc(copy.todayDesc).addToggle((toggle) => toggle.setValue(config.notifyToday).onChange(async (value) => { config.notifyToday = value; await save(); }));
     new obs.Setting(panels.scope).setName(copy.overdue).setDesc(copy.overdueDesc).addToggle((toggle) => toggle.setValue(config.notifyOverdue).onChange(async (value) => { config.notifyOverdue = value; await save(); }));
     new obs.Setting(panels.scope).setName(copy.custom).setDesc(copy.customDesc).addTextArea((text) => text.setPlaceholder(copy.customPlaceholder).setValue(config.messageTemplate).onChange(async (value) => { config.messageTemplate = safeText(value,4000); await save(); }));

@@ -10,16 +10,32 @@ function teamTodoComposeText(text, tags) {
   const parts = teamTodoTextParts(text);
   return [parts.text.replace(/[\r\n]+/g, ' '), ...new Set([...parts.tags, ...tags].map(tag => String(tag).trim().replace(/^#+/, '').replace(/\s+/g, '-')).filter(Boolean))].map((part,index) => index ? '#' + part : part).join(' ').trim();
 }
+// 旧版快捷日期会保存成午夜时间；在展示层把它迁移为全天语义，避免出现 00:00:00。
+function teamTodoDueHasTime(value) {
+  const text = String(value || '');
+  return /T\d{2}:\d{2}/.test(text) && !/T00:00(?::00)?$/.test(text);
+}
 function teamSyncAssert(condition, message = '团队数据格式不受支持。') { if (!condition) throw new Error(message); }
 function teamSyncText(value, max = 80) { return typeof value === 'string' && value.length <= max && !/[\r\n\0]/.test(value); }
 function teamSyncInteger(value) { return Number.isSafeInteger(value) && value >= 0 && value < 1e12; }
 function teamSyncPolicy(raw) {
   teamSyncAssert(lanSyncObject(raw) && ['editor', 'viewer', 'admin'].includes(raw.role)
     && ['all', 'assigned'].includes(raw.visibility) && typeof raw.canCreate === 'boolean'
-    && typeof raw.canDelete === 'boolean' && typeof raw.syncTodos === 'boolean');
-  return { role:raw.role, visibility:raw.visibility, canCreate:raw.canCreate, canDelete:raw.canDelete, syncTodos:raw.syncTodos };
+    && typeof raw.canDelete === 'boolean' && typeof raw.syncTodos === 'boolean'
+    && (raw.canEdit === undefined || typeof raw.canEdit === 'boolean')
+    && (raw.canComplete === undefined || typeof raw.canComplete === 'boolean')
+    && (raw.canReassign === undefined || typeof raw.canReassign === 'boolean'));
+  const canOperate = raw.role !== 'viewer';
+  // Older member records only stored create/delete. Preserve their previous editor
+  // behavior while defaulting the newly introduced reassignment power to off.
+  return { role:raw.role, visibility:raw.visibility, canCreate:canOperate && raw.canCreate,
+    canEdit:canOperate && (raw.canEdit ?? raw.role === 'editor'),
+    canComplete:canOperate && (raw.canComplete ?? raw.role === 'editor'),
+    canReassign:canOperate && (raw.canReassign ?? false),
+    canDelete:canOperate && raw.canDelete, syncTodos:raw.syncTodos };
 }
-function teamSyncDefaultPolicy() { return { role:'editor', visibility:'all', canCreate:true, canDelete:false, syncTodos:true }; }
+function teamSyncDefaultPolicy() { return { role:'editor', visibility:'all', canCreate:true, canEdit:true,
+  canComplete:true, canReassign:false, canDelete:false, syncTodos:true }; }
 function teamSyncInfo(team) {
   teamSyncAssert(lanSyncObject(team) && lanSyncDevice(team.id) && lanSyncDevice(team.host) && teamSyncText(team.name) && team.name.trim());
   return { id:team.id, host:team.host, name:team.name };
@@ -53,8 +69,24 @@ function teamSyncOperation(raw) {
 function teamSyncCanSee(record, policy, device) {
   return !!record?.value && policy.syncTodos && (policy.visibility === 'all' || record.value.assignee === device);
 }
-function teamSyncCanEdit(record, policy, device) {
+function teamSyncCanManage(record, policy, device) {
   return teamSyncCanSee(record, policy, device) && (policy.role === 'admin' || (policy.role === 'editor' && record.value.assignee === device));
+}
+function teamSyncCanEdit(record, policy, device) {
+  return teamSyncCanManage(record, policy, device) && (policy.role === 'admin' || policy.canEdit);
+}
+function teamSyncCanComplete(record, policy, device) {
+  return teamSyncCanManage(record, policy, device) && (policy.role === 'admin' || policy.canComplete);
+}
+function teamSyncCanReassign(record, policy, device) {
+  return teamSyncCanManage(record, policy, device) && (policy.role === 'admin' || policy.canReassign);
+}
+function teamSyncCanDelete(record, policy, device) {
+  return teamSyncCanManage(record, policy, device) && (policy.role === 'admin' || policy.canDelete);
+}
+function teamSyncKnownAssignee(state, device) {
+  return device === '' || device === state.device || device === state.team?.host
+    || state.peers.some(peer => peer.device === device) || state.members?.some(member => member.device === device);
 }
 function teamSyncAuthorize(state, actor, policy, op) {
   teamSyncAssert(policy.syncTodos, '管理员已关闭待办同步。');
@@ -63,11 +95,19 @@ function teamSyncAuthorize(state, actor, policy, op) {
   teamSyncAssert(policy.role === 'editor', '当前设备只有查看权限。');
   if (!old && op.base === 0 && op.value) {
     teamSyncAssert(policy.canCreate, '当前设备没有创建权限。');
-    teamSyncAssert(op.value.assignee === actor.device, '新建待办只能分配给自己。');
+    teamSyncAssert(op.value.assignee === actor.device || policy.canReassign, '新建待办只能分配给自己。');
+    teamSyncAssert(teamSyncKnownAssignee(state, op.value.assignee), '负责人已退出，请重新选择。');
   } else {
-    teamSyncAssert(teamSyncCanEdit(old, policy, actor.device), '当前待办已不在你的可编辑范围。');
-    teamSyncAssert(op.value !== null || policy.canDelete, '当前设备没有删除权限。');
-    teamSyncAssert(op.value === null || op.value.assignee === old.value.assignee, '只有管理员可以调整负责人。');
+    teamSyncAssert(teamSyncCanManage(old, policy, actor.device), '当前待办已不在你的操作范围。');
+    if (op.value === null) {
+      teamSyncAssert(teamSyncCanDelete(old, policy, actor.device), '当前设备没有删除权限。');
+      return;
+    }
+    teamSyncAssert(teamSyncKnownAssignee(state, op.value.assignee), '负责人已退出，请重新选择。');
+    const contentChanged = ['text','priority','due'].some(key => op.value[key] !== old.value[key]);
+    if (contentChanged) teamSyncAssert(policy.canEdit, '当前设备没有编辑内容与截止时间的权限。');
+    if (op.value.done !== old.value.done) teamSyncAssert(policy.canComplete, '当前设备没有更新完成状态的权限。');
+    if (op.value.assignee !== old.value.assignee) teamSyncAssert(policy.canReassign, '当前设备没有转派负责人的权限。');
   }
 }
 function teamSyncApply(state, actor, op, now = Date.now(), origin = null) {

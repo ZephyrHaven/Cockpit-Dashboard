@@ -1545,10 +1545,14 @@ class CockpitView extends obs.ItemView {
         });
       },
       loadCountdownItems:async() => this._plugin.countdowns.load(),
-      teamTodos:() => Object.values(this._plugin.teamSync?.state?.tasks || {}).filter((task) => task?.value?.due).map((task) => ({
-        id:task.id, text:task.value.text, done:task.value.done, priority:task.value.priority, dueDate:window.moment(task.value.due, task.value.due.length > 10 ? (task.value.due.length > 16 ? 'YYYY-MM-DDTHH:mm:ss' : 'YYYY-MM-DDTHH:mm') : 'YYYY-MM-DD', true), dueHasTime:task.value.due.length > 10, teamTodo:true,
-        origin:task.origin, updatedBy:task.updatedBy
-      })),
+      teamTodos:() => Object.values(this._plugin.teamSync?.state?.tasks || {}).filter((task) => task?.value?.due).map((task) => {
+        const parts = teamTodoTextParts(task.value.text);
+        return {
+          id:task.id, text:parts.text, tags:parts.tags, done:task.value.done, priority:task.value.priority,
+          dueDate:window.moment(task.value.due, task.value.due.length > 10 ? (task.value.due.length > 16 ? 'YYYY-MM-DDTHH:mm:ss' : 'YYYY-MM-DDTHH:mm') : 'YYYY-MM-DD', true),
+          dueHasTime:teamTodoDueHasTime(task.value.due), teamTodo:true, origin:task.origin, updatedBy:task.updatedBy
+        };
+      }),
       onAutomationOpen:(task) => openScheduledTaskEditor(this,task),
       onAutomationRun:async(task) => {
         const ok = await this._plugin.scheduledTasks.runTask(task.id,{trigger:'manual'});

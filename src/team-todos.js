@@ -109,21 +109,29 @@ async function buildTeamTodosModule(view, root) {
     }
     for (const record of rows.slice(0,limit)) {
       const pending = state.pending.find(op => op.id === record.id);
-      const editable = !pending && teamSyncCanEdit(record,policy,state.device);
+      const canEditContent = !pending && teamSyncCanEdit(record,policy,state.device);
+      const canUpdateDone = !pending && teamSyncCanComplete(record,policy,state.device);
+      const canReassign = !pending && teamSyncCanReassign(record,policy,state.device);
+      const canRemove = !pending && teamSyncCanDelete(record,policy,state.device);
+      const canOpenEditor = canEditContent || canReassign;
       const card = list.createDiv({ cls:PLUGIN_ID + '-todo' + (record.value.done ? ' done' : '') });
       const change = async (changes) => { await service.submit(record.id,record.revision,{...record.value,...changes}); };
       card.createDiv({cls:PLUGIN_ID + '-todo-pdot p-' + record.value.priority});
       const toggle = teamSyncButton(card, record.value.done ? '✓' : '', () => change({done:!record.value.done}));
-      toggle.className = PLUGIN_ID + '-todo-chk'; toggle.disabled = !editable;
+      toggle.className = PLUGIN_ID + '-todo-chk'; toggle.disabled = !canUpdateDone;
       toggle.setAttribute?.('aria-label','完成：' + record.value.text); toggle.setAttribute?.('aria-pressed',String(record.value.done));
       const main = card.createDiv({cls:PLUGIN_ID + '-todo-main'});
       const parts = teamTodoTextParts(record.value.text);
       const text = main.createDiv({cls:PLUGIN_ID + '-todo-text',text:parts.text});
-      if (editable) text.onclick = () => service.openModal(new CockpitTeamEditorModal(view.app,service,record));
+      if (canOpenEditor) text.onclick = () => service.openModal(new CockpitTeamEditorModal(view.app,service,record));
       const owner = service.members().find(member => member.device === record.value.assignee);
       const meta = main.createDiv({cls:PLUGIN_ID + '-todo-meta'});
       meta.createSpan({text:'负责人：' + (owner?.name || '未分配')});
-      if (record.value.due) meta.createSpan({cls:PLUGIN_ID + '-todo-due due-future',text:record.value.due.replace('T',' ')});
+      if (record.value.due) {
+        const dueHasTime = teamTodoDueHasTime(record.value.due);
+        const dueDate = window.moment(record.value.due, ['YYYY-MM-DDTHH:mm:ss','YYYY-MM-DDTHH:mm','YYYY-MM-DD'], true);
+        meta.createSpan({cls:PLUGIN_ID + '-todo-due due-future',text:dueDate.format(dueHasTime ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD')});
+      }
       meta.createSpan({text:'来源：' + record.origin.name});
       parts.tags.forEach(tag => {
         const pill = meta.createSpan({cls:PLUGIN_ID + '-todo-tag-pill',text:'#' + tag});
@@ -131,17 +139,21 @@ async function buildTeamTodosModule(view, root) {
       });
       meta.title = '创建设备：' + record.origin.name + '（' + record.origin.device + '）\n修改设备：' + record.updatedBy.name + '（' + record.updatedBy.device + '）\n更新时间：' + new Date(record.updatedAt).toLocaleString();
       card.createDiv({cls:PLUGIN_ID + '-todo-tag ' + (record.value.done ? 'tag-done' : 'tag-todo'),text:pending ? '待同步' : record.value.done ? '已完成' : '进行中'});
-      if (editable) {
+      if (canEditContent) {
         const picker = card.createDiv({cls:PLUGIN_ID + '-prio-picker'});
         ['high','mid','low'].forEach(priority => {
           const button = teamSyncButton(picker, '', () => change({priority}));
           button.className = PLUGIN_ID + '-prio-opt p-' + priority + (priority === record.value.priority ? ' sel' : '');
           button.setAttribute?.('aria-label',({high:'高',mid:'中',low:'低'}[priority]) + '优先级');
         });
+      }
+      if (canOpenEditor || canRemove) {
         const controls = card.createDiv({ cls:PLUGIN_ID + '-todo-actions' });
-        const edit = iconButton(controls, '编辑团队待办', 'square-pen', () => service.openModal(new CockpitTeamEditorModal(view.app,service,record)), '✎');
-        edit.className = PLUGIN_ID + '-todo-btn';
-        if (policy.canDelete) {
+        if (canOpenEditor) {
+          const edit = iconButton(controls, canEditContent ? '编辑团队待办' : '转派团队待办', 'square-pen', () => service.openModal(new CockpitTeamEditorModal(view.app,service,record)), '✎');
+          edit.className = PLUGIN_ID + '-todo-btn';
+        }
+        if (canRemove) {
           const remove = iconButton(controls, '删除团队待办', 'trash-2', () => service.openModal(new CockpitTeamConfirmModal(view.app,service,'删除此团队待办？删除会同步到有权查看的成员设备。',
             () => service.submit(record.id,record.revision,null))), '×');
           remove.className = PLUGIN_ID + '-todo-btn del';

@@ -7,6 +7,14 @@
 
 Cockpit Dashboard is a local-first Obsidian home-page plugin that brings todos, calendar, RSS, search, an AI assistant, statistics, focus tracking, and local automation together in one freely arrangeable cockpit. This document covers the project positioning and how it works under the hood.
 
+## 1.8.10 update
+
+- Morning briefs now include visible team tasks by default. The separate scheduled team-task reminder is an explicit opt-in, preventing two overlapping morning notifications; both formats use clear sections with one task per line.
+- Team tasks now match personal tasks more closely in the calendar, with all-day date handling, a dedicated team badge, readable tag pills, and no artificial midnight timestamp.
+- Team member permissions are now independently configurable for creating, editing, completing, reassigning, and deleting tasks. The host enforces every permission on incoming and offline-queued operations, while the redesigned member card explains the effective access clearly.
+
+Existing editors keep their previous create/edit/complete/delete behavior after upgrading. The new reassignment permission remains off until the host enables it, and the old ambiguous team-notification setting does not silently enable an additional standalone reminder.
+
 ## 1.8.6 update
 
 - The dashboard now fills its available pane instead of stopping at 960 px, with adaptive side spacing for large displays and split views.
@@ -74,7 +82,7 @@ Backups are named `lan-sync-<machine>.json.backup-0.json` through `backup-4.json
 
 ### Team space (preview)
 
-Use the **Team tasks** dashboard module, **Nearby devices → Manage team**, or the **Open team space** command. Create a team on the computer that will act as host; other computers scan/import its invitation or paste its pairing information. The host approves each device as an editor or viewer and selects its visibility (all team tasks or assigned tasks only), creation/deletion permissions, and whether team tasks may be synchronized. Editors can modify only tasks assigned to their own device; reassignment is host-only. Viewers cannot write. The host checks current permissions on every operation, including queued offline edits.
+Use the **Team tasks** dashboard module, **Nearby devices → Manage team**, or the **Open team space** command. Create a team on the computer that will act as host; other computers scan/import its invitation or paste its pairing information. The host approves each device as an editor or viewer, selects its visibility (all team tasks or assigned tasks only), decides whether team tasks may be synchronized, and grants create, edit-content, complete/restore, reassign, and delete permissions independently. Editing, completing and deleting remain limited to tasks assigned to that member; reassignment can be granted explicitly and only targets current team members. Viewers cannot write. The host checks current permissions on every operation, including queued offline edits.
 
 Personal tasks remain separate. **Share personal task** copies one selected task into a new team task after review; future changes are independent. Team cards show the original device, latest editing device, assignee, priority, due date and synchronization state. Forwarding through the host does not change the original source. The module supports layout ordering, visibility, persistent collapse, edit mode and scenes through the standard module registry. Team tasks do not enter personal statistics, calendar export, AI context or completion automations.
 

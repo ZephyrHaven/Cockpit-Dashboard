@@ -94,12 +94,12 @@ function renderCalendarDayFlow(options) {
     const countdown = flow.countdown;
     const automation = flow.automation;
     const rowClass = todo
-      ? PLUGIN_ID + '-cal-timeline-row p-' + (todo.priority || 'mid') + ' kind-todo' + (todo.done ? ' done' : '') + (todo === nextTimed ? ' is-next' : '')
+      ? PLUGIN_ID + '-cal-timeline-row p-' + (todo.priority || 'mid') + ' kind-todo ' + (todo.teamTodo ? 'is-team-todo' : 'is-personal-todo') + (todo.done ? ' done' : '') + (todo === nextTimed ? ' is-next' : '')
       : PLUGIN_ID + '-cal-timeline-row kind-' + flow.kind;
     const row = timeline.createDiv({ cls:rowClass, attr:{ role:'listitem' } });
     const time = row.createDiv({ cls:PLUGIN_ID + '-cal-timeline-time' });
       time.createSpan({ text:todo
-      ? (todo.dueHasTime ? todo.dueDate.format(todo.teamTodo ? 'HH:mm:ss' : 'HH:mm') : (en ? 'All day' : '全天'))
+      ? (todo.dueHasTime ? todo.dueDate.format('HH:mm') : (en ? 'All day' : '全天'))
       : rssEntry ? 'RSS' : countdown ? countdown.time : (automation.time || (en ? 'Event' : '事件')) });
     const rail = row.createDiv({ cls:PLUGIN_ID + '-cal-timeline-rail' + (index === 0 ? ' first' : '') + (index === visibleItems.length - 1 ? ' last' : '') });
     let check = null;
@@ -123,7 +123,9 @@ function renderCalendarDayFlow(options) {
     else text = summary.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-title', text:automation.name, attr:{ type:'button', title:automation.name } });
     const meta = summary.createDiv({ cls:PLUGIN_ID + '-cal-timeline-meta' });
     if (todo) {
-      const due = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-date' }); obs.setIcon(due.createSpan(), 'calendar-days'); due.createSpan({ text:todo.teamTodo && todo.dueHasTime ? todo.dueDate.format('YYYY-MM-DD HH:mm:ss') : formatTodoDue(todo.dueDate, language, todo.dueHasTime) });
+      if (todo.teamTodo) meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip source-team', text:en ? 'Team' : '团队' });
+      (todo.tags || []).slice(0,3).forEach((tag) => meta.createSpan({ cls:PLUGIN_ID + '-todo-tag-pill ' + PLUGIN_ID + '-cal-timeline-tag', text:'#' + tag }));
+      const due = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-date' }); obs.setIcon(due.createSpan(), 'calendar-days'); due.createSpan({ text:formatTodoDue(todo.dueDate, language, todo.dueHasTime) });
       const priority = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-priority p-' + (todo.priority || 'mid') }); obs.setIcon(priority.createSpan(), priorityIcon[todo.priority] || 'minus'); priority.createSpan({ text:priorityText[todo.priority] || priorityText.mid });
     } else if (rssEntry) {
       meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip source-rss', text:rssEntry.sources.slice(0, 3).join(' · ') || 'RSS' });

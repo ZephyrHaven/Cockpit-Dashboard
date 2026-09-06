@@ -6,7 +6,8 @@ const MORNING_BRIEF_DEFAULTS = {
   enabled:false,
   time:'08:30',
   aiPolish:true,
-  includeTeamTodos:false,
+  // 团队待办属于晨间全局概览，默认合并进简报，避免用户再收到一条内容重复的提醒。
+  includeTeamTodos:true,
   includeTodayTodos:true,
   includeOverdue:true,
   includeHabits:true,
@@ -46,7 +47,7 @@ function normalizeMorningBriefConfig(raw) {
     enabled:value.enabled === true,
     time:normalizeMorningBriefTime(value.time),
     aiPolish:value.aiPolish !== false,
-    includeTeamTodos:value.includeTeamTodos === true,
+    includeTeamTodos:value.includeTeamTodos !== false,
     includeTodayTodos:value.includeTodayTodos !== false,
     includeOverdue:value.includeOverdue !== false,
     includeHabits:value.includeHabits !== false,
@@ -130,6 +131,25 @@ function briefingClosing(lang, now) {
   return pool[Math.abs(now.dayOfYear()) % pool.length];
 }
 
+function formatNotificationDueLabel(todo, lang = 'zh-CN', now = null) {
+  const en = lang === 'en';
+  if (!todo?.dueDate?.format) return '';
+  const time = todo.dueHasTime ? ' ' + todo.dueDate.format('HH:mm') : '';
+  if (now && todo.dueDate.isSame?.(now, 'day')) return (en ? 'Today' : '今天') + time;
+  const date = todo.dueDate.format(en ? 'MMM D' : 'M月D日') + time;
+  if (now && todo.dueDate.isBefore?.(now, 'day')) return (en ? 'Overdue · ' : '已逾期 · ') + date;
+  return date;
+}
+
+function formatTodoNotificationLine(todo, lang = 'zh-CN', index = 0, now = null, includeDue = false) {
+  const due = includeDue ? formatNotificationDueLabel(todo, lang, now) : '';
+  return (index + 1) + '. ' + String(todo?.text || '').trim() + (due ? ' — ' + due : '');
+}
+
+function formatTeamTodoNotification(todo, lang = 'zh-CN', index = 0, now = null) {
+  return formatTodoNotificationLine(todo, lang, index, now, true);
+}
+
 function buildBriefingMessage({ lang, username, facts, now, aiSummary }) {
   const en = lang === 'en';
   const weekdayNames = en
@@ -137,8 +157,8 @@ function buildBriefingMessage({ lang, username, facts, now, aiSummary }) {
     : ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
   const lines = [];
   // 每个视觉块都用 emoji 开头并独立成段：即使通知栏把换行折叠成一行，也能快速扫读。
-  lines.push('☀️ ' + (en ? 'Good morning, ' : '早安，') + username + '！');
-  lines.push(now.format(en ? 'MMM D' : 'M月D日') + ' · ' + weekdayNames[now.day()]);
+  // 标题已经包含问候与待办总数；正文从日期开始，避免在手机通知详情里重复一遍标题。
+  lines.push('📅 ' + now.format(en ? 'MMM D' : 'M月D日') + ' · ' + weekdayNames[now.day()]);
   lines.push('');
 
   const isEmptyDay = !facts.teamTodos?.length && !facts.dueToday.length && !facts.overdue.length && !facts.pendingHabitNames.length;
@@ -148,17 +168,20 @@ function buildBriefingMessage({ lang, username, facts, now, aiSummary }) {
   }
   if (facts.dueToday.length) {
     lines.push('📋 ' + (en ? 'Due today · ' : '今日到期 · ') + facts.dueToday.length + (en ? '' : ' 项'));
-    facts.dueToday.slice(0, 8).forEach((item) => lines.push('· ' + item.text));
+    lines.push('');
+    lines.push(facts.dueToday.slice(0, 8).map((item, index) => formatTodoNotificationLine(item, lang, index, now)).join('\n\n'));
     lines.push('');
   }
   if (facts.overdue.length) {
     lines.push('⚠️ ' + (en ? 'Overdue · ' : '已逾期 · ') + facts.overdue.length + (en ? '' : ' 项'));
-    facts.overdue.slice(0, 5).forEach((item) => lines.push('· ' + item.text));
+    lines.push('');
+    lines.push(facts.overdue.slice(0, 5).map((item, index) => formatTodoNotificationLine(item, lang, index, now, true)).join('\n\n'));
     lines.push('');
   }
   if (facts.teamTodos?.length) {
-    lines.push('👥 ' + (en ? 'Team tasks · ' : '团队待办 · ') + facts.teamTodos.length);
-    facts.teamTodos.slice(0, 8).forEach(item => lines.push('· ' + item.text + ' · ' + item.dueDate.format('YYYY-MM-DD HH:mm:ss')));
+    lines.push('👥 ' + (en ? 'Team tasks · ' : '团队待办 · ') + facts.teamTodos.length + (en ? '' : ' 项'));
+    lines.push('');
+    lines.push(facts.teamTodos.slice(0, 8).map((item, index) => formatTeamTodoNotification(item, lang, index, now)).join('\n\n'));
     lines.push('');
   }
   if (facts.pendingHabitNames.length && facts.habitTotal > 0) {

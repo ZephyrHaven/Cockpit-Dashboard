@@ -72,9 +72,14 @@ assert.match(dayFlow, /cal-flow-filter[\s\S]*automation[\s\S]*rss/, 'The combine
 assert.match(dayFlow, /countdownItems[\s\S]*kind:'countdown'/, 'Countdown completions participate in the shared daily timeline.');
 assert.match(dayFlow, /if \(todo && todo === nextTimed\)/, 'Only the actual next todo receives the NOW badge.');
 assert.match(dayFlow, /cal-timeline-summary/, 'Timeline titles and metadata share a bounded summary region before the action rail.');
+assert.doesNotMatch(dayFlow, /format\(todo\.teamTodo \? 'HH:mm:ss'/, 'Team tasks use the same minute-level time style as personal tasks.');
+assert.match(dayFlow, /cal-timeline-tag/, 'Task tags render as separate calendar pills instead of leaking into the title.');
+assert.match(framework, /teamTodoTextParts\(task\.value\.text\)[\s\S]*tags:parts\.tags/, 'Team task titles and tags are split before entering the calendar.');
+assert.match(framework, /dueHasTime:teamTodoDueHasTime/, 'Legacy midnight team tasks enter the calendar as all-day items.');
 assert.match(styles, /\.cockpit-dashboard-cal-timeline-content\s*\{[^}]*grid-template-columns:minmax\(0,1fr\) auto/, 'Timeline actions stay in a dedicated trailing column instead of wrapping under metadata.');
 assert.match(styles, /\.cockpit-dashboard-cal-timeline-summary\s*\{[^}]*min-width:0/, 'Timeline summary content can shrink without displacing its actions.');
 assert.match(styles, /cal-timeline-summary > button\.cockpit-dashboard-cal-timeline-title\s*\{[^}]*display:block[^}]*justify-content:flex-start/, 'Timeline titles override the host button centering and align from one common left edge.');
+assert.match(styles, /cal-timeline-tag\.cockpit-dashboard-todo-tag-pill/, 'Calendar tags preserve the shared personal-task pill vocabulary.');
 assert.match(calendar, /onAutomationOpen[\s\S]*onAutomationRun/, 'Automation rows expose inspect and run-now actions.');
 assert.match(build, /'calendar-day-flow\.js'[\s\S]*'calendar\.js'/, 'The day-flow renderer is bundled before the calendar module.');
 

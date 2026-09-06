@@ -17,15 +17,24 @@ class CockpitTeamSync {
     const policy = this.policy();
     return Object.values(this.state.tasks || {}).filter(record =>
       record?.value?.due && teamSyncCanSee(record, policy, this.state.device)
-    ).map(record => ({
-      text:record.value.text + '（来源：' + record.origin.name + '）',
-      done:record.value.done,
-      dueDate:window.moment(record.value.due, ['YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm', 'YYYY-MM-DD'], true)
-    })).filter(todo => todo.dueDate.isValid());
+    ).map(record => {
+      const parts = teamTodoTextParts(record.value.text);
+      return {
+        text:parts.text,
+        tags:parts.tags,
+        sourceName:record.origin.name,
+        done:record.value.done,
+        dueHasTime:teamTodoDueHasTime(record.value.due),
+        dueDate:window.moment(record.value.due, ['YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm', 'YYYY-MM-DD'], true)
+      };
+    }).filter(todo => todo.dueDate.isValid());
   }
   isHost(state = this.state) { return !!state?.team && state.team.host === state.device; }
   policy(state = this.state) {
-    return this.isHost(state) ? { role:'admin', visibility:'all', canCreate:true, canDelete:true, syncTodos:true } : state?.policy || { role:'viewer', visibility:'assigned', canCreate:false, canDelete:false, syncTodos:false };
+    if (this.isHost(state)) return { role:'admin', visibility:'all', canCreate:true, canEdit:true,
+      canComplete:true, canReassign:true, canDelete:true, syncTodos:true };
+    return state?.policy ? teamSyncPolicy(state.policy) : { role:'viewer', visibility:'assigned', canCreate:false,
+      canEdit:false, canComplete:false, canReassign:false, canDelete:false, syncTodos:false };
   }
   members() {
     return this.isHost() ? [{ device:this.state.device, name:this.state.name }, ...this.state.peers.map(peer => ({ device:peer.device, name:peer.name }))] : this.state?.members || [];

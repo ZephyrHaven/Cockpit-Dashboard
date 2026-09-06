@@ -41,17 +41,53 @@ function teamSyncSelect(container, label, values, selected, options = {}) {
   values.forEach(([value,text]) => input.createEl('option', { text, attr:{ value } }));
   input.value = selected; return input;
 }
+function teamSyncPolicyToggle(container, label, description, checked) {
+  const row = container.createEl('label', { cls:'cockpit-team-permission-row' });
+  const copy = row.createSpan({ cls:'cockpit-team-permission-copy' });
+  copy.createSpan({ text:label, cls:'cockpit-team-permission-title' });
+  copy.createSpan({ text:description, cls:'cockpit-team-permission-description' });
+  const input = row.createEl('input', { cls:'cockpit-team-switch', attr:{ type:'checkbox', role:'switch', 'aria-label':label } });
+  input.checked = checked;
+  row.createSpan({ cls:'cockpit-team-switch-track', attr:{ 'aria-hidden':'true' } });
+  return input;
+}
 function teamSyncPolicyFields(container, policy = teamSyncDefaultPolicy()) {
-  const grid = container.createDiv({ cls:'cockpit-team-form-grid' });
+  policy = teamSyncPolicy(policy);
+  const access = container.createDiv({ cls:'cockpit-team-policy-group' });
+  access.createDiv({ text:'访问设置', cls:'cockpit-team-policy-heading' });
+  const sync = teamSyncPolicyToggle(access, '同步团队待办', '关闭后，对方下次连接会清空团队缓存。', policy.syncTodos);
+  const grid = access.createDiv({ cls:'cockpit-team-form-grid' });
   const role = teamSyncSelect(grid, '成员角色', [['editor','协作成员'],['viewer','只读成员']], policy.role);
-  const visibility = teamSyncSelect(grid, '可见范围', [['all','全部团队待办'],['assigned','仅分配给该设备的待办']], policy.visibility);
-  const create = teamSyncField(container, '允许创建团队待办', '', 'checkbox'); create.checked = policy.canCreate;
-  const remove = teamSyncField(container, '允许删除分配给自己的待办', '', 'checkbox'); remove.checked = policy.canDelete;
-  const sync = teamSyncField(container, '同步团队待办', '', 'checkbox'); sync.checked = policy.syncTodos;
-  container.createEl('p', { text:'关闭同步后，对方下次连接会清空团队缓存；只读成员不可创建、修改或删除。', cls:'cockpit-team-hint' });
-  const update = () => { create.disabled = remove.disabled = role.value === 'viewer'; }; role.onchange = update; update();
-  return () => ({ role:role.value, visibility:visibility.value, canCreate:role.value === 'editor' && create.checked,
-    canDelete:role.value === 'editor' && remove.checked, syncTodos:sync.checked });
+  const visibility = teamSyncSelect(grid, '可见范围', [['all','全部团队待办'],['assigned','仅分配给该成员']], policy.visibility);
+  const operations = container.createDiv({ cls:'cockpit-team-policy-group' });
+  operations.createDiv({ text:'操作权限', cls:'cockpit-team-policy-heading' });
+  const permissionGrid = operations.createDiv({ cls:'cockpit-team-permission-grid' });
+  const create = teamSyncPolicyToggle(permissionGrid, '创建待办', '新建团队待办，默认负责人为自己。', policy.canCreate);
+  const edit = teamSyncPolicyToggle(permissionGrid, '编辑内容', '修改标题、标签、优先级和截止时间。', policy.canEdit);
+  const complete = teamSyncPolicyToggle(permissionGrid, '更新完成状态', '标记完成，也可恢复为未完成。', policy.canComplete);
+  const reassign = teamSyncPolicyToggle(permissionGrid, '转派负责人', '新建或编辑时可选择其他成员。', policy.canReassign);
+  const remove = teamSyncPolicyToggle(permissionGrid, '删除待办', '仅可删除分配给自己的待办。', policy.canDelete);
+  const summary = container.createEl('p', { cls:'cockpit-team-policy-summary', attr:{ role:'status', 'aria-live':'polite' } });
+  const controls = [create,edit,complete,reassign,remove];
+  const update = () => {
+    const viewer = role.value === 'viewer';
+    const paused = !sync.checked;
+    visibility.disabled = paused;
+    controls.forEach(input => { input.disabled = viewer || paused; });
+    if (paused) summary.setText('同步已关闭：该成员下次连接后不再保留团队待办缓存。');
+    else if (viewer) summary.setText('当前为只读成员：可以查看授权范围内的待办，不能进行任何修改。');
+    else {
+      const allowed = [['创建',create],['编辑',edit],['完成',complete],['转派',reassign],['删除',remove]].filter(([,input]) => input.checked).map(([name]) => name);
+      summary.setText(allowed.length ? '当前可执行：' + allowed.join('、') + '。编辑、完成和删除仅对分配给自己的待办生效。' : '当前仅可查看，没有可执行的操作权限。');
+    }
+  };
+  [role,sync,...controls].forEach(input => { input.onchange = update; }); update();
+  return () => {
+    const editor = role.value === 'editor';
+    return { role:role.value, visibility:visibility.value, canCreate:editor && create.checked,
+      canEdit:editor && edit.checked, canComplete:editor && complete.checked,
+      canReassign:editor && reassign.checked, canDelete:editor && remove.checked, syncTodos:sync.checked };
+  };
 }
 class CockpitTeamApprovalModal extends obs.Modal {
   constructor(app, service, name, resolve) { super(app); this.service = service; this.name = name; this.resolve = resolve; }
@@ -86,6 +122,10 @@ class CockpitTeamEditorModal {
   onOpen() {
     const service = this.service; const record = this.record;
     const value = this.initial || record?.value || { text:'', done:false, priority:'mid', due:'', assignee:service.state.device };
+    const policy = service.policy();
+    const canEditContent = !record || service.isHost() || teamSyncCanEdit(record, policy, service.state.device);
+    const canComplete = service.isHost() || (!record ? policy.canComplete : teamSyncCanComplete(record, policy, service.state.device));
+    const canReassign = service.isHost() || (!record ? policy.canReassign : teamSyncCanReassign(record, policy, service.state.device));
     const PID = PLUGIN_ID;
     const overlay = document.body.createDiv({ cls:PID + '-todo-editor-backdrop' });
     overlay.onclick = event => { if (event.target === overlay) this.close(); };
@@ -105,10 +145,12 @@ class CockpitTeamEditorModal {
     const parts = teamTodoTextParts(value.text);
     let tags = parts.tags, priority = value.priority;
     const title = field('待办内容').createEl('textarea', { cls:PID + '-todo-editor-textarea', attr:{rows:'3', placeholder:'例如：整理周报', 'aria-label':'待办内容'} });
-    title.value = parts.text; title.maxLength = 2000;
+    title.value = parts.text; title.maxLength = 2000; title.disabled = !canEditContent;
     const dueField = field('截止日期');
     const quick = dueField.createDiv({ cls:PID + '-todo-editor-quick' });
     const due = dueField.createEl('input', { cls:PID + '-todo-editor-date', attr:{type:'datetime-local', step:'1', 'aria-label':'截止日期'} });
+    due.disabled = !canEditContent;
+    let dueDateOnly = !!value.due && !teamTodoDueHasTime(value.due);
     due.value = value.due?.length === 10 ? value.due + 'T00:00:00' : value.due || '';
     const datePreset = (offset) => {
       const d = new Date(); d.setDate(d.getDate() + offset);
@@ -117,17 +159,19 @@ class CockpitTeamEditorModal {
     const renderDue = () => {
       quick.empty();
       [['不设置',''], ['今天',datePreset(0)], ['明天',datePreset(1)]].forEach(([label,date]) => {
-        const active = date ? due.value.startsWith(date) : !due.value;
+        const active = date ? dueDateOnly && due.value.startsWith(date) : !due.value;
         const button = quick.createEl('button', {cls:PID + '-todo-editor-chip' + (active ? ' active' : ''), text:label, attr:{type:'button', 'aria-pressed':String(active)}});
-        button.onclick = () => { due.value = date ? date + 'T00:00:00' : ''; renderDue(); };
+        button.disabled = !canEditContent;
+        button.onclick = () => { due.value = date ? date + 'T00:00:00' : ''; dueDateOnly = !!date; renderDue(); };
       });
     };
-    due.onchange = renderDue; renderDue();
+    due.onchange = () => { dueDateOnly = false; renderDue(); }; renderDue();
     const priorityRow = field('优先级').createDiv({ cls:PID + '-todo-editor-segment' });
     const renderPriority = () => {
       priorityRow.empty();
       [['high','高优先级'],['mid','中优先级'],['low','低优先级']].forEach(([key,label]) => {
         const button = priorityRow.createEl('button', {cls:PID + '-todo-editor-segment-btn' + (priority === key ? ' active' : ''), text:label, attr:{type:'button', 'aria-pressed':String(priority === key)}});
+        button.disabled = !canEditContent;
         button.onclick = () => { priority = key; renderPriority(); };
       });
     };
@@ -138,16 +182,19 @@ class CockpitTeamEditorModal {
     const knownTags = new Set(Object.values(service.state.tasks || {}).flatMap(task => teamTodoTextParts(task.value?.text).tags));
     const tagInputRow = tagField.createDiv({cls:PID + '-todo-editor-tag-input-row'});
     const tagInput = tagInputRow.createEl('input', {cls:PID + '-todo-editor-tag-input', attr:{type:'text', placeholder:'新标签', 'aria-label':'新标签'}});
+    tagInput.disabled = !canEditContent;
     const renderTags = () => {
       selectedTags.empty(); suggestions.empty();
       if (!tags.length) selectedTags.createDiv({cls:PID + '-todo-editor-empty', text:'未选择标签'});
       const toggle = tag => { tags = tags.includes(tag) ? tags.filter(item => item !== tag) : [...tags,tag]; renderTags(); };
       tags.forEach(tag => {
         const button = selectedTags.createEl('button', {cls:PID + '-todo-editor-selected-tag', text:'#' + tag + ' ×', attr:{type:'button'}});
+        button.disabled = !canEditContent;
         button.onclick = () => toggle(tag);
       });
       knownTags.forEach(tag => {
         const button = suggestions.createEl('button', {cls:PID + '-todo-editor-chip' + (tags.includes(tag) ? ' active' : ''), text:'#' + tag, attr:{type:'button'}});
+        button.disabled = !canEditContent;
         button.onclick = () => toggle(tag);
       });
     };
@@ -158,22 +205,24 @@ class CockpitTeamEditorModal {
       tagInput.value = ''; renderTags();
     };
     const addTagButton = tagInputRow.createEl('button', {cls:PID + '-todo-editor-secondary-btn', text:'添加标签', attr:{type:'button'}});
+    addTagButton.disabled = !canEditContent;
     addTagButton.onclick = addTag;
     tagInput.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); addTag(); } };
     renderTags();
     const members = service.members();
     if (value.assignee && !members.some(member => member.device === value.assignee)) members.push({ device:value.assignee, name:'已退出的成员' });
-    const assignee = field('负责人设备').createEl('select', {cls:PID + '-todo-editor-date', attr:{'aria-label':'负责人设备'}});
+    const assignee = field('负责人').createEl('select', {cls:PID + '-todo-editor-date', attr:{'aria-label':'负责人'}});
     [['','未分配'], ...members.map(member => [member.device,member.name])].forEach(([id,name]) => assignee.createEl('option', {text:name, attr:{value:id}}));
     assignee.value = value.assignee;
-    assignee.disabled = !service.isHost();
-    const done = teamSyncField(form, '标记为已完成', '', 'checkbox'); done.checked = value.done;
-    form.createDiv({text:'标签随团队待办同步。保存后按团队权限分发给成员。', cls:PID + '-todo-editor-hint'});
+    assignee.disabled = !canReassign;
+    const done = teamSyncField(form, '标记为已完成', '', 'checkbox'); done.checked = value.done; done.disabled = !canComplete;
+    form.createDiv({text:'不可操作的字段由主设备权限锁定；保存后只会提交允许修改的内容。', cls:PID + '-todo-editor-hint'});
     const actions = this.contentEl.createDiv({ cls:PID + '-todo-editor-footer' });
     teamSyncButton(actions, '取消', () => this.close()).className = PID + '-todo-editor-secondary-btn';
     const save = teamSyncButton(actions, '保存', async () => {
       if (!title.value.trim()) { title.focus(); return; }
-      await service.submit(record?.id || null, record?.revision || 0, { text:teamTodoComposeText(title.value, tags), priority, due:due.value, assignee:assignee.value, done:done.checked });
+      const dueValue = due.value && dueDateOnly ? due.value.slice(0,10) : due.value;
+      await service.submit(record?.id || null, record?.revision || 0, { text:teamTodoComposeText(title.value, tags), priority, due:dueValue, assignee:assignee.value, done:done.checked });
       this.close();
     }, true);
     save.className = PID + '-todo-editor-primary-btn';
@@ -243,18 +292,24 @@ class CockpitTeamModal extends obs.Modal {
     const members = teamSyncSection(this.contentEl, '成员与权限', '展开成员卡片，分别设置可见范围与操作权限。');
     if (!service.state.peers.length) members.createDiv({ text:'尚无成员 · 点击「邀请成员」开始协作', cls:'cockpit-team-empty' });
     for (const peer of service.state.peers) {
+      const savedPolicy = teamSyncPolicy(peer.policy);
       const card = members.createEl('details', { cls:'cockpit-team-member' });
       const summary = card.createEl('summary');
       summary.createSpan({ text:peer.name.slice(0,1), cls:'cockpit-team-avatar' });
       summary.createSpan({ text:peer.name, cls:'cockpit-team-member-name' });
-      summary.createSpan({ text:peer.policy.role === 'viewer' ? '只读成员' : '协作成员', cls:'cockpit-team-badge' });
+      summary.createSpan({ text:!savedPolicy.syncTodos ? '同步已关闭' : savedPolicy.role === 'viewer' ? '只读成员' : '协作成员', cls:'cockpit-team-badge' });
       const panel = card.createDiv({ cls:'cockpit-team-member-body' });
-      panel.createEl('p', { text:'设备 ID：' + peer.device + (peer.lastSync ? ' · 上次同步：' + new Date(peer.lastSync).toLocaleString() : ' · 尚未同步'), cls:'cockpit-lan-muted' });
-      const getPolicy = teamSyncPolicyFields(panel, peer.policy);
+      const meta = panel.createDiv({ cls:'cockpit-team-member-meta' });
+      const syncMeta = meta.createSpan({ text:peer.lastSync ? '上次同步：' + new Date(peer.lastSync).toLocaleString() : '尚未同步' });
+      syncMeta.addClass('cockpit-team-member-last-sync');
+      const deviceMeta = meta.createSpan({ cls:'cockpit-team-member-device', attr:{ title:peer.device } });
+      deviceMeta.createSpan({ text:'设备 ID' }); deviceMeta.createEl('code', { text:peer.device });
+      const getPolicy = teamSyncPolicyFields(panel, savedPolicy);
       const actions = panel.createDiv({ cls:'cockpit-team-footer' });
       teamSyncButton(actions, '保存权限', async () => { await service.updateMember(peer.device, getPolicy()); this.render(); }, true);
-      teamSyncButton(actions, '移除成员', () => service.openModal(new CockpitTeamConfirmModal(this.app,service,
+      const remove = teamSyncButton(actions, '移除成员', () => service.openModal(new CockpitTeamConfirmModal(this.app,service,
         '撤销「' + peer.name + '」的连接权限。对方已下载的内容无法远程收回。', async () => { await service.removeMember(peer.device); this.render(); })));
+      remove.addClass('is-danger');
     }
   }
   renderDrafts() {
@@ -269,8 +324,17 @@ class CockpitTeamModal extends obs.Modal {
       const actions = card.createDiv({ cls:'cockpit-lan-actions' });
       teamSyncButton(actions, '复制草稿', () => navigator.clipboard.writeText(teamSyncDescribe(draft.value)));
       const current = state.tasks[draft.id];
-      if (draft.value && teamSyncCanEdit(current, service.policy(), state.device)) {
-        teamSyncButton(actions, '以最新版本重新编辑', () => service.openModal(new CockpitTeamEditorModal(this.app, service, current, { ...draft.value, assignee:current.value.assignee })));
+      const policy = service.policy();
+      const canEdit = teamSyncCanEdit(current, policy, state.device);
+      const canComplete = teamSyncCanComplete(current, policy, state.device);
+      const canReassign = teamSyncCanReassign(current, policy, state.device);
+      const canEditDraft = canEdit || canComplete || canReassign;
+      if (draft.value && canEditDraft) {
+        const initial = { ...current.value,
+          ...(canEdit ? { text:draft.value.text, priority:draft.value.priority, due:draft.value.due } : {}),
+          ...(canComplete ? { done:draft.value.done } : {}),
+          ...(canReassign ? { assignee:draft.value.assignee } : {}) };
+        teamSyncButton(actions, '以最新版本重新编辑', () => service.openModal(new CockpitTeamEditorModal(this.app, service, current, initial)));
       }
       teamSyncButton(actions, '移除草稿', () => service.openModal(new CockpitTeamConfirmModal(this.app,service,'移除此本机草稿？团队待办不受影响。',async () => { await service.removeDraft(draft.draftId); this.render(); })));
     }

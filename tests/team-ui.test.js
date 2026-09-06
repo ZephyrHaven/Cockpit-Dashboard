@@ -21,13 +21,13 @@ const body=new Element(); body.classList={add(){},remove(){}};
 const ctx=vm.createContext({console,require,Buffer,setTimeout,clearTimeout,document:{body},obs:{Modal,Notice:class{constructor(message){notices.push(message);}},ItemView:class{},Plugin:class{}},PLUGIN_ID:'cockpit-dashboard',module:{exports:{}}, navigator:{clipboard:{writeText:async()=>{}}},loadTodos:async()=>[{text:'Personal secret',done:false,tags:[],priority:'mid'}]});
 ctx.makeCockpitDialogDraggable=(panel,handle)=>{ panel.dataset.cockpitDragBound='true'; return ()=>{ delete panel.dataset.cockpitDragBound; }; };
 for(const name of ['lan-sync-core','team-sync-core','team-sync-ui','team-todos','_framework']) vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/'+name+'.js'),'utf8'),ctx);
-vm.runInContext('this.build = buildTeamTodosModule;this.Editor = CockpitTeamEditorModal;this.Manager = CockpitTeamModal;this.Share = CockpitTeamShareModal;this.Approval = CockpitTeamApprovalModal;this.registry = CockpitView.prototype._moduleRegistry;',ctx);
+vm.runInContext('this.build = buildTeamTodosModule;this.Editor = CockpitTeamEditorModal;this.Manager = CockpitTeamModal;this.Share = CockpitTeamShareModal;this.Approval = CockpitTeamApprovalModal;this.policyFields = teamSyncPolicyFields;this.normalizePolicy = teamSyncPolicy;this.registry = CockpitView.prototype._moduleRegistry;',ctx);
 const A='a'.repeat(32),B='b'.repeat(32),T='d'.repeat(32);
 const now=Date.now();
 const record={id:'e'.repeat(32),revision:1,value:{text:'Team sample',done:false,priority:'mid',due:'',assignee:B},origin:{device:B,name:'Bob'},updatedBy:{device:B,name:'Bob'},createdAt:now,updatedAt:now};
 const state={device:A,name:'Host',team:{id:T,host:A,name:'Studio'},tasks:{[record.id]:record},pending:[],drafts:[],conflicts:[],peers:[]};
 const listeners=new Set();let host=true,opened=null,submitted=null;
-const policy=()=>host?{role:'admin',visibility:'all',syncTodos:true,canCreate:true,canDelete:true}:{role:'viewer',visibility:'all',syncTodos:true,canCreate:false,canDelete:false};
+const policy=()=>host?{role:'admin',visibility:'all',syncTodos:true,canCreate:true,canEdit:true,canComplete:true,canReassign:true,canDelete:true}:{role:'viewer',visibility:'all',syncTodos:true,canCreate:false,canEdit:false,canComplete:false,canReassign:false,canDelete:false};
 const service={state,status:'Online',modals:new Set(),load:async()=>state,isHost:()=>host,policy,members:()=>[{device:A,name:'Host'},{device:B,name:'Bob'}],subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn);},open(){},openModal:modal=>{opened=modal;service.modals.add(modal);return modal.open();},submit:async(...args)=>{submitted=args;}};
 const view={app:{},_plugin:{teamSync:service},_lang:()=> 'zh-CN',_t:key=>key,_makeModuleCollapsible:(id,title,body)=>{view.collapse={id,title,body};}};
 (async()=>{
@@ -64,7 +64,7 @@ const view={app:{},_plugin:{teamSync:service},_lang:()=> 'zh-CN',_t:key=>key,_ma
   tagged.contentEl.all().find(el=>el.text==='明天').onclick();
   await tagged.contentEl.all().find(el=>el.text==='保存').onclick();
   assert.ok(submitted[2].text.includes('#项目甲'));
-  assert.equal(submitted[2].priority,'low');assert.match(submitted[2].due,/T00:00:00$/);
+  assert.equal(submitted[2].priority,'low');assert.match(submitted[2].due,/^\d{4}-\d{2}-\d{2}$/,'Quick dates persist as all-day values instead of fake midnight times');
   const created=new ctx.Editor({},service);created.open();
   assert.ok(created.overlay?.classes.has('cockpit-dashboard-todo-editor-backdrop'),'The new-team-task path uses the same backdrop structure');
   assert.equal(created.contentEl.all().filter(el=>el.classes.has('cockpit-dashboard-todo-editor-close')).length,1);
@@ -84,6 +84,14 @@ const view={app:{},_plugin:{teamSync:service},_lang:()=> 'zh-CN',_t:key=>key,_ma
   const deviceInput=manager.contentEl.all().find(el=>el.tag==='input');deviceInput.value='New label';
   for(const listener of listeners)listener();assert.equal(deviceInput.value,'New label');
   manager.close();assert.equal(listeners.size,1);view._teamUnsubscribe();assert.equal(listeners.size,0);
+  const permissionRoot=new Element();const readPolicy=ctx.policyFields(permissionRoot,ctx.normalizePolicy({role:'editor',visibility:'all',syncTodos:true,canCreate:true,canDelete:false}));
+  for(const label of ['创建待办','编辑内容','更新完成状态','转派负责人','删除待办']) {
+    assert.ok(permissionRoot.all().some(el=>el.text===label),'Permission card includes ' + label);
+  }
+  const role=permissionRoot.all().find(el=>el.attr['aria-label']==='成员角色');role.value='viewer';role.onchange();
+  const operationSwitches=permissionRoot.all().filter(el=>el.tag==='input' && el.attr.role==='switch').slice(1);
+  assert.ok(operationSwitches.every(input=>input.disabled),'Read-only role visibly disables every operation');
+  assert.equal(readPolicy().canEdit,false);assert.equal(readPolicy().canComplete,false);assert.equal(readPolicy().canReassign,false);
   let approval='unset';const modal=new ctx.Approval({},service,'Bob',value=>approval=value);service.modals.add(modal);modal.open();modal.close();
   assert.equal(approval,false,'Closing approval denies enrollment');
   // A late async module load after view teardown must not retain a listener.
