@@ -7,6 +7,12 @@
 
 Cockpit Dashboard is a local-first Obsidian home-page plugin that brings todos, calendar, RSS, search, an AI assistant, statistics, focus tracking, and local automation together in one freely arrangeable cockpit. This document covers the project positioning and how it works under the hood.
 
+## 1.8.11 update
+
+- Paired computers can now choose one designated morning-brief sender to prevent duplicate pushes, while an optional every-computer mode preserves intentional multi-device delivery with independent delivery receipts.
+
+Update and reload the plugin on every participating computer, then choose the sender under **Cockpit Settings → Morning brief → Multi-device delivery**. Computers running an older version do not recognize this routing choice.
+
 ## 1.8.10 update
 
 - Morning briefs now include visible team tasks by default. The separate scheduled team-task reminder is an explicit opt-in, preventing two overlapping morning notifications; both formats use clear sections with one task per line.
