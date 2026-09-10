@@ -23,7 +23,8 @@ vm.runInContext(`globalThis.api = {
   normalizeMorningBriefConfig,
   morningBriefDeviceOptions:typeof morningBriefDeviceOptions === 'function' ? morningBriefDeviceOptions : null,
   morningBriefDefaultSenderId:typeof morningBriefDefaultSenderId === 'function' ? morningBriefDefaultSenderId : null,
-  morningBriefShouldAutoSend:typeof morningBriefShouldAutoSend === 'function' ? morningBriefShouldAutoSend : null
+  morningBriefShouldAutoSend:typeof morningBriefShouldAutoSend === 'function' ? morningBriefShouldAutoSend : null,
+  morningBriefChannelRecordId:typeof morningBriefChannelRecordId === 'function' ? morningBriefChannelRecordId : null
 };`, ctx);
 
 const api = ctx.api;
@@ -36,6 +37,7 @@ assert.equal(api.normalizeMorningBriefConfig({ senderDeviceId:'not-a-device' }).
 assert.equal(typeof api.morningBriefDeviceOptions, 'function');
 assert.equal(typeof api.morningBriefDefaultSenderId, 'function');
 assert.equal(typeof api.morningBriefShouldAutoSend, 'function');
+assert.equal(typeof api.morningBriefChannelRecordId, 'function');
 
 const state = {
   device:B,
@@ -55,6 +57,14 @@ assert.equal(api.morningBriefShouldAutoSend({ deliveryMode:'every-device', sende
 assert.equal(api.morningBriefShouldAutoSend({ deliveryMode:'selected-device', senderDeviceId:B }, B), true);
 assert.equal(api.morningBriefShouldAutoSend({ deliveryMode:'selected-device', senderDeviceId:A }, B), false);
 assert.equal(api.morningBriefShouldAutoSend({ deliveryMode:'selected-device', senderDeviceId:'' }, B), false);
+assert.equal(api.morningBriefChannelRecordId({ deliveryMode:'selected-device' }, 'serverChan', A), 'serverChan');
+assert.equal(api.morningBriefChannelRecordId({ deliveryMode:'every-device' }, 'serverChan', A), 'serverChan@' + A);
+assert.equal(api.morningBriefChannelRecordId({ deliveryMode:'every-device' }, 'serverChan', 'invalid'), 'serverChan');
+const everyDeviceConfig = api.normalizeMorningBriefConfig({
+  deliveryMode:'every-device',
+  sent:{ '2026-09-10':{ ['serverChan@' + A]:{ at:'2026-09-10T01:30:00.000Z', ok:true, attempts:1 } } }
+});
+assert.equal(everyDeviceConfig.sent['2026-09-10']['serverChan@' + A].ok, true, 'Per-device delivery receipts survive normalization.');
 assert.match(morningBriefSource, /多设备发送/);
 assert.match(morningBriefSource, /指定设备发送/);
 assert.match(morningBriefSource, /所有设备都发送/);
