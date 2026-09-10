@@ -51,6 +51,12 @@ function morningBriefShouldAutoSend(config, currentDeviceId) {
   return !!localId && normalized.senderDeviceId === localId;
 }
 
+function morningBriefChannelRecordId(config, channelId, currentDeviceId) {
+  const id = String(channelId || '');
+  const deviceId = normalizeMorningBriefDeviceId(currentDeviceId);
+  return config?.deliveryMode === 'every-device' && deviceId ? id + '@' + deviceId : id;
+}
+
 function normalizeMorningBriefTime(value) {
   const match = /^(\d{2}):(\d{2})$/.exec(String(value || '').trim());
   if (!match) return MORNING_BRIEF_DEFAULTS.time;
@@ -69,7 +75,10 @@ function normalizeMorningBriefSent(raw) {
   });
   return Object.fromEntries(Object.entries(source).filter(([key]) => keep.test(key)).slice(-120)
     .map(([key, value]) => [key, value && typeof value === 'object' && !Array.isArray(value)
-      ? Object.fromEntries(Object.entries(value).filter(([id]) => NOTIFICATION_CHANNELS[id]).map(([id, stamp]) => [id, stamp && typeof stamp === 'object' ? cleanRecord(stamp) : stamp]))
+      ? Object.fromEntries(Object.entries(value).filter(([id]) => {
+        const [channelId, deviceId = ''] = id.split('@');
+        return !!NOTIFICATION_CHANNELS[channelId] && (!deviceId || !!normalizeMorningBriefDeviceId(deviceId));
+      }).map(([id, stamp]) => [id, stamp && typeof stamp === 'object' ? cleanRecord(stamp) : stamp]))
       : {}]));
 }
 
@@ -101,21 +110,26 @@ function parseFocusMinutesByDay(content) {
   return history;
 }
 
-function briefChannelAttempts(config, key, id) {
-  const record = config.sent[key]?.[id];
+function briefChannelRecord(config, key, id, currentDeviceId = '') {
+  const recordId = morningBriefChannelRecordId(config, id, currentDeviceId);
+  return config.sent[key]?.[recordId] || (recordId !== id ? config.sent[key]?.[id] : null);
+}
+
+function briefChannelAttempts(config, key, id, currentDeviceId = '') {
+  const record = briefChannelRecord(config, key, id, currentDeviceId);
   if (typeof record === 'string') return 1;
   return Number(record?.attempts) || (record ? 1 : 0);
 }
 
-function briefChannelWasSent(config, key, id) {
-  const record = config.sent[key]?.[id];
+function briefChannelWasSent(config, key, id, currentDeviceId = '') {
+  const record = briefChannelRecord(config, key, id, currentDeviceId);
   if (!record) return false;
   if (typeof record === 'string') return true;
   return record.ok === true;
 }
 
-function briefAllChannelsSent(config, key, channelIds) {
-  return channelIds.length > 0 && channelIds.every((id) => briefChannelWasSent(config, key, id));
+function briefAllChannelsSent(config, key, channelIds, currentDeviceId = '') {
+  return channelIds.length > 0 && channelIds.every((id) => briefChannelWasSent(config, key, id, currentDeviceId));
 }
 
 // —— 简报内容组装（纯函数，便于测试与手动预览） ——
@@ -371,9 +385,9 @@ class CockpitMorningBriefService {
     if (!routing.shouldSend) return false;
     const key = now.format('YYYY-MM-DD');
     const channelConfig = await this.plugin.serverChan.getConfig();
-    const ids = getEnabledChannels(channelConfig).filter((id) => !briefChannelWasSent(config, key, id) && briefChannelAttempts(config, key, id) < MORNING_BRIEF_ATTEMPT_CAP);
+    const ids = getEnabledChannels(channelConfig).filter((id) => !briefChannelWasSent(config, key, id, routing.currentDeviceId) && briefChannelAttempts(config, key, id, routing.currentDeviceId) < MORNING_BRIEF_ATTEMPT_CAP);
     if (!ids.length) return false;
-    return this.deliver(ids);
+    return this.deliver(ids, { currentDeviceId:routing.currentDeviceId });
   }
 
   // 手动触发（命令 / 设置页按钮）：忽略时间窗，立即向全部启用渠道发送一次。
@@ -384,10 +398,11 @@ class CockpitMorningBriefService {
       const language = await getServerChanSettingsLanguage(this.plugin).catch(() => 'zh-CN');
       throw new Error(getMorningBriefSettingsCopy(language).noChannel);
     }
-    return this.deliver(ids);
+    const routing = await this.getRouting();
+    return this.deliver(ids, { currentDeviceId:routing.currentDeviceId });
   }
 
-  async deliver(ids) {
+  async deliver(ids, options = {}) {
     if (this._sending) return false;
     this._sending = true;
     try {
@@ -402,10 +417,11 @@ class CockpitMorningBriefService {
       const records = { ...(config.sent[key] || {}) };
       results.forEach((result, index) => {
         const id = targets[index];
-        records[id] = {
+        const recordId = morningBriefChannelRecordId(config, id, options.currentDeviceId);
+        records[recordId] = {
           at:new Date().toISOString(),
           ok:result.status === 'fulfilled',
-          attempts:briefChannelAttempts(config, key, id) + 1,
+          attempts:briefChannelAttempts(config, key, id, options.currentDeviceId) + 1,
           error:result.status === 'fulfilled' ? '' : String(result.reason?.message || result.reason || 'send failed').slice(0, 200)
         };
         if (result.status === 'rejected') console.warn('Cockpit morning brief failed for ' + id, result.reason?.message || result.reason);
@@ -503,9 +519,11 @@ async function renderMorningBriefSettings(panel, plugin, language) {
     routing = await plugin.morningBrief.getRouting(current, { persistDefault:false });
     const channelConfig = await plugin.serverChan.getConfig();
     const ids = getEnabledChannels(channelConfig);
-    const record = current.sent[key] || {};
-    const okIds = ids.filter((id) => record[id]?.ok === true || typeof record[id] === 'string');
-    const failIds = ids.filter((id) => record[id] && record[id].ok === false);
+    const okIds = ids.filter((id) => briefChannelWasSent(current, key, id, routing.currentDeviceId));
+    const failIds = ids.filter((id) => {
+      const record = briefChannelRecord(current, key, id, routing.currentDeviceId);
+      return record && record.ok === false;
+    });
     let text;
     if (current.deliveryMode === 'selected-device' && !routing.shouldSend) {
       const sender = routing.devices.find((device) => device.id === current.senderDeviceId);
