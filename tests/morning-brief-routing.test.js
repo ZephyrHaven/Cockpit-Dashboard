@@ -18,6 +18,7 @@ const ctx = vm.createContext({
 for (const file of ['serverchan', 'morning-brief']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/' + file + '.js'), 'utf8'), ctx);
 }
+const morningBriefSource = fs.readFileSync(path.join(__dirname, '../src/morning-brief.js'), 'utf8');
 vm.runInContext(`globalThis.api = {
   normalizeMorningBriefConfig,
   morningBriefDeviceOptions:typeof morningBriefDeviceOptions === 'function' ? morningBriefDeviceOptions : null,
@@ -54,5 +55,8 @@ assert.equal(api.morningBriefShouldAutoSend({ deliveryMode:'every-device', sende
 assert.equal(api.morningBriefShouldAutoSend({ deliveryMode:'selected-device', senderDeviceId:B }, B), true);
 assert.equal(api.morningBriefShouldAutoSend({ deliveryMode:'selected-device', senderDeviceId:A }, B), false);
 assert.equal(api.morningBriefShouldAutoSend({ deliveryMode:'selected-device', senderDeviceId:'' }, B), false);
+assert.match(morningBriefSource, /多设备发送/);
+assert.match(morningBriefSource, /指定设备发送/);
+assert.match(morningBriefSource, /所有设备都发送/);
 
 console.log('Morning brief multi-device routing tests passed');

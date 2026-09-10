@@ -69,7 +69,7 @@ assert.throws(() => context.unseal(crypto, key, frame, 'response'));
 async function makeStore(root) {
   await fsp.mkdir(path.join(root, 'plugin'), { recursive:true });
   await fsp.mkdir(path.join(root, '_data'), { recursive:true });
-  let data = { storageMigrationCompleted:true, bookmarks:[], username:'Name', language:'en', morningBrief:{ deliveryMode:'selected-device', senderDeviceId:A }, ai:{ apiKey:'DO-NOT-SYNC' }, localCommands:['DO-NOT-SYNC'] };
+  let data = { storageMigrationCompleted:true, bookmarks:[], username:'Name', language:'en', morningBrief:{}, ai:{ apiKey:'DO-NOT-SYNC' }, localCommands:['DO-NOT-SYNC'] };
   const vault = {
     adapter:{ exists:async p=>fs.existsSync(path.join(root,p)), read:p=>fsp.readFile(path.join(root,p),'utf8'), write:(p,v)=>fsp.writeFile(path.join(root,p),v) },
     getAbstractFileByPath:p=>fs.existsSync(path.join(root,p)) ? { path:p } : null,
@@ -85,6 +85,7 @@ async function makeStore(root) {
   const transports = [];
   try {
     const left = await makeStore(path.join(tmp,'a')); const right = await makeStore(path.join(tmp,'b'));
+    left.setData(data=>{data.morningBrief={deliveryMode:'selected-device',senderDeviceId:A};});
     const taskPath = '_data/todos.md';
     await fsp.writeFile(path.join(left.root,taskPath),'# Tasks\n\n- [ ] First | id:one\n\nKeep my notes here.\n');
     left.setData(data=>{data.bookmarks=['Notes/One.md'];});
