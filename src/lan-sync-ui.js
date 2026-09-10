@@ -124,7 +124,7 @@ async function renderLanSyncSettings(container, plugin, language) {
   container.createEl('p', { text:en ? 'A host approves devices and controls team task permissions. Personal tasks stay separate.' : '主设备审批成员并控制团队待办的同步范围和权限，个人待办独立保留。' });
   teamSyncButton(container, en ? 'Manage team' : '创建 / 加入 / 管理团队', () => plugin.teamSync?.open());
   container.createEl('h2', { text:en ? 'Nearby devices · Preview' : '附近设备 · 预览版' });
-  container.createEl('p', { cls:'cockpit-lan-muted', text:en ? 'Pair your computers on the same network. Sync tasks, bookmarks, display name and language.' : '把你的电脑连接起来。在同一网络下，共享待办、收藏、昵称和语言。' });
+  container.createEl('p', { cls:'cockpit-lan-muted', text:en ? 'Pair your computers on the same network. Sync tasks, bookmarks, display name, language and the morning-brief sender choice.' : '把你的电脑连接起来。在同一网络下，共享待办、收藏、昵称、语言和晨报发送设备选择。' });
   if (!service) { container.createEl('p', { text:'同步服务不可用，请重新加载插件。' }); return; }
   try { await service.store.load(); } catch (error) { container.createEl('p', { text:error.message }); return; }
   const hero = container.createDiv({ cls:'cockpit-lan-card' });
@@ -146,7 +146,7 @@ async function renderLanSyncSettings(container, plugin, language) {
   const conflicts = container.createEl('button');
   conflicts.onclick = () => { const modal = new CockpitLanConflictsModal(plugin.app, service); service.modals.add(modal); modal.open(); };
   const backup = container.createEl('p', { cls:'cockpit-lan-muted' });
-  container.createEl('p', { cls:'cockpit-lan-muted', text:en ? 'Every 30 seconds while enabled. Both apps must be running. Keys, commands, workspace paths, AI history and note contents stay on this computer. Bookmark targets are not copied.' : '开启后每 30 秒同步，两端均需运行。密钥、命令、工作区路径、AI 会话和笔记正文不参与；收藏只同步路径，不复制笔记。' });
+  container.createEl('p', { cls:'cockpit-lan-muted', text:en ? 'Every 30 seconds while enabled. Both apps must be running. Morning-brief routing is shared, but keys, commands, workspace paths, AI history and note contents stay on this computer. Bookmark targets are not copied.' : '开启后每 30 秒同步，两端均需运行。晨报发送策略会同步；密钥、命令、工作区路径、AI 会话和笔记正文不参与，收藏只同步路径，不复制笔记。' });
   container.createEl('p', { cls:'cockpit-lan-muted', text:en ? 'If a firewall prompt appears, allow access on your private network. A changed network address may require pairing again. Avoid syncing these same records with another tool.' : '首次连接若出现防火墙提示，请允许专用网络访问。网络地址变化后可能需要重新配对；避免其他同步工具同时改写这些数据。' });
   const refresh = () => {
     status.setText(service.status); toggle.setText(service.transport ? (en ? 'Pause sync' : '暂停同步') : (en ? 'Enable sync' : '开启同步'));
