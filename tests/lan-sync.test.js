@@ -25,8 +25,15 @@ const sameVersion = core.lanSyncCompatibility({ protocolVersion:1, pluginVersion
 assert.equal(sameVersion.compatible, true);
 assert.deepEqual(sameVersion.unavailableThere, []);
 const olderPeer = core.lanSyncCompatibility({ protocolVersion:1, pluginVersion:'1.9.0', capabilities:core.LAN_SYNC_CAPABILITIES }, { protocolVersion:1, pluginVersion:'1.8.7', capabilities:['todos','bookmarks'] });
-assert.deepEqual(olderPeer.unavailableThere, ['display-name','language']);
+assert.deepEqual(olderPeer.unavailableThere, ['display-name','language','morning-brief-routing']);
 assert.deepEqual(Object.keys(core.lanSyncFilterCapabilities({ 'todo:one':[{ clock:{ [A]:1 }, value:'- [ ] Task | id:one' }], 'pref:language':[{ clock:{ [A]:1 }, value:'en' }] }, olderPeer.shared)), ['todo:one']);
+const briefRouting = {
+  'brief:delivery-mode':[{ clock:{ [A]:1 }, value:'selected-device' }],
+  'brief:sender-device':[{ clock:{ [A]:1 }, value:B }]
+};
+assert.deepEqual(Object.keys(core.lanSyncFilterCapabilities(briefRouting, ['morning-brief-routing'])), ['brief:delivery-mode','brief:sender-device']);
+assert.throws(() => core.lanSyncValidate({ 'brief:delivery-mode':[{ clock:{ [A]:1 }, value:'invalid' }] }));
+assert.throws(() => core.lanSyncValidate({ 'brief:sender-device':[{ clock:{ [A]:1 }, value:'invalid' }] }));
 assert.equal(core.lanSyncCompatibility({ protocolVersion:2 }, { protocolVersion:1 }).compatible, false);
 const initial = core.lanSyncCapture({}, {}, { 'todo:one':'- [ ] Task | id:one' }, A);
 const aEdit = core.lanSyncCapture(initial, core.lanSyncProjection(initial), { 'todo:one':'- [x] Task | id:one' }, A);
@@ -62,7 +69,7 @@ assert.throws(() => context.unseal(crypto, key, frame, 'response'));
 async function makeStore(root) {
   await fsp.mkdir(path.join(root, 'plugin'), { recursive:true });
   await fsp.mkdir(path.join(root, '_data'), { recursive:true });
-  let data = { storageMigrationCompleted:true, bookmarks:[], username:'Name', language:'en', ai:{ apiKey:'DO-NOT-SYNC' }, localCommands:['DO-NOT-SYNC'] };
+  let data = { storageMigrationCompleted:true, bookmarks:[], username:'Name', language:'en', morningBrief:{ deliveryMode:'selected-device', senderDeviceId:A }, ai:{ apiKey:'DO-NOT-SYNC' }, localCommands:['DO-NOT-SYNC'] };
   const vault = {
     adapter:{ exists:async p=>fs.existsSync(path.join(root,p)), read:p=>fsp.readFile(path.join(root,p),'utf8'), write:(p,v)=>fsp.writeFile(path.join(root,p),v) },
     getAbstractFileByPath:p=>fs.existsSync(path.join(root,p)) ? { path:p } : null,
@@ -86,6 +93,8 @@ async function makeStore(root) {
     doc = await right.store.exchange(doc); await left.store.exchange(doc);
     assert.ok((await fsp.readFile(path.join(right.root,taskPath),'utf8')).includes('First'));
     assert.deepEqual(right.getData().bookmarks, ['Notes/One.md']);
+    assert.equal(right.getData().morningBrief.deliveryMode, 'selected-device');
+    assert.equal(right.getData().morningBrief.senderDeviceId, A);
     assert.equal(right.getData().ai.apiKey,'DO-NOT-SYNC');
     assert.ok(fs.existsSync(path.join(right.root,right.store.state.lastBackup)));
     // Offline edits preserve both alternatives and arbitrary prose; choosing a version converges.
