@@ -3,7 +3,7 @@ const LAN_SYNC_LIMIT = 1500;
 const LAN_SYNC_BYTES = 1024 * 1024;
 const LAN_SYNC_PREFS = ['username', 'language'];
 const LAN_SYNC_PROTOCOL_VERSION = 1;
-const LAN_SYNC_CAPABILITIES = Object.freeze(['todos', 'bookmarks', 'display-name', 'language']);
+const LAN_SYNC_CAPABILITIES = Object.freeze(['todos', 'bookmarks', 'display-name', 'language', 'morning-brief-routing']);
 function lanSyncMetadata(raw) {
   const value = lanSyncObject(raw) ? raw : {};
   const capabilities = Array.isArray(value.capabilities)
@@ -18,6 +18,7 @@ function lanSyncCapabilityForKey(key) {
   if (key.startsWith('bookmark:')) return 'bookmarks';
   if (key === 'pref:username') return 'display-name';
   if (key === 'pref:language') return 'language';
+  if (key === 'brief:delivery-mode' || key === 'brief:sender-device') return 'morning-brief-routing';
   return '';
 }
 function lanSyncFilterCapabilities(doc, capabilities) {
@@ -51,6 +52,8 @@ function lanSyncValue(key, value) {
   if (key.startsWith('bookmark:')) return lanSyncBookmark(key.slice(9)) && (value === null || value === '1');
   if (key === 'pref:username') return value === null || (typeof value === 'string' && value.length <= 80 && !/[\r\n\0]/.test(value));
   if (key === 'pref:language') return value === null || ['en', 'zh-CN'].includes(value);
+  if (key === 'brief:delivery-mode') return value === null || ['selected-device', 'every-device'].includes(value);
+  if (key === 'brief:sender-device') return value === null || lanSyncDevice(value);
   return false;
 }
 function lanSyncValidate(doc) {

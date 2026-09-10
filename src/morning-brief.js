@@ -6,6 +6,8 @@ const MORNING_BRIEF_DEFAULTS = {
   enabled:false,
   time:'08:30',
   aiPolish:true,
+  deliveryMode:'selected-device',
+  senderDeviceId:'',
   // 团队待办属于晨间全局概览，默认合并进简报，避免用户再收到一条内容重复的提醒。
   includeTeamTodos:true,
   includeTodayTodos:true,
@@ -18,6 +20,36 @@ const MORNING_BRIEF_DEFAULTS = {
 
 const MORNING_BRIEF_ATTEMPT_CAP = 3;
 const MORNING_BRIEF_AI_TIMEOUT_MS = 20000;
+
+function normalizeMorningBriefDeviceId(value) {
+  const id = String(value || '').trim().toLowerCase();
+  return /^[a-f0-9]{32}$/.test(id) ? id : '';
+}
+
+function morningBriefDeviceOptions(state, currentName = '') {
+  const devices = [];
+  const seen = new Set();
+  const add = (id, name, current = false, lastSync = null) => {
+    const safeId = normalizeMorningBriefDeviceId(id);
+    if (!safeId || seen.has(safeId)) return;
+    seen.add(safeId);
+    devices.push({ id:safeId, name:String(name || '').trim().slice(0, 60) || (current ? 'This computer' : 'Another computer'), current, lastSync:Number(lastSync) || null });
+  };
+  add(state?.device, currentName, true);
+  (Array.isArray(state?.peers) ? state.peers : []).forEach((peer) => add(peer?.device, peer?.name, false, peer?.lastSync));
+  return devices;
+}
+
+function morningBriefDefaultSenderId(state) {
+  return morningBriefDeviceOptions(state).map((device) => device.id).sort()[0] || '';
+}
+
+function morningBriefShouldAutoSend(config, currentDeviceId) {
+  const normalized = normalizeMorningBriefConfig(config);
+  if (normalized.deliveryMode === 'every-device') return true;
+  const localId = normalizeMorningBriefDeviceId(currentDeviceId);
+  return !!localId && normalized.senderDeviceId === localId;
+}
 
 function normalizeMorningBriefTime(value) {
   const match = /^(\d{2}):(\d{2})$/.exec(String(value || '').trim());
@@ -47,6 +79,8 @@ function normalizeMorningBriefConfig(raw) {
     enabled:value.enabled === true,
     time:normalizeMorningBriefTime(value.time),
     aiPolish:value.aiPolish !== false,
+    deliveryMode:value.deliveryMode === 'every-device' ? 'every-device' : 'selected-device',
+    senderDeviceId:normalizeMorningBriefDeviceId(value.senderDeviceId),
     includeTeamTodos:value.includeTeamTodos !== false,
     includeTodayTodos:value.includeTodayTodos !== false,
     includeOverdue:value.includeOverdue !== false,
@@ -248,18 +282,40 @@ class CockpitMorningBriefService {
     this.plugin.registerInterval(window.setInterval(check, 30000));
   }
 
-  async getConfig() {
-    if (this._config) return normalizeMorningBriefConfig(this._config);
+  async getConfig(options = {}) {
+    if (!options.fresh && this._config) return normalizeMorningBriefConfig(this._config);
     const data = await this.plugin.loadData() || {};
     this._config = normalizeMorningBriefConfig(data.morningBrief);
     return normalizeMorningBriefConfig(this._config);
   }
 
   async saveConfig(next) {
+    const previous = await this.getConfig();
     const normalized = normalizeMorningBriefConfig(next);
     await this.plugin.mutateData((data) => { data.morningBrief = normalized; });
     this._config = normalized;
+    if (previous.deliveryMode !== normalized.deliveryMode || previous.senderDeviceId !== normalized.senderDeviceId) {
+      Promise.resolve().then(() => this.plugin.lanSync?.sync?.()).catch((e) => console.warn('Cockpit morning brief routing sync failed', e));
+    }
     return normalizeMorningBriefConfig(this._config);
+  }
+
+  async getRouting(config = null, options = {}) {
+    let resolved = normalizeMorningBriefConfig(config || await this.getConfig());
+    let state = null;
+    try {
+      await this.plugin.lanSync?.store?.load?.();
+      state = this.plugin.lanSync?.store?.state || null;
+    } catch (e) { state = null; }
+    let currentName = '';
+    try { currentName = require('os').hostname(); } catch (e) {}
+    const devices = morningBriefDeviceOptions(state, currentName);
+    const currentDeviceId = normalizeMorningBriefDeviceId(state?.device);
+    if (resolved.deliveryMode === 'selected-device' && !resolved.senderDeviceId && currentDeviceId) {
+      resolved.senderDeviceId = morningBriefDefaultSenderId(state) || currentDeviceId;
+      if (options.persistDefault !== false) resolved = await this.saveConfig(resolved);
+    }
+    return { config:resolved, devices, currentDeviceId, shouldSend:morningBriefShouldAutoSend(resolved, currentDeviceId) };
   }
 
   // 组装简报内容；独立出来便于设置页「预览」。
@@ -307,10 +363,12 @@ class CockpitMorningBriefService {
 
   // 定时触发路径：开关 + 时间窗 + 每渠道一次/有限重试。
   async check() {
-    const config = await this.getConfig();
+    const config = await this.getConfig({ fresh:true });
     if (!config.enabled || this._sending) return false;
     const now = window.moment();
     if (now.format('HH:mm') < config.time) return false;
+    const routing = await this.getRouting(config);
+    if (!routing.shouldSend) return false;
     const key = now.format('YYYY-MM-DD');
     const channelConfig = await this.plugin.serverChan.getConfig();
     const ids = getEnabledChannels(channelConfig).filter((id) => !briefChannelWasSent(config, key, id) && briefChannelAttempts(config, key, id) < MORNING_BRIEF_ATTEMPT_CAP);
@@ -373,6 +431,12 @@ function getMorningBriefSettingsCopy(language) {
     overdue:en ? 'Include overdue tasks' : '包含已逾期任务',
     habits:en ? 'Include habit check-in status' : '包含习惯打卡情况',
     focus:en ? 'Include focus statistics' : '包含专注统计',
+    routing:en ? 'Multi-device delivery' : '多设备发送',
+    routingDesc:en ? 'Choose one paired computer to prevent duplicate briefs, or keep delivery from every computer.' : '指定一台已配对设备可避免重复晨报，也可以保留每台设备都发送。',
+    selectedDevice:en ? 'Send from a selected computer' : '指定设备发送',
+    everyDevice:en ? 'Send from every computer' : '所有设备都发送',
+    senderDevice:en ? 'Sending computer' : '发送设备',
+    senderDeviceDesc:en ? 'Pair another computer under Nearby devices before selecting it here.' : '需要选择其他电脑时，请先在“附近设备”中完成配对。',
     aiPolish:en ? 'AI opening line' : 'AI 开场小结',
     aiPolishDesc:en ? 'Adds one AI-written sentence on top of the template. Configure a model in “AI models” first; falls back silently when unavailable.' : '在模板上方追加一句 AI 生成的总结。需先在「AI 模型」里完成配置；不可用时自动跳过，不影响发送。',
     test:en ? 'Preview & send now' : '立即预览发送',
@@ -388,7 +452,9 @@ function getMorningBriefSettingsCopy(language) {
 async function renderMorningBriefSettings(panel, plugin, language) {
   const copy = getMorningBriefSettingsCopy(language);
   const en = language === 'en';
-  const config = await plugin.morningBrief.getConfig();
+  let config = await plugin.morningBrief.getConfig();
+  let routing = await plugin.morningBrief.getRouting(config);
+  config = routing.config;
 
   const header = panel.createDiv({ cls:PLUGIN_ID + '-settings-panel-header' });
   header.createEl('h2', { text:copy.heading });
@@ -401,6 +467,23 @@ async function renderMorningBriefSettings(panel, plugin, language) {
 
   new obs.Setting(panel).setName(copy.time)
     .addText((text) => { text.inputEl.type = 'time'; text.setValue(config.time).onChange(async (value) => { config.time = normalizeMorningBriefTime(value); await save(); }); });
+
+  let senderDropdown = null;
+  new obs.Setting(panel).setName(copy.routing).setDesc(copy.routingDesc)
+    .addDropdown((dropdown) => dropdown.addOptions({ 'selected-device':copy.selectedDevice, 'every-device':copy.everyDevice }).setValue(config.deliveryMode).onChange(async (value) => {
+      config.deliveryMode = value; await save(); senderDropdown?.setDisabled(value === 'every-device');
+    }));
+  const senderSetting = new obs.Setting(panel).setName(copy.senderDevice).setDesc(copy.senderDeviceDesc);
+  senderSetting.addDropdown((dropdown) => {
+    senderDropdown = dropdown;
+    const options = {};
+    routing.devices.forEach((device) => { options[device.id] = device.name + (device.current ? (en ? ' (this computer)' : '（本机）') : ''); });
+    if (config.senderDeviceId && !options[config.senderDeviceId]) options[config.senderDeviceId] = en ? 'Previously selected computer (not paired)' : '原发送设备（当前未配对）';
+    if (!Object.keys(options).length) options[''] = en ? 'Device identity unavailable' : '设备身份不可用';
+    dropdown.addOptions(options).setValue(config.senderDeviceId).setDisabled(config.deliveryMode === 'every-device').onChange(async (value) => {
+      config.senderDeviceId = normalizeMorningBriefDeviceId(value); await save();
+    });
+  });
 
   panel.createDiv({ cls:PLUGIN_ID + '-settings-panel-header' }).createEl('h3', { text:copy.sections });
   new obs.Setting(panel).setName(en ? 'Team tasks' : '团队待办').setDesc(en ? 'Include visible team tasks due today or overdue.' : '包含当前设备有权查看的今日到期、逾期团队待办。')
@@ -417,13 +500,18 @@ async function renderMorningBriefSettings(panel, plugin, language) {
     status.empty();
     const key = window.moment().format('YYYY-MM-DD');
     const current = await plugin.morningBrief.getConfig();
+    routing = await plugin.morningBrief.getRouting(current, { persistDefault:false });
     const channelConfig = await plugin.serverChan.getConfig();
     const ids = getEnabledChannels(channelConfig);
     const record = current.sent[key] || {};
     const okIds = ids.filter((id) => record[id]?.ok === true || typeof record[id] === 'string');
     const failIds = ids.filter((id) => record[id] && record[id].ok === false);
     let text;
-    if (!ids.length) text = copy.noChannel;
+    if (current.deliveryMode === 'selected-device' && !routing.shouldSend) {
+      const sender = routing.devices.find((device) => device.id === current.senderDeviceId);
+      text = en ? 'This computer will not send · sender: ' + (sender?.name || 'unavailable computer') : '本机不自动发送 · 发送设备：' + (sender?.name || '当前不可用的设备');
+    }
+    else if (!ids.length) text = copy.noChannel;
     else if (okIds.length === ids.length) text = copy.statusPrefix + (en ? 'sent ✓ (' : '已发送 ✓（') + okIds.map((id) => NOTIFICATION_CHANNELS[id].label).join('、') + '）';
     else if (failIds.length) text = copy.statusPrefix + (en ? 'last attempt failed (' : '最近一次失败（') + failIds.map((id) => NOTIFICATION_CHANNELS[id].label).join('、') + (en ? '), will retry automatically.' : '），稍后会自动重试。');
     else text = copy.statusPrefix + (current.enabled ? (en ? 'scheduled at ' : '计划 ') + current.time : (en ? 'disabled' : '未启用'));

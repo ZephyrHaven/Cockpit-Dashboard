@@ -69,6 +69,9 @@ class CockpitLanStore {
     }
     for (const bookmark of bookmarks) if (lanSyncBookmark(bookmark)) current['bookmark:' + bookmark] = '1';
     for (const key of LAN_SYNC_PREFS) if (data[key] != null && lanSyncValue('pref:' + key, data[key])) current['pref:' + key] = data[key];
+    const brief = lanSyncObject(data.morningBrief) ? data.morningBrief : {};
+    current['brief:delivery-mode'] = brief.deliveryMode === 'every-device' ? 'every-device' : 'selected-device';
+    if (lanSyncDevice(brief.senderDeviceId)) current['brief:sender-device'] = brief.senderDeviceId;
     return { current, todoContent, bookmarks };
   }
   async write(data, snapshot, desired) {
@@ -111,6 +114,13 @@ class CockpitLanStore {
       if (Object.prototype.hasOwnProperty.call(desired, 'pref:' + key)) data[key] = desired['pref:' + key];
       else delete data[key];
     }
+    const brief = lanSyncObject(data.morningBrief) ? { ...data.morningBrief } : {};
+    const deliveryMode = desired['brief:delivery-mode'];
+    if (['selected-device', 'every-device'].includes(deliveryMode)) brief.deliveryMode = deliveryMode;
+    if (lanSyncDevice(desired['brief:sender-device'])) brief.senderDeviceId = desired['brief:sender-device'];
+    else if (Object.prototype.hasOwnProperty.call(snapshot.current, 'brief:sender-device')) delete brief.senderDeviceId;
+    data.morningBrief = brief;
+    if (this.plugin.morningBrief) this.plugin.morningBrief._config = null;
   }
   async exchange(remote = {}, resolution = null) {
     return this.serial(async () => {
