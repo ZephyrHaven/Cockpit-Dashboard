@@ -7,44 +7,7 @@
 
 Cockpit Dashboard is a local-first Obsidian home-page plugin that brings todos, calendar, RSS, search, an AI assistant, statistics, focus tracking, and local automation together in one freely arrangeable cockpit. This document covers the project positioning and how it works under the hood.
 
-## 1.8.11 update
 
-- Paired computers can now choose one designated morning-brief sender to prevent duplicate pushes, while an optional every-computer mode preserves intentional multi-device delivery with independent delivery receipts.
-
-Update and reload the plugin on every participating computer, then choose the sender under **Cockpit Settings → Morning brief → Multi-device delivery**. Computers running an older version do not recognize this routing choice.
-
-## 1.8.10 update
-
-- Morning briefs now include visible team tasks by default. The separate scheduled team-task reminder is an explicit opt-in, preventing two overlapping morning notifications; both formats use clear sections with one task per line.
-- Team tasks now match personal tasks more closely in the calendar, with all-day date handling, a dedicated team badge, readable tag pills, and no artificial midnight timestamp.
-- Team member permissions are now independently configurable for creating, editing, completing, reassigning, and deleting tasks. The host enforces every permission on incoming and offline-queued operations, while the redesigned member card explains the effective access clearly.
-
-Existing editors keep their previous create/edit/complete/delete behavior after upgrading. The new reassignment permission remains off until the host enables it, and the old ambiguous team-notification setting does not silently enable an additional standalone reminder.
-
-## 1.8.6 update
-
-- The dashboard now fills its available pane instead of stopping at 960 px, with adaptive side spacing for large displays and split views.
-- Dashboard content width is adjustable from the subtle grip on the right edge. Drag it to set a comfortable reading width; double-click the grip (or press End) to return to automatic full width. The preference is stored locally and re-clamped when the pane is smaller.
-- Nearby devices (preview) adds QR pairing and encrypted LAN synchronization for tasks, bookmarks, display name and language, with backups and conflict review.
-- Built-in software updates check GitHub Releases, validate the three standard release files, keep a rollback backup, and can optionally install updates automatically without replacing local settings.
-- AI startup failures now show the failed stage and a retry button instead of leaving an unexplained blank panel; this improves diagnosis but does not establish the cause of every Windows startup issue.
-
-LAN sync remains opt-in and in preview: real Windows/macOS device pairing, camera permissions and firewall behavior still need cross-device acceptance testing.
-
-## 1.8.7 update
-
-The dashboard keeps automatic full width by default, while a subtle handle on the right edge lets you choose a comfortable content width. The choice is stored locally, follows the current pane size, and can be reset by double-clicking the handle or pressing End when it has focus.
-
-## 1.8.8 update
-
-- Software Update now checks GitHub Releases automatically, offers validated download-and-install with rollback backups, supports optional background installation, preserves all local settings, and moves manual update controls out of the Toolbar into Settings and the dashboard context menu.
-- Nearby-device sync now exchanges plugin, protocol, and capability versions so mismatched devices synchronize only mutually supported data while Settings clearly identifies unavailable features or blocks incompatible protocols.
-
-## 1.8.9 update
-
-- Team tasks now use the personal-todo interaction model for compact lists, tags, priorities, second-precision due dates, creation and editing; the editor shows one consistent close control.
-- Team tasks are mirrored to a readable `_data/team-todos.md` file, appear separately in the calendar, preserve their source device, and can be included explicitly in morning briefs and message notifications.
-- Team spaces add host-managed roles, visibility and synchronization permissions, encrypted approved-device sharing, unique device names, offline drafts and conflict review.
 
 ## Core Features
 
