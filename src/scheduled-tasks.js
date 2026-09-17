@@ -5,7 +5,7 @@ const SCHEDULED_TASK_LIMIT = 50;
 const SCHEDULED_LOG_LIMIT = 500;
 const SCHEDULED_LOG_MAX_BYTES = 5 * 1024 * 1024;
 // 事件触发的任务类型与动作类型（append-daily/create-todo/push 的 command 字段存放文本模板）。
-const SCHEDULED_EVENT_NAMES = ['file-saved', 'todo-completed', 'pomodoro-finished', 'weekly-report-saved', 'countdown-threshold', 'countdown-finished'];
+const SCHEDULED_EVENT_NAMES = ['file-saved', 'todo-completed', 'team-todo-completed', 'pomodoro-finished', 'weekly-report-saved', 'countdown-threshold', 'countdown-finished'];
 const SCHEDULED_TEMPLATE_KINDS = ['append-daily', 'create-todo', 'push'];
 const SCHEDULED_TASK_KINDS = ['obsidian-command', 'toolbar-action', 'shell', ...SCHEDULED_TEMPLATE_KINDS, 'smtp-email', 'workflow'];
 // 事件任务的最小重跑间隔：动作若会改写被监听的文件夹，冷却期兜底防止事件风暴。
@@ -183,6 +183,7 @@ function scheduleLabel(task, lang = 'zh') {
     const names = {
       'file-saved': en ? 'Note saved' : '笔记保存',
       'todo-completed': en ? 'Todo completed' : '待办完成',
+      'team-todo-completed': en ? 'Team task completed (host)' : '团队待办完成（主设备）',
       'pomodoro-finished': en ? 'Pomodoro finished' : '番茄钟结束',
       'weekly-report-saved': en ? 'Weekly report saved' : '周报已保存',
       'countdown-threshold': en ? 'Countdown threshold reached' : '倒计时到达提醒阈值',
@@ -318,7 +319,7 @@ class ScheduledTaskService {
         const path = String(file?.path || '');
         if (!path || !path.toLowerCase().endsWith('.md')) return;
         // 面板自管理的数据文件不作为「笔记保存」事件源（待办变化有专属事件）。
-        if (path === TODO_FILE || path === FOCUS_FILE || (typeof DAILY_DIR === 'string' && path.startsWith(DAILY_DIR + '/'))) return;
+        if (path === (typeof TEAM_TODO_FILE === 'string' ? TEAM_TODO_FILE : '') || path === TODO_FILE || path === FOCUS_FILE || (typeof DAILY_DIR === 'string' && path.startsWith(DAILY_DIR + '/'))) return;
         pendingPaths.add(path);
         if (debounceTimer) window.clearTimeout(debounceTimer);
         debounceTimer = window.setTimeout(flush, 2500);
@@ -331,6 +332,7 @@ class ScheduledTaskService {
       };
       this._unbindCockpitEvents = [
         typeof cockpitOn === 'function' ? cockpitOn('todo-completed', (payload) => this.dispatchEventTrigger('todo-completed', payload || {}).catch((e) => console.warn('[Cockpit event trigger]', e))) : null,
+        typeof cockpitOn === 'function' ? cockpitOn('team-todo-completed', (payload) => { if(payload?.hostCommitted && this.plugin.teamSync?.isHost()) this.dispatchEventTrigger('team-todo-completed',payload).catch(e=>console.warn('Cockpit team event trigger failed',e)); }) : null,
         typeof cockpitOn === 'function' ? cockpitOn('pomodoro-finished', (payload) => this.dispatchEventTrigger('pomodoro-finished', payload || {}).catch((e) => console.warn('[Cockpit event trigger]', e))) : null,
         typeof cockpitOn === 'function' ? cockpitOn('weekly-report-saved', (payload) => this.dispatchEventTrigger('weekly-report-saved', payload || {}).catch((e) => console.warn('[Cockpit event trigger]', e))) : null,
         typeof cockpitOn === 'function' ? cockpitOn('countdown-threshold', (payload) => this.dispatchEventTrigger('countdown-threshold', payload || {}).catch((e) => console.warn('[Cockpit event trigger]', e))) : null,
@@ -643,7 +645,7 @@ async function openScheduledTaskEditor(view, existing, options = {}) {
   const interval=field(en?'Interval minutes':'间隔分钟数').createEl('input',{attr:{type:'number',min:'1',max:'10080'}}); interval.value=String(draft.schedule.intervalMinutes);
   const time=field(en?'Run time':'运行时间').createEl('input',{attr:{type:'time'}}); time.value=draft.schedule.time;
   const days=field(en?'Weekdays (0=Sun … 6=Sat)':'星期（0=周日 … 6=周六）').createEl('input',{attr:{type:'text',placeholder:'1,2,3,4,5'}}); days.value=draft.schedule.weekdays.join(',');
-  const eventNames={'file-saved':[en?'Note saved':'笔记保存'],'todo-completed':[en?'Todo completed':'待办完成'],'pomodoro-finished':[en?'Pomodoro finished':'番茄钟结束'],'weekly-report-saved':[en?'Weekly report saved':'周报已保存'],'countdown-threshold':[en?'Countdown threshold reached':'倒计时到达提醒阈值'],'countdown-finished':[en?'Countdown finished':'倒计时结束']};
+  const eventNames={'file-saved':[en?'Note saved':'笔记保存'],'todo-completed':[en?'Todo completed':'待办完成'],'team-todo-completed':[en?'Team task completed (host)':'团队待办完成（主设备）'],'pomodoro-finished':[en?'Pomodoro finished':'番茄钟结束'],'weekly-report-saved':[en?'Weekly report saved':'周报已保存'],'countdown-threshold':[en?'Countdown threshold reached':'倒计时到达提醒阈值'],'countdown-finished':[en?'Countdown finished':'倒计时结束']};
   const eventSel=field(en?'Trigger event':'触发事件').createEl('select'); Object.keys(eventNames).forEach((value)=>eventSel.createEl('option',{text:eventNames[value][0],attr:{value}})); eventSel.value=draft.schedule.event||'file-saved';
   const eventFolder=field(en?'Folder filter (empty = any)':'文件夹过滤（留空 = 任意）').createEl('input',{attr:{type:'text',maxlength:'200',placeholder:'Projects'}}); eventFolder.value=draft.schedule.folder||'';
   const eventSource=field(en?'Countdown source':'倒计时来源').createEl('select');eventSource.createEl('option',{text:en?'Any countdown':'任意倒计时',attr:{value:''}});countdownOptions.forEach((item)=>eventSource.createEl('option',{text:item.name,attr:{value:item.id}}));if(draft.schedule.sourceId&&!countdownOptions.some((item)=>item.id===draft.schedule.sourceId))eventSource.createEl('option',{text:(en?'Unavailable: ':'已失效：')+(draft.schedule.sourceLabel||draft.schedule.sourceId),attr:{value:draft.schedule.sourceId}});eventSource.value=draft.schedule.sourceId||'';

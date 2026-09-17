@@ -10,7 +10,7 @@ function registerCockpitCommands(plugin) {
     name:'全局搜索（待办 / 笔记内容 / 文件名）',
     callback:() => {
       const view = plugin.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view;
-      openGlobalSearch(plugin.app, plugin._lang?.() || DEFAULT_LANG, view || null);
+      openGlobalSearch(plugin.app, plugin._lang?.() || DEFAULT_LANG, view || null, plugin);
       if (!view) plugin._open();
     }
   });

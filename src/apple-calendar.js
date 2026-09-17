@@ -25,7 +25,10 @@ function normalizeAppleCalendarConfig(raw) {
     calendarId:appleCalendarSafeText(source.calendarId, 300),
     calendarName:appleCalendarSafeText(source.calendarName, 160),
     durationMinutes:Math.max(15, Math.min(480, duration)),
-    mappings
+    mappings,
+    lastSyncResult:source.lastSyncResult && ['success','failed'].includes(source.lastSyncResult.status) ? {
+      at:appleCalendarSafeText(source.lastSyncResult.at,40),status:source.lastSyncResult.status,error:appleCalendarSafeText(source.lastSyncResult.error,400)
+    } : null
   };
 }
 
@@ -261,11 +264,17 @@ class AppleCalendarService {
       const config = await this.getConfig();
       if (!this.isSupported() || !config.enabled || !config.calendarId || !config.calendarName) return false;
       const desired = desiredSnapshot.map((item) => ({ ...item, hash:appleCalendarEventHash(item) }));
+      try {
       const result = await this._run({ action:'sync', calendarId:config.calendarId, calendarName:config.calendarName, desired, mappings:config.mappings });
       const latest = await this.getConfig();
       if (latest.calendarId !== config.calendarId) return false;
-      await this.saveConfig({ ...latest, mappings:result?.mappings || {} });
+      await this.saveConfig({ ...latest, mappings:result?.mappings || {}, lastSyncResult:{at:new Date().toISOString(),status:'success',error:''} });
       return true;
+      } catch(error) {
+        const latest=await this.getConfig();
+        if(latest.calendarId===config.calendarId) { try { await this.saveConfig({...latest,lastSyncResult:{at:new Date().toISOString(),status:'failed',error:typeof cockpitSafeRunError === 'function' ? cockpitSafeRunError(error?.message||error) : 'Calendar sync failed'}}); } catch(saveError) { console.warn('Cockpit calendar status could not be saved',saveError); } }
+        throw error;
+      }
     };
     this._queue = this._queue.catch(() => {}).then(task);
     if (options.silent !== false) return this._queue.catch((error) => { console.warn('Cockpit Apple calendar sync failed', error?.message || error); return false; });

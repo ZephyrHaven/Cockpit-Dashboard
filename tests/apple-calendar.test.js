@@ -67,7 +67,7 @@ assert.equal(typeof APPLE_CALENDAR_CREATE_SCRIPT, 'string', 'Automatic setup shi
 assert.match(APPLE_CALENDAR_CREATE_SCRIPT || '', /make new calendar with properties \{name:"Cockpit"\}/, 'Automatic setup creates only the dedicated Cockpit calendar.');
 
 const build = fs.readFileSync(path.join(__dirname, '../build.js'), 'utf8');
-const framework = fs.readFileSync(path.join(__dirname, '../src/_framework.js'), 'utf8');
+const framework = fs.readFileSync(path.join(__dirname, '../src/_framework.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../src/todo-editor.js'), 'utf8');
 const settings = fs.readFileSync(path.join(__dirname, '../src/serverchan.js'), 'utf8');
 assert.match(build, /'apple-calendar\.js'/, 'The Apple calendar service ships in the production bundle.');
 assert.match(framework, /new AppleCalendarService\(this\)/, 'The plugin owns one Apple calendar synchronization service.');

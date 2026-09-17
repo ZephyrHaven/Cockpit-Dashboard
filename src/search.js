@@ -43,8 +43,37 @@ function rankSearchFiles(files, rawQuery) {
     .map((item) => item.file);
 }
 
+// 索引只决定扫描顺序，完整扫描仍保留任意子串、冷索引和超长笔记的命中。
+function prioritizeSearchFiles(files, index, query) {
+  if (!index?.ready) return files;
+  const paths = new Set(index.query(query).map((item) => item.path));
+  return files.filter((file) => paths.has(file.path)).concat(files.filter((file) => !paths.has(file.path)));
+}
+
+class CockpitSearchContentCache {
+  constructor(maxChars = 2000000) { this.entries = new Map(); this.chars = 0; this.maxChars = maxChars; }
+  get(key) {
+    const value = this.entries.get(key);
+    if (value) { this.entries.delete(key); this.entries.set(key, value); }
+    return value;
+  }
+  set(key, content) {
+    const value = { content, lowered:content.toLowerCase() };
+    if (content.length * 2 > this.maxChars) return value;
+    this.deletePath(key.split('\n')[0]);
+    this.entries.set(key, value); this.chars += content.length * 2;
+    while (this.chars > this.maxChars || this.entries.size > 160) this.deleteKey(this.entries.keys().next().value);
+    return value;
+  }
+  deleteKey(key) {
+    const value = this.entries.get(key);
+    if (value) { this.chars -= value.content.length * 2; this.entries.delete(key); }
+  }
+  deletePath(path) { for (const key of this.entries.keys()) if (key.startsWith(path + '\n')) this.deleteKey(key); }
+}
+
 class CockpitGlobalSearchModal extends obs.Modal {
-  constructor(app, language, view) {
+  constructor(app, language, view, plugin = view?._plugin) {
     super(app);
     this.language = language || DEFAULT_LANG;
     this.view = view || null;
@@ -52,13 +81,29 @@ class CockpitGlobalSearchModal extends obs.Modal {
     this._results = [];
     this._timer = null;
     this._queryVersion = 0;
-    this._contentCache = new Map();
+    this._plugin = plugin || null;
+    if (plugin && !plugin._cockpitSearchContentCache) plugin._cockpitSearchContentCache = new CockpitSearchContentCache();
+    this._contentCache = plugin?._cockpitSearchContentCache || new CockpitSearchContentCache();
     this._queryCache = new Map();
+    this._vaultRefs = [];
   }
 
   _text(cn, en) { return this.language === 'en' ? en : cn; }
 
   onOpen() {
+    if (this._plugin) {
+      if (!this._plugin._cockpitSearchModals) this._plugin._cockpitSearchModals = new Set();
+      this._plugin._cockpitSearchModals.add(this);
+    }
+    const changed = (file, oldPath) => {
+      this._contentCache.deletePath(file?.path || '');
+      if (oldPath) this._contentCache.deletePath(oldPath);
+      this._queryCache.clear();
+      const version = ++this._queryVersion;
+      clearTimeout(this._timer);
+      this._timer = setTimeout(() => this._search(this.input.value, version), 280);
+    };
+    ['create', 'modify', 'delete', 'rename'].forEach((event) => this._vaultRefs.push(this.app.vault.on(event, changed)));
     this.modalEl.addClass(PLUGIN_ID + '-spotlight-modal');
     this.contentEl.empty();
     const box = this.contentEl.createDiv({ cls: PLUGIN_ID + '-spotlight' });
@@ -144,30 +189,30 @@ class CockpitGlobalSearchModal extends obs.Modal {
     this._cursor = 0;
     this._renderResults();
 
-    // 内容搜索在一次输入后只运行一次，结果随扫描渐进出现；避免每次键入都阻塞界面。
-    for (let index = 0; index < files.length; index++) {
+    // 小批并行读取，批间检查取消并让出主线程；缓存跨搜索窗口复用且有体积上限。
+    const ordered = prioritizeSearchFiles(files, this._plugin?.rag?.index, query).filter((file) => !seen.has(file.path));
+    for (let index = 0; index < ordered.length; index += 4) {
       if (version !== this._queryVersion) return;
-      const file = files[index];
-      if (!seen.has(file.path)) {
+      const batch = await Promise.all(ordered.slice(index, index + 4).map(async (file) => {
         try {
-          const cacheKey = file.path + ':' + file.stat.mtime;
-          let content = this._contentCache.get(cacheKey);
-          if (content === undefined) {
-            content = await this.app.vault.cachedRead(file);
-            this._contentCache.set(cacheKey, content);
-          }
-          const lowered = content.toLowerCase();
+          const cacheKey = file.path + '\n' + file.stat.mtime + ':' + file.stat.size;
+          let cachedContent = this._contentCache.get(cacheKey);
+          if (!cachedContent) cachedContent = this._contentCache.set(cacheKey, String(await this.app.vault.cachedRead(file) || ''));
+          if (version !== this._queryVersion) return null;
+          const { content, lowered } = cachedContent;
           const pos = lowered.indexOf(query);
           if (pos >= 0) {
             const start = Math.max(0, pos - 42);
             const end = Math.min(content.length, pos + query.length + 72);
             let count = 0, cursor = 0;
             while ((cursor = lowered.indexOf(query, cursor)) >= 0 && count < 999) { count++; cursor += Math.max(1, query.length); }
-            results.push({ file, match: content.slice(start, end).replace(/\s+/g, ' ').trim(), count, kind:'body', score: 1 });
-            seen.add(file.path);
+            return { file, match:content.slice(start, end).replace(/\s+/g, ' ').trim(), count, kind:'body', score:1 };
           }
-        } catch (e) {}
-      }
+        } catch (e) { /* 单篇读取失败不影响其他结果 */ }
+        return null;
+      }));
+      if (version !== this._queryVersion) return;
+      results.push(...batch.filter(Boolean));
       if (index % 24 === 0) {
         this._results = results.slice(0, 40);
         this._renderResults();
@@ -282,10 +327,15 @@ class CockpitGlobalSearchModal extends obs.Modal {
     this.close();
   }
 
-  onClose() { clearTimeout(this._timer); this._queryVersion++; this.contentEl.empty(); }
+  onClose() {
+    this._plugin?._cockpitSearchModals?.delete(this);
+    clearTimeout(this._timer); this._queryVersion++;
+    this._vaultRefs.forEach((ref) => this.app.vault.offref(ref)); this._vaultRefs = [];
+    this._queryCache.clear(); this._results = []; this.contentEl.empty();
+  }
 }
 
-function openGlobalSearch(app, language, view) { const dashboardView = view || app.workspace.getLeavesOfType?.(VIEW_TYPE)?.[0]?.view || null; new CockpitGlobalSearchModal(app, language, dashboardView).open(); }
+function openGlobalSearch(app, language, view, plugin) { const dashboardView = view || app.workspace.getLeavesOfType?.(VIEW_TYPE)?.[0]?.view || null; new CockpitGlobalSearchModal(app, language, dashboardView, plugin || dashboardView?._plugin).open(); }
 
 // 保留旧入口，工具栏按钮现在打开同一套全局搜索。
 function buildSearch(root, toolbar, allFiles, app, texts, view) {

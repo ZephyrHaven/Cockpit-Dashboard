@@ -1,5 +1,5 @@
 class CockpitView extends obs.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._calendarAutomationUnsubscribe = null; this._calendarCountdownUnsubscribe = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._countdownUnsubscribe = null; this._countdownDisplayTimer = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; this._contentWidth = null; this._contentResizeCleanup = null; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio', 'teamStats', 'runHistory', 'syncHealth']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._calendarAutomationUnsubscribe = null; this._calendarCountdownUnsubscribe = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._countdownUnsubscribe = null; this._countdownDisplayTimer = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; this._contentWidth = null; this._contentResizeCleanup = null; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -109,6 +109,7 @@ class CockpitView extends obs.ItemView {
       { id:'scheduledTasks', label:this._t('sections.scheduledTasks'), collapsible:true, matches:(el) => el.dataset.section === 'scheduled-tasks-title' || el.dataset.section === 'scheduled-tasks-body' },
       { id:'workflows', label:this._t('sections.workflows'), collapsible:true, matches:(el) => el.dataset.section === 'workflows-title' || el.dataset.section === 'workflows-body' },
       { id:'reportStudio', label:this._t('sections.reportStudio'), collapsible:true, matches:(el) => el.dataset.section === 'report-studio-title' || el.dataset.section === 'report-studio-body' },
+      ...['teamStats', 'runHistory', 'syncHealth'].map((id,index) => ({id, label:(this._lang() === 'en' ? ['Team overview','Run history','Sync diagnostics'] : ['团队概览','运行记录','同步诊断'])[index], collapsible:true, matches:el=>el.dataset.section === id+'-title'||el.dataset.section === id+'-body'})),
       { id:'footer', label:this._t('layout.modules.footer'), matches:(el) => el.classList.contains(PLUGIN_ID + '-footer') },
       { id:'recent', label:this._t('sections.recent'), collapsible:true, matches:(el) => el.dataset.section === 'recent-title' || el.classList.contains(PLUGIN_ID + '-recent-tabs') || el.classList.contains(PLUGIN_ID + '-recent') }
     ];
@@ -541,6 +542,7 @@ class CockpitView extends obs.ItemView {
       const nextMinutes = Math.max(history.get(date) || 0, Math.max(0, parseInt(minutes, 10) || 0));
       history.set(date, nextMinutes);
       const content = this._serializeFocusHistory(history);
+      cockpitMarkManagedWrite(this.app.vault, filePath, content);
       if (existing) await this.app.vault.modify(existing, content);
       else await this.app.vault.create(filePath, content);
       return nextMinutes;
@@ -610,6 +612,7 @@ class CockpitView extends obs.ItemView {
     // 加载用户自定义名称 + 初始化首次使用日期
     try {
       const pluginData = await this._plugin.loadData() || {};
+      const originalMentionedModules = cockpitMentionedModules(pluginData);
       // 这必须在首次升级的布局兜底之前计算。兜底会在内存中创建
       // sceneLayouts，不能把一个从未编辑过布局的新用户误判为“已有布局”。
       const hadSavedLayout = Array.isArray(pluginData?.moduleOrder)
@@ -711,13 +714,7 @@ class CockpitView extends obs.ItemView {
           if (seen.has(moduleId)) return;
           seen.add(moduleId);
           changed = true;
-          const mentioned = Object.values(this._sceneLayouts).some((scene) => {
-            const layout = scene?.layout;
-            if (!layout) return false;
-            const order = Array.isArray(layout.moduleOrder) ? layout.moduleOrder : [];
-            const hiddenList = Array.isArray(layout.hiddenModules) ? layout.hiddenModules : [];
-            return order.includes(moduleId) || hiddenList.includes(moduleId);
-          });
+          const mentioned = originalMentionedModules.has(moduleId);
           if (!mentioned) {
             Object.values(this._sceneLayouts).forEach((scene) => {
               const hidden = new Set(Array.isArray(scene?.layout?.hiddenModules) ? scene.layout.hiddenModules : []);
@@ -743,7 +740,7 @@ class CockpitView extends obs.ItemView {
       }
       this._startDate = pluginData.startDate;
       this._onboardingDone = pluginData?.onboardingDone || false;
-    } catch(e) { this._language = DEFAULT_LANG; this._calendarViewMode = 'month'; this._calendarLunarEnabled = true; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio']); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:this._sceneSnapshot() } }; this._activeSceneId = 'default'; }
+    } catch(e) { this._language = DEFAULT_LANG; this._calendarViewMode = 'month'; this._calendarLunarEnabled = true; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio', 'teamStats', 'runHistory', 'syncHealth']); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:this._sceneSnapshot() } }; this._activeSceneId = 'default'; }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -894,6 +891,7 @@ class CockpitView extends obs.ItemView {
 
   async _renderDashboard(reloadState, crossfadeScene) {
     this._teamUnsubscribe?.(); this._teamUnsubscribe = null; this._teamBuildToken = null;
+    this._insightsCleanup?.(); this._insightsCleanup=null;
     if (reloadState) await this._reloadDashboardState();
     this._blankContextMenuItems = [];
     this._heroRefs = null;
@@ -1074,8 +1072,8 @@ class CockpitView extends obs.ItemView {
     const makeCollapsible = (titleEl, contentEl, key, defaultCollapsed) => this._makeModuleCollapsible(key, titleEl, contentEl, defaultCollapsed);
     let refreshTodosRef = null;
     let refreshCalendarRef = null;
-    const commitTodoMutation = async (mutator, failureMessage) => {
-      const outcome = await mutateTodos(this.app.vault, mutator);
+    const commitTodoMutation = async (mutator, failureMessage, mutationOptions = {}) => {
+      const outcome = await mutateTodos(this.app.vault, mutator, mutationOptions);
       if (!outcome.saved || !outcome.todos) {
         new obs.Notice(failureMessage || (lang === 'en' ? 'Could not save tasks. Nothing was changed.' : '待办保存失败，内容未发生变化。'));
         return false;
@@ -1116,6 +1114,7 @@ class CockpitView extends obs.ItemView {
       dueDate: cloneMomentOrNull(todo?.dueDate),
       dueHasTime: !!todo?.dueHasTime,
       calendarSync: todo?.calendarSync === true,
+      repeat: normalizeTodoRepeat(todo?.repeat),
       priority: todo?.priority || 'mid',
       ...overrides
     });
@@ -1186,263 +1185,9 @@ class CockpitView extends obs.ItemView {
       }
     };
 
-    const openTodoEditor = (options = {}) => {
-      this._openTodoEditorRef = (typeof options === 'object') ? openTodoEditor : openTodoEditor;      const existingTodo = options.id
-        ? this._todos.find((todo) => todo.id === options.id)
-        : (typeof options.index === 'number' ? this._todos[options.index] : null);
-      const existingId = existingTodo?.id || '';
-      const isEditing = !!existingTodo;
-      const PID = PLUGIN_ID;
-      const duePreset = options.dueDate ? options.dueDate.clone().startOf('day') : null;
-      const draft = createTodoDraft(existingTodo, duePreset ? { dueDate: duePreset, dueHasTime:false } : {});
-      const knownTags = getAllTodoTags();
-      let saveLocked = false;
-
-      this._closeTodoEditor();
-
-      const overlay = document.createElement('div');
-      overlay.className = PID + '-todo-editor-backdrop';
-      overlay.addEventListener('click', (evt) => {
-        if (evt.target === overlay) this._closeTodoEditor();
-      });
-
-      const sheet = overlay.createDiv({ cls: PID + '-todo-editor-sheet' });
-      sheet.addEventListener('click', (evt) => evt.stopPropagation());
-      sheet.addEventListener('keydown', (evt) => {
-        if (evt.key === 'Escape') {
-          evt.preventDefault();
-          this._closeTodoEditor();
-          return;
-        }
-        if ((evt.metaKey || evt.ctrlKey) && evt.key === 'Enter') {
-          evt.preventDefault();
-          saveBtn.click();
-        }
-      });
-
-      const header = sheet.createDiv({ cls: PID + '-todo-editor-header' });
-      header.createDiv({ cls: PID + '-todo-editor-title', text: isEditing ? t('todo.editorEdit') : t('todo.editorCreate') });
-      const closeBtn = header.createEl('button', { cls: PID + '-todo-editor-close', text: '✕', attr: { type: 'button', title: t('todo.cancel') } });
-      closeBtn.onclick = () => this._closeTodoEditor();
-      makeCockpitDialogDraggable(sheet, header, { label: this._lang() === 'en' ? 'Drag task editor' : '拖动待办编辑窗口' });
-
-      const body = sheet.createDiv({ cls: PID + '-todo-editor-body' });
-
-      const fieldTask = body.createDiv({ cls: PID + '-todo-editor-field' });
-      fieldTask.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorTask') });
-      const titleInput = fieldTask.createEl('textarea', { cls: PID + '-todo-editor-textarea', attr: { rows: '3', placeholder: t('todo.editorTaskPlaceholder') } });
-      titleInput.value = draft.text;
-
-      const fieldDue = body.createDiv({ cls: PID + '-todo-editor-field' });
-      fieldDue.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorDue') });
-      const dueQuick = fieldDue.createDiv({ cls: PID + '-todo-editor-quick' });
-      const dateInput = fieldDue.createEl('input', { cls: PID + '-todo-editor-date', attr: { type: 'datetime-local' } });
-      const dueButtons = [
-        { key: 'none', label: t('todo.noDue'), apply: () => { draft.dueDate = null; draft.dueHasTime = false; } },
-        { key: 'today', label: t('todo.dueTodayBtn'), apply: () => { draft.dueDate = window.moment().startOf('day'); draft.dueHasTime = false; } },
-        { key: 'tomorrow', label: t('todo.dueTomorrowBtn'), apply: () => { draft.dueDate = window.moment().add(1, 'day').startOf('day'); draft.dueHasTime = false; } }
-      ];
-      const renderDueButtons = () => {
-        dueQuick.querySelectorAll('.' + PID + '-todo-editor-chip').forEach((chip) => chip.remove());
-        dueButtons.forEach((item) => {
-          const btn = dueQuick.createEl('button', { cls: PID + '-todo-editor-chip', text: item.label, attr: { type: 'button' } });
-          const due = draft.dueDate;
-          const today = window.moment().startOf('day');
-          const tomorrow = today.clone().add(1, 'day');
-          const active = item.key === 'none'
-            ? !due
-            : item.key === 'today'
-              ? !!(due && due.isSame(today, 'day'))
-              : !!(due && due.isSame(tomorrow, 'day'));
-          btn.classList.toggle('active', !!active);
-          btn.onclick = () => {
-            item.apply();
-            renderDue();
-          };
-        });
-      };
-      const renderDue = () => {
-        dateInput.value = draft.dueDate ? draft.dueDate.format('YYYY-MM-DDTHH:mm') : '';
-        renderDueButtons();
-      };
-      dateInput.addEventListener('change', () => {
-        draft.dueDate = dateInput.value ? parseDate(dateInput.value) : null;
-        draft.dueHasTime = !!dateInput.value;
-        renderDueButtons();
-      });
-
-      const calendarSyncSupported = this._plugin.appleCalendar?.isSupported?.() === true;
-      const calendarSyncField = body.createEl('label', { cls: PID + '-todo-editor-calendar-sync' + (calendarSyncSupported ? '' : ' is-disabled') });
-      const calendarSyncCopy = calendarSyncField.createDiv({ cls: PID + '-todo-editor-calendar-copy' });
-      const calendarSyncHeading = calendarSyncCopy.createDiv({ cls: PID + '-todo-editor-calendar-heading' });
-      const calendarSyncIcon = calendarSyncHeading.createSpan({ cls: PID + '-todo-editor-calendar-icon' });
-      obs.setIcon(calendarSyncIcon, 'calendar-days');
-      calendarSyncHeading.createSpan({ text:lang === 'en' ? 'Sync to iPhone calendar' : '同步到 iPhone 日历' });
-      calendarSyncHeading.createSpan({ cls: PID + '-todo-editor-calendar-badge', text:lang === 'en' ? 'Mac only' : '仅 Mac' });
-      calendarSyncCopy.createDiv({
-        cls:PID + '-todo-editor-calendar-note',
-        text:lang === 'en'
-          ? 'When this task has a due date, save it to the iCloud calendar selected in settings.'
-          : '有截止日期时，保存到设置中选择的 iCloud 日历，并同步到 iPhone。'
-      });
-      const calendarSyncInput = calendarSyncField.createEl('input', {
-        cls:PID + '-todo-editor-calendar-toggle',
-        attr:{ type:'checkbox', role:'switch', 'aria-label':lang === 'en' ? 'Sync this task to iPhone calendar' : '将这个待办同步到 iPhone 日历' }
-      });
-      calendarSyncInput.checked = draft.calendarSync;
-      calendarSyncInput.disabled = !calendarSyncSupported;
-      calendarSyncInput.addEventListener('change', () => { draft.calendarSync = calendarSyncInput.checked; });
-
-      const fieldPriority = body.createDiv({ cls: PID + '-todo-editor-field' });
-      fieldPriority.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorPriority') });
-      const priorityRow = fieldPriority.createDiv({ cls: PID + '-todo-editor-segment' });
-      const priorityOptions = [
-        { key: 'high', label: t('todo.priorityHigh') },
-        { key: 'mid', label: t('todo.priorityMid') },
-        { key: 'low', label: t('todo.priorityLow') }
-      ];
-      const renderPriority = () => {
-        priorityRow.empty();
-        priorityOptions.forEach((option) => {
-          const btn = priorityRow.createEl('button', {
-            cls: PID + '-todo-editor-segment-btn' + (draft.priority === option.key ? ' active' : ''),
-            text: option.label,
-            attr: { type: 'button' }
-          });
-          btn.onclick = () => {
-            draft.priority = option.key;
-            renderPriority();
-          };
-        });
-      };
-
-      const fieldTags = body.createDiv({ cls: PID + '-todo-editor-field' });
-      fieldTags.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorTags') });
-      const selectedTags = fieldTags.createDiv({ cls: PID + '-todo-editor-selected-tags' });
-      const tagSuggestions = fieldTags.createDiv({ cls: PID + '-todo-editor-tags' });
-      const tagInputRow = fieldTags.createDiv({ cls: PID + '-todo-editor-tag-input-row' });
-      const tagInput = tagInputRow.createEl('input', {
-        cls: PID + '-todo-editor-tag-input',
-        attr: { type: 'text', placeholder: t('todo.editorTagPlaceholder') }
-      });
-      const tagAddBtn = tagInputRow.createEl('button', {
-        cls: PID + '-todo-editor-secondary-btn',
-        text: t('todo.editorAddTag'),
-        attr: { type: 'button' }
-      });
-      const addTag = (value) => {
-        const normalized = normalizeTodoTag(value);
-        if (!normalized) return false;
-        if (!draft.tags.includes(normalized)) draft.tags.push(normalized);
-        tagInput.value = '';
-        renderTags();
-        return true;
-      };
-      const removeTag = (tag) => {
-        draft.tags = draft.tags.filter((item) => item !== tag);
-        renderTags();
-      };
-      const renderTags = () => {
-        selectedTags.empty();
-        if (!draft.tags.length) {
-          selectedTags.createDiv({ cls: PID + '-todo-editor-empty', text: t('todo.editorNoTags') });
-        } else {
-          draft.tags.forEach((tag) => {
-            const pill = selectedTags.createEl('button', {
-              cls: PID + '-todo-editor-selected-tag',
-              text: '#' + tag + ' ×',
-              attr: { type: 'button' }
-            });
-            pill.onclick = () => removeTag(tag);
-          });
-        }
-        tagSuggestions.empty();
-        knownTags.forEach((tag) => {
-          const btn = tagSuggestions.createEl('button', {
-            cls: PID + '-todo-editor-chip' + (draft.tags.includes(tag) ? ' active' : ''),
-            text: '#' + tag,
-            attr: { type: 'button' }
-          });
-          btn.onclick = () => {
-            if (draft.tags.includes(tag)) removeTag(tag);
-            else addTag(tag);
-          };
-        });
-      };
-      tagAddBtn.onclick = () => addTag(tagInput.value);
-      tagInput.addEventListener('keydown', (evt) => {
-        if (evt.key === 'Enter') {
-          evt.preventDefault();
-          addTag(tagInput.value);
-        }
-      });
-
-      body.createDiv({ cls: PID + '-todo-editor-hint', text: t('todo.legacyHint') });
-
-      const footer = sheet.createDiv({ cls: PID + '-todo-editor-footer' });
-      const cancelBtn = footer.createEl('button', {
-        cls: PID + '-todo-editor-secondary-btn',
-        text: t('todo.cancel'),
-        attr: { type: 'button' }
-      });
-      cancelBtn.onclick = () => this._closeTodoEditor();
-      const saveBtn = footer.createEl('button', {
-        cls: PID + '-todo-editor-primary-btn',
-        text: isEditing ? t('todo.saveEdit') : t('todo.saveNew'),
-        attr: { type: 'button' }
-      });
-      saveBtn.onclick = async () => {
-        if (saveLocked) return;
-        const rawTitle = titleInput.value.trim();
-        if (!rawTitle) {
-          titleInput.focus();
-          return;
-        }
-        saveLocked = true;
-        let calendarSetupError = null;
-        if (draft.calendarSync) {
-          try { await this._plugin.appleCalendar.ensureReady({ enable:true }); }
-          catch (error) { calendarSetupError = error; }
-        }
-        const merged = mergeLegacyTodoInput(rawTitle, draft);
-        const nextTodo = {
-          text: merged.text,
-          tags: merged.tags,
-          dueDate: merged.dueDate,
-          dueHasTime: merged.dueHasTime,
-          calendarSync: draft.calendarSync,
-          priority: merged.priority,
-          done: existingTodo ? !!existingTodo.done : false,
-          created: existingTodo?.created || window.moment(),
-          doneDate: existingTodo?.doneDate || null
-        };
-        const saved = await commitTodoMutation((todos) => {
-          if (isEditing) {
-            const target = todos.find((todo) => todo.id === existingId);
-            if (!target) return false;
-            Object.assign(target, nextTodo);
-          } else {
-            todos.unshift(nextTodo);
-          }
-          return true;
-        }, isEditing
-          ? (lang === 'en' ? 'This task changed elsewhere. Reopen it and try again.' : '这个待办已在其他窗口发生变化，请重新打开后再试。')
-          : undefined);
-        if (saved) {
-          this._closeTodoEditor();
-          if (calendarSetupError) new obs.Notice(this._plugin.appleCalendar.userMessage(calendarSetupError, lang), 10000);
-        }
-        else saveLocked = false;
-      };
-
-      renderDue();
-      renderPriority();
-      renderTags();
-
-      this._todoEditorEl = overlay;
-      document.body.appendChild(overlay);
-      setTimeout(() => titleInput.focus(), 16);
-    };
+    const openTodoEditor = (options = {}) => openCockpitTodoEditor.call(this, options, {
+      lang, t, createTodoDraft, getAllTodoTags, mergeLegacyTodoInput, normalizeTodoTag, commitTodoMutation
+    });
     this._openTodoEditorRef = openTodoEditor;
 
     // ===== 1.5 每日小贴士 =====
@@ -1746,6 +1491,7 @@ class CockpitView extends obs.ItemView {
       cls: PLUGIN_ID+'-status-select',
       attr: { title: lang === 'en' ? 'Filter tasks by status' : '按状态筛选待办', 'aria-label': lang === 'en' ? 'Task status filter' : '待办状态筛选' }
     });
+    statusOptions.push({key:'archived',label:lang === 'en' ? 'Archived' : '已归档'});
     statusOptions.forEach((option) => {
       const optionEl = statusSelect.createEl('option', { text: option.label, attr: { value: option.key } });
       optionEl.selected = option.key === currentStatus;
@@ -1757,7 +1503,7 @@ class CockpitView extends obs.ItemView {
     };
 
     const getStatusFilteredTodos = (preparedTodayGroups)=>{
-      let filtered = this._todos;
+      let filtered = this._todos.filter(todo => currentStatus === 'archived' ? todo.tags?.includes('_archived') : !todo.tags?.includes('_archived'));
       if (currentStatus === 'today') {
         filtered = (preparedTodayGroups || []).flatMap((group) => group.items);
       }
@@ -1811,7 +1557,7 @@ class CockpitView extends obs.ItemView {
       const aiReady = await isCockpitAiReady(this._plugin);
 
       const todayKey = window.moment().format('YYYY-MM-DD');
-      const baseTodayGroups = currentStatus === 'today' ? groupTodayTodos(this._todos, todayKey) : null;
+      const baseTodayGroups = currentStatus === 'today' ? groupTodayTodos(this._todos.filter(todo=>!todo.tags?.includes('_archived')), todayKey) : null;
       const statusFiltered = getStatusFilteredTodos(baseTodayGroups);
 
       // 如果没有页签容器，创建它（插在 todoHeader 之后）
@@ -1824,6 +1570,7 @@ class CockpitView extends obs.ItemView {
       const allTags = getVisibleTags(statusFiltered);
       if (currentTag !== 'all' && !allTags.includes(currentTag.replace('tag:',''))) currentTag = 'all';
       renderTabs(allTags, tabsWrap);
+      buildTodoBulkBar(this, tabsWrap, statusFiltered.filter(todo => currentTag === 'all' || todo.tags?.includes(currentTag.slice(4))), commitTodoMutation);
 
       const visibleStatusTodos = currentTag === 'all'
         ? statusFiltered
@@ -1927,6 +1674,8 @@ class CockpitView extends obs.ItemView {
         item.addEventListener('dragstart', (event) => { if (done) { event.preventDefault(); return; } event.dataTransfer.setData('application/x-cockpit-todo', todo.id); event.dataTransfer.effectAllowed = 'move'; item.classList.add('is-dragging'); });
         item.addEventListener('dragend', () => item.classList.remove('is-dragging'));
 
+        addTodoBulkSelector(this, item, todo);
+
         // 优先级圆点
         const pdot = item.createDiv({
           cls: PLUGIN_ID+'-todo-pdot p-'+(todo.priority||'mid'),
@@ -1958,6 +1707,7 @@ class CockpitView extends obs.ItemView {
         const meta = main.createDiv({ cls: PLUGIN_ID+'-todo-meta' });
         if (todo.created) meta.createDiv({cls:PLUGIN_ID+'-todo-meta-item'}).createSpan({text:E.cal+' '+fmtDate(todo.created, lang)});
         if (done && todo.doneDate) meta.createDiv({cls:PLUGIN_ID+'-todo-meta-item'}).createSpan({text:E.check+' '+fmtDate(todo.doneDate, lang)});
+        if (todo.repeat) meta.createDiv({ cls:PLUGIN_ID+'-todo-meta-item', text:lang === 'en' ? 'Repeats' : '重复待办' });
         const focusStat = getTodoFocusStat(this._pomodoroTaskStats, todo);
         if (focusStat) meta.createSpan({ cls:PLUGIN_ID+'-todo-focus-stat', text:'🍅 '+focusStat.sessions+' · '+focusStat.totalMinutes+' min' });
         // 截止日期显示
@@ -2131,6 +1881,8 @@ class CockpitView extends obs.ItemView {
     // 此处 todos 区块已渲染完毕，过滤变量与 renderTodos 均已就绪。
     try {
       this._refreshProjectsRef = buildProjectsModule(this, root, {
+        onEditTodo:(todo) => openTodoEditor({ id:todo.id }),
+        onFocusTodo:(todo) => buildPomodoro(this, root, todo),
         onOpenProject:(tag) => {
           currentStatus = 'all';
           statusSelect.value = 'all';
@@ -2144,6 +1896,13 @@ class CockpitView extends obs.ItemView {
       this._refreshProjectsRef = null;
       console.warn('Cockpit projects module failed; dashboard basics remain available', e);
     }
+
+    this._insightsCleanup?.();
+    for (const build of [buildTeamInsights, buildRunHistory, buildSyncHealth]) {
+      try { build(this, root); } catch(error) { console.warn('Cockpit optional insights module failed', error); }
+    }
+
+    this._insightsCleanup = subscribeCockpitInsights(this);
 
     // ===== 5.5 专注趋势 =====
     // 图表是可选模块，绝不能阻断后面的模块布局、编辑模式或情景布局初始化。
@@ -2483,7 +2242,7 @@ class CockpitView extends obs.ItemView {
   _refreshRecentSection(root, allFiles) {
     const recentEl = this._recentEl || root.querySelector('.' + PLUGIN_ID + '-recent');
     if (!recentEl) return;
-    recentEl.innerHTML = '';
+    recentEl.empty();
     this._recentEl = recentEl;
     this._allFiles = allFiles;
     const mode = recentEl.dataset.mode || 'opened';
@@ -2557,7 +2316,7 @@ class CockpitView extends obs.ItemView {
     }
 
     // 重新渲染收藏列表
-    bmEl.innerHTML = '';
+    bmEl.empty();
     let hasVisible = false;
     const orderedPaths = this._orderedBookmarks();
     for (let index = 0; index < orderedPaths.length; index++) {
@@ -2777,6 +2536,7 @@ class CockpitView extends obs.ItemView {
     cancelAnimationFrame(this._contentWidthFrame); this._contentWidthFrame = null;
     clearTimeout(this._contentWidthTimer); this._contentWidthTimer = null;
     this._teamUnsubscribe?.(); this._teamUnsubscribe = null; this._teamBuildToken = null;
+    this._insightsCleanup?.(); this._insightsCleanup=null;
     this._contentResizeCleanup?.();
     if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; }
     if (this._minuteRefreshTimer) { clearInterval(this._minuteRefreshTimer); this._minuteRefreshTimer = null; }
@@ -2953,7 +2713,7 @@ class CockpitView extends obs.ItemView {
         card.className = PID + '-onboarding-card';
         document.body.appendChild(card);
       }
-      card.innerHTML = '';
+      card.empty();
       card.style.opacity = '1';
       // header
       const top = document.createElement('div');
@@ -3043,6 +2803,7 @@ class CockpitPlugin extends obs.Plugin {
     this.teamSync = new CockpitTeamSync(this);
     void this.teamSync.initialize();
     this.rag = new CockpitRagService(this);
+    this.registerEvent(this.app.vault.on('create', (file) => this.rag.queueIndexUpdate(file?.path)));
     this.registerEvent(this.app.vault.on('modify', (file) => {
       this.rag.invalidatePath(file?.path);
       this.rag.queueIndexUpdate(file?.path);
@@ -3137,6 +2898,11 @@ class CockpitPlugin extends obs.Plugin {
     return this.openAI();
   }
   async onunload() {
+    for (const modal of this._cockpitSearchModals || []) modal.close();
+    this._cockpitSearchModals?.clear();
+    for (const modal of this._cockpitDetailModals || []) modal.close();
+    this._cockpitDetailModals?.clear();
+    this._cockpitSearchContentCache = null;
     this.updater?.stop();
     this._lanSettingsCleanup?.();
     this.teamSync?.stop();

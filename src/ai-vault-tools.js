@@ -21,7 +21,7 @@ const AI_VAULT_TOOL_LIMITS = Object.freeze({
 
 function vaultToolLocalProtectedPath(value) {
   const path = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
-  return path === '.obsidian' || path.startsWith('.obsidian/') || path === '.trash' || path.startsWith('.trash/');
+  return path === '_data/team-todos.md' || path === '.obsidian' || path.startsWith('.obsidian/') || path === '.trash' || path.startsWith('.trash/');
 }
 
 // 路径规范化：拒绝越级、绝对路径与控制字符；返回库内相对路径或抛错。

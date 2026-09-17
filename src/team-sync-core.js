@@ -1,4 +1,5 @@
 // team-sync-core.js — 主设备裁决的团队待办协议；个人待办不进入此数据域。
+const TEAM_TODO_FILE = '_data/team-todos.md';
 const TEAM_SYNC_LIMIT = 400;
 const TEAM_SYNC_BYTES = 320 * 1024;
 // Tags stay in the existing text representation, compatible with paired older devices.

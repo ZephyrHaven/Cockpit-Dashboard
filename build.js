@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // build.js — 把 src/ 模块打包压缩为发布产物，输出到 dist/：
-//   dist/main.js       esbuild 压缩后的插件入口（含内嵌压缩版 CSS）
+//   dist/main.js       esbuild 压缩后的插件入口（独立加载 CSS）
 //   dist/styles.css    esbuild 压缩后的样式
 //   dist/main.js.map   本地调试用 sourcemap（不随 Release 上传）
 // 仓库根目录的 src/ 与 styles.css 始终是可读源码，构建不会改写它们。
@@ -47,7 +47,12 @@ const MODULES = [
   'tip-store.js',
   'utils.js',
   'cockpit-events.js',
+  'todo-repeat.js',
+  'todo-repeat-editor.js',
   'todos.js',
+  'todo-bulk.js',
+  'todo-editor.js',
+  'dashboard-insights.js',
   'apple-calendar.js',
   'todo-focus.js',
   'focus-insights.js',

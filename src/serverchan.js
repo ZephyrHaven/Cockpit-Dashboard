@@ -276,7 +276,7 @@ class ServerChanService {
       // 资格检查全部在读文件之前：开关关闭 / 不在计划内 / 无可用渠道 / 已全部发送时直接返回。
       if (!config.enabled || !isServerChanScheduleDue(config, now) || !key || !getEnabledChannels(config).length || allEnabledChannelsSent(config, key)) return;
       // 失败渠道重试次数用尽后同样不再读待办文件，避免整点后每秒空转。
-      const pendingIds = getEnabledChannels(config).filter((id) => !channelWasSent(config, key, id) && channelAttempts(config, key, id) < MAX_NOTIFICATION_ATTEMPTS_PER_SLOT);
+      const pendingIds = getEnabledChannels(config).filter((id) => retry.force ? id === retry.channelId : !channelWasSent(config, key, id) && channelAttempts(config, key, id) < MAX_NOTIFICATION_ATTEMPTS_PER_SLOT);
       if (!pendingIds.length) return;
       const data = await this.plugin.loadData() || {}; const todos = await loadTodos(this.plugin.app.vault);
       await this.sendDueReminder(todos || [], data.username || '你', slot);
@@ -284,9 +284,17 @@ class ServerChanService {
   }
   async sendChannel(channelId, title, body) { const config = await this.getConfig(); return sendNotificationChannel(channelId, config.channels[channelId], title, body); }
   async sendDueReminder(todos, username, slot) { if (this._reminderPromise) return this._reminderPromise; this._reminderPromise = this._sendDueReminder(todos, username, slot).finally(() => { this._reminderPromise = null; }); return this._reminderPromise; }
-  async _sendDueReminder(todos, username, scheduledSlot) {
+  async retryReminder(key,channelId) {
+    if(this._reminderPromise)throw new Error('已有提醒正在发送，请稍后重试。');
+    const config=await this.getConfig(),record=config.sentReminders[key]?.[channelId];
+    if(!record || record.ok || !getEnabledChannels(config).includes(channelId))throw new Error('记录已成功或渠道已停用，请刷新。');
+    const data=await this.plugin.loadData()||{};
+    this._reminderPromise=this._sendDueReminder(await loadTodos(this.plugin.app.vault)||[],data.username,{key},{force:true,channelId}).finally(()=>{this._reminderPromise=null;});
+    return this._reminderPromise;
+  }
+  async _sendDueReminder(todos, username, scheduledSlot, retry = {}) {
     const config = await this.getConfig(); const now = window.moment(); const day = now.clone().startOf('day'); const slot = scheduledSlot || getServerChanScheduleSlot(config, now); const key = slot?.key;
-    if (!config.enabled || !isServerChanScheduleDue(config, now) || !key || allEnabledChannelsSent(config, key)) return false;
+    if (!key || (!retry.force && (!config.enabled || !isServerChanScheduleDue(config, now) || allEnabledChannelsSent(config, key)))) return false;
     if (!getEnabledChannels(config).length) return false;
     const due = (todos || []).filter((todo) => !todo.done && todo.dueDate && ((config.notifyToday && todo.dueDate.isSame(day, 'day')) || (config.notifyOverdue && todo.dueDate.isBefore(day, 'day'))));
     const teamDue = config.sendTeamTodosSeparately && this.plugin.teamSync
@@ -307,7 +315,7 @@ class ServerChanService {
     }
     // 只对“未发送且未用尽重试次数”的渠道发起推送；失败的渠道记录明确状态，
     // 允许有限次重试，而不是像旧版那样把失败也标成已发送（通知静默丢失）。
-    const ids = getEnabledChannels(config).filter((id) => !channelWasSent(config, key, id) && channelAttempts(config, key, id) < MAX_NOTIFICATION_ATTEMPTS_PER_SLOT);
+    const ids = getEnabledChannels(config).filter((id) => retry.force ? id === retry.channelId : !channelWasSent(config, key, id) && channelAttempts(config, key, id) < MAX_NOTIFICATION_ATTEMPTS_PER_SLOT);
     if (!ids.length) return false;
     const results = await Promise.allSettled(ids.map((id) => sendNotificationChannel(id, config.channels[id], title, body)));
     const attemptedAt = new Date().toISOString(); const records = { ...(config.sentReminders[key] || {}) };
@@ -330,7 +338,7 @@ class ServerChanService {
 }
 
 class CockpitServerChanSettingTab extends obs.PluginSettingTab {
-  constructor(app, plugin) { super(app, plugin); this.plugin = plugin; this._displayVersion = 0; this._activeSection = 'ai'; }
+  constructor(app, plugin, registerCleanup = null) { super(app, plugin); this.plugin = plugin; this._registerCleanup=registerCleanup; this._displayVersion = 0; this._activeSection = 'ai'; }
   async display() {
     const { containerEl } = this; const renderVersion = ++this._displayVersion; containerEl.empty();
     const [config, language, appleCalendarConfig] = await Promise.all([
@@ -383,7 +391,7 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     activate(this._activeSection);
 
     await renderUpdaterSettings(panels.updates, this.plugin, language);
-    await renderLanSyncSettings(panels.sync, this.plugin, language);
+    await renderLanSyncSettings(panels.sync, this.plugin, language, {registerCleanup:this._registerCleanup});
     await renderAiSettings(panels.ai, this.plugin, language);
     if (renderVersion !== this._displayVersion) return;
     // 晨间简报面板：复用下方「推送渠道」的渠道配置，只管理自己的内容与发送时间。

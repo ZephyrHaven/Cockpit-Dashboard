@@ -5134,3 +5134,20 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
 /* 元信息已设置字号，子项不再重复缩放。 */
 .cockpit-team-todos .cockpit-dashboard-todo-meta .cockpit-dashboard-todo-due,
 .cockpit-team-todos .cockpit-dashboard-todo-meta .cockpit-dashboard-todo-tag-pill { font-size:inherit; line-height:inherit; }
+/* 重复待办沿用结构化编辑器的布局和宿主控件。 */
+.cockpit-dashboard-todo-repeat-controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.cockpit-dashboard-todo-repeat-controls input { width:76px; min-width:0; }
+.cockpit-dashboard-todo-repeat-controls select { max-width:100%; }
+
+/* 任务选择与详情共用紧凑控件；窄窗口允许换行。 */
+.cockpit-bulk-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 0; font-size:12px; }
+.cockpit-bulk-bar input[type="text"] { width:130px; min-width:0; }
+.cockpit-bulk-check { flex:0 0 auto; width:16px; height:16px; margin:0 4px 0 0; }
+.cockpit-detail { max-height:75vh; overflow-y:auto; }
+.cockpit-detail-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:12px 0; border-bottom:1px solid var(--background-modifier-border); }
+.cockpit-detail-row strong { flex-basis:100%; }
+.cockpit-detail-row span { overflow-wrap:anywhere; }
+.cockpit-detail-row p { flex-basis:100%; margin:0; font-size:12px; color:var(--text-muted); }
+.cockpit-insights { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.cockpit-insights > p,.cockpit-insights > .cockpit-detail-row { flex-basis:100%; }
+.cockpit-bulk-bar button:focus-visible,.cockpit-insights button:focus-visible,.cockpit-detail button:focus-visible { outline:2px solid var(--interactive-accent); outline-offset:2px; }

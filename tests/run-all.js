@@ -11,7 +11,7 @@ let pass = 0, fail = 0; const failed = [];
 for (const f of files) {
   const r = spawnSync(process.execPath, [path.join(dir, f)], { encoding: 'utf8', timeout: 120000 });
   if (r.status === 0) { pass++; console.log(`  ✅ ${f}`); }
-  else { fail++; failed.push(f); console.log(`  ❌ ${f}`); }
+  else { fail++; failed.push(f); console.log(`  ❌ ${f}`); console.log(String(r.stderr || r.stdout || r.error || '').slice(0, 2000)); }
 }
 console.log(`\n通过 ${pass} / 失败 ${fail}`);
 if (failed.length) { console.log('失败列表:', failed.join(', ')); process.exit(1); }

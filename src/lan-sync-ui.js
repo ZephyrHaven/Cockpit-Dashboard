@@ -118,7 +118,7 @@ class CockpitLanConflictsModal extends obs.Modal {
   }
   onClose() { this.service.modals.delete(this); this.contentEl.empty(); }
 }
-async function renderLanSyncSettings(container, plugin, language) {
+async function renderLanSyncSettings(container, plugin, language, options = {}) {
   const en = language === 'en'; const service = plugin.lanSync;
   container.createEl('h2', { text:en ? 'Team space' : '团队空间' });
   container.createEl('p', { text:en ? 'A host approves devices and controls team task permissions. Personal tasks stay separate.' : '主设备审批成员并控制团队待办的同步范围和权限，个人待办独立保留。' });
@@ -171,6 +171,8 @@ async function renderLanSyncSettings(container, plugin, language) {
   };
   refresh();
   // 设置页重建时移除旧订阅，避免每次打开都累积监听器。
-  plugin._lanSettingsCleanup?.();
-  service.listeners.add(refresh); plugin._lanSettingsCleanup = () => service.listeners.delete(refresh);
+  service.listeners.add(refresh);
+  const cleanup=()=>service.listeners.delete(refresh);
+  if(typeof options.registerCleanup === 'function')options.registerCleanup(cleanup);
+  else { plugin._lanSettingsCleanup?.(); plugin._lanSettingsCleanup=cleanup; }
 }

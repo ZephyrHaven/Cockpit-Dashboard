@@ -8,6 +8,33 @@
 // 面板内输入时绝不刷新；被闸下的事件记为待办，在空闲后的下一分钟心跳补跑。
 
 const COCKPIT_VAULT_REFRESH_DEBOUNCE_MS = 2500;
+const COCKPIT_MANAGED_WRITES = new WeakMap();
+
+function cockpitMarkManagedWrite(vault, path, content) {
+  let writes = COCKPIT_MANAGED_WRITES.get(vault);
+  if (!writes) { writes = new Map(); COCKPIT_MANAGED_WRITES.set(vault, writes); }
+  writes.set(path, { content, until:Date.now() + 10000 });
+}
+function cockpitVaultRefreshScope(path) {
+  if (path === TODO_FILE) return 'todos';
+  if (path === FOCUS_FILE) return 'focus';
+  if (typeof HABIT_FILE === 'string' && path === HABIT_FILE) return 'habits';
+  return 'notes';
+}
+function cockpitQueueRefreshScopes(view, scopes) {
+  if (!view._vaultRefreshScopes) view._vaultRefreshScopes = new Set();
+  scopes.forEach((scope) => view._vaultRefreshScopes.add(scope));
+  view._vaultRefreshPending = true;
+}
+function cockpitManagedEchoMatches(view, scope, content) {
+  if (scope === 'todos') return serializeTodos(parseTodosContent(content)) === serializeTodos(view._todos || []);
+  if (scope === 'focus') return JSON.stringify(Array.from(view._parseFocusHistory(content)).sort()) === JSON.stringify(Array.from(view._focusHistory || []).sort());
+  return false;
+}
+async function cockpitRefreshOptionalModule(view, name) {
+  try { await view[name]?.(); }
+  catch (error) { console.warn('Cockpit optional module refresh failed', name, error); }
+}
 
 function cockpitBindSilentRefreshSensors(view) {
   cockpitUnbindSilentRefreshSensors(view);
@@ -66,7 +93,7 @@ function cockpitStartSilentRefreshLoops(view) {
   }, 15 * 60 * 1000);
   view._visibilityRefreshHandler = () => {
     if (document.hidden) return;
-    cockpitRunSilentRefreshCycle(view, { ignoreRecentActivity: true }).catch((e) => {
+    cockpitRunSilentRefreshCycle(view, { ignoreRecentActivity:true, scopes:view._vaultRefreshScopes?.size ? [] : ['full'] }).catch((e) => {
       console.warn('Cockpit visibility refresh failed', e);
     });
   };
@@ -74,25 +101,85 @@ function cockpitStartSilentRefreshLoops(view) {
 }
 async function cockpitRunSilentRefreshCycle(view, options = {}) {
   view._refreshHeroSection();
+  cockpitQueueRefreshScopes(view, options.scopes || ['full']);
   if (document.hidden || cockpitIsSilentRefreshBlocked(view, options.ignoreRecentActivity)) return;
-  const root = view.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
-  if (!root) return;
-  view._vaultRefreshPending = false;
-  await view._reloadDashboardState();
-  view._allFiles = view.app.vault.getMarkdownFiles();
-  if (view._refreshCalendarRef) view._refreshCalendarRef();
-  if (view._refreshFocusChartRef) view._refreshFocusChartRef();
-  if (view._refreshTodosRef) await view._refreshTodosRef({ persist: false });
-  else if (view._updateStatsRef) view._updateStatsRef();
-  view._refreshHeroSection();
-  view._refreshRecentSection(root, view._allFiles);
-  await view._refreshBookmarkSection(root, view._allFiles);
-  view._rebuildRecentStars();
+  if (view._vaultRefreshInFlight) return view._vaultRefreshInFlight;
+  view._vaultRefreshInFlight = (async () => {
+    while (view._vaultRefreshScopes?.size && !view._vaultRefreshClosed && !document.hidden
+      && !cockpitIsSilentRefreshBlocked(view, options.ignoreRecentActivity)) {
+      const root = view.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
+      if (!root) break;
+      const scopes = new Set(view._vaultRefreshScopes);
+      view._vaultRefreshScopes.clear();
+      for (const [scope, content] of view._vaultRefreshEchoes || []) {
+        if (cockpitManagedEchoMatches(view, scope, content)) scopes.delete(scope);
+      }
+      view._vaultRefreshEchoes?.clear();
+      if (!scopes.size) continue;
+      const current = () => {
+        if (!view._vaultRefreshClosed && root === view.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root')) return true;
+        if (!view._vaultRefreshClosed) cockpitQueueRefreshScopes(view, Array.from(scopes));
+        return false;
+      };
+      const full = scopes.has('full');
+      try {
+        if (full) await view._reloadDashboardState();
+        else {
+          if (scopes.has('todos')) {
+            const todos = await loadTodos(view.app.vault);
+            if (!current()) return;
+            view._todos = todos || [];
+            await view._plugin.alarms?.syncTodos(view._todos).catch((error) => console.warn('Cockpit todo alarm sync failed', error));
+            view._plugin.appleCalendar?.syncTodos(view._todos).catch((e) => console.warn('Cockpit calendar sync failed', e));
+          }
+          if (scopes.has('focus')) {
+            const file = view.app.vault.getAbstractFileByPath(FOCUS_FILE);
+            const content = file ? await view.app.vault.read(file) : '';
+            if (!current()) return;
+            view._focusHistory = view._parseFocusHistory(content);
+            view._focusMinutes = view._focusHistory.get(window.moment().format('YYYY-MM-DD')) || 0;
+          }
+        }
+        if (!current()) return;
+        if (full || scopes.has('notes')) {
+          view._allFiles = view.app.vault.getMarkdownFiles();
+          view._updateStatsRef?.();
+          view._refreshRecentSection(root, view._allFiles);
+          await view._refreshBookmarkSection(root, view._allFiles);
+          if (!current()) return;
+          view._rebuildRecentStars();
+        }
+        if (full || scopes.has('focus')) await cockpitRefreshOptionalModule(view, '_refreshFocusChartRef');
+        if (!current()) return;
+        if (full || scopes.has('todos')) {
+          if (view._refreshTodosRef) await view._refreshTodosRef({ persist: false });
+          else { view._updateStatsRef?.(); view._refreshCalendarRef?.(); }
+          await cockpitRefreshOptionalModule(view, '_refreshProjectsRef');
+        } else if (scopes.has('focus')) view._updateStatsRef?.();
+        if (!current()) return;
+        if (full || scopes.has('habits')) await cockpitRefreshOptionalModule(view, '_refreshHabitsRef');
+        if (!current()) return;
+        if (full || scopes.has('todos') || scopes.has('focus') || scopes.has('habits')) {
+          await cockpitRefreshOptionalModule(view, '_refreshAgendaRef');
+          if (!current()) return;
+          await cockpitRefreshOptionalModule(view, '_refreshWeeklyReviewRef');
+        }
+        if (!current()) return;
+        if(full) { await cockpitRefreshOptionalModule(view,'_refreshRunHistoryRef'); await cockpitRefreshOptionalModule(view,'_refreshSyncHealthRef'); }
+        view._refreshHeroSection();
+      } catch (error) {
+        if (!view._vaultRefreshClosed) scopes.forEach((scope) => view._vaultRefreshScopes.add(scope));
+        throw error;
+      }
+    }
+  })();
+  try { await view._vaultRefreshInFlight; }
+  finally { view._vaultRefreshInFlight = null; view._vaultRefreshPending = !!view._vaultRefreshScopes?.size; }
 }
 function cockpitRunVaultRefresh(view) {
   if (document.hidden) return;
   if (cockpitIsSilentRefreshBlocked(view, true)) { view._vaultRefreshPending = true; return; }
-  cockpitRunSilentRefreshCycle(view, { ignoreRecentActivity: true }).catch((e) => {
+  cockpitRunSilentRefreshCycle(view, { ignoreRecentActivity:true, scopes:[] }).catch((e) => {
     console.warn('Cockpit vault-event refresh failed', e);
   });
 }
@@ -102,14 +189,8 @@ function cockpitRegisterVaultRefreshEvents(view) {
   // 跳过它们避免「自己写 → 自己刷」的无谓抖动。
   if (view._vaultRefreshEventsRegistered) return;
   view._vaultRefreshEventsRegistered = true;
+  view._vaultRefreshClosed = false;
   let debounceTimer = null;
-  const isSelfManagedPath = (filePath) => {
-    if (!filePath) return true;
-    return filePath === TODO_FILE || filePath === FOCUS_FILE
-      || (DAILY_DIR && filePath.startsWith(DAILY_DIR + '/'))
-      || filePath === '_data/team-todos.md'
-      || filePath === view._plugin.teamSync?.path;
-  };
   const scheduleVaultRefresh = () => {
     if (debounceTimer) window.clearTimeout(debounceTimer);
     debounceTimer = window.setTimeout(() => {
@@ -117,16 +198,37 @@ function cockpitRegisterVaultRefreshEvents(view) {
       cockpitRunVaultRefresh(view);
     }, COCKPIT_VAULT_REFRESH_DEBOUNCE_MS);
   };
-  const onVaultChange = (file) => {
-    if (document.hidden) return;
-    if (isSelfManagedPath(file?.path)) return;
-    if (file && file.extension !== 'md') return;
+  const onVaultChange = async (file, oldPath, checkManaged = true) => {
+    if (view._vaultRefreshClosed) return;
+    if (file && file.extension !== 'md' && !/\.md$/i.test(oldPath || '')) return;
+    const path = file?.path;
+    if (!path || path === '_data/team-todos.md') return;
+    // 只跳过内容完全一致的插件写入。手工编辑同一文件仍会触发局部刷新。
+    const hint = COCKPIT_MANAGED_WRITES.get(view.app.vault)?.get(path);
+    const scope = cockpitVaultRefreshScope(path);
+    view._vaultRefreshEchoes?.delete(scope);
+    if (checkManaged && !oldPath && hint?.until > Date.now()) {
+      try {
+        if (await view.app.vault.cachedRead(file) === hint.content) {
+          if (cockpitManagedEchoMatches(view, scope, hint.content)) return;
+          if (!view._vaultRefreshEchoes) view._vaultRefreshEchoes = new Map();
+          view._vaultRefreshEchoes.set(scope, hint.content);
+        }
+      } catch (e) { /* 删除或读取失败仍需刷新 */ }
+      if (view._vaultRefreshClosed) return;
+    }
+    cockpitQueueRefreshScopes(view, [cockpitVaultRefreshScope(path), ...(oldPath ? [cockpitVaultRefreshScope(oldPath)] : [])]);
     scheduleVaultRefresh();
   };
-  view.registerEvent(view.app.vault.on('modify', onVaultChange));
-  view.registerEvent(view.app.vault.on('delete', onVaultChange));
-  view.registerEvent(view.app.vault.on('rename', (file) => onVaultChange(file)));
+  view.registerEvent(view.app.vault.on('create', (file) => onVaultChange(file)));
+  view.registerEvent(view.app.vault.on('modify', (file) => onVaultChange(file)));
+  view.registerEvent(view.app.vault.on('delete', (file) => onVaultChange(file, null, false)));
+  view.registerEvent(view.app.vault.on('rename', (file, oldPath) => onVaultChange(file, oldPath, false)));
   view._cockpitVaultRefreshCancel = () => {
     if (debounceTimer) { window.clearTimeout(debounceTimer); debounceTimer = null; }
+    view._vaultRefreshClosed = true;
+    view._vaultRefreshEventsRegistered = false;
+    view._vaultRefreshScopes?.clear();
+    view._vaultRefreshEchoes?.clear();
   };
 }

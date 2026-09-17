@@ -1,5 +1,5 @@
 // projects.js — 目标/项目进度条模块：按标签把待办聚合成“项目”，展示完成度。
-// 点击某个项目会联动下方待办列表按该标签过滤；数据全部来自内存中的待办，不额外读 vault。
+// 详情使用内存待办和宿主元数据缓存，避免重复读取笔记正文。
 
 function buildProjectsModule(view, root, options = {}) {
   const en = view._lang() === 'en';
@@ -10,22 +10,23 @@ function buildProjectsModule(view, root, options = {}) {
   const body = root.createDiv({ cls: PLUGIN_ID + '-projects' });
   body.dataset.section = 'projects-body';
 
+  let showCompleted = false;
   const collectProjects = () => {
     const map = new Map();
     (view._todos || []).forEach((todo) => {
       const tags = Array.isArray(todo.tags) ? todo.tags : [];
       tags.forEach((rawTag) => {
         const tag = String(rawTag || '').replace(/^#/, '').trim();
-        if (!tag) return;
+        if (!tag || tag === '_archived') return;
         const entry = map.get(tag) || { tag, total:0, done:0 };
         entry.total += 1;
         if (todo.done) entry.done += 1;
         map.set(tag, entry);
       });
     });
-    // 只显示还有未完成项的项目（全部完成的归档意义不大），按积压量降序。
+    // 已完成项目可切换回顾，默认仍优先展示积压任务。
     return Array.from(map.values())
-      .filter((entry) => entry.done < entry.total)
+      .filter((entry) => showCompleted ? entry.done === entry.total : entry.done < entry.total)
       .sort((a, b) => (b.total - b.done) - (a.total - a.done) || b.total - a.total)
       .slice(0, 8);
   };
@@ -33,6 +34,7 @@ function buildProjectsModule(view, root, options = {}) {
   const render = () => {
     if (!body.isConnected) return;
     body.empty();
+    cockpitDetailButton(body, showCompleted ? (en ? 'Active projects' : '进行中项目') : (en ? 'Completed projects' : '已完成项目'), () => { showCompleted = !showCompleted; render(); });
     const projects = collectProjects();
     if (!projects.length) {
       body.createDiv({ cls: PLUGIN_ID + '-projects-empty', text: en
@@ -51,7 +53,7 @@ function buildProjectsModule(view, root, options = {}) {
       bar.createDiv({ cls: PLUGIN_ID + '-project-fill', attr:{ style:'width:' + pct + '%' } });
       const open = () => {
         if (view._editMode) return;
-        if (onOpenProject) onOpenProject(project.tag);
+        openCockpitProject(view, project.tag, options);
       };
       row.onclick = open;
       row.onkeydown = (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } };
@@ -69,4 +71,29 @@ function hashCockpitString(value) {
   let hash = 5381;
   for (let index = 0; index < value.length; index++) hash = ((hash << 5) + hash + value.charCodeAt(index)) | 0;
   return hash;
+}
+
+function openCockpitProject(view, tag, options = {}) {
+  const en = view._lang() === 'en';
+  new CockpitDetailModal(view, '#' + tag, (body, modal) => {
+    const tasks = (view._todos || []).filter(todo=>todo.tags?.includes(tag));
+    const overdue = tasks.filter(todo=>!todo.done && todo.dueDate && (todo.dueHasTime ? todo.dueDate.isBefore(window.moment()) : todo.dueDate.isBefore(window.moment(),'day'))).length;
+    const focus = tasks.reduce((sum,todo)=>sum+(getTodoFocusStat(view._pomodoroTaskStats,todo)?.totalMinutes||0),0);
+    body.createEl('p',{text:(en?'Completed ':'已办 ')+tasks.filter(todo=>todo.done).length+'/'+tasks.length+' · '+(en?'Overdue ':'逾期 ')+overdue+' · '+focus+' min'});
+    cockpitDetailButton(body,en?'Filter in task list':'在待办中筛选',()=>{options.onOpenProject?.(tag);modal.close();});
+    tasks.slice(0,120).forEach(todo=>{
+      const row=body.createDiv({cls:'cockpit-detail-row'}), stat=getTodoFocusStat(view._pomodoroTaskStats,todo);
+      row.createSpan({text:(todo.done?'✓ ':'○ ')+todo.text+(todo.dueDate?' · '+todo.dueDate.format('YYYY-MM-DD'):'')+(stat?' · '+stat.totalMinutes+' min':'')});
+      cockpitDetailButton(row,en?'Edit':'编辑',()=>{modal.close();options.onEditTodo?.(todo);});
+      if(!todo.done)cockpitDetailButton(row,en?'Focus':'专注',()=>{modal.close();options.onFocusTodo?.(todo);});
+    });
+    if(tasks.length>120)body.createEl('p',{text:en?'Showing 120 tasks; use the filtered task list to see more.':'显示前 120 项，使用待办筛选查看其余任务。'});
+    body.createEl('h3',{text:en?'Related notes':'相关笔记'});
+    const files=(view._allFiles||[]).filter(file=>{
+      const cache=view.app.metadataCache?.getFileCache?.(file), tags=[...(cache?.tags||[]).map(item=>item.tag.replace(/^#/,'')), ...[].concat(cache?.frontmatter?.tags||[]).flatMap(value=>String(value).split(/[,\s]+/)).map(value=>value.replace(/^#/,''))];
+      return tags.includes(tag);
+    });
+    if(!files.length)body.createEl('p',{text:en?'No notes share this tag.':'暂无同标签的笔记。'});
+    files.slice(0,30).forEach(file=>cockpitDetailButton(body,file.basename||file.path,async()=>{await view.app.workspace.getLeaf('tab').openFile(file);modal.close();}));
+  }).open();
 }

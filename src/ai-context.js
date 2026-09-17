@@ -76,7 +76,7 @@ function assertAiContextNotAborted(signal) {
 
 function isProtectedAiContextPath(value) {
   const path = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
-  return path === '.obsidian' || path.startsWith('.obsidian/') || path === '.trash' || path.startsWith('.trash/');
+  return path === '_data/team-todos.md' || path === '.obsidian' || path.startsWith('.obsidian/') || path === '.trash' || path.startsWith('.trash/');
 }
 
 function safeAiContextPath(value) {
@@ -292,7 +292,7 @@ class CockpitRagService {
     assertAiContextNotAborted(options.signal);
     const selectedPaths = Array.from(new Set((Array.isArray(options.selectedPaths) ? options.selectedPaths : [])
       .map(safeAiContextPath).filter((path) => path && !isProtectedAiContextPath(path)))).slice(0, 12);
-    const attachments = (Array.isArray(options.attachments) ? options.attachments : []).slice(0, AI_UPLOAD_LIMITS.maxFiles)
+    const attachments = (Array.isArray(options.attachments) ? options.attachments : []).slice(0, AI_UPLOAD_LIMITS.maxFiles + 1)
       .map((item) => ({ path:safeAiContextPath(item?.path || ('附件:' + item?.name)), content:String(item?.content || ''), source:'upload' }))
       .filter((item) => item.path && item.content);
     const maxChars = Math.max(64, Math.min(50000, Math.floor(Number(options.maxChars) || 12000)));

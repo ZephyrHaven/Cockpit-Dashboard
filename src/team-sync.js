@@ -111,7 +111,7 @@ class CockpitTeamSync {
       const personal = this.plugin.lanSync.store;
       this.path = personal.path.replace('/lan-sync-', '/team-sync-');
       const adapter = this.plugin.app.vault.adapter;
-      const candidates = []; let found = false;
+      const candidates = []; let found = false, mainGeneration = -1;
       // 先写完整日志再替换主文件。中断重启时取最后一份完整记录，避免重复执行已接收操作。
       for (const path of [this.path, this.path + '.next']) {
         if (!(await adapter.exists(path))) continue;
@@ -119,14 +119,13 @@ class CockpitTeamSync {
         try {
           const text = await adapter.read(path);
           teamSyncAssert(text.length < 3 * LAN_SYNC_BYTES);
-          candidates.push(this.validate(JSON.parse(text)));
+          const checked=this.validate(JSON.parse(text));candidates.push(checked);if(path===this.path)mainGeneration=checked.generation;
         } catch (error) { console.warn('Team state copy could not be read', error); }
       }
       teamSyncAssert(!found || candidates.length, '团队记录无法读取，请保留备份并恢复后重试。');
-      if (candidates.length) this.state = candidates.sort((a,b) => b.generation - a.generation)[0];
+      if (candidates.length) { this.state=candidates.sort((a,b)=>b.generation-a.generation)[0];this._mirrorNeedsRepair=this.state.generation>mainGeneration; }
       else this.state = { version:1, generation:0, device:personal.state.device, name:require('os').hostname().slice(0,60), enabled:false,
         port:0, team:null, peers:[], tasks:{}, revision:0, pending:[], drafts:[], conflicts:[], nextSeq:1, members:[], policy:null };
-      try { await this.readTeamMarkdown(this.state); } catch (error) { console.warn('Team Markdown mirror could not be read', error); }
       return this.state;
     })();
     try { return await this.loading; } finally { this.loading = null; }
@@ -135,9 +134,17 @@ class CockpitTeamSync {
     const run = this.queue.catch(() => {}).then(async () => {
       await this.load();
       teamSyncAssert(!this.stopped, '插件已卸载。');
-      const next = JSON.parse(JSON.stringify(this.state));
+      const previous = this.state;
+      const next = JSON.parse(JSON.stringify(previous));
+      try { if(!this._mirrorNeedsRepair)await this.readTeamMarkdown(next); } catch(error) { console.warn('Team Markdown mirror could not be read',error); }
       const result = await operation(next);
-      if (JSON.stringify(next) === JSON.stringify(this.state)) return result;
+      if (JSON.stringify(next) === JSON.stringify(this.state)) {
+        if(this._mirrorNeedsRepair) {
+          try { await this.plugin.app.vault.adapter.write(this.path,JSON.stringify(this.state));await this.writeTeamMarkdown(this.state);this._mirrorNeedsRepair=false; }
+          catch(error) { this.notify('团队记录可从恢复日志读取，但镜像修复尚未完成。'); }
+        }
+        return result;
+      }
       next.generation++;
       const text = JSON.stringify(this.validate(next));
       const adapter = this.plugin.app.vault.adapter;
@@ -145,16 +152,25 @@ class CockpitTeamSync {
       await adapter.write(this.path + '.next', text);
       // 日志落盘即提交；主文件失败也不能在内存撤回已提交的序号。
       this.state = next;
+      this._mirrorNeedsRepair=true;
+      if (this.isHost(next) && typeof cockpitEmit === 'function') {
+        for (const record of Object.values(next.tasks)) {
+          if (record.value?.done && previous.tasks[record.id]?.value?.done === false) {
+            cockpitEmit('team-todo-completed', { id:record.id, teamId:next.team.id, revision:record.revision, text:record.value.text,
+              assignee:record.value.assignee, tags:teamTodoTextParts(record.value.text).tags, hostCommitted:true });
+          }
+        }
+      }
       try { await adapter.write(this.path, text); }
       catch (error) { this.notify('团队记录已保存在恢复日志中，请检查磁盘空间。'); throw error; }
-      try { await this.writeTeamMarkdown(next); } catch (error) { this.notify('团队记录已保存，但 Markdown 镜像写入失败。'); }
+      try { await this.writeTeamMarkdown(next);this._mirrorNeedsRepair=false; } catch (error) { this.notify('团队记录已保存，但 Markdown 镜像写入失败。'); }
       this.notify();
       return result;
     });
     this.queue = run; return run;
   }
   async initialize() {
-    try { await this.load(); if (this.state.enabled && this.state.team) await this.start(); this.notify(); }
+    try { await this.load(); await this.transaction(()=>{}); if (this.state.enabled && this.state.team) await this.start(); this.notify(); }
     catch (error) { this.notify(error.message); }
   }
   async create(name) {
@@ -174,6 +190,7 @@ class CockpitTeamSync {
     await this.load(); teamSyncAssert(!this.stopped, '插件已卸载。');
     if (this.transport) return;
     const transport = new CockpitLanTransport({ scope:'team-v1', device:() => this.state.device, name:() => this.state.name,
+      metadata:()=>this.plugin.lanSync.metadata?.() || lanSyncMetadata({pluginVersion:this.plugin.manifest?.version}),
       peers:() => this.state.peers, pairContext:() => this.state.team,
       confirm:name => new Promise(resolve => {
         if (!this.isHost()) { resolve(false); return; }
@@ -242,7 +259,7 @@ class CockpitTeamSync {
       state.nextSeq = sequence;
       state.team = team;
       state.peers = [{ id:invite.id, key:result.key, device:team.host, name:String(result.name || '主设备').slice(0,60),
-        hosts:invite.hosts, port:invite.port, policy:teamSyncDefaultPolicy() }];
+        hosts:invite.hosts, port:invite.port, metadata:lanSyncMetadata(result.metadata), policy:teamSyncDefaultPolicy() }];
     });
     await this.sync();
   }
@@ -258,7 +275,8 @@ class CockpitTeamSync {
     });
   }
   async sync() {
-    if (this.running || !this.transport || !this.state?.team || this.isHost() || this.stopped) return;
+    if (this.running || !this.transport || !this.state?.team || this.stopped) return;
+    if (this.isHost()) { await this.transaction(()=>{}); return; }
     this.running = true; const transport = this.transport;
     try {
       for (let round = 0; round < 10; round++) {
@@ -345,6 +363,12 @@ class CockpitTeamSync {
       state.policy = null; state.members = []; state.nextSeq = 1; state.revision = 0; delete state.lastSync;
     });
     this.notify('已退出团队 · 原记录保留在本机备份');
+  }
+  async aiContext() {
+    await this.load();
+    const policy=this.policy(),state=this.state;
+    const records=Object.values(state.tasks).filter(record=>state.team && teamSyncCanSee(record,policy,state.device));
+    return records.map(record=>{const owner=this.members().find(member=>member.device===record.value.assignee)?.name||'未分配';return (record.value.done?'已办':'待办')+' · '+record.value.text+' · 负责人：'+owner+(record.value.due?' · 截止：'+record.value.due:'');}).join('\n').slice(0,12000);
   }
   openModal(modal) { if (this.stopped) return; this.modals.add(modal); modal.open(); }
   open() { this.openModal(new CockpitTeamModal(this.plugin.app, this)); }

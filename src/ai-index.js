@@ -22,7 +22,7 @@ const AI_INDEX_STOPWORDS = new Set(['the','and','for','with','from','this','that
 
 function isProtectedAiIndexPath(value) {
   const path = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
-  return path === '.obsidian' || path.startsWith('.obsidian/') || path === '.trash' || path.startsWith('.trash/');
+  return path === '_data/team-todos.md' || path === '.obsidian' || path.startsWith('.obsidian/') || path === '.trash' || path.startsWith('.trash/');
 }
 
 // 分词：拉丁词元 + 中日韩文本的双字组合（含 ≤10 字短串本身）。
@@ -259,6 +259,7 @@ class CockpitAiSearchIndex {
       const id = Number(key);
       const path = String(value?.p || '');
       if (!Number.isInteger(id) || id < 1 || !path || docs.has(id)) return false;
+      if(isProtectedAiIndexPath(path))continue;
       docs.set(id, { path, mtime:Number(value?.m) || 0, size:Number(value?.s) || 0 });
     }
     const postings = new Map();

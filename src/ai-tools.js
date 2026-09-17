@@ -6,7 +6,7 @@ const COCKPIT_AGENT_MAX_TOOL_CALLS = 24;
 
 function isProtectedAgentPath(value) {
   const path = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
-  return path === '.obsidian' || path.startsWith('.obsidian/') || path === '.trash' || path.startsWith('.trash/');
+  return path === '_data/team-todos.md' || path === '.obsidian' || path.startsWith('.obsidian/') || path === '.trash' || path.startsWith('.trash/');
 }
 
 function agentBoundedInteger(value, fallback, min, max) {

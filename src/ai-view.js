@@ -7,6 +7,7 @@ class CockpitAIView extends obs.ItemView {
     this._language = DEFAULT_LANG;
     this._busy = false;
     this._messagesEl = null;
+    this._includeTeamContext = false;
     this._selectedContextPaths = [];
     this._uploadedContexts = [];
     this._contextEntries = [];
@@ -72,7 +73,8 @@ class CockpitAIView extends obs.ItemView {
       this._historyState = await this.plugin.aiHistory.load();
     }
     this._activeSessionId = session.id;
-    this._selectedContextPaths = [...session.contextPaths];
+    this._includeTeamContext = false;
+    this._selectedContextPaths = session.contextPaths.filter(path=>!isProtectedAiContextPath(path));
     // 默认「不使用上下文」：自动 RAG 只在用户显式选择后启用。
     this._contextMode = session.contextMode === 'auto' ? 'auto' : 'none';
     this._agentMode = ['readonly', 'read-write', 'full'].includes(session.agentMode) ? session.agentMode : 'read-write';
@@ -231,6 +233,7 @@ class CockpitAIView extends obs.ItemView {
     const session = await this.plugin.aiHistory.create({ language:this._language, profileId:config.activeProfileId, contextPaths:[] });
     this._historyState = await this.plugin.aiHistory.load();
     this._activeSessionId = session.id;
+    this._includeTeamContext = false;
     this._selectedContextPaths = [];
     this._contextMode = 'none';
     this._agentMode = 'read-write';
@@ -253,7 +256,8 @@ class CockpitAIView extends obs.ItemView {
     if (!session) return;
     this._historyState = await this.plugin.aiHistory.load();
     this._activeSessionId = session.id;
-    this._selectedContextPaths = [...session.contextPaths];
+    this._includeTeamContext = false;
+    this._selectedContextPaths = session.contextPaths.filter(path=>!isProtectedAiContextPath(path));
     // 默认「不使用上下文」：自动 RAG 只在用户显式选择后启用。
     this._contextMode = session.contextMode === 'auto' ? 'auto' : 'none';
     this._agentMode = ['readonly', 'read-write', 'full'].includes(session.agentMode) ? session.agentMode : 'read-write';
@@ -671,7 +675,7 @@ class CockpitAIView extends obs.ItemView {
       const recent = await this.plugin.ai.listRecentNotes(this._selectedContextPaths[0] || '');
       const byPath = new Map(recent.map((entry) => [entry.path, entry]));
       this._selectedContextPaths.forEach((path) => { if (!byPath.has(path)) byPath.set(path, { path }); });
-      this._contextEntries = Array.from(byPath.values()).slice(0, 20);
+      this._contextEntries = Array.from(byPath.values()).filter(entry=>!isProtectedAiContextPath(entry.path)).slice(0, 20);
     } catch (error) { this._contextEntries = this._selectedContextPaths.map((path) => ({ path })); }
     this._renderContextPicker();
   }
@@ -707,7 +711,13 @@ class CockpitAIView extends obs.ItemView {
     const none = elements.menu.createEl('button', { cls:PLUGIN_ID + '-ai-context-option is-none' + (effectiveMode === 'none' ? ' is-selected' : ''), attr:{ type:'button', role:'menuitem' } });
     const noneIcon = none.createSpan({ cls:PLUGIN_ID + '-ai-context-option-icon' }); obs.setIcon(noneIcon, 'circle-slash');
     const noneCopy = none.createSpan({ cls:PLUGIN_ID + '-ai-context-option-copy' }); noneCopy.createSpan({ text:en ? 'No context' : '不使用上下文' }); noneCopy.createSpan({ text:en ? 'Reply from the chat only, without notes or RAG' : '仅凭问题与对话回答，不检索笔记' });
-    none.onclick = () => { this._contextMode = 'none'; this._selectedContextPaths = []; this._renderContextPicker(); };
+    none.onclick = () => { this._contextMode = 'none'; this._includeTeamContext = false; this._selectedContextPaths = []; this._renderContextPicker(); };
+    if(this.plugin.teamSync?.state?.team) {
+      const row=elements.menu.createEl('label',{cls:PLUGIN_ID+'-ai-context-option'});
+      const checkbox=row.createEl('input',{attr:{type:'checkbox'}});checkbox.checked=!!this._includeTeamContext;
+      row.createSpan({text:en?'Include currently visible team tasks for this chat':'本次对话包含当前可见团队待办'});
+      checkbox.onchange=()=>{this._includeTeamContext=checkbox.checked;this._renderContextPicker();};
+    }
     this._contextEntries.forEach((entry) => {
       const row = elements.menu.createEl('label', { cls:PLUGIN_ID + '-ai-context-option' + (selected.has(entry.path) ? ' is-selected' : '') });
       const checkbox = row.createEl('input', { attr:{ type:'checkbox', value:entry.path } }); checkbox.checked = selected.has(entry.path);
@@ -726,6 +736,7 @@ class CockpitAIView extends obs.ItemView {
       const close = chip.createEl('button', { attr:{ type:'button', 'aria-label':(en ? 'Remove ' : '移除 ') + label } }); obs.setIcon(close, 'x'); close.onclick = remove;
     };
     this._selectedContextPaths.forEach((path) => addChip(path.split('/').pop()?.replace(/\.md$/i, '') || path, 'file-text', () => { this._selectedContextPaths = this._selectedContextPaths.filter((item) => item !== path); this._renderContextPicker(); }, path));
+    if(this._includeTeamContext)addChip(en?'Visible team tasks':'可见团队待办','users',()=>{this._includeTeamContext=false;this._renderContextPicker();});
     this._uploadedContexts.forEach((item) => addChip(item.name, 'paperclip', () => { this._uploadedContexts = this._uploadedContexts.filter((entry) => entry !== item); this._renderContextPicker(); }, item.name));
     // 贴图 chips：缩略图（点击放大预览）+ 文件名，可单独移除。
     this._pendingImages.forEach((image, index) => {
@@ -851,7 +862,7 @@ class CockpitAIView extends obs.ItemView {
   async _run(action, question) {
     if (this._busy) return;
     const en = this._language === 'en';
-    if (action !== 'custom' && !this._selectedContextPaths.length && !this._uploadedContexts.length) {
+    if (action !== 'custom' && !this._includeTeamContext && !this._selectedContextPaths.length && !this._uploadedContexts.length) {
       new obs.Notice(en ? 'Select at least one note or attach a text file for this action.' : '请先选择笔记或添加文本文件'); this._closeContextPopover(); return;
     }
     const session = this._activeSession();
@@ -924,6 +935,7 @@ class CockpitAIView extends obs.ItemView {
     };
     try {
       clock = window.setInterval(() => flushStreamUi(), 500);
+      if(this._includeTeamContext) { const content=await this.plugin.teamSync.aiContext(); if(content)runAttachments.push({name:'团队待办（当前权限范围）',content,source:'team'}); }
       const result = await this.plugin.ai.completeAgentStream({
         action, question, history:priorHistory,
         contextPaths:this._contextMode === 'none' ? [] : [...this._selectedContextPaths],

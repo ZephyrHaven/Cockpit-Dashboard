@@ -14,7 +14,7 @@ function splitTodoMeta(meta) {
   String(meta || '').split('|').forEach((segment) => {
     const part = segment.trim();
     if (!part) return;
-    const km = part.match(/^(id|created|done|calendar)\s*:\s*([\s\S]+)$/);
+    const km = part.match(/^(id|created|done|calendar|repeat|repeatRoot|repeatIndex|repeatNext)\s*:\s*([\s\S]+)$/);
     if (!km) { extra.push(part); return; }
     managed[km[1]] = km[2].trim();
   });
@@ -29,10 +29,15 @@ function parseTodoLine(line) {
   const doneDate = managed.done ? parseDate(managed.done) : null;
   const rawText = m[3].trim();
   const { cleanText, tags, dueDate, dueHasTime, priority } = extractTags(rawText);
+  const repeat = typeof normalizeTodoRepeat === 'function' ? normalizeTodoRepeat(managed.repeat) : null;
+  // 尚未识别的重复规则原样保留，避免手工配置或未来格式在普通编辑中被抹掉。
+  if (managed.repeat && !repeat) extra.push('repeat:' + managed.repeat);
   return {
     indent:m[1], id:managed.id || '', text:cleanText, tags, priority,
     dueDate, dueHasTime, done:m[2].toLowerCase() === 'x', created, doneDate,
     calendarSync:managed.calendar === 'true',
+    repeat,
+    repeatRoot:managed.repeatRoot || '', repeatIndex:Math.max(0, parseInt(managed.repeatIndex, 10) || 0), repeatNext:managed.repeatNext || '',
     // 行上无法识别的元数据（如 owner:xxx）原样带回，写入时回填，避免被规范化抹掉。
     _extraMeta:extra
   };
@@ -43,7 +48,8 @@ function parseTodosContent(content) {
   for (const line of String(content || '').split('\n')) {
     const entry = parseTodoLine(line);
     if (!entry) continue;
-    todos.push({ id:entry.id, text:entry.text, tags:entry.tags, priority:entry.priority, dueDate:entry.dueDate, dueHasTime:entry.dueHasTime, done:entry.done, created:entry.created, doneDate:entry.doneDate, calendarSync:entry.calendarSync, _extraMeta:entry._extraMeta });
+    todos.push({ id:entry.id, text:entry.text, tags:entry.tags, priority:entry.priority, dueDate:entry.dueDate, dueHasTime:entry.dueHasTime, done:entry.done, created:entry.created, doneDate:entry.doneDate, calendarSync:entry.calendarSync,
+      repeat:entry.repeat, repeatRoot:entry.repeatRoot, repeatIndex:entry.repeatIndex, repeatNext:entry.repeatNext, _extraMeta:entry._extraMeta });
   }
   return todos;
 }
@@ -54,6 +60,10 @@ function buildTodoLine(t, indent = '') {
   if (t.created) meta.push('created: ' + t.created.format('YYYY-MM-DD'));
   if (t.done && t.doneDate) meta.push('done: ' + t.doneDate.format('YYYY-MM-DD'));
   if (t.calendarSync === true) meta.push('calendar: true');
+  if (t.repeat) meta.push('repeat:' + JSON.stringify(t.repeat));
+  if (t.repeatRoot) meta.push('repeatRoot:' + t.repeatRoot);
+  if (t.repeatIndex) meta.push('repeatIndex:' + t.repeatIndex);
+  if (t.repeatNext) meta.push('repeatNext:' + t.repeatNext);
   // 回填行上原有的非受管元数据段（如 owner:xxx）。
   if (Array.isArray(t._extraMeta)) {
     t._extraMeta.forEach((segment) => { const part = String(segment || '').trim(); if (part) meta.push(part); });
@@ -148,27 +158,37 @@ function emitCompletedTodoEvents(previousContent, todos) {
 
 async function writeTodosUnlocked(vault, todos) {
   try {
+    const expanded = typeof expandTodoRepeats === 'function' ? expandTodoRepeats(todos, window.moment()) : { todos, changed:false };
+    const nextTodos = expanded.todos;
     const dir = TODO_FILE.split('/')[0];
     if (!vault.getAbstractFileByPath(dir)) await vault.createFolder(dir);
     const file = vault.getAbstractFileByPath(TODO_FILE);
     if (!file) {
-      await vault.create(TODO_FILE, serializeTodos(todos));
+      const content = serializeTodos(nextTodos);
+      if (typeof cockpitMarkManagedWrite === 'function') cockpitMarkManagedWrite(vault, TODO_FILE, content);
+      await vault.create(TODO_FILE, content);
+      if (expanded.changed) todos.splice(0, todos.length, ...nextTodos);
       return true;
     }
     let content = null;
     try { content = typeof vault.read === 'function' ? await vault.read(file) : null; } catch (e) { content = null; }
     // 无法读取现有内容时退回整文件写入：宁可牺牲对未知内容的保留，也不能丢掉本次待办更新。
     if (typeof content !== 'string') {
-      await vault.modify(file, serializeTodos(todos));
+      const nextContent = serializeTodos(nextTodos);
+      if (typeof cockpitMarkManagedWrite === 'function') cockpitMarkManagedWrite(vault, TODO_FILE, nextContent);
+      await vault.modify(file, nextContent);
+      if (expanded.changed) todos.splice(0, todos.length, ...nextTodos);
       return true;
     }
-    const patched = buildPatchedTodoContent(content, todos);
+    const patched = buildPatchedTodoContent(content, nextTodos);
     // 文件里已没有任何可识别的待办行且也没有新行要追加时，说明是空结构文件，
     // 保持原样即可（清空全部待办后不应被默认内容或模板重写）。
     if (patched !== null && patched !== content) {
+      if (typeof cockpitMarkManagedWrite === 'function') cockpitMarkManagedWrite(vault, TODO_FILE, patched);
       await vault.modify(file, patched);
-      emitCompletedTodoEvents(content, todos);
+      emitCompletedTodoEvents(content, nextTodos);
     }
+    if (expanded.changed) todos.splice(0, todos.length, ...nextTodos);
     return true;
   } catch(e) { console.warn('saveTodos',e); return false; }
 }
@@ -179,17 +199,22 @@ async function loadTodos(vault) {
       const file = vault.getAbstractFileByPath(TODO_FILE);
       if (!file) return null;
       const content = await vault.read(file);
-      const todos = parseTodosContent(content);
+      let todos = parseTodosContent(content);
       // 文件存在但没有待办：返回空数组（合法的“已清空”状态），
       // 与“文件不存在”（返回 null，触发默认待办）区分开。
       if (!todos.length) return [];
       const originalIds = todos.map((todo) => todo.id || '');
       ensureTodoIds(todos);
       const changedIndexes = todos.flatMap((todo, index) => todo.id !== originalIds[index] ? [index] : []);
-      if (changedIndexes.length) {
+      const expanded = typeof expandTodoRepeats === 'function' ? expandTodoRepeats(todos, window.moment()) : { todos, changed:false };
+      if (changedIndexes.length || expanded.changed) {
         let migrated = false;
         try {
-          await vault.modify(file, patchTodoIdsInContent(content, todos, changedIndexes));
+          let patched = patchTodoIdsInContent(content, todos, changedIndexes);
+          if (expanded.changed) patched = buildPatchedTodoContent(patched, expanded.todos);
+          if (typeof cockpitMarkManagedWrite === 'function') cockpitMarkManagedWrite(vault, TODO_FILE, patched);
+          await vault.modify(file, patched);
+          if (expanded.changed) todos = expanded.todos;
           migrated = true;
         } catch (e) {
           console.warn('migrate todo ids', e);
@@ -218,16 +243,18 @@ async function saveTodos(vault, todos) {
   });
 }
 
-async function mutateTodos(vault, mutator) {
+async function mutateTodos(vault, mutator, options = {}) {
   return queueTodoFileMutation(async () => {
     try {
       const file = vault.getAbstractFileByPath(TODO_FILE);
       const todos = file ? parseTodosContent(await vault.read(file)) : [];
       ensureTodoIds(todos);
+      const before = typeof captureTodoUndo === 'function' ? serializeTodos(todos) : null;
       const result = await mutator(todos);
       if (result === false) return { saved:false, todos, result };
       ensureTodoIds(todos);
       const saved = await writeTodosUnlocked(vault, todos);
+      if (saved && before !== null && options.undo !== false) captureTodoUndo(vault, before, serializeTodos(todos));
       return { saved, todos, result };
     } catch (e) {
       console.warn('mutateTodos', e);
