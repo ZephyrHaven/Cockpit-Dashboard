@@ -83,4 +83,19 @@ assert.match(styles, /cal-timeline-tag\.cockpit-dashboard-todo-tag-pill/, 'Calen
 assert.match(calendar, /onAutomationOpen[\s\S]*onAutomationRun/, 'Automation rows expose inspect and run-now actions.');
 assert.match(build, /'calendar-day-flow\.js'[\s\S]*'calendar\.js'/, 'The day-flow renderer is bundled before the calendar module.');
 
+// 双击快速新建的时间解析与日历内交互接线。
+const { parseCalendarQuickInput } = require('../src/calendar.js');
+assert.deepEqual(parseCalendarQuickInput('14:30 开会'), { text:'开会', hasTime:true, hour:14, minute:30 });
+assert.deepEqual(parseCalendarQuickInput('下午3点 复盘'), { text:'复盘', hasTime:true, hour:15, minute:0 });
+assert.deepEqual(parseCalendarQuickInput('9点半 晨会'), { text:'晨会', hasTime:true, hour:9, minute:30 });
+assert.equal(parseCalendarQuickInput('买牛奶').hasTime, false, 'Plain text becomes an all-day task.');
+assert.equal(parseCalendarQuickInput('25:00 无效').hasTime, false, 'Out-of-range times are kept as text.');
+assert.equal(parseCalendarQuickInput('10点').hasTime, false, 'A bare time without a title is not treated as a timed task.');
+const calendarSource = fs.readFileSync(path.join(__dirname, '../src/calendar.js'), 'utf8');
+const frameworkSource = fs.readFileSync(path.join(__dirname, '../src/_framework.js'), 'utf8');
+assert.match(calendarSource, /application\/x-cockpit-calendar[\s\S]*keepTime/, 'Dragging inside the calendar keeps the original time.');
+assert.match(frameworkSource, /options\.keepTime && target\.dueHasTime/, 'Scheduling preserves the time only for in-calendar drags.');
+assert.match(calendarSource, /addEventListener\('dblclick'[\s\S]*openQuickCreate/, 'Double-clicking a day opens inline quick create.');
+assert.match(frameworkSource, /loadCalendarEvents:[\s\S]*readEvents/, 'The calendar loads read-only system events through the Apple calendar service.');
+
 console.log('Calendar day flow checks passed');

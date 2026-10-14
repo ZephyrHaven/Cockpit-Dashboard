@@ -1,6 +1,6 @@
 // apple-calendar.js — Mac 单向日历同步；通过固定 JXA 脚本写入用户明确选择的系统日历。
 
-const APPLE_CALENDAR_DEFAULTS = Object.freeze({ enabled:false, calendarId:'', calendarName:'', durationMinutes:30, mappings:{} });
+const APPLE_CALENDAR_DEFAULTS = Object.freeze({ enabled:false, calendarId:'', calendarName:'', durationMinutes:30, mappings:{}, showEvents:false, hiddenCalendars:[] });
 
 function appleCalendarSafeText(value, maxLength) {
   return String(value || '').replace(/\0/g, '').trim().slice(0, maxLength);
@@ -26,6 +26,8 @@ function normalizeAppleCalendarConfig(raw) {
     calendarName:appleCalendarSafeText(source.calendarName, 160),
     durationMinutes:Math.max(15, Math.min(480, duration)),
     mappings,
+    showEvents:source.showEvents === true,
+    hiddenCalendars:(Array.isArray(source.hiddenCalendars) ? source.hiddenCalendars : []).map((name) => appleCalendarSafeText(name, 160)).filter(Boolean).slice(0, 40),
     lastSyncResult:source.lastSyncResult && ['success','failed'].includes(source.lastSyncResult.status) ? {
       at:appleCalendarSafeText(source.lastSyncResult.at,40),status:source.lastSyncResult.status,error:appleCalendarSafeText(source.lastSyncResult.error,400)
     } : null
@@ -148,6 +150,144 @@ function run(argv) {
   return JSON.stringify({ mappings:nextMappings });
 }`;
 
+// 只读日程：固定 JXA 脚本按时间窗查询各日历事件，仅返回标题、时间、地点与所属日历，不做任何写入。
+// 重复事件由系统返回母事件 + RRULE，再在插件内展开（Calendar 脚本接口不会展开重复实例）。
+const APPLE_CALENDAR_READ_JXA = String.raw`
+function run(argv) {
+  const payload = JSON.parse(argv[0]);
+  if (payload.action !== 'read') throw new Error('invalid-action');
+  const calendarApp = Application('Calendar');
+  const start = new Date(payload.startAt);
+  const end = new Date(payload.endAt);
+  const hidden = new Set((Array.isArray(payload.hidden) ? payload.hidden : []).map(String));
+  let names = [];
+  try { names = calendarApp.calendars.name(); } catch (ignored) { names = []; }
+  const out = [];
+  const pick = (query, prop) => { try { return query[prop]() || []; } catch (ignored) { return []; } };
+  const collect = (query, name, recurring) => {
+    const uids = pick(query, 'uid');
+    if (!uids.length) return;
+    const titles = pick(query, 'summary'); const starts = pick(query, 'startDate'); const ends = pick(query, 'endDate');
+    const allDays = pick(query, 'alldayEvent'); const locations = pick(query, 'location');
+    const rules = recurring ? pick(query, 'recurrence') : []; const excluded = recurring ? pick(query, 'excludedDates') : [];
+    for (let index = 0; index < uids.length && out.length < 1500; index++) {
+      const startDate = starts[index]; const endDate = ends[index];
+      if (!(startDate instanceof Date)) continue;
+      out.push({
+        uid:String(uids[index] || ''), title:String(titles[index] || ''), calendar:String(name),
+        startAt:startDate.toISOString(), endAt:(endDate instanceof Date ? endDate : startDate).toISOString(),
+        allDay:allDays[index] === true, location:String(locations[index] || ''),
+        recurrence:recurring ? String(rules[index] || '') : '',
+        excluded:recurring && Array.isArray(excluded[index]) ? excluded[index].filter((item) => item instanceof Date).map((item) => item.toISOString()) : []
+      });
+    }
+  };
+  names.forEach((name, index) => {
+    if (hidden.has(String(name))) return;
+    const calendar = calendarApp.calendars[index];
+    try { collect(calendar.events.whose({ _and:[{ startDate:{ _lessThan:end } }, { endDate:{ _greaterThan:start } }] }), name, false); } catch (ignored) {}
+    try { collect(calendar.events.whose({ _and:[{ startDate:{ _lessThan:end } }, { recurrence:{ _beginsWith:'FREQ' } }] }), name, true); } catch (ignored) {}
+  });
+  return JSON.stringify({ events:out });
+}`;
+
+function parseAppleCalendarRule(rule) {
+  const parts = {};
+  String(rule || '').split(';').forEach((segment) => {
+    const [key, value] = segment.split('=');
+    if (key && value) parts[key.trim().toUpperCase()] = value.trim();
+  });
+  return parts;
+}
+
+function parseAppleCalendarRuleDate(value) {
+  const match = String(value || '').match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/);
+  if (!match) return null;
+  const [, y, mo, d, h = '23', mi = '59', se = '59', utc] = match;
+  return utc ? Date.UTC(+y, +mo - 1, +d, +h, +mi, +se) : new Date(+y, +mo - 1, +d, +h, +mi, +se).getTime();
+}
+
+// 把母事件 + RRULE 展开成时间窗内的实例；支持 DAILY/WEEKLY(BYDAY)/MONTHLY/YEARLY、INTERVAL、COUNT、UNTIL 与排除日期。
+function expandAppleCalendarOccurrences(event, rangeStart, rangeEnd) {
+  const start = Date.parse(event.startAt);
+  const end = Date.parse(event.endAt);
+  if (!Number.isFinite(start)) return [];
+  const duration = Math.max(0, (Number.isFinite(end) ? end : start) - start);
+  const rule = parseAppleCalendarRule(event.recurrence);
+  const freq = rule.FREQ;
+  if (!['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(freq)) return [{ start, end:start + duration }];
+  const interval = Math.max(1, Math.min(366, parseInt(rule.INTERVAL, 10) || 1));
+  const maxCount = parseInt(rule.COUNT, 10) > 0 ? parseInt(rule.COUNT, 10) : Infinity;
+  const until = rule.UNTIL ? parseAppleCalendarRuleDate(rule.UNTIL) : null;
+  const excluded = new Set((Array.isArray(event.excluded) ? event.excluded : []).map((value) => Date.parse(value)).filter(Number.isFinite));
+  const base = new Date(start);
+  const dayCodes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+  const byDay = freq === 'WEEKLY' && rule.BYDAY
+    ? rule.BYDAY.split(',').map((code) => dayCodes.indexOf(code.replace(/^[+-]?\d+/, '').trim())).filter((day) => day >= 0)
+    : [];
+  const at = (y, m, d) => new Date(y, m, d, base.getHours(), base.getMinutes(), base.getSeconds()).getTime();
+  const out = [];
+  let count = 0;
+  const accept = (occurrence) => {
+    if (occurrence < start) return true;
+    if ((until !== null && occurrence > until) || count >= maxCount || occurrence >= rangeEnd) return false;
+    count++;
+    if (!excluded.has(occurrence) && occurrence + Math.max(duration, 1) > rangeStart) out.push({ start:occurrence, end:occurrence + duration });
+    return true;
+  };
+  for (let step = 0; step < 5000; step++) {
+    if (freq === 'DAILY') {
+      if (!accept(at(base.getFullYear(), base.getMonth(), base.getDate() + step * interval))) break;
+    } else if (freq === 'WEEKLY') {
+      const mondayOffset = (base.getDay() + 6) % 7;
+      const weekStart = new Date(base.getFullYear(), base.getMonth(), base.getDate() - mondayOffset + step * 7 * interval);
+      const days = byDay.length ? byDay.slice().sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)) : [base.getDay()];
+      let keepGoing = true;
+      for (const day of days) {
+        if (!accept(at(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + ((day + 6) % 7)))) { keepGoing = false; break; }
+      }
+      if (!keepGoing) break;
+    } else if (freq === 'MONTHLY') {
+      const monthIndex = base.getMonth() + step * interval;
+      const candidate = new Date(base.getFullYear(), monthIndex, base.getDate());
+      if (candidate.getDate() !== base.getDate()) continue;
+      if (!accept(at(candidate.getFullYear(), candidate.getMonth(), candidate.getDate()))) break;
+    } else {
+      const candidate = new Date(base.getFullYear() + step * interval, base.getMonth(), base.getDate());
+      if (candidate.getMonth() !== base.getMonth()) continue;
+      if (!accept(at(candidate.getFullYear(), candidate.getMonth(), candidate.getDate()))) break;
+    }
+  }
+  return out;
+}
+
+function expandAppleCalendarEvents(rawEvents, rangeStart, rangeEnd) {
+  const seen = new Set();
+  const events = [];
+  (Array.isArray(rawEvents) ? rawEvents : []).forEach((raw) => {
+    if (!raw || typeof raw !== 'object') return;
+    const title = appleCalendarSafeText(raw.title, 180);
+    const uid = appleCalendarSafeText(raw.uid, 300);
+    if (!title) return;
+    const occurrences = raw.recurrence
+      ? expandAppleCalendarOccurrences(raw, rangeStart, rangeEnd)
+      : [{ start:Date.parse(raw.startAt), end:Date.parse(raw.endAt) }];
+    occurrences.forEach(({ start, end }) => {
+      if (!Number.isFinite(start)) return;
+      const safeEnd = Number.isFinite(end) && end >= start ? end : start;
+      if (start >= rangeEnd || Math.max(safeEnd, start + 1) <= rangeStart) return;
+      const id = (uid || title) + '@' + start;
+      if (seen.has(id)) return;
+      seen.add(id);
+      events.push({
+        id, uid, title, start, end:safeEnd, allDay:raw.allDay === true,
+        calendar:appleCalendarSafeText(raw.calendar, 160), location:appleCalendarSafeText(raw.location, 200)
+      });
+    });
+  });
+  return events.sort((a, b) => (a.allDay === b.allDay ? 0 : a.allDay ? -1 : 1) || a.start - b.start || a.title.localeCompare(b.title));
+}
+
 function appleCalendarAutomationMessage(error, language = 'zh-CN') {
   const en = language === 'en';
   const detail = String(error?.stderr || error?.message || error || 'unknown error');
@@ -163,7 +303,7 @@ function appleCalendarAutomationMessage(error, language = 'zh-CN') {
 }
 
 class AppleCalendarService {
-  constructor(plugin, options = {}) { this.plugin = plugin; this._config = null; this._queue = Promise.resolve(); this._cachedCalendars = []; this._platform = options.platform || (typeof process !== 'undefined' ? process.platform : ''); this._execFile = options.execFile || null; }
+  constructor(plugin, options = {}) { this.plugin = plugin; this._config = null; this._eventCache = new Map(); this._eventInflight = new Map(); this._queue = Promise.resolve(); this._cachedCalendars = []; this._platform = options.platform || (typeof process !== 'undefined' ? process.platform : ''); this._execFile = options.execFile || null; }
   isSupported() { return this._platform === 'darwin' && this.plugin?.app?.isMobile !== true; }
   getCachedCalendars() { return this._cachedCalendars.map((item) => ({ ...item })); }
   async getConfig() {
@@ -280,9 +420,47 @@ class AppleCalendarService {
     if (options.silent !== false) return this._queue.catch((error) => { console.warn('Cockpit Apple calendar sync failed', error?.message || error); return false; });
     return this._queue;
   }
+  _eventRangeKey(rangeStart, rangeEnd) { return Math.floor(rangeStart / 60000) + '_' + Math.floor(rangeEnd / 60000); }
+  peekEvents(rangeStart, rangeEnd) {
+    const cached = this._eventCache.get(this._eventRangeKey(rangeStart, rangeEnd));
+    return cached ? cached.events : null;
+  }
+  clearEventCache() { this._eventCache.clear(); }
+  async _readRaw(payload) {
+    if (!this.isSupported()) throw new Error('unsupported-platform');
+    const execFile = this._execFile || require('child_process').execFile;
+    return new Promise((resolve, reject) => {
+      execFile('osascript', ['-l','JavaScript','-e',APPLE_CALENDAR_READ_JXA,JSON.stringify(payload)], { timeout:30000, maxBuffer:8 * 1024 * 1024 }, (error, stdout, stderr) => {
+        if (error) { error.stderr = stderr; reject(error); return; }
+        try { resolve(JSON.parse(String(stdout || '').trim() || 'null')); }
+        catch (parseError) { parseError.stderr = stderr; reject(parseError); }
+      });
+    });
+  }
+  // 读取时间窗内的系统日程（只读，结果缓存 5 分钟）；未开启“显示系统日程”时不调用任何系统脚本。
+  async readEvents(rangeStart, rangeEnd, options = {}) {
+    const config = await this.getConfig();
+    if (!this.isSupported() || !config.showEvents) return [];
+    const key = this._eventRangeKey(rangeStart, rangeEnd);
+    const cached = this._eventCache.get(key);
+    if (cached && options.force !== true && Date.now() - cached.at < 5 * 60000) return cached.events;
+    if (this._eventInflight.has(key)) return this._eventInflight.get(key);
+    const hidden = config.hiddenCalendars.slice();
+    if (config.enabled && config.calendarName) hidden.push(config.calendarName);
+    const request = this._readRaw({ action:'read', startAt:new Date(rangeStart).toISOString(), endAt:new Date(rangeEnd).toISOString(), hidden })
+      .then((result) => {
+        const events = expandAppleCalendarEvents(result?.events, rangeStart, rangeEnd);
+        if (this._eventCache.size > 12) this._eventCache.delete(this._eventCache.keys().next().value);
+        this._eventCache.set(key, { at:Date.now(), events });
+        return events;
+      })
+      .finally(() => this._eventInflight.delete(key));
+    this._eventInflight.set(key, request);
+    return request;
+  }
   userMessage(error, language) { return appleCalendarAutomationMessage(error, language); }
 }
 
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
-  module.exports = { normalizeAppleCalendarConfig, buildAppleCalendarDesiredEvents, appleCalendarEventHash, appleCalendarAutomationMessage, APPLE_CALENDAR_CREATE_SCRIPT, APPLE_CALENDAR_LIST_SCRIPT, APPLE_CALENDAR_JXA, AppleCalendarService };
+  module.exports = { normalizeAppleCalendarConfig, buildAppleCalendarDesiredEvents, expandAppleCalendarEvents, expandAppleCalendarOccurrences, APPLE_CALENDAR_READ_JXA, appleCalendarEventHash, appleCalendarAutomationMessage, APPLE_CALENDAR_CREATE_SCRIPT, APPLE_CALENDAR_LIST_SCRIPT, APPLE_CALENDAR_JXA, AppleCalendarService };
 }

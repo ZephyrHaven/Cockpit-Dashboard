@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 const read = (name) => fs.readFileSync('src/' + name, 'utf8');
-const framework = read('_framework.js');
+// 仪表盘区块已从 _framework.js 拆到 dashboard-sections.js，源码断言覆盖两者。
+const framework = read('_framework.js') + '\n' + read('dashboard-sections.js');
 const calendar = read('calendar.js');
 const rss = read('rss.js');
 const scenes = read('scenes.js');

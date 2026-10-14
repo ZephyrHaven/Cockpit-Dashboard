@@ -77,8 +77,10 @@ async function executeCustomToolbarButton(view, button) {
     const cwd = view.app.vault.adapter.getBasePath();
     new obs.Notice((view._lang() === 'en' ? 'Running: ' : '正在运行：') + button.label);
     return await new Promise((resolve) => {
-      execFile('/bin/zsh', ['-lc', button.value], {
+      const shell = cockpitShellInvocation(button.value);
+      execFile(shell.file, shell.args, {
         cwd,
+        windowsHide: true,
         timeout: 300000,
         maxBuffer: 1024 * 1024
       }, async (error, stdout, stderr) => {
@@ -117,24 +119,19 @@ function sanitizeToolbarLogOutput(value) {
   return text.length > 6000 ? text.slice(0, 6000) + '\n… (truncated)' : text;
 }
 
+function customToolbarLogFile(view) {
+  const path = require('path');
+  return path.join(cockpitPluginLogDir(view.app, view._plugin?.manifest), 'toolbar-runs.jsonl');
+}
+
 async function appendCustomToolbarLog(view, entry) {
   if (view._isMobile && view._isMobile()) return;
   try {
-    const fs = require('fs');
-    const path = require('path');
-    const dir = path.join(view.app.vault.adapter.getBasePath(), view.app.vault.configDir, 'plugins', PLUGIN_ID, 'logs');
-    const file = path.join(dir, 'toolbar-runs.jsonl');
-    fs.mkdirSync(dir, { recursive:true });
-    let rows = [];
-    try { rows = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean); } catch (e) {}
-    rows.push(JSON.stringify({
+    await cockpitAppendJsonl(customToolbarLogFile(view), {
       timestamp:new Date().toISOString(), label:String(entry.label || '').slice(0, 80),
       status:entry.status || (entry.ok ? 'success' : 'failed'), exitCode:entry.exitCode,
       durationMs:entry.durationMs, stdout:sanitizeToolbarLogOutput(entry.stdout), stderr:sanitizeToolbarLogOutput(entry.stderr)
-    }));
-    rows = rows.slice(-CUSTOM_TOOLBAR_LOG_LIMIT);
-    while (Buffer.byteLength(rows.join('\n'), 'utf8') > 1024 * 1024 && rows.length > 1) rows.shift();
-    fs.writeFileSync(file, rows.join('\n') + '\n', 'utf8');
+    }, { limit:CUSTOM_TOOLBAR_LOG_LIMIT, maxBytes:1024 * 1024 });
   } catch (e) {
     console.warn('[Cockpit toolbar log]', e);
   }
@@ -143,15 +140,9 @@ async function appendCustomToolbarLog(view, entry) {
 async function openCustomToolbarLogs(view) {
   const isMobile = view._isMobile && view._isMobile();
   let entries = [];
-  let fs, dir, file;
+  let file = '';
   if (!isMobile) {
-    try {
-      fs = require('fs');
-      const path = require('path');
-      dir = path.join(view.app.vault.adapter.getBasePath(), view.app.vault.configDir, 'plugins', PLUGIN_ID, 'logs');
-      file = path.join(dir, 'toolbar-runs.jsonl');
-      try { entries = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)).reverse(); } catch (e) {}
-    } catch (e) {}
+    try { file = customToolbarLogFile(view); entries = cockpitReadJsonl(file, CUSTOM_TOOLBAR_LOG_LIMIT); } catch (e) {}
   }
   try {
     const overlay = document.createElement('div');
@@ -167,8 +158,8 @@ async function openCustomToolbarLogs(view) {
     clear.onclick = () => {
       if (isMobile) { overlay.remove(); return; }
       if (!window.confirm(view._lang()==='en'?'Clear all Toolbar logs?':'清空所有 Toolbar 运行日志？')) return;
-      try { fs.mkdirSync(dir,{recursive:true}); fs.writeFileSync(file,'','utf8'); } catch (e) {}
-      overlay.remove(); openCustomToolbarLogs(view);
+      overlay.remove();
+      cockpitClearJsonl(file).catch((e) => console.warn('[Cockpit toolbar log clear]', e)).then(() => openCustomToolbarLogs(view));
     };
     const list = panel.createDiv({ cls:PLUGIN_ID + '-toolbar-log-list' });
     if (!entries.length) list.createDiv({ cls:PLUGIN_ID + '-toolbar-log-empty', text:view._lang()==='en'?(isMobile?'Run logs are only available on desktop.':'No run logs yet.'):(isMobile?'运行日志仅在桌面端可用。':'暂无运行日志。') });
@@ -236,7 +227,7 @@ function openCustomToolbarButtonEditor(view, root, existing, options = {}) {
   const errorEl = panel.createDiv({ cls: PID + '-custom-toolbar-error' });
   const updateType = () => {
     const script = typeSelect.value === 'script';
-    valueInput.placeholder = script ? (en ? 'Shell commands executed by /bin/zsh' : '由 /bin/zsh 执行的 Shell 命令') : 'https://example.com';
+    valueInput.placeholder = script ? (en ? 'Shell commands executed by ' + cockpitShellLabel() : '由 ' + cockpitShellLabel() + ' 执行的 Shell 命令') : 'https://example.com';
     hint.textContent = script
       ? (en ? 'Runs from the Vault folder. Saved as plain text; do not include passwords or tokens.' : '脚本从 Vault 目录运行并以明文保存，请勿写入密码或令牌。')
       : (en ? 'Only http/https URLs are accepted.' : '仅允许 http/https 网址。');

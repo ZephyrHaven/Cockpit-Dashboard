@@ -457,8 +457,9 @@ class ScheduledTaskService {
       } else {
         const result = await new Promise((resolve, reject) => {
           const { execFile } = require('child_process');
-          execFile('/bin/zsh', ['-lc', task.command], {
-            cwd:this.plugin.app.vault.adapter.getBasePath(), timeout:task.timeoutSeconds * 1000, maxBuffer:1024 * 1024
+          const shell = cockpitShellInvocation(task.command);
+          execFile(shell.file, shell.args, {
+            cwd:this.plugin.app.vault.adapter.getBasePath(), timeout:task.timeoutSeconds * 1000, maxBuffer:1024 * 1024, windowsHide:true
           }, (error, out, err) => error ? reject(Object.assign(error, { stdout:out, stderr:err })) : resolve({ stdout:out, stderr:err }));
         });
         stdout = result.stdout; stderr = result.stderr;
@@ -529,40 +530,32 @@ class ScheduledTaskService {
   }
   logPath() {
     const path = require('path');
-    return path.join(this.plugin.app.vault.adapter.getBasePath(), this.plugin.app.vault.configDir, 'plugins', PLUGIN_ID, 'logs', 'scheduled-tasks.jsonl');
+    return path.join(cockpitPluginLogDir(this.plugin.app, this.plugin.manifest), 'scheduled-tasks.jsonl');
   }
   async appendLog(entry) {
     if (this.plugin.app.isMobile) return;
     try {
-      const fs = require('fs'); const path = require('path'); const file = this.logPath();
-      fs.mkdirSync(path.dirname(file), { recursive:true });
-      let rows = [];
-      try { rows = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean); } catch (e) {}
       const sanitize = (value) => { const text = String(value || '').trim(); return text.length > 12000 ? text.slice(0, 12000) + '\n… (truncated)' : text; };
-      rows.push(JSON.stringify({ runId:scheduledTaskId(), timestamp:new Date().toISOString(), taskId:entry.task.id, name:entry.task.name,
+      await cockpitAppendJsonl(this.logPath(), { runId:scheduledTaskId(), timestamp:new Date().toISOString(), taskId:entry.task.id, name:entry.task.name,
         kind:entry.task.kind, trigger:entry.trigger, scheduledAt:entry.scheduledAt || '', status:entry.status, exitCode:entry.exitCode ?? '',
-        durationMs:entry.durationMs || 0, stdout:sanitize(entry.stdout), stderr:sanitize(entry.stderr) }));
-      rows = rows.slice(-SCHEDULED_LOG_LIMIT);
-      while (Buffer.byteLength(rows.join('\n'), 'utf8') > SCHEDULED_LOG_MAX_BYTES && rows.length > 1) rows.shift();
-      fs.writeFileSync(file, rows.join('\n') + '\n', 'utf8');
+        durationMs:entry.durationMs || 0, stdout:sanitize(entry.stdout), stderr:sanitize(entry.stderr) }, { limit:SCHEDULED_LOG_LIMIT, maxBytes:SCHEDULED_LOG_MAX_BYTES });
     } catch (e) { console.warn('[Cockpit scheduled task log]', e); }
   }
   readLogs() {
     if (this.plugin.app.isMobile) return [];
-    try { return require('fs').readFileSync(this.logPath(), 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)).reverse(); } catch (e) { return []; }
+    try { return cockpitReadJsonl(this.logPath(), SCHEDULED_LOG_LIMIT); } catch (e) { return []; }
   }
   async clearLogs() {
     if (this.plugin.app.isMobile) return false;
     try {
-      const fs = require('fs'); const path = require('path'); const file = this.logPath();
-      fs.mkdirSync(path.dirname(file), { recursive:true });
-      fs.writeFileSync(file, '', 'utf8');
+      await cockpitClearJsonl(this.logPath());
       return true;
     } catch (e) {
       console.warn('[Cockpit scheduled task log clear]', e);
       return false;
     }
   }
+
 }
 
 function openScheduledTaskLogs(view) {

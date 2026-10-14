@@ -11,6 +11,8 @@ const {
   APPLE_CALENDAR_CREATE_SCRIPT,
   APPLE_CALENDAR_LIST_SCRIPT,
   APPLE_CALENDAR_JXA,
+  APPLE_CALENDAR_READ_JXA,
+  expandAppleCalendarEvents,
   AppleCalendarService
 } = require('../src/apple-calendar.js');
 
@@ -153,6 +155,45 @@ assert.doesNotMatch(settings, /请先读取并选择一个可写日历/, 'The se
   await assert.rejects(() => unsupported.listCalendars(), /unsupported-platform/);
   assert.match(appleCalendarAutomationMessage(new Error('unsupported-platform'), 'zh-CN'), /仅 Mac 可用/);
   assert.match(appleCalendarAutomationMessage({ stderr:'Not authorized to send Apple events. (-1743)' }, 'zh-CN'), /隐私与安全性/);
+
+  // 只读日程：重复事件展开、排除日期、去重与时间窗裁剪。
+  const local = (y, m, d, h = 0, mi = 0) => new Date(y, m - 1, d, h, mi).getTime();
+  const iso = (ms) => new Date(ms).toISOString();
+  const octStart = local(2026, 10, 1); const octEnd = local(2026, 11, 1);
+  const weekly = {
+    uid:'weekly-sync', title:'周会', calendar:'工作', allDay:false,
+    startAt:iso(local(2026, 9, 7, 10)), endAt:iso(local(2026, 9, 7, 11)),
+    recurrence:'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE', excluded:[iso(local(2026, 10, 14, 10))]
+  };
+  const expanded = expandAppleCalendarEvents([
+    weekly,
+    { uid:'single', title:'看牙', calendar:'个人', allDay:false, startAt:iso(local(2026, 10, 20, 15)), endAt:iso(local(2026, 10, 20, 16)) },
+    { uid:'single', title:'看牙', calendar:'个人', allDay:false, startAt:iso(local(2026, 10, 20, 15)), endAt:iso(local(2026, 10, 20, 16)) },
+    { uid:'outside', title:'去年', calendar:'个人', allDay:false, startAt:iso(local(2025, 1, 1, 9)), endAt:iso(local(2025, 1, 1, 10)) },
+    { uid:'count', title:'三次课', calendar:'学习', allDay:false, startAt:iso(local(2026, 9, 29, 19)), endAt:iso(local(2026, 9, 29, 20)), recurrence:'FREQ=DAILY;COUNT=3' },
+    { uid:'until', title:'月报', calendar:'工作', allDay:true, startAt:iso(local(2026, 8, 31)), endAt:iso(local(2026, 9, 1)), recurrence:'FREQ=MONTHLY;UNTIL=20261231T000000Z' }
+  ], octStart, octEnd);
+  const weeklyDays = expanded.filter((item) => item.uid === 'weekly-sync').map((item) => new Date(item.start).getDate());
+  assert.deepEqual(weeklyDays, [5, 7, 12, 19, 21, 26, 28], 'Weekly BYDAY rules expand inside the window and honour excluded dates.');
+  assert.equal(expanded.filter((item) => item.uid === 'single').length, 1, 'Duplicate event rows collapse to one occurrence.');
+  assert.equal(expanded.some((item) => item.uid === 'outside'), false, 'Events outside the requested window are dropped.');
+  assert.deepEqual(expanded.filter((item) => item.uid === 'count').map((item) => new Date(item.start).getDate()), [1], 'COUNT limits occurrences across the whole series.');
+  assert.deepEqual(expanded.filter((item) => item.uid === 'until').map((item) => new Date(item.start).getDate()), [31], 'Monthly rules keep the anchor day (Sep 31 does not exist, Oct 31 does).');
+  assert.ok(expanded.findIndex((item) => item.allDay) <= 0, 'All-day events sort first.');
+  assert.doesNotMatch(APPLE_CALENDAR_READ_JXA, /calendarApp\.(?:delete|save)|events\.push|make new|\.Event\(/, 'The read script never creates, edits or deletes calendar data.');
+  assert.equal(normalizeAppleCalendarConfig({}).showEvents, false, 'System events stay hidden until the user opts in.');
+  const readCalls = [];
+  const reader = new AppleCalendarService({ loadData:async () => ({ appleCalendarSync:{ showEvents:true, enabled:true, calendarName:'Cockpit', calendarId:'Cockpit', hiddenCalendars:['节假日'] } }) }, {
+    platform:'darwin',
+    execFile:(command, args, options, callback) => { readCalls.push(JSON.parse(args[4])); callback(null, JSON.stringify({ events:[{ uid:'a', title:'评审', calendar:'工作', startAt:iso(local(2026, 10, 9, 14)), endAt:iso(local(2026, 10, 9, 15)) }] }), ''); }
+  });
+  const firstRead = await reader.readEvents(octStart, octEnd);
+  await reader.readEvents(octStart, octEnd);
+  assert.equal(firstRead.length, 1);
+  assert.equal(readCalls.length, 1, 'Event reads are cached per window.');
+  assert.deepEqual(readCalls[0].hidden, ['节假日', 'Cockpit'], 'Hidden calendars and the managed Cockpit calendar are excluded from reads.');
+  const disabledReader = new AppleCalendarService({ loadData:async () => ({}) }, { platform:'darwin', execFile:() => { throw new Error('must not run'); } });
+  assert.deepEqual(await disabledReader.readEvents(octStart, octEnd), [], 'No system script runs while event display is off.');
 
   console.log('Apple calendar checks passed');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

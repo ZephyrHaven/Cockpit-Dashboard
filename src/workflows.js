@@ -171,7 +171,8 @@ class CockpitWorkflowEngine {
   _runShell(command, timeoutSeconds) {
     const timeout = workflowTimeoutMs(timeoutSeconds);
     return new Promise((resolve, reject) => {
-      execFile('/bin/zsh', ['-lc', command], { timeout, maxBuffer:1024 * 1024, encoding:'utf8' }, (error, stdout, stderr) => {
+      const shell = cockpitShellInvocation(command);
+      execFile(shell.file, shell.args, { timeout, maxBuffer:1024 * 1024, encoding:'utf8', windowsHide:true }, (error, stdout, stderr) => {
         if (error) { error.message = (error.message || 'shell-failed') + (stderr ? ('\n' + String(stderr).slice(0, 500)) : ''); reject(error); return; }
         resolve(String(stdout || '') + (stderr ? '\n' + String(stderr) : ''));
       });

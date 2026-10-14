@@ -32,7 +32,7 @@ function calendarCountdownItemsForDate(items, dateValue) {
 }
 
 function renderCalendarDayFlow(options) {
-  const { anchor, date, language, t, todosForDate, rssItems, automationItems, countdownItems, filter, onFilterChange, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm, openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, rerender, rss } = options;
+  const { anchor, date, language, t, todosForDate, rssItems, calendarEvents, automationItems, countdownItems, filter, onFilterChange, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm, openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, rerender, rss } = options;
   const parent = anchor?.parentNode;
   if (!parent) return null;
   parent.querySelector('.' + PLUGIN_ID + '-cal-detail')?.remove();
@@ -43,7 +43,9 @@ function renderCalendarDayFlow(options) {
   const rssSummary = summarizeCalendarRss(articles, (feedId) => rss?.getFeed?.(feedId));
   const automations = Array.isArray(automationItems) ? automationItems : [];
   const countdowns = calendarCountdownItemsForDate(countdownItems, date);
+  const events = Array.isArray(calendarEvents) ? calendarEvents : [];
   const flowItems = [
+    ...events.map((event) => ({ kind:'event', event, sortTime:event.allDay || event.start < dayStart ? dayStart - 2 : event.start })),
     ...todos.map((todo) => ({ kind:todo.teamTodo ? 'teamTodo' : 'todo', todo, sortTime:todo.dueHasTime ? todo.dueDate.valueOf() : dayStart - 1 })),
     ...(rssSummary.count ? [{ kind:'rss', rssSummary, sortTime:dayStart }] : []),
     ...countdowns.map((countdown) => ({ kind:'countdown', countdown, sortTime:countdown.sortTime })),
@@ -62,9 +64,9 @@ function renderCalendarDayFlow(options) {
   const add = actions.createEl('button', { cls:PLUGIN_ID + '-cal-detail-add', text:'+ ' + t('calendar.addTodo'), attr:{ type:'button' } });
   add.onclick = () => openTodoEditor({ dueDate:date });
 
-  const counts = { all:flowItems.length, todo:todos.filter((todo) => !todo.teamTodo).length, teamTodo:todos.filter((todo) => todo.teamTodo).length, countdown:countdowns.length, automation:automations.length, rss:articles.length };
+  const counts = { all:flowItems.length, todo:todos.filter((todo) => !todo.teamTodo).length, teamTodo:todos.filter((todo) => todo.teamTodo).length, countdown:countdowns.length, automation:automations.length, rss:articles.length, event:events.length };
   const filters = detail.createDiv({ cls:PLUGIN_ID + '-cal-flow-filters', attr:{ role:'tablist', 'aria-label':en ? 'Filter day items' : '筛选日期事项' } });
-  [['all',en?'All':'全部'],['todo',en?'Personal':'个人待办'],['teamTodo',en?'Team tasks':'团队待办'],['countdown',en?'Countdowns':'倒计时'],['automation',en?'Automations':'自动化'],['rss','RSS']].forEach(([id,label]) => {
+  [['all',en?'All':'全部'],...(events.length ? [['event',en?'Calendar':'日程']] : []),['todo',en?'Personal':'个人待办'],['teamTodo',en?'Team tasks':'团队待办'],['countdown',en?'Countdowns':'倒计时'],['automation',en?'Automations':'自动化'],['rss','RSS']].forEach(([id,label]) => {
     const button = filters.createEl('button', { cls:PLUGIN_ID + '-cal-flow-filter' + (filter === id ? ' active' : ''), attr:{ type:'button', role:'tab', 'aria-selected':String(filter === id) } });
     button.createSpan({ text:label });
     button.createSpan({ cls:PLUGIN_ID + '-cal-flow-filter-count', text:String(counts[id]) });
@@ -93,6 +95,7 @@ function renderCalendarDayFlow(options) {
     const rssEntry = flow.rssSummary;
     const countdown = flow.countdown;
     const automation = flow.automation;
+    const calEvent = flow.event;
     const rowClass = todo
       ? PLUGIN_ID + '-cal-timeline-row p-' + (todo.priority || 'mid') + ' kind-todo ' + (todo.teamTodo ? 'is-team-todo' : 'is-personal-todo') + (todo.done ? ' done' : '') + (todo === nextTimed ? ' is-next' : '')
       : PLUGIN_ID + '-cal-timeline-row kind-' + flow.kind;
@@ -100,6 +103,7 @@ function renderCalendarDayFlow(options) {
     const time = row.createDiv({ cls:PLUGIN_ID + '-cal-timeline-time' });
       time.createSpan({ text:todo
       ? (todo.dueHasTime ? todo.dueDate.format('HH:mm') : (en ? 'All day' : '全天'))
+      : calEvent ? (calEvent.allDay || calEvent.start < dayStart ? (en ? 'All day' : '全天') : window.moment(calEvent.start).format('HH:mm'))
       : rssEntry ? 'RSS' : countdown ? countdown.time : (automation.time || (en ? 'Event' : '事件')) });
     const rail = row.createDiv({ cls:PLUGIN_ID + '-cal-timeline-rail' + (index === 0 ? ' first' : '') + (index === visibleItems.length - 1 ? ' last' : '') });
     let check = null;
@@ -108,13 +112,14 @@ function renderCalendarDayFlow(options) {
       if (todo.done) obs.setIcon(check, 'check');
     } else {
       const node = rail.createSpan({ cls:PLUGIN_ID + '-cal-timeline-node source-' + flow.kind });
-      obs.setIcon(node, rssEntry ? 'rss' : countdown ? 'timer-reset' : (automation.kind === 'workflow' ? 'workflow' : 'zap'));
+      obs.setIcon(node, calEvent ? 'calendar-clock' : rssEntry ? 'rss' : countdown ? 'timer-reset' : (automation.kind === 'workflow' ? 'workflow' : 'zap'));
     }
 
     const content = row.createDiv({ cls:PLUGIN_ID + '-cal-timeline-content' });
     const summary = content.createDiv({ cls:PLUGIN_ID + '-cal-timeline-summary' });
     let text = null;
     if (todo) text = summary.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-title', text:todo.text, attr:{ type:'button', title:todo.text } });
+    else if (calEvent) text = summary.createDiv({ cls:PLUGIN_ID + '-cal-timeline-title is-static', text:calEvent.title, attr:{ title:calEvent.title } });
     else if (rssEntry) {
       const rssTitle = en ? `RSS digest · ${rssEntry.count} updates` : `RSS 今日摘要 · ${rssEntry.count} 条更新`;
       text = summary.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-title', text:rssTitle, attr:{ type:'button', title:rssTitle } });
@@ -127,6 +132,10 @@ function renderCalendarDayFlow(options) {
       (todo.tags || []).slice(0,3).forEach((tag) => meta.createSpan({ cls:PLUGIN_ID + '-todo-tag-pill ' + PLUGIN_ID + '-cal-timeline-tag', text:'#' + tag }));
       const due = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-date' }); obs.setIcon(due.createSpan(), 'calendar-days'); due.createSpan({ text:formatTodoDue(todo.dueDate, language, todo.dueHasTime) });
       const priority = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-priority p-' + (todo.priority || 'mid') }); obs.setIcon(priority.createSpan(), priorityIcon[todo.priority] || 'minus'); priority.createSpan({ text:priorityText[todo.priority] || priorityText.mid });
+    } else if (calEvent) {
+      if (calEvent.calendar) meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip source-event', text:calEvent.calendar });
+      if (!calEvent.allDay) meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip', text:window.moment(calEvent.start).format('HH:mm') + ' – ' + window.moment(calEvent.end).format(window.moment(calEvent.end).isSame(calEvent.start, 'day') ? 'HH:mm' : 'MM-DD HH:mm') });
+      if (calEvent.location) meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip', text:'📍 ' + calEvent.location });
     } else if (rssEntry) {
       meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip source-rss', text:rssEntry.sources.slice(0, 3).join(' · ') || 'RSS' });
       meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip', text:en ? `${rssEntry.unreadCount} unread` : `${rssEntry.unreadCount} 条未读` });
@@ -154,6 +163,8 @@ function renderCalendarDayFlow(options) {
       const open = (event) => { event.stopPropagation(); todo.teamTodo ? onTeamTodoOpen?.(todo.raw) : openTodoEditor({ id:todo.raw.id }); };
       text.onclick = open;
       edit.onclick = open;
+    } else if (calEvent) {
+      // 系统日程只读展示，不提供编辑入口。
     } else if (rssEntry) {
       const open = rowActions.createEl('button', { cls:PLUGIN_ID + '-cal-detail-edit', attr:{ type:'button', title:en ? 'Open RSS updates' : '查看 RSS 更新', 'aria-label':en ? 'Open RSS updates' : '查看 RSS 更新' } }); obs.setIcon(open, 'external-link');
       const show = (event) => { event?.stopPropagation?.(); openRss?.(date); }; text.onclick=show; open.onclick=show;

@@ -250,6 +250,7 @@ function cockpitApplyModuleLayout(view, root) {
     wrapper.className = PLUGIN_ID + '-module';
     wrapper.dataset.moduleId = moduleId;
     wrapper.dataset.moduleLabel = view._moduleLabel(moduleId);
+    wrapper.style.setProperty('--ck-i', String(fragment.childNodes.length));
     nodes.forEach((node) => wrapper.appendChild(node));
     view._applyCustomModuleTitle(wrapper, moduleId);
     fragment.appendChild(wrapper);
@@ -265,23 +266,25 @@ function cockpitMakeModuleCollapsible(view, moduleId, titleEl, contentEl, defaul
 }
 function cockpitMakeCollapsible(view, titleEl, contentEl, key, defaultCollapsed) {
   if (titleEl.dataset.collapseBound === 'true') return;
-  const arrow = titleEl.createSpan({ cls: PLUGIN_ID+'-collapse-arrow', text: '▼', attr:{ style:'margin-left:6px;font-size:0.7em;opacity:0.45;transition:transform 0.2s;display:inline-block;' } });
+  const arrow = titleEl.createSpan({ cls: PLUGIN_ID+'-collapse-arrow', text: '▼', attr:{ style:'margin-left:6px;font-size:0.7em;opacity:0.45;display:inline-block;' } });
   titleEl.style.cursor = 'pointer';
   titleEl.tabIndex = 0;
   titleEl.setAttribute('role', 'button');
   let collapsed = view._collapsed && view._collapsed[key];
   if (collapsed === undefined) collapsed = defaultCollapsed || false;
-  const apply = () => {
-    contentEl.style.display = collapsed ? 'none' : '';
-    arrow.textContent = collapsed ? '▶' : '▼';
+  const apply = (animated) => {
+    if (animated) cockpitAnimateCollapse(contentEl, collapsed);
+    else contentEl.style.display = collapsed ? 'none' : '';
+    // 箭头保持同一个字符，由 CSS 旋转表达折叠状态，过渡更顺滑。
+    arrow.classList.toggle('is-collapsed', collapsed);
     titleEl.setAttribute('aria-expanded', String(!collapsed));
   };
-  apply();
+  apply(false);
   titleEl.dataset.collapseBound = 'true';
   const toggle = (e) => {
     if (e.target.closest('button,input,a,textarea,select')) return;
     collapsed = !collapsed;
-    apply();
+    apply(true);
     view._collapsed[key] = collapsed;
     view._mutatePluginData((data) => { data.collapsed = { ...view._collapsed }; })
       .catch((ex) => console.warn('save collapsed', ex));

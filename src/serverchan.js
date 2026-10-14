@@ -590,5 +590,45 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
           finally { button.setDisabled(false); }
         });
       });
+
+    // 只读显示系统日程：默认关闭；开启后仅在本机通过固定脚本读取可见时间窗内的事件，不写入、不上传。
+    const reloadCalendarEvents = () => {
+      appleService?.clearEventCache?.();
+      this.plugin._calendarEventsErrorShown = false;
+      this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((leaf) => {
+        try { leaf.view?._refreshCalendarRef?.reloadEvents?.(); } catch (e) {}
+      });
+    };
+    new obs.Setting(panels.calendar)
+      .setName(en ? 'Show system calendar events (read-only)' : '在日历中显示系统日程（只读）')
+      .setDesc(en
+        ? 'Reads events from the Mac Calendar app for the visible month or week and shows them next to your tasks. Nothing is written or uploaded; the managed Cockpit calendar is skipped.'
+        : '读取 Mac 系统“日历”中当前可见月 / 周的事件，与待办一起显示；只读、不写入、不上传，自动跳过 Cockpit 同步日历。首次开启会请求日历自动化权限。')
+      .addToggle((toggle) => {
+        toggle.setValue(appleSupported && appleCalendarConfig.showEvents).setDisabled(!appleSupported);
+        toggle.onChange(async (value) => {
+          try {
+            const latest = await appleService.getConfig();
+            await appleService.saveConfig({ ...latest, showEvents:value === true });
+            reloadCalendarEvents();
+            this.display();
+          } catch (error) { new obs.Notice(appleService.userMessage(error, language), 10000); }
+        });
+      });
+    if (appleSupported && appleCalendarConfig.showEvents) {
+      new obs.Setting(panels.calendar)
+        .setName(en ? 'Hidden calendars' : '不显示的日历')
+        .setDesc(en ? 'Comma-separated calendar names to skip, e.g. holiday or birthday calendars.' : '用逗号分隔要跳过的日历名称，例如节假日、生日等订阅日历。')
+        .addText((text) => {
+          text.setPlaceholder(en ? 'Holidays, Birthdays' : '中国大陆节假日, 生日').setValue(appleCalendarConfig.hiddenCalendars.join(', '));
+          text.inputEl.addEventListener('blur', async () => {
+            const hiddenCalendars = text.getValue().split(/[,，]/).map((name) => name.trim()).filter(Boolean);
+            const latest = await appleService.getConfig();
+            if (hiddenCalendars.join('\n') === latest.hiddenCalendars.join('\n')) return;
+            await appleService.saveConfig({ ...latest, hiddenCalendars });
+            reloadCalendarEvents();
+          });
+        });
+    }
   }
 }

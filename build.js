@@ -14,8 +14,15 @@ const OUT_DIR = path.join(ROOT, 'dist');
 const OUT_FILE = path.join(OUT_DIR, 'main.js');
 const CSS_FILE = path.join(ROOT, 'styles.css');
 
+const { bundleCommonJs, minifyCssConservative } = require('./tools/build-fallbacks');
+
+// esbuild 是原生二进制：node_modules 若在另一平台安装（如 macOS 装好后在 Linux 虚拟机构建），
+// require 能成功但调用会抛错。这里先试跑一次，不可用就整体切到纯 JS 兜底路径。
 let esbuild = null;
-try { esbuild = require('esbuild'); } catch (e) { esbuild = null; }
+try { esbuild = require('esbuild'); esbuild.transformSync('', { loader:'js' }); } catch (e) {
+  if (esbuild) console.warn('⚠️ esbuild 原生二进制与当前平台不匹配，改用纯 JS 兜底（terser + 内置打包/CSS 压缩）');
+  esbuild = null;
+}
 
 const MODULES = [
   'constants.js',
@@ -46,6 +53,9 @@ const MODULES = [
   'daily-tips.js',
   'tip-store.js',
   'utils.js',
+  'shell-runner.js',
+  'jsonl-log.js',
+  'motion.js',
   'cockpit-events.js',
   'todo-repeat.js',
   'todo-repeat-editor.js',
@@ -94,6 +104,7 @@ const MODULES = [
   'layout-edit.js',
   'component-store-core.js',
   'component-store.js',
+  'dashboard-sections.js',
   'silent-refresh.js',
   'commands.js',
   '_framework.js'
@@ -160,8 +171,8 @@ function minifyCss(css) {
     const lightningcss = require('lightningcss');
     const out = lightningcss.transform({ filename: 'styles.css', code: Buffer.from(css), minify: true });
     candidates.push(out.code.toString('utf8'));
-  } catch (e) { /* 未安装则跳过 */ }
-  if (!candidates.length) return css;
+  } catch (e) { /* 未安装或平台不匹配则跳过 */ }
+  if (!candidates.length) candidates.push(minifyCssConservative(css));
   return candidates.reduce((a, b) => (Buffer.byteLength(b) < Buffer.byteLength(a) ? b : a));
 }
 
@@ -250,11 +261,11 @@ async function main() {
   // CSS 不再内嵌进 main.js：宿主会自动加载插件目录的 styles.css，
   // 视图侧仅保留 _ensureStylesheetLoaded() 兜底探测。
   // 二维码依赖随插件打包；运行时不依赖 node_modules 或在线 CDN。
-  if (!esbuild) throw new Error('二维码依赖打包需要 esbuild，请先 npm install。');
-  const qr = esbuild.buildSync({
-    stdin:{ contents:"exports.encode = require('qrcode/lib/browser').toCanvas; exports.decode = require('jsqr');", resolveDir:__dirname },
+  const qrEntry = "exports.encode = require('qrcode/lib/browser').toCanvas; exports.decode = require('jsqr');";
+  const qr = esbuild ? esbuild.buildSync({
+    stdin:{ contents:qrEntry, resolveDir:__dirname },
     bundle:true, write:false, format:'iife', globalName:'CockpitLanQr', platform:'browser', target:'es2020', minify:true, legalComments:'none'
-  }).outputFiles[0].text;
+  }).outputFiles[0].text : bundleCommonJs(qrEntry, __dirname, 'CockpitLanQr');
   const bundle = qr + '\n' + buildBundle(moduleBodies);
   reportModuleSizes(moduleBodies);
   const best = await minifyJsBest(bundle);

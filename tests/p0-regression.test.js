@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const framework = fs.readFileSync(path.join(root, 'src/_framework.js'), 'utf8');
+const framework = fs.readFileSync(path.join(root, 'src/_framework.js'), 'utf8') + '\n' + fs.readFileSync(path.join(root, 'src/dashboard-sections.js'), 'utf8');
 const layoutEdit = fs.readFileSync(path.join(root, 'src/layout-edit.js'), 'utf8');
 const silentRefresh = fs.readFileSync(path.join(root, 'src/silent-refresh.js'), 'utf8');
 const calendar = fs.readFileSync(path.join(root, 'src/calendar.js'), 'utf8');

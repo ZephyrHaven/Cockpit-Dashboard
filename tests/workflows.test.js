@@ -17,6 +17,7 @@ global.window = { moment:(value=Date.now()) => new MiniMoment(value) };
 global.obs = { Modal:class { constructor(){} open(){ return this; } close(){} }, Notice:class { constructor(text){ notices.push(text); } } };
 const notices = [];
 
+global.cockpitShellInvocation = require('../src/shell-runner.js').cockpitShellInvocation;
 const api = require('../src/workflows.js');
 
 assert.equal(api.workflowTimeoutMs(30), 30000, 'Shell timeout seconds are converted to milliseconds for execFile.');
