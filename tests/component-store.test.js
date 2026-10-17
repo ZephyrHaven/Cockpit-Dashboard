@@ -13,6 +13,35 @@ const {
   moveNestedItemBefore
 } = require('../src/component-store-core.js');
 
+global.CockpitModal = class {};
+const { scheduleComponentStoreScrollRestore } = require('../src/component-store.js');
+delete global.CockpitModal;
+
+const animationFrames = new Map();
+let nextAnimationFrame = 1;
+const previousWindow = global.window;
+global.window = {
+  requestAnimationFrame(callback) { const id=nextAnimationFrame++; animationFrames.set(id,callback); return id; },
+  cancelAnimationFrame(id) { animationFrames.delete(id); }
+};
+const scrollModal = {_scrollRestoreFrame:0};
+const firstBody = {isConnected:true,scrollTop:0,scrollHeight:1200,clientHeight:400};
+scheduleComponentStoreScrollRestore(scrollModal,firstBody,620);
+assert.equal(firstBody.scrollTop,0,'Scroll restoration waits until the replacement list has completed layout.');
+assert.equal(animationFrames.size,1);
+const firstFrame = [...animationFrames.entries()][0]; animationFrames.delete(firstFrame[0]); firstFrame[1]();
+assert.equal(firstBody.scrollTop,620,'The current-layout list returns to its previous position on the next animation frame.');
+
+const staleBody = {isConnected:true,scrollTop:0,scrollHeight:1200,clientHeight:400};
+const latestBody = {isConnected:true,scrollTop:0,scrollHeight:900,clientHeight:400};
+scheduleComponentStoreScrollRestore(scrollModal,staleBody,700);
+scheduleComponentStoreScrollRestore(scrollModal,latestBody,680);
+assert.equal(animationFrames.size,1,'Rapid component changes cancel stale scroll restoration work.');
+const latestFrame = [...animationFrames.entries()][0]; animationFrames.delete(latestFrame[0]); latestFrame[1]();
+assert.equal(staleBody.scrollTop,0,'A replaced list is never scrolled by a stale callback.');
+assert.equal(latestBody.scrollTop,500,'Restoration clamps to the shortened list instead of jumping to the top.');
+global.window = previousWindow;
+
 const existing = {
   moduleOrder:['hero','toolbar','stats','calendar','todos'],
   hiddenModules:['stats'],
@@ -78,6 +107,10 @@ const currentLayoutSource = store.slice(currentLayoutStart, store.indexOf('\n  r
 assert.doesNotMatch(currentLayoutSource, /component-layout-row[^\n]*draggable:'true'/, 'A layout row itself is not draggable, so buttons and text remain easy to use.');
 assert.match(currentLayoutSource, /component-row-handle[\s\S]*draggable:'true'/, 'Only the explicit handle starts a layout drag.');
 assert.match(currentLayoutSource, /drop-before[\s\S]*drop-after/, 'Layout dragging exposes an exact before/after insertion target.');
+assert.match(store, /_rerenderInPlace\(\)[\s\S]*body\?\.scrollTop\?\?0[\s\S]*bodyScrollTop/, 'In-place component changes capture the store body scroll offset before rendering.');
+assert.match(store, /if\(bodyScrollTop!==null\)scheduleComponentStoreScrollRestore\(this,body,bodyScrollTop\)/, 'The component store restores its body scroll offset after layout completes.');
+assert.match(store, /_setVisible\(id, visible\)[^\n]*_rerenderInPlace\(\)/, 'Adding or removing a component keeps the current store viewport.');
+assert.match(currentLayoutSource, /ondrop=[^\n]*_rerenderInPlace\(\)/, 'Drag reordering keeps the current layout viewport.');
 assert.match(store, /function renderComponentPreview\(/, 'The store provides a reusable component preview renderer.');
 assert.match(store, /component-card-preview/, 'Catalog cards include a component preview.');
 assert.match(store, /component-detail-preview/, 'Component details include a larger preview.');

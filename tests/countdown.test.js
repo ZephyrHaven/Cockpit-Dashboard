@@ -9,6 +9,7 @@ const {
   normalizeCountdowns,
   normalizeCountdownEmailRule,
   countdownThresholdMs,
+  countdownThresholdProgress,
   countdownState,
   dueCountdownEvent,
   formatCountdownRemaining
@@ -31,6 +32,9 @@ assert.equal(countdown.thresholds.length, 2, 'Invalid thresholds are discarded.'
 assert.deepEqual(countdown.channelIds, ['serverChan','email'], 'Countdown delivery channels are allowlisted and deduplicated.');
 assert.equal(countdownThresholdMs(countdown.thresholds[0], target - start), 2 * 86400000);
 assert.equal(countdownThresholdMs(countdown.thresholds[1], target - start), 2 * 86400000);
+assert.equal(countdownThresholdProgress(countdown.thresholds[0], target - start), 80, 'A 20% remaining reminder is placed at 80% elapsed.');
+assert.equal(countdownThresholdProgress(countdown.thresholds[1], target - start), 80, 'Duration reminders share the same elapsed-progress scale.');
+assert.equal(countdownThresholdProgress({ mode:'duration', value:20, unit:'days' }, target - start), 0, 'A threshold longer than the countdown is clamped to the start of the scale.');
 assert.equal(countdownState(countdown, Date.parse('2026-09-08T00:00:00Z')).progress, 90);
 assert.equal(countdownState(countdown, Date.parse('2026-09-10T00:00:00Z')).remainingMs, 0);
 
@@ -134,5 +138,13 @@ assert.match(styles, /\.cockpit-dashboard-countdown-add\s*\{[^}]*order:3[^}]*mar
 assert.match(styles, /data-module-id="countdowns"[^}]*pointer-events:auto/, 'Countdown controls remain usable while arranging the layout.');
 assert.match(styles, /\.cockpit-dashboard-countdown-actions button\s*\{[^}]*transition:/, 'Countdown card buttons animate state changes.');
 assert.match(styles, /\.cockpit-dashboard-countdown-actions button:active\s*\{[^}]*transform:/, 'Countdown card buttons provide tactile press feedback.');
+assert.match(countdownModule, /data-role':'progress-value'/, 'Countdown cards expose the current elapsed percentage.');
+assert.match(countdownModule, /countdownThresholdVisual[\s\S]*data-threshold-ms/, 'Countdown reminder thresholds are rendered as live progress milestones.');
+assert.match(countdownModule, /visual\.emailRules\.length\?'mail':'bell-ring'/, 'Email reminders are visually distinguished from other countdown milestones.');
+assert.match(countdownModule, /countdown-marker-value[\s\S]*visual\.progressText\+'%'/, 'Countdown progress markers show their trigger percentage directly on the track.');
+assert.match(styles, /\.cockpit-dashboard-countdown-progress\.has-milestones\s*\{[^}]*margin-top:/, 'Countdown progress reserves a compact lane for reminder labels.');
+assert.match(styles, /\.cockpit-dashboard-countdown-milestone-marker::after\s*\{[^}]*border-radius:50%/, 'Countdown reminders use a compact track anchor instead of a long vertical stem.');
+assert.match(styles, /\.cockpit-dashboard-countdown-milestone\.is-delivered/, 'Delivered reminder milestones have a distinct success state.');
+assert.match(styles, /\.cockpit-dashboard-countdown-milestone\.has-failure/, 'Failed reminder milestones have a distinct error state.');
 
 console.log('Countdown checks passed');

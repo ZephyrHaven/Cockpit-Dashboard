@@ -11,7 +11,7 @@ function isConfigurableToolbarAction(action) { return !!BUILTIN_TOOLBAR_CONFIG[a
 function openPomodoroToolbarConfigEditor(view, root, options = {}) {
   const en = view._lang() === 'en';
   const overlay = document.createElement('div');
-  overlay.className = PLUGIN_ID + '-custom-toolbar-backdrop';
+  overlay.className = PLUGIN_ID + '-custom-toolbar-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const panel = overlay.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-editor' });
   overlay.onclick = (evt) => { if (evt.target === overlay) overlay.remove(); };
   panel.onclick = (evt) => evt.stopPropagation();
@@ -58,7 +58,7 @@ function openBuiltinToolbarConfigEditor(view, root, action, options = {}) {
   const current = view._toolbarCmds[spec.section] || {};
   const fallbackLabel = view._toolbarButtons().find((button) => button.action === action)?.label || spec.section;
   const overlay = document.createElement('div');
-  overlay.className = PLUGIN_ID + '-custom-toolbar-backdrop';
+  overlay.className = PLUGIN_ID + '-custom-toolbar-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const panel = overlay.createDiv({ cls:PLUGIN_ID + '-custom-toolbar-editor' });
   overlay.onclick = (evt) => { if (evt.target === overlay) overlay.remove(); };
   panel.onclick = (evt) => evt.stopPropagation();

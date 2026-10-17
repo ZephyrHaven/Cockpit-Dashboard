@@ -7,7 +7,7 @@ class Element {
 let opened=0,closed=0,records=[];
 class Modal {constructor(app){this.app=app;this.contentEl=new Element('div');}open(){opened++;this.onOpen();}close(){closed++;this.onClose();}}
 const notices=[],ctx=vm.createContext({require,module:{exports:{}},console,TextEncoder,URL,Blob,Date,obs:{Modal,ItemView:class{},Plugin:class{},Notice:class{constructor(message){notices.push(message);}}},PLUGIN_ID:'cockpit-dashboard',window:{moment:()=>({format:()=> '2026-09-17'})},parseDate:()=>null});
-for(const name of ['team-sync-core','dashboard-insights','todo-bulk','_framework'])vm.runInContext(fs.readFileSync('src/'+name+'.js','utf8'),ctx);
+for(const name of ['modal-motion','team-sync-core','dashboard-insights','todo-bulk','_framework'])vm.runInContext(fs.readFileSync('src/'+name+'.js','utf8'),ctx);
 vm.runInContext('this.api={buildTeamInsights,buildRunHistory,buildSyncHealth,buildTodoBulkBar,CockpitDetailModal,registry:CockpitView.prototype._moduleRegistry,cockpitMentionedModules};',ctx);
 (async()=>{
   const calls=[],plugin={loadData:async()=>({}),teamSync:{state:{team:null},subscribe:()=>()=>{},status:'Paused'},scheduledTasks:{readLogs:()=>[],subscribe:()=>()=>{}},workflows:{subscribe:()=>()=>{}},lanSync:{store:{state:{doc:{},peers:[]}},listeners:new Set(),status:'Paused'}};

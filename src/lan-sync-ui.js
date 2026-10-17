@@ -1,5 +1,5 @@
 // lan-sync-ui.js — 配对、扫码和冲突管理；摄像头仅在用户点击后开启。
-class CockpitLanConfirmModal extends obs.Modal {
+class CockpitLanConfirmModal extends CockpitModal {
   constructor(app, name, resolve) { super(app); this.name = name; this.resolve = resolve; }
   onOpen() {
     this.contentEl.createEl('h2', { text:'允许这台设备同步？' });
@@ -12,7 +12,7 @@ class CockpitLanConfirmModal extends obs.Modal {
   }
   onClose() { clearTimeout(this.timer); this.resolve?.(false); this.resolve = null; this.contentEl.empty(); }
 }
-class CockpitLanPairModal extends obs.Modal {
+class CockpitLanPairModal extends CockpitModal {
   constructor(app, service, mode) { super(app); this.service = service; this.mode = mode; this.closed = false; this.stream = null; }
   async onOpen() {
     this.contentEl.addClass('cockpit-lan-modal');
@@ -99,7 +99,7 @@ class CockpitLanPairModal extends obs.Modal {
     this.contentEl.empty();
   }
 }
-class CockpitLanConflictsModal extends obs.Modal {
+class CockpitLanConflictsModal extends CockpitModal {
   constructor(app, service) { super(app); this.service = service; }
   onOpen() { this.render(); }
   render() {

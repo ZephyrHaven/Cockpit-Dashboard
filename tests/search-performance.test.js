@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const context = vm.createContext({ console, Map, Set, Promise, setTimeout, clearTimeout,
   window:{ setTimeout }, PLUGIN_ID:'cockpit-dashboard', DEFAULT_LANG:'zh', TODO_FILE:'_data/todos.md', obs:{ Modal:class { constructor(app) { this.app = app; } } } });
+vm.runInContext(fs.readFileSync('src/modal-motion.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('src/search.js', 'utf8')
   + '\nthis.api={CockpitGlobalSearchModal,CockpitSearchContentCache,prioritizeSearchFiles};', context);
 

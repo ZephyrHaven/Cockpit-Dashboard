@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const source = fs.readFileSync('src/search.js', 'utf8');
 const context = { obs: { Modal: class {} }, PLUGIN_ID: 'cockpit-dashboard', DEFAULT_LANG: 'zh' };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync('src/modal-motion.js', 'utf8'), context);
 vm.runInContext(source + '\nthis.rankSearchFiles = rankSearchFiles;', context);
 
 const files = [

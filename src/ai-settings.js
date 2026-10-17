@@ -107,14 +107,36 @@ async function renderAiSettings(containerEl, plugin, language) {
     .onClick(() => setWorkspaceValue('')));
   new obs.Setting(section).setName(en ? 'Note context limit' : '笔记上下文上限').setDesc(en ? 'Maximum characters sent from selected notes or local RAG (2,000–50,000).' : '所选笔记或本地 RAG 单次最多发送的字符数（2,000–50,000）。')
     .addText((text) => { text.inputEl.type = 'number'; text.inputEl.min = '2000'; text.inputEl.max = '50000'; text.inputEl.step = '1000'; return text.setValue(String(config.maxContextChars)).onChange(async (value) => { config.maxContextChars = Number(value); await save(); }); });
+  const grants = section.createDiv({ cls:PLUGIN_ID + '-ai-permission-grants' });
+  const renderGrants = () => {
+    grants.empty();
+    grants.createEl('h3', { text:en ? 'Persistent Agent permissions' : 'Agent 永久授权' });
+    const names = Array.isArray(config.alwaysAllowedTools) ? config.alwaysAllowedTools : [];
+    if (!names.length) {
+      grants.createEl('p', { text:en ? 'No actions are permanently allowed.' : '当前没有永久允许的操作。' });
+      return;
+    }
+    names.forEach((name) => {
+      const meta = plugin.agentTools?.describe?.(name);
+      new obs.Setting(grants)
+        .setName(meta?.label || name)
+        .setDesc(name)
+        .addButton((button) => button.setButtonText(en ? 'Revoke' : '撤销').onClick(async () => {
+          config.alwaysAllowedTools = names.filter((item) => item !== name);
+          await save();
+          renderGrants();
+        }));
+    });
+  };
+  renderGrants();
   section.createEl('p', { cls:PLUGIN_ID + '-ai-settings-footnote', text:en
     ? 'Conversation history is stored separately in plugin-private ai-history.json. It excludes attachments, retrieved note excerpts, reasoning, and tool arguments.'
     : '会话历史单独保存在插件私有的 ai-history.json 中，不保存附件、检索到的笔记片段、思考过程或工具参数。' });
   section.createEl('p', { cls:PLUGIN_ID + '-ai-settings-footnote', text:en
-    ? 'Agent tools can list tasks and search notes. Creating or completing a task always requires confirmation.'
-    : 'Agent 工具可以读取待办和搜索笔记；创建或完成待办始终需要确认。' });
+    ? 'Mutating Agent tools require approval. Low-risk task actions may be allowed once, for the current conversation, or persistently; persistent grants can be revoked above.'
+    : 'Agent 写操作需要授权。低风险待办操作可选择仅本次、本会话或始终允许；永久授权可在上方随时撤销。' });
   section.createEl('p', { cls:PLUGIN_ID + '-ai-settings-footnote', text:en
-    ? 'When a coding workspace is set, the Agent additionally gets sandboxed file tools (list/read/write/edit/search) and command execution inside that folder only. Writes and commands follow the permission mode chosen in the sidebar; paths outside the folder and privilege elevation are always refused.'
-    : '设置工作区后，Agent 会额外获得沙箱化的文件工具（浏览/读取/写入/编辑/搜索）与命令执行能力，且只能在该文件夹内活动。写操作与命令遵循侧栏选择的权限模式；目录之外的路径与提权命令永远被拒绝。' });
+    ? 'When a coding workspace is set, the Agent additionally gets sandboxed file tools (list/read/write/edit/search) and command execution inside that folder only. Workspace writes and commands always require fresh confirmation; paths outside the folder and privilege elevation are always refused.'
+    : '设置工作区后，Agent 会额外获得沙箱化的文件工具（浏览/读取/写入/编辑/搜索）与命令执行能力，且只能在该文件夹内活动。工作区写入与命令始终需要重新确认；目录之外的路径与提权命令永远被拒绝。' });
   containerEl.createEl('hr', { cls:PLUGIN_ID + '-settings-divider' });
 }

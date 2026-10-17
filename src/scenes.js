@@ -63,7 +63,7 @@ function buildSceneSwitcher(view, parent) {
   refresh();
 }
 
-class CockpitSceneNameModal extends obs.Modal {
+class CockpitSceneNameModal extends CockpitModal {
   constructor(app, view) { super(app); this.view = view; }
   onOpen() {
     const { contentEl } = this;
@@ -89,7 +89,7 @@ class CockpitSceneNameModal extends obs.Modal {
   onClose() { this._dragCleanup?.(); this._dragCleanup = null; this.contentEl.empty(); }
 }
 
-class CockpitSceneScheduleModal extends obs.Modal {
+class CockpitSceneScheduleModal extends CockpitModal {
   constructor(app, view) { super(app); this.view = view; }
   onOpen() {
     const en = this.view._lang() === 'en'; const { contentEl } = this;

@@ -324,7 +324,7 @@ function workflowRunStatusText(status, en) {
 
 function workflowOpenOverlay(view, titleText) {
   const en = view._lang() === 'en';
-  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-scheduler-backdrop';
+  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-scheduler-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const panel = overlay.createDiv({ cls:PLUGIN_ID + '-scheduler-dialog' });
   const head = panel.createDiv({ cls:PLUGIN_ID + '-scheduler-dialog-head' });
   head.createDiv({ cls:PLUGIN_ID + '-scheduler-dialog-title', text:titleText });

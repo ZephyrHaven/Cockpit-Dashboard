@@ -285,7 +285,7 @@ function openWeeklyReportRecordEditor(view, existing, onDone) {
   const en = view._lang() === 'en';
   const isNew = !existing;
   const draftId = existing?.id || weeklyReportId();
-  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-scheduler-backdrop';
+  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-scheduler-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const panel = overlay.createDiv({ cls: PLUGIN_ID + '-scheduler-dialog' });
   const head = panel.createDiv({ cls: PLUGIN_ID + '-scheduler-dialog-head' });
   head.createDiv({ cls: PLUGIN_ID + '-scheduler-dialog-title', text: existing ? (en ? 'Edit report record' : '编辑周报配置') : (en ? 'New report record' : '新增周报配置') });
@@ -404,7 +404,7 @@ function openWeeklyReportPreview(view, draft) {
   let aiSessionId = '';
   let optimizing = false;
   let activePane = 'original';
-  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-scheduler-backdrop';
+  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-scheduler-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const panel = overlay.createDiv({ cls: PLUGIN_ID + '-scheduler-dialog logs ' + PLUGIN_ID + '-report-preview' });
   const head = panel.createDiv({ cls: PLUGIN_ID + '-scheduler-dialog-head' });
   const heading = head.createDiv({ cls: PLUGIN_ID + '-report-preview-heading' });

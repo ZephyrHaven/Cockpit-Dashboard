@@ -26,6 +26,7 @@ try { esbuild = require('esbuild'); esbuild.transformSync('', { loader:'js' }); 
 
 const MODULES = [
   'constants.js',
+  'modal-motion.js',
   'data-store.js',
   'lan-sync-core.js',
   'lan-sync-transport.js',
@@ -41,6 +42,7 @@ const MODULES = [
   'ai-history.js',
   'ai-local-tools.js',
   'ai-vault-tools.js',
+  'ai-plugin-tools.js',
   'ai-workspace.js',
   'ai-tools.js',
   'ai.js',
@@ -62,6 +64,8 @@ const MODULES = [
   'todos.js',
   'todo-bulk.js',
   'todo-editor.js',
+  'quick-parse.js',
+  'quick-capture.js',
   'dashboard-insights.js',
   'apple-calendar.js',
   'todo-focus.js',
@@ -79,6 +83,7 @@ const MODULES = [
   'storage.js',
   'rss.js',
   'lunar.js',
+  'meeting-notes.js',
   'calendar-day-flow.js',
   'calendar.js',
   'search.js',
@@ -193,12 +198,21 @@ async function minifyJsBest(bundle) {
     try { terser = require('terser'); } catch (e) { return null; }
     const result = await terser.minify(bundle, {
       compress: {
+        toplevel: true,
         passes: 3,
         unsafe: true,
         // 剥离调试日志（保留 warn/error），不影响任何运行行为
         pure_funcs: ['console.log', 'console.info', 'console.debug']
       },
-      mangle: { toplevel: true },
+      mangle: {
+        toplevel: true,
+        properties: {
+          regex: /^_[A-Za-z]/,
+          keep_quoted: true,
+          // Preserve persisted metadata and the host's JXA query operators.
+          reserved: ['_extraMeta', '_and', '_lessThan', '_greaterThan', '_beginsWith']
+        }
+      },
       format: { comments: false },
       sourceMap: false
     });

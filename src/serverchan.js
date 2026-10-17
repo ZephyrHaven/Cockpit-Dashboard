@@ -628,6 +628,16 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
             await appleService.saveConfig({ ...latest, hiddenCalendars });
             reloadCalendarEvents();
           });
+        });      const meetingData = await this.plugin.loadData() || {};
+      new obs.Setting(panels.calendar)
+        .setName(en ? 'Meeting note folder' : '会议笔记文件夹')
+        .setDesc(en ? 'Clicking an event creates or opens its meeting note here and links it from that day’s daily note when one exists.' : '点击日程会在这里生成 / 打开会议笔记；当天日记已存在时，会在日记末尾加一条链接。')
+        .addText((text) => {
+          text.setPlaceholder(en ? 'Meetings' : '会议笔记').setValue(String(meetingData.meetingNoteFolder || ''));
+          text.inputEl.addEventListener('blur', async () => {
+            const folder = text.getValue().trim().replace(/^\/+|\/+$/g, '');
+            await this.plugin.mutateData((data) => { if (folder) data.meetingNoteFolder = folder; else delete data.meetingNoteFolder; });
+          });
         });
     }
   }

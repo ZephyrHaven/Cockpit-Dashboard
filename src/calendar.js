@@ -1,22 +1,7 @@
 // calendar.js — 日历看板模块
 
-// 双击日期快速新建：“14:30 开会”“下午3点 复盘”“9点半 晨会”带时间，其余整句作为全天待办。
-function parseCalendarQuickInput(raw) {
-  const input = String(raw || '').replace(/\s+/g, ' ').trim();
-  const match = input.match(/^(上午|早上|中午|下午|晚上)?\s*(\d{1,2})(?:[:：.](\d{2})|点(?:(半)|(\d{1,2})分?)?)\s*(.*)$/);
-  if (!match) return { text:input, hasTime:false, hour:0, minute:0 };
-  const [, period, hourText, colonMinute, half, pointMinute, rest] = match;
-  let hour = Number(hourText);
-  const minute = colonMinute ? Number(colonMinute) : half ? 30 : pointMinute ? Number(pointMinute) : 0;
-  if ((period === '下午' || period === '晚上') && hour < 12) hour += 12;
-  if (period === '中午' && hour < 11) hour += 12;
-  if (hour > 23 || minute > 59 || !rest.trim()) return { text:input, hasTime:false, hour:0, minute:0 };
-  return { text:rest.trim(), hasTime:true, hour, minute };
-}
-
-
 function buildCalendar(root, todos, opts) {
-  const { language, t, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, lunarEnabled, teamTodos, loadCalendarEvents, onQuickCreate } = opts;
+  const { language, t, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, lunarEnabled, teamTodos, loadCalendarEvents, onQuickCreate, onEventOpen } = opts;
   // 刷新时必须读取视图的最新待办数组；不能闭包捕获初次渲染的旧快照。
   const getTodos = typeof todos === 'function' ? todos : () => todos;
   let calYear = window.moment().year();
@@ -34,11 +19,14 @@ function buildCalendar(root, todos, opts) {
   let eventStore = { key:'', at:0, events:[] };
   let eventRequestKey = '';
   let titleMonthEl = null;
+  let titleYearEl = null;
   const getSelectedDate = () => window.moment([calYear, calMonth, selDay]);
   const updateCalendarSubtitle = () => {
-    if (subtitleEl) subtitleEl.setText(formatCalendarDetailHeading(getSelectedDate(), language));
+    const selected = getSelectedDate();
+    const weekday = getWeekdayLabels(language, 'long')[selected.day()];
+    if (subtitleEl) subtitleEl.setText(language === 'en' ? weekday + ' ' + selected.format('D') : selected.format('D') + '日 ' + weekday);
     if (rssButtonEl && rss?.config.enabled) {
-      const count = rss.unreadCountForDate(getSelectedDate());
+      const count = rss.unreadCountForDate(selected);
       rssButtonEl.setText('RSS');
       if (count) rssButtonEl.createSpan({ cls:PLUGIN_ID + '-cal-rss-count', text:count > 99 ? '99+' : String(count) });
       rssButtonEl.setAttribute('aria-label', (language === 'en' ? 'Unread RSS entries: ' : '未读 RSS 订阅：') + count);
@@ -68,86 +56,17 @@ function buildCalendar(root, todos, opts) {
     }
     calRoot.empty();
   };
-  const renderLegacyDetail = (todoMap) => {
-    const old = calRoot?.parentNode?.querySelector('.' + PLUGIN_ID + '-cal-detail');
-    if (old) old.remove();
+  // 当日总览渲染失败时只给出一行提示，不再保留旧版详情渲染（控制产物体积）。
+  const renderDetailError = () => {
+    calRoot?.parentNode?.querySelector('.' + PLUGIN_ID + '-cal-detail')?.remove();
     if (!calRoot?.parentNode) return;
-    const date = getSelectedDate();
-    const priorityOrder = { high:0, mid:1, low:2 };
-    const items = (todoMap[date.format('YYYY-MM-DD')] || []).slice().sort((a, b) => {
-      if (a.done !== b.done) return a.done ? 1 : -1;
-      if (a.dueHasTime !== b.dueHasTime) return a.dueHasTime ? -1 : 1;
-      const timeDiff = Number(a.dueDate?.valueOf?.() || 0) - Number(b.dueDate?.valueOf?.() || 0);
-      if (a.dueHasTime && timeDiff) return timeDiff;
-      const priorityDiff = (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1);
-      return priorityDiff || String(a.text || '').localeCompare(String(b.text || ''));
-    });
-    const rssItems = rss?.config.enabled ? rss.itemsForDate(date) : [];
     const detail = document.createElement('div');
-    detail.className = PLUGIN_ID + '-cal-detail' + (items.length ? ' has-items' : ' is-empty');
+    detail.className = PLUGIN_ID + '-cal-detail is-empty';
     calRoot.parentNode.insertBefore(detail, calRoot.nextSibling);
-    const head = detail.createDiv({ cls: PLUGIN_ID + '-cal-detail-head' });
-    const title = head.createDiv({ cls: PLUGIN_ID + '-cal-detail-title-wrap' });
-    title.createDiv({ cls: PLUGIN_ID + '-cal-detail-kicker', text: date.isSame(window.moment(), 'day') ? (language === 'en' ? 'TODAY FLOW' : '今天时间流') : (language === 'en' ? 'DAY FLOW' : '日期时间流') });
-    title.createDiv({ cls: PLUGIN_ID + '-cal-detail-title', text: formatCalendarDetailHeading(date, language) });
-    title.createDiv({ cls: PLUGIN_ID + '-cal-detail-count', text: String(items.length) });
-    const actions = head.createDiv({ cls: PLUGIN_ID + '-cal-detail-actions' });
-    const add = actions.createEl('button', { cls: PLUGIN_ID + '-cal-detail-add', text: '+ ' + t('calendar.addTodo'), attr: { type: 'button' } });
-    add.onclick = () => openTodoEditor({ dueDate: date });
-    if (!items.length && !rssItems.length) {
-      const empty = detail.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty' });
-      empty.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty-icon', text: '✦' });
-      empty.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty-text', text: t('calendar.emptyDay') });
-      return;
-    }
-    const timeline = detail.createDiv({ cls:PLUGIN_ID + '-cal-timeline', attr:{ role:'list' } });
-    const now = window.moment();
-    const nextTimed = date.isSame(now, 'day')
-      ? items.find((todo) => !todo.done && todo.dueHasTime && todo.dueDate?.isSameOrAfter?.(now))
-      : null;
-    const priorityText = language === 'en'
-      ? { high:'High', mid:'Normal', low:'Low' }
-      : { high:'高', mid:'普通', low:'低' };
-    const priorityIcon = { high:'arrow-up', mid:'minus', low:'arrow-down' };
-    items.forEach((todo, index) => {
-      const item = timeline.createDiv({ cls:PLUGIN_ID + '-cal-timeline-row p-' + (todo.priority || 'mid') + (todo.done ? ' done' : '') + (todo === nextTimed ? ' is-next' : ''), attr:{ role:'listitem' } });
-      const time = item.createDiv({ cls:PLUGIN_ID + '-cal-timeline-time' });
-      time.createSpan({ text:todo.dueHasTime ? todo.dueDate.format('HH:mm') : (language === 'en' ? 'All day' : '全天') });
-      const rail = item.createDiv({ cls:PLUGIN_ID + '-cal-timeline-rail' + (index === 0 ? ' first' : '') + (index === items.length - 1 ? ' last' : '') });
-      const check = rail.createEl('button', {
-        cls:PLUGIN_ID + '-cal-timeline-node p-' + (todo.priority || 'mid') + (todo.done ? ' done' : ''),
-        attr:{ type:'button', 'aria-label':todo.done ? (language === 'en' ? 'Mark task open' : '恢复为待办') : (language === 'en' ? 'Complete task' : '完成待办'), 'aria-pressed':String(todo.done) }
-      });
-      if (todo.done) obs.setIcon(check, 'check');
-      const content = item.createDiv({ cls:PLUGIN_ID + '-cal-timeline-content' });
-      const text = content.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-title', text:todo.text, attr:{ type:'button', title:todo.text } });
-      const meta = content.createDiv({ cls:PLUGIN_ID + '-cal-timeline-meta' });
-      const dueChip = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-date' });
-      obs.setIcon(dueChip.createSpan(), 'calendar-days');
-      dueChip.createSpan({ text:formatTodoDue(todo.dueDate, language, todo.dueHasTime) });
-      const prio = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-priority p-' + (todo.priority || 'mid') });
-      obs.setIcon(prio.createSpan(), priorityIcon[todo.priority] || 'minus');
-      prio.createSpan({ text:priorityText[todo.priority] || priorityText.mid });
-      if (todo === nextTimed) content.createSpan({ cls:PLUGIN_ID + '-cal-timeline-now', text:'NOW' });
-      const rowActions = content.createDiv({ cls:PLUGIN_ID + '-cal-timeline-actions' });
-      if (!todo.done && todo.raw.id) {
-        const hasLinkedAlarm = hasLinkedTodoAlarm?.(todo.raw.id) === true;
-        const alarm = rowActions.createEl('button', {
-          cls:PLUGIN_ID + '-cal-detail-edit ' + PLUGIN_ID + '-cal-detail-alarm' + (hasLinkedAlarm ? ' active' : ''),
-          attr:{ type:'button', title:t(hasLinkedAlarm ? 'todo.editAlarm' : 'todo.createAlarm'), 'aria-label':t(hasLinkedAlarm ? 'todo.editAlarm' : 'todo.createAlarm'), 'aria-pressed':String(hasLinkedAlarm) }
-        });
-        obs.setIcon(alarm, 'alarm-clock');
-        alarm.onclick = async (event) => { event.stopPropagation(); await onTodoAlarm?.(todo.raw); };
-      }
-      const edit = rowActions.createEl('button', { cls:PLUGIN_ID + '-cal-detail-edit', attr:{ type:'button', title:t('todo.edit'), 'aria-label':t('todo.edit') } });
-      obs.setIcon(edit, 'square-pen');
-      check.onclick = async (event) => { event.stopPropagation(); await onTodoToggle(todo.raw.id, !todo.raw.done); };
-      text.onclick = (event) => { event.stopPropagation(); openTodoEditor({ id:todo.raw.id }); };
-      edit.onclick = (event) => { event.stopPropagation(); openTodoEditor({ id:todo.raw.id }); };
-    });
+    detail.createDiv({ cls:PLUGIN_ID + '-cal-detail-empty-text', text:language === 'en' ? 'Day overview is unavailable right now.' : '当日总览暂时无法显示。' });
   };
   const renderDetail = (todoMap) => {
-    if (typeof renderCalendarDayFlow !== 'function') return renderLegacyDetail(todoMap);
+    if (typeof renderCalendarDayFlow !== 'function') return renderDetailError();
     const request = ++detailRequest;
     const date = getSelectedDate();
     const todosForDate = todoMap[date.format('YYYY-MM-DD')] || [];
@@ -164,12 +83,12 @@ function buildCalendar(root, todos, opts) {
         filter:flowFilter,
         onFilterChange:(nextFilter) => { flowFilter=nextFilter; renderDetail(todoMap); },
         openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm,
-        openRss, onAutomationOpen, onAutomationRun, onCountdownOpen,
+        openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen,
         rerender:() => renderDetail(todoMap), rss
       });
     }).catch((error) => {
       console.warn('Cockpit calendar day flow failed', error);
-      if (request === detailRequest) renderLegacyDetail(todoMap);
+      if (request === detailRequest) renderDetailError();
     });
   };
   const priorityRank = { high:0, mid:1, low:2 };
@@ -248,7 +167,7 @@ function buildCalendar(root, todos, opts) {
     if (typeof onQuickCreate !== 'function' || host.querySelector('.' + PLUGIN_ID + '-cal-quick')) return;
     const en = language === 'en';
     const box = host.createDiv({ cls:PLUGIN_ID + '-cal-quick' });
-    const input = box.createEl('input', { cls:PLUGIN_ID + '-cal-quick-input', attr:{ type:'text', placeholder:en ? '14:30 Meeting' : '14:30 开会', 'aria-label':en ? 'New task for this day' : '为这一天新建待办' } });
+    const input = box.createEl('input', { cls:PLUGIN_ID + '-cal-quick-input', attr:{ type:'text', placeholder:en ? '3pm Meeting !high' : '14:30 开会 !高', 'aria-label':en ? 'New task for this day' : '为这一天新建待办' } });
     let busy = false;
     const close = () => box.remove();
     ['click', 'dblclick', 'mousedown'].forEach((type) => box.addEventListener(type, (event) => event.stopPropagation()));
@@ -257,13 +176,14 @@ function buildCalendar(root, todos, opts) {
       if (event.key === 'Escape') { event.preventDefault(); close(); return; }
       if (event.key !== 'Enter' || event.isComposing || busy) return;
       event.preventDefault();
-      const parsed = parseCalendarQuickInput(input.value);
+      // 与全局快速记录共用解析；没写日期时落在双击的这一天。
+      const parsed = parseQuickTodoInput(input.value, new Date(), { defaultDate:date.toDate() });
       if (!parsed.text) { close(); return; }
       busy = true;
-      const due = date.clone().startOf('day');
+      const due = window.moment([parsed.date.y, parsed.date.m, parsed.date.d]);
       if (parsed.hasTime) due.hour(parsed.hour).minute(parsed.minute);
       try {
-        const saved = await onQuickCreate(parsed.text, due, parsed.hasTime);
+        const saved = await onQuickCreate(parsed.text, due, parsed.hasTime, parsed.priority);
         if (saved === false) { busy = false; input.focus(); return; }
         close();
       } catch (error) {
@@ -330,7 +250,7 @@ function buildCalendar(root, todos, opts) {
     else if (nextTodo?.dueHasTime) nextBody.createSpan({ cls:PLUGIN_ID + '-cal-pulse-time', text:nextTodo.dueDate.format('HH:mm') });
     nextBody.createSpan({ cls:PLUGIN_ID + '-cal-pulse-text', text:nextEvent ? nextEvent.title : nextTodo ? nextTodo.text : (en ? 'Nothing left for today' : '没有剩余待办，享受空档') });
     if (nextEvent?.location) nextBody.createSpan({ cls:PLUGIN_ID + '-cal-pulse-where', text:nextEvent.location });
-    next.onclick = () => (nextEvent ? selectDate(now.clone().startOf('day')) : nextTodo ? openCalendarTodo(nextTodo) : openTodoEditor({ dueDate:now.clone().startOf('day') }));
+    next.onclick = () => (nextEvent ? (typeof onEventOpen === 'function' ? onEventOpen(nextEvent) : selectDate(now.clone().startOf('day'))) : nextTodo ? openCalendarTodo(nextTodo) : openTodoEditor({ dueDate:now.clone().startOf('day') }));
     if (overdue.length) stat('is-overdue', overdue.length, en ? 'overdue' : '已逾期', () => selectDate(overdue[0].dueDate.clone().startOf('day')));
     stat('is-week', weekOpen, en ? 'this week' : '本周待办', () => { viewMode = 'week'; followsToday = true; renderAll(); Promise.resolve(onViewModeChange?.(viewMode)).catch(() => {}); });
   };
@@ -354,12 +274,13 @@ function buildCalendar(root, todos, opts) {
     ensureRoot();
     const surface = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-surface is-' + viewMode });
     const header = surface.createDiv({ cls: PLUGIN_ID + '-cal-header' });
-    const title = header.createDiv({ cls: PLUGIN_ID + '-cal-title-wrap' });
-    const titleLine = title.createDiv({ cls: PLUGIN_ID + '-cal-title', attr:{ 'aria-label':formatMonthTitle(calYear, calMonth, language) } });
+    const title = header.createDiv({ cls: PLUGIN_ID + '-cal-title-wrap', attr:{ 'aria-label':formatMonthTitle(calYear, calMonth, language) } });
+    const titleLine = title.createDiv({ cls: PLUGIN_ID + '-cal-title' });
     titleMonthEl = titleLine.createSpan({ cls:PLUGIN_ID + '-cal-title-month', text:en ? getMonthLabels(language, 'long')[calMonth] : (calMonth + 1) + '月' });
-    titleLine.createSpan({ cls:PLUGIN_ID + '-cal-title-year', text:String(calYear) });
-    if (viewMode === 'week') titleLine.createSpan({ cls:PLUGIN_ID + '-cal-title-week', text:(en ? 'W' : '第') + getSelectedDate().isoWeek() + (en ? '' : '周') });
-    subtitleEl = title.createDiv({ cls: PLUGIN_ID + '-cal-subtitle', text: '' });
+    const titleMeta = title.createDiv({ cls:PLUGIN_ID + '-cal-title-meta' });
+    titleYearEl = titleMeta.createSpan({ cls:PLUGIN_ID + '-cal-title-year', text:String(calYear) });
+    subtitleEl = titleMeta.createSpan({ cls:PLUGIN_ID + '-cal-subtitle', text:'' });
+    if (viewMode === 'week') titleMeta.createSpan({ cls:PLUGIN_ID + '-cal-title-week', text:(en ? 'W' : '第') + getSelectedDate().isoWeek() + (en ? '' : '周') });
     updateCalendarSubtitle();
     const controls = header.createDiv({ cls: PLUGIN_ID + '-cal-controls' });
     const switcher = controls.createDiv({ cls:PLUGIN_ID + '-cal-view-switch is-' + viewMode, attr:{ role:'group', 'aria-label':en ? 'Calendar view' : '日历视图' } });
@@ -399,6 +320,7 @@ function buildCalendar(root, todos, opts) {
         week.querySelectorAll('.' + PLUGIN_ID + '-cal-week-day.selected').forEach((node) => { node.classList.remove('selected'); node.setAttribute('aria-pressed', 'false'); });
         el.classList.add('selected'); el.setAttribute('aria-pressed', 'true');
         titleMonthEl?.setText(en ? getMonthLabels(language, 'long')[calMonth] : (calMonth + 1) + '月');
+        titleYearEl?.setText(String(calYear));
         updateCalendarSubtitle();
         renderDetail(todoMap);
       };
@@ -414,8 +336,8 @@ function buildCalendar(root, todos, opts) {
         const openCount = dayTodos.filter((todo) => !todo.done).length;
         const label = formatCalendarDetailHeading(date, language) + (totalItems ? ' · ' + (en ? totalItems + ' items' : '共 ' + totalItems + ' 项') : '');
         const day = week.createDiv({
-          cls:PLUGIN_ID + '-cal-week-day load-' + loadLevel(openCount) + (isToday ? ' today' : '') + (isSelected ? ' selected' : '') + (date.isBefore(now, 'day') ? ' past' : '') + (totalItems ? ' has-events' : '') + ([0, 6].includes(date.day()) ? ' weekend' : '') + (dayInfo?.offMark === 'off' ? ' holiday' : '') + (dayInfo?.offMark === 'work' ? ' workday' : ''),
-          attr:{ role:'button', tabindex:'0', title:label, 'aria-label':label, 'aria-pressed':String(isSelected) }
+          cls:PLUGIN_ID + '-cal-week-day load-' + loadLevel(openCount) + (openCount ? ' has-open' : '') + (isToday ? ' today' : '') + (isSelected ? ' selected' : '') + (date.isBefore(now, 'day') ? ' past' : '') + (totalItems ? ' has-events' : '') + ([0, 6].includes(date.day()) ? ' weekend' : '') + (dayInfo?.offMark === 'off' ? ' holiday' : '') + (dayInfo?.offMark === 'work' ? ' workday' : ''),
+          attr:{ role:'button', tabindex:'0', 'aria-label':label, 'aria-pressed':String(isSelected) }
         });
         const head = day.createDiv({ cls:PLUGIN_ID + '-cal-week-head' });
         head.createSpan({ cls:PLUGIN_ID + '-cal-week-name', text:isToday ? (en ? 'TODAY' : '今天') : getWeekdayLabels(language, 'long')[date.day()] });
@@ -426,13 +348,23 @@ function buildCalendar(root, todos, opts) {
         if (dayTodos.length) dateLine.createSpan({ cls:PLUGIN_ID + '-cal-week-count' + (openCount ? '' : ' is-done'), text:openCount ? String(openCount) : '✓' });
         const list = day.createDiv({ cls:PLUGIN_ID + '-cal-week-list' });
         const shownEvents = dayEvents.slice(0, 3);
-        shownEvents.forEach((event) => createEventRow(list, event, date));
+        shownEvents.forEach((event) => {
+          const row = createEventRow(list, event, date);
+          if (typeof onEventOpen !== 'function') return;
+          row.classList.add('is-actionable');
+          row.setAttribute('title', eventTitle(event) + '\n' + (en ? 'Click to open meeting note' : '点击打开会议笔记'));
+          row.addEventListener('click', (clickEvent) => { clickEvent.stopPropagation(); onEventOpen(event); });
+        });
         const visible = dayTodos.slice(0, Math.max(2, 5 - shownEvents.length));
         visible.forEach((todo) => makeTodoDraggable(createEventLine(list, todo), todo));
         const hidden = dayTodos.length - visible.length + dayEvents.length - shownEvents.length;
         if (hidden > 0) list.createDiv({ cls:PLUGIN_ID + '-cal-more', text:'+' + hidden + (en ? ' more' : ' 项') });
         if (dayRss.length) list.createDiv({ cls:PLUGIN_ID + '-cal-week-rss', text:'RSS · ' + (dayRss.length > 99 ? '99+' : dayRss.length) });
-        if (!totalItems) list.createDiv({ cls:PLUGIN_ID + '-cal-week-empty', text:en ? 'Free' : '空闲' });
+        if (!totalItems) {
+          const empty = list.createDiv({ cls:PLUGIN_ID + '-cal-week-empty' });
+          empty.createSpan({ cls:PLUGIN_ID + '-cal-week-empty-text', text:en ? 'Free' : '空闲' });
+          empty.createSpan({ cls:PLUGIN_ID + '-cal-week-empty-hint', text:en ? '+ Double-click to add' : '+ 双击添加' });
+        }
         const meter = day.createDiv({ cls:PLUGIN_ID + '-cal-week-meter', attr:{ 'aria-hidden':'true' } });
         for (let i = 0; i < 4; i++) meter.createSpan({ cls:i < loadLevel(openCount) ? 'on' : '' });
         bindTodoDrop(day, date);
@@ -544,5 +476,3 @@ function buildCalendar(root, todos, opts) {
   renderAll.reloadEvents = () => { eventStore = { key:'', at:0, events:[] }; eventRequestKey = ''; renderAll(); };
   return renderAll;
 }
-
-if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports = { parseCalendarQuickInput };

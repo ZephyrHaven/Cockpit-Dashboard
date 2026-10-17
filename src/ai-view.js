@@ -13,8 +13,10 @@ class CockpitAIView extends obs.ItemView {
     this._contextEntries = [];
     // 上下文模式：'auto' 自动本地 RAG / 'none' 不使用任何检索上下文；勾选笔记时始终视为手动选择。
     this._contextMode = 'none';
-    // Agent 三层权限：readonly 只读 / read-write 读写（默认）/ full 完整权限。
+    // Agent 三层权限：readonly 只读 / read-write 读写（默认）/ full 仅自动允许低风险固定用途写操作。
     this._agentMode = 'read-write';
+    this._sessionToolGrants = new Set();
+    this._alwaysAllowedToolGrants = new Set();
     // 当前生效的编码工作区（沙箱根目录）；空表示未启用编码工具。
     this._activeWorkspaceRoot = '';
     // 贴图：随消息发送的多模态图片（data URL），不写入本地历史。
@@ -78,6 +80,8 @@ class CockpitAIView extends obs.ItemView {
     // 默认「不使用上下文」：自动 RAG 只在用户显式选择后启用。
     this._contextMode = session.contextMode === 'auto' ? 'auto' : 'none';
     this._agentMode = ['readonly', 'read-write', 'full'].includes(session.agentMode) ? session.agentMode : 'read-write';
+    this._sessionToolGrants = new Set(Array.isArray(session.agentToolGrants) ? session.agentToolGrants : []);
+    this._alwaysAllowedToolGrants = new Set(Array.isArray(config.alwaysAllowedTools) ? config.alwaysAllowedTools : []);
     this._resetSessionStats();
     if (session.profileId && config.profiles.some((profile) => profile.id === session.profileId) && session.profileId !== config.activeProfileId) {
       await this.plugin.ai.setActiveProfile(session.profileId);
@@ -88,6 +92,7 @@ class CockpitAIView extends obs.ItemView {
     this._aiConfigUnsubscribe = this.plugin.ai.subscribeConfig((savedConfig) => {
       this._refreshModelOptions();
       this._updateWorkspaceChip(savedConfig?.workspaceRoot);
+      this._alwaysAllowedToolGrants = new Set(Array.isArray(savedConfig?.alwaysAllowedTools) ? savedConfig.alwaysAllowedTools : []);
     });
     // 恢复本会话绑定的编码工作区（若有且与当前不同）。
     try { await this._restoreSessionWorkspace(session); } catch (error) { console.warn('Cockpit AI workspace restore failed', error); }
@@ -237,6 +242,7 @@ class CockpitAIView extends obs.ItemView {
     this._selectedContextPaths = [];
     this._contextMode = 'none';
     this._agentMode = 'read-write';
+    this._sessionToolGrants = new Set();
     if (this._composerEls?.agentSelect) {
       this._composerEls.agentSelect.value = this._agentMode;
       this._composerEls.agentSelect.classList.toggle('is-full', false);
@@ -261,6 +267,7 @@ class CockpitAIView extends obs.ItemView {
     // 默认「不使用上下文」：自动 RAG 只在用户显式选择后启用。
     this._contextMode = session.contextMode === 'auto' ? 'auto' : 'none';
     this._agentMode = ['readonly', 'read-write', 'full'].includes(session.agentMode) ? session.agentMode : 'read-write';
+    this._sessionToolGrants = new Set(Array.isArray(session.agentToolGrants) ? session.agentToolGrants : []);
     this._resetSessionStats();
     if (this._composerEls?.agentSelect) {
       this._composerEls.agentSelect.value = this._agentMode;
@@ -318,7 +325,7 @@ class CockpitAIView extends obs.ItemView {
     const agentSelect = right.createEl('select', { cls:PLUGIN_ID + '-ai-agent-select dropdown', attr:{ 'aria-label':en ? 'Agent permission mode' : 'Agent 权限模式', title:en ? 'Agent permission mode' : 'Agent 权限模式' } });
     [['readonly', en ? 'Read-only' : '只读'],
      ['read-write', en ? 'Read/write' : '读写'],
-     ['full', en ? 'Full access' : '完整权限']].forEach(([value, label]) => {
+     ['full', en ? 'Auto-allow safe actions' : '自动允许低风险操作']].forEach(([value, label]) => {
       agentSelect.createEl('option', { value, text:label });
     });
     agentSelect.value = this._agentMode;
@@ -832,13 +839,37 @@ class CockpitAIView extends obs.ItemView {
     if (event.label) row.querySelector('.' + PLUGIN_ID + '-ai-activity-label')?.setText(event.label);
     row.querySelector('.' + PLUGIN_ID + '-ai-tool-state')?.setText(states[event.stage] || event.stage || '');
   }
-  _confirmAgentTool(tool) {
-    return new Promise((resolve) => {
+  async _confirmAgentTool(tool) {
+    const name = String(tool?.name || '');
+    const maxGrant = ['once','session','always'].includes(tool?.maxGrant) ? tool.maxGrant : 'once';
+    if (maxGrant === 'always' && this._alwaysAllowedToolGrants.has(name)) return 'always';
+    if (maxGrant !== 'once' && this._sessionToolGrants.has(name)) return 'session';
+    const decision = await new Promise((resolve) => {
       const signal = this._abortController?.signal; let modal = null;
       const finish = (value) => { signal?.removeEventListener?.('abort', onAbort); if (this._toolConfirmModal === modal) this._toolConfirmModal = null; resolve(value); };
       const onAbort = () => modal?.close(); modal = new CockpitAgentConfirmationModal(this.app, tool, this._language, finish); this._toolConfirmModal = modal;
       signal?.addEventListener?.('abort', onAbort, { once:true }); modal.open();
     });
+    if (decision === 'session' && maxGrant !== 'once') {
+      this._sessionToolGrants.add(name);
+      try {
+        await this.plugin.aiHistory.update(this._activeSessionId, { agentToolGrants:Array.from(this._sessionToolGrants) });
+      } catch (error) {
+        this._sessionToolGrants.delete(name);
+        new obs.Notice(this._language === 'en' ? 'Could not save the conversation permission; allowed once instead.' : '本会话授权保存失败，本次仍按单次授权执行。');
+        return 'once';
+      }
+    }
+    if (decision === 'always' && maxGrant === 'always') {
+      try {
+        const saved = await this.plugin.ai.setAgentToolAlwaysAllowed(name, true);
+        this._alwaysAllowedToolGrants = new Set(saved.alwaysAllowedTools || []);
+      } catch (error) {
+        new obs.Notice(this._language === 'en' ? 'Could not save the persistent permission; allowed once instead.' : '永久授权保存失败，本次仍按单次授权执行。');
+        return 'once';
+      }
+    }
+    return decision;
   }
   _renderSendState(running) {
     const send = this._composerEls?.send;
@@ -907,7 +938,7 @@ class CockpitAIView extends obs.ItemView {
     // 逐 token 追加 DOM 会把主线程打满（样式重算 + 上万文本节点），整个应用假死。
     // 这里统一走 ≥120ms 的节拍器合并刷新；字符串始终是完整真相，DOM 只是投影。
     let lastPaintAt = 0;
-    let answer = ''; let reasoning = '';
+    let answer = ''; let reasoning = ''; let mutationUnverified = false;
     let reasoningSent = 0; let answerSent = 0;
     const shownStreamRows = new Set();
     const showStreamRowOnce = (callId, name, label) => {
@@ -938,12 +969,17 @@ class CockpitAIView extends obs.ItemView {
       if(this._includeTeamContext) { const content=await this.plugin.teamSync.aiContext(); if(content)runAttachments.push({name:'团队待办（当前权限范围）',content,source:'team'}); }
       const result = await this.plugin.ai.completeAgentStream({
         action, question, history:priorHistory,
+        sessionId:this._activeSessionId,
         contextPaths:this._contextMode === 'none' ? [] : [...this._selectedContextPaths],
         attachments:runAttachments, images:sentImages, language:this._language,
         noContext:!this._selectedContextPaths.length && this._contextMode === 'none'
       }, (event) => {
         if (event.type === 'status' && event.stage === 'fallback') stage = en ? 'Using compatibility mode' : '正在使用兼容模式';
         if (event.type === 'status' && event.stage === 'tools_unavailable') stage = en ? 'Answering without tools' : '模型不支持工具，正在直接回答';
+        if (event.type === 'status' && event.stage === 'mutation_unverified') {
+          mutationUnverified = true;
+          stage = en ? 'No write action was verified' : '未验证到写操作';
+        }
         if (event.type === 'status' && event.stage === 'retrieving_context') {
           stage = en ? 'Searching local knowledge base' : '正在检索本地知识库';
           this._renderToolEvent(streamMessage, { callId:'context-' + startedAt, name:'local_context', label:stage, stage:'executing' });
@@ -996,7 +1032,7 @@ class CockpitAIView extends obs.ItemView {
       if (!streamMessage.reasoningText.textContent && reasoning) { streamMessage.reasoning.removeClass('is-empty'); streamMessage.reasoningText.setText(reasoning); }
       if (reasoning) this._renderToolEvent(streamMessage, { callId:'reasoning-' + startedAt, name:'reasoning', label:en ? 'Reasoned through the request' : '已完成思考', stage:'completed' });
       if (answer) this._renderToolEvent(streamMessage, { callId:'writing-' + startedAt, name:'writing', label:en ? 'Answer completed' : '回答已生成', stage:'completed' });
-      setStatus((en ? 'Completed' : '已完成') + ' · ' + elapsedLabel(), 'is-done');
+      setStatus((mutationUnverified ? (en ? 'Not executed' : '未执行') : (en ? 'Completed' : '已完成')) + ' · ' + elapsedLabel(), mutationUnverified ? 'is-error' : 'is-done');
       await this._renderMarkdown(streamMessage.answer, answer);
       const toolsRow = this._appendMessageActions(streamMessage.content, () => answer);
       // 底部统计行：优先使用服务端 usage；缺失时输出按字数估算（带 ≈）。

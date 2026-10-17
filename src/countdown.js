@@ -14,6 +14,31 @@ function countdownThresholdLabel(threshold, language = 'zh-CN') {
   return en ? `${threshold.value} ${units[threshold.unit]} remaining` : `剩余 ${threshold.value} ${units[threshold.unit]}`;
 }
 
+function countdownProgressValue(value) {
+  const rounded = Math.round(Math.max(0, Math.min(100, Number(value) || 0)) * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function countdownThresholdVisual(countdown, threshold, state, language = 'zh-CN') {
+  const en = language === 'en';
+  const thresholdMs = countdownThresholdMs(threshold, state.totalMs);
+  const progress = countdownThresholdProgress(threshold, state.totalMs);
+  const eventKey = 'threshold:' + threshold.id;
+  const emailRules = countdown.emailRules.filter((rule) => rule.enabled !== false && rule.eventKey === eventKey);
+  const records = countdown.deliveries[eventKey] || {};
+  const failed = emailRules.some((rule) => records['smtp:' + rule.id] && records['smtp:' + rule.id].ok !== true);
+  const delivered = emailRules.length > 0 && emailRules.every((rule) => records['smtp:' + rule.id]?.ok === true);
+  const reached = state.remainingMs <= thresholdMs;
+  const progressText = countdownProgressValue(progress);
+  const remainingText = threshold.mode === 'percent'
+    ? (en ? `${threshold.value}% left` : `剩余 ${threshold.value}%`)
+    : countdownThresholdLabel(threshold, language);
+  const emailText = emailRules.length ? (en ? `Email${emailRules.length > 1 ? ' ' + emailRules.length : ''}` : `邮件${emailRules.length > 1 ? ' ' + emailRules.length : ''}`) : '';
+  const status = failed ? (en ? 'Failed' : '发送失败') : delivered ? (en ? 'Sent' : '已发送') : reached ? (en ? 'Reached' : '已到达') : (en ? 'Upcoming' : '待触发');
+  const description = [en ? `Progress ${progressText}%` : `进度 ${progressText}%`, remainingText, emailText, status].filter(Boolean).join(' · ');
+  return { thresholdMs, progress, progressText, remainingText, emailRules, failed, delivered, reached, status, description };
+}
+
 function countdownMessage(event, language = 'zh-CN') {
   const en = language === 'en';
   const target = new Date(event.countdown.targetAt).toLocaleString(en ? 'en-US' : 'zh-CN', { hour12:false });
@@ -212,7 +237,7 @@ function countdownEditorField(parent, label, control) {
 async function openCountdownEditor(view, raw, onSaved, options = {}) {
   const en = view._lang() === 'en'; const existing = normalizeCountdown(raw);
   const [config, smtpAccounts] = await Promise.all([view._plugin.serverChan.getConfig(), view._plugin.smtpMail?.listAccounts?.() || []]);
-  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-countdown-backdrop';
+  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-countdown-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const sheet = overlay.createDiv({ cls:PLUGIN_ID + '-countdown-editor', attr:{role:'dialog','aria-modal':'true'} });
   const head = sheet.createDiv({ cls:PLUGIN_ID + '-countdown-editor-head' });
   head.createEl('h2', { text:existing ? (en ? 'Edit countdown' : '编辑倒计时') : (en ? 'New countdown' : '新建倒计时') });
@@ -321,8 +346,18 @@ async function buildCountdownModule(view, root) {
   const updateClocks = () => content.querySelectorAll('[data-countdown-id]').forEach((card) => {
     const item = card._countdown; const state = countdownState(item); if (!state) return;
     const remaining = card.querySelector('[data-role="remaining"]'); const progress = card.querySelector('[data-role="progress"]');
+    const progressValue = card.querySelector('[data-role="progress-value"]'); const progressNow = card.querySelector('[data-role="progress-now"]');
     if (remaining) remaining.textContent = state.finished ? (en?'Finished':'已结束') : formatCountdownRemaining(state.remainingMs, view._lang());
     if (progress) progress.style.width = state.progress + '%';
+    if (progressValue) progressValue.textContent = countdownProgressValue(state.progress) + '%';
+    if (progressNow) progressNow.style.left = state.progress + '%';
+    const progressTrack = card.querySelector('[role="progressbar"]'); if (progressTrack) progressTrack.setAttribute('aria-valuenow', String(state.progress));
+    card.querySelectorAll('[data-threshold-ms]').forEach((node) => {
+      const reached = state.remainingMs <= Number(node.dataset.thresholdMs || 0);
+      node.classList.toggle('is-reached', reached);
+      const status = node.querySelector('[data-role="milestone-status"]');
+      if (status && status.dataset.final !== 'true') status.textContent = reached ? (en?'Reached':'已到达') : (en?'Upcoming':'待触发');
+    });
     card.classList.toggle('finished', state.finished);
     card.classList.toggle('is-urgent', !state.finished && state.remainingMs <= 86400000);
   });
@@ -342,7 +377,32 @@ async function buildCountdownModule(view, root) {
       meta.createDiv({cls:PLUGIN_ID+'-countdown-name',text:item.name});
       meta.createDiv({cls:PLUGIN_ID+'-countdown-target',text:(en?'Target: ':'目标：')+new Date(item.targetAt).toLocaleString(en?'en-US':'zh-CN',{hour12:false})});
       const remaining = top.createDiv({cls:PLUGIN_ID+'-countdown-remaining'}); remaining.createSpan({cls:PLUGIN_ID+'-countdown-remaining-label',text:en?'LEFT':'剩余'}); remaining.createSpan({text:state.finished?(en?'Finished':'已结束'):formatCountdownRemaining(state.remainingMs,view._lang()),attr:{'data-role':'remaining'}});
-      const progress = card.createDiv({cls:PLUGIN_ID+'-countdown-progress'}); progress.createDiv({attr:{'data-role':'progress',style:'width:'+state.progress+'%'}});
+      const progressRegion = card.createDiv({cls:PLUGIN_ID+'-countdown-progress-region'});
+      const progressSummary = progressRegion.createDiv({cls:PLUGIN_ID+'-countdown-progress-summary'});
+      const currentProgress = progressSummary.createSpan({cls:PLUGIN_ID+'-countdown-current-progress'}); currentProgress.createSpan({text:en?'CURRENT PROGRESS':'当前进度'}); currentProgress.createEl('strong',{text:countdownProgressValue(state.progress)+'%',attr:{'data-role':'progress-value'}});
+      progressSummary.createSpan({cls:PLUGIN_ID+'-countdown-progress-scale',text:'0 — 100%'});
+      const progress = progressRegion.createDiv({cls:PLUGIN_ID+'-countdown-progress'+(item.thresholds.length?' has-milestones':''),attr:{role:'progressbar','aria-label':en?'Countdown progress':'倒计时当前进度','aria-valuemin':'0','aria-valuemax':'100','aria-valuenow':String(state.progress)}});
+      progress.createDiv({cls:PLUGIN_ID+'-countdown-progress-fill',attr:{'data-role':'progress',style:'width:'+state.progress+'%'}});
+      const milestoneTrack = progress.createDiv({cls:PLUGIN_ID+'-countdown-milestone-track'});
+      const visuals = item.thresholds.map((threshold) => ({ threshold, ...countdownThresholdVisual(item,threshold,state,view._lang()) })).sort((a,b)=>a.progress-b.progress);
+      visuals.forEach((visual) => {
+        const edgeClass = visual.progress < 8 ? ' is-near-start' : visual.progress > 92 ? ' is-near-end' : '';
+        const marker = milestoneTrack.createSpan({cls:PLUGIN_ID+'-countdown-milestone-marker'+edgeClass+(visual.reached?' is-reached':'')+(visual.emailRules.length?' has-email':'')+(visual.delivered?' is-delivered':'')+(visual.failed?' has-failure':''),attr:{role:'img',style:'left:'+visual.progress+'%','data-threshold-ms':String(visual.thresholdMs),title:visual.description,'aria-label':visual.description}});
+        const markerLabel = marker.createSpan({cls:PLUGIN_ID+'-countdown-marker-label','aria-hidden':'true'});
+        const markerIcon = markerLabel.createSpan({cls:PLUGIN_ID+'-countdown-marker-icon'}); obs.setIcon(markerIcon,visual.emailRules.length?'mail':'bell-ring');
+        markerLabel.createSpan({cls:PLUGIN_ID+'-countdown-marker-value',text:visual.progressText+'%'});
+      });
+      progress.createSpan({cls:PLUGIN_ID+'-countdown-progress-now',attr:{'data-role':'progress-now',style:'left:'+state.progress+'%','aria-hidden':'true'}});
+      if (visuals.length) {
+        const milestones = progressRegion.createDiv({cls:PLUGIN_ID+'-countdown-milestones'});
+        visuals.forEach((visual) => {
+          const milestone = milestones.createDiv({cls:PLUGIN_ID+'-countdown-milestone'+(visual.reached?' is-reached':'')+(visual.delivered?' is-delivered':'')+(visual.failed?' has-failure':''),attr:{'data-threshold-ms':String(visual.thresholdMs),title:visual.description}});
+          const milestoneIcon = milestone.createSpan({cls:PLUGIN_ID+'-countdown-milestone-icon'}); obs.setIcon(milestoneIcon,visual.emailRules.length?'mail':'bell-ring');
+          const copy = milestone.createDiv({cls:PLUGIN_ID+'-countdown-milestone-copy'}); copy.createSpan({cls:PLUGIN_ID+'-countdown-milestone-main',text:(en?'Progress ':'进度 ')+visual.progressText+'%'});
+          copy.createSpan({cls:PLUGIN_ID+'-countdown-milestone-detail',text:[visual.remainingText,visual.emailRules.length?(en?'Email'+(visual.emailRules.length>1?' '+visual.emailRules.length:''):'邮件'+(visual.emailRules.length>1?' '+visual.emailRules.length:'')):''].filter(Boolean).join(' · ')});
+          milestone.createSpan({cls:PLUGIN_ID+'-countdown-milestone-status',text:visual.status,attr:{'data-role':'milestone-status','data-final':String(visual.delivered||visual.failed)}});
+        });
+      }
       const footer = card.createDiv({cls:PLUGIN_ID+'-countdown-card-footer'});
       const chips = footer.createDiv({cls:PLUGIN_ID+'-countdown-chips'});
       if(item.thresholds.length)chips.createSpan({text:(en?'Reminders ':'提醒 ')+item.thresholds.length});

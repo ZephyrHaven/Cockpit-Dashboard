@@ -87,7 +87,7 @@ class CockpitRssService {
   cacheStats() { return { count:this._items.length, bytes:this._items.reduce((sum, item) => sum + (item.size || 0), 0) }; }
 }
 
-class CockpitRssModal extends obs.Modal {
+class CockpitRssModal extends CockpitModal {
   constructor(app, view, date) { super(app); this.view = view; this.date = date || window.moment(); this.selectedId = null; this.selectedFeedId = 'all'; this.selectedTag = 'all'; this.queueMode = 'date'; this.articleCache = new Map(); this._articleRequest = 0; this._dragCleanup = null; this._preserveListScroll = false; this._progressTimer = null; this._speech = { itemId:null, chunks:[], index:0, status:'idle', rate:1, token:0, playlist:[], autoStartNext:false }; this._speechChunks = new Map(); this._speechUi = null; this._wakeLock = null; this._wakeLockVisibilityHandler = null; }
   onOpen() { this.modalEl.addClass(PLUGIN_ID + '-rss-modal'); this.contentEl.addClass(PLUGIN_ID + '-rss-modal-content'); this._wakeLockVisibilityHandler = () => { if (document.visibilityState === 'visible' && this._speech.status === 'playing') this._requestScreenWakeLock(); else if (document.visibilityState !== 'visible') this._releaseScreenWakeLock(); }; document.addEventListener('visibilitychange', this._wakeLockVisibilityHandler); this.render(); }
   async _requestScreenWakeLock() {
@@ -205,7 +205,7 @@ class CockpitRssModal extends obs.Modal {
   onClose() { clearTimeout(this._progressTimer); this._dragCleanup?.(); this._stopSpeech(); if (this._wakeLockVisibilityHandler) document.removeEventListener('visibilitychange', this._wakeLockVisibilityHandler); this._wakeLockVisibilityHandler = null; this.contentEl.empty(); this.modalEl.removeClass(PLUGIN_ID + '-rss-modal'); }
 }
 
-class CockpitRssSettingsModal extends obs.Modal {
+class CockpitRssSettingsModal extends CockpitModal {
   constructor(app, view) { super(app); this.view = view; this.config = normalizeRssConfig(view._rss?.config); }
   onOpen() { this.contentEl.addClass(PLUGIN_ID + '-rss-settings-modal'); this.render(); }
   render() {

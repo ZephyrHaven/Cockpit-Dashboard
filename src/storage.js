@@ -224,7 +224,7 @@ function openStorageMigration(view) {
   const en = view._lang() === 'en';
   const PID = PLUGIN_ID;
   const overlay = document.createElement('div');
-  overlay.className = PID + '-storage-backdrop';
+  overlay.className = PID + '-storage-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const panel = overlay.createDiv({ cls: PID + '-storage-manager' });
   overlay.onclick = (evt) => { if (evt.target === overlay) overlay.remove(); };
   panel.onclick = (evt) => evt.stopPropagation();

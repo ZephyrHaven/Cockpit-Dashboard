@@ -1,10 +1,10 @@
 // ai-dialogs.js — Agent 授权、会话重命名与删除确认对话框。
 
-class CockpitAgentConfirmationModal extends obs.Modal {
+class CockpitAgentConfirmationModal extends CockpitModal {
   constructor(app, tool, language, resolve) {
     super(app); this.tool = tool; this.language = language; this.resolveResult = resolve; this.settled = false;
   }
-  _finish(value) { if (this.settled) return; this.settled = true; this.resolveResult(value === true); this.close(); }
+  _finish(value) { if (this.settled) return; this.settled = true; this.resolveResult(['once','session','always'].includes(value) ? value : 'deny'); this.close(); }
   onOpen() {
     const en = this.language === 'en';
     this.modalEl.addClass(PLUGIN_ID + '-ai-tool-confirm-modal');
@@ -14,21 +14,29 @@ class CockpitAgentConfirmationModal extends obs.Modal {
     const icon = summary.createSpan({ cls:PLUGIN_ID + '-ai-tool-confirm-icon' }); obs.setIcon(icon, 'shield-check');
     const copy = summary.createDiv();
     copy.createEl('strong', { text:this.tool?.label || this.tool?.name || (en ? 'Agent action' : 'Agent 操作') });
-    copy.createEl('p', { text:en ? 'This action changes Cockpit data. Review the arguments before allowing it once.' : '此操作会修改 Cockpit 数据。请检查参数，并仅授权本次执行。' });
+    copy.createEl('p', { text:en ? 'This action changes data. Review the arguments and choose how long this capability may be used.' : '此操作会修改数据。请检查参数，并选择这项能力的授权时长。' });
     body.createEl('pre', { cls:PLUGIN_ID + '-ai-tool-confirm-args', text:JSON.stringify(this.tool?.args || {}, null, 2).slice(0, 2000) });
     body.createEl('p', { cls:PLUGIN_ID + '-ai-tool-confirm-boundary', text:en
-      ? 'Plugin source, app configuration, Shell commands, and arbitrary file writes are never available to the Agent.'
-      : 'Agent 永远无法访问插件源码、应用配置、Shell 命令或任意文件写入。' });
+      ? 'Persistent approval is limited to fixed-purpose, low-risk actions. Commands and arbitrary file writes always require a fresh confirmation.'
+      : '永久授权仅适用于固定用途的低风险操作；命令与任意文件写入始终需要重新确认。' });
     const actions = body.createDiv({ cls:PLUGIN_ID + '-ai-tool-confirm-actions' });
     const cancel = actions.createEl('button', { attr:{ type:'button' }, text:en ? 'Deny' : '拒绝' });
     const allow = actions.createEl('button', { cls:'mod-cta', attr:{ type:'button' }, text:en ? 'Allow once' : '仅允许本次' });
-    cancel.onclick = () => this._finish(false); allow.onclick = () => this._finish(true);
+    cancel.onclick = () => this._finish('deny'); allow.onclick = () => this._finish('once');
+    if (this.tool?.maxGrant === 'session' || this.tool?.maxGrant === 'always') {
+      const session = actions.createEl('button', { attr:{ type:'button' }, text:en ? 'Allow for this conversation' : '本会话允许' });
+      session.onclick = () => this._finish('session');
+    }
+    if (this.tool?.maxGrant === 'always') {
+      const always = actions.createEl('button', { attr:{ type:'button' }, text:en ? 'Always allow this action' : '始终允许此操作' });
+      always.onclick = () => this._finish('always');
+    }
     window.setTimeout(() => cancel.focus(), 0);
   }
-  onClose() { this.contentEl.empty(); if (!this.settled) { this.settled = true; this.resolveResult(false); } }
+  onClose() { this.contentEl.empty(); if (!this.settled) { this.settled = true; this.resolveResult('deny'); } }
 }
 
-class CockpitAISessionNameModal extends obs.Modal {
+class CockpitAISessionNameModal extends CockpitModal {
   constructor(app, currentTitle, language, onSave) { super(app); this.currentTitle = currentTitle; this.language = language; this.onSave = onSave; }
   onOpen() {
     const en = this.language === 'en';
@@ -46,7 +54,7 @@ class CockpitAISessionNameModal extends obs.Modal {
   onClose() { this.contentEl.empty(); }
 }
 
-class CockpitAISessionDeleteModal extends obs.Modal {
+class CockpitAISessionDeleteModal extends CockpitModal {
   constructor(app, title, language, onDelete) { super(app); this.sessionTitle = title; this.language = language; this.onDelete = onDelete; }
   onOpen() {
     const en = this.language === 'en';

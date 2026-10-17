@@ -51,6 +51,8 @@ function validateAgentToolInput(tool, args) {
       if (rule.items?.type === 'string' && value.some((item) => typeof item !== 'string')) throw new Error('Tool argument ' + name + ' must contain strings.');
       if (rule.items?.minLength && value.some((item) => item.length < rule.items.minLength)) throw new Error('Tool argument ' + name + ' contains an empty item.');
       if (rule.items?.maxLength && value.some((item) => item.length > rule.items.maxLength)) throw new Error('Tool argument ' + name + ' contains an item that is too long.');
+    } else if (rule.type === 'boolean' && typeof value !== 'boolean') {
+      throw new Error('Tool argument ' + name + ' must be a boolean.');
     }
   });
   return args;
@@ -117,6 +119,23 @@ function agentToolDefinitions() {
       }
     },
     {
+      name:'cockpit_update_todo',
+      label:'更新 Cockpit 待办',
+      description:'Update the title, priority, due date, or tags of one Cockpit task by its stable ID. Requires user confirmation.',
+      mutates:true,
+      parameters:{
+        type:'object', additionalProperties:false, required:['id'],
+        properties:{
+          id:{ type:'string', pattern:'^[a-zA-Z0-9_-]{1,72}$', description:'Stable task ID returned by cockpit_list_todos.' },
+          text:{ type:'string', minLength:1, maxLength:180, description:'Replacement task title.' },
+          priority:{ type:'string', enum:['high','mid','low'], description:'Replacement task priority.' },
+          dueDate:{ type:'string', pattern:'^\\d{4}-\\d{2}-\\d{2}$', description:'Replacement due date in YYYY-MM-DD format.' },
+          clearDueDate:{ type:'boolean', description:'Set true to remove the due date.' },
+          tags:{ type:'array', maxItems:8, items:{ type:'string', minLength:1, maxLength:40 }, description:'Replacement task tags; an empty array removes all tags.' }
+        }
+      }
+    },
+    {
       name:'cockpit_complete_todo',
       label:'完成 Cockpit 待办',
       description:'Mark one Cockpit task complete by its stable ID. Requires user confirmation.',
@@ -144,7 +163,11 @@ async function refreshCockpitAfterAgentMutation(plugin, todos) {
   const leaves = plugin.app.workspace.getLeavesOfType?.(typeof VIEW_TYPE === 'undefined' ? 'cockpit-dashboard-view' : VIEW_TYPE) || [];
   await Promise.all(leaves.map(async (leaf) => {
     const view = leaf?.view;
-    if (typeof view?._renderDashboard === 'function') await view._renderDashboard(true);
+    if (!view || typeof cockpitQueueRefreshScopes !== 'function') return;
+    cockpitQueueRefreshScopes(view, ['todos']);
+    if (typeof cockpitRunSilentRefreshCycle === 'function') {
+      await cockpitRunSilentRefreshCycle(view, { ignoreRecentActivity:true, scopes:[] });
+    }
   })).catch((error) => console.warn('Cockpit Agent dashboard refresh failed', error));
 }
 
@@ -183,17 +206,28 @@ class CockpitAgentToolRegistry {
     if (tool.name === 'cockpit_list_todos') return this._listTodos(args);
     if (tool.name === 'cockpit_search_notes') return this._searchNotes(args);
     if (tool.name === 'cockpit_create_todo') return this._createTodo(args);
+    if (tool.name === 'cockpit_update_todo') return this._updateTodo(args);
     if (tool.name === 'cockpit_complete_todo') return this._completeTodo(args);
     throw new Error('This Agent tool is not available.');
   }
-  async _readTodos() {
+  async _readTodos(options = {}) {
     const parser = this.dependencies.parseTodosContent;
     if (typeof parser !== 'function') throw new Error('Cockpit todo parser is unavailable.');
     const vault = this.plugin.app.vault;
     const file = vault.getAbstractFileByPath(typeof TODO_FILE === 'undefined' ? '_data/todos.md' : TODO_FILE);
     if (!file) return [];
-    const content = typeof vault.cachedRead === 'function' ? await vault.cachedRead(file) : await vault.read(file);
+    const content = options.fresh !== true && typeof vault.cachedRead === 'function' ? await vault.cachedRead(file) : await vault.read(file);
     return parser(content) || [];
+  }
+  async _verifiedTodo(expected) {
+    const todos = await this._readTodos({ fresh:true });
+    const stored = todos.find((item) => item?.id === expected.id);
+    if (!stored) throw new Error('The task save could not be verified.');
+    const actual = toAgentTodo(stored);
+    for (const [key, value] of Object.entries(expected)) {
+      if (JSON.stringify(actual[key]) !== JSON.stringify(value)) throw new Error('The task save could not be verified.');
+    }
+    return actual;
   }
   async _listTodos(args) {
     const status = ['open','done','all'].includes(args.status) ? args.status : 'open';
@@ -250,8 +284,35 @@ class CockpitAgentToolRegistry {
     };
     const outcome = await mutate(this.plugin.app.vault, (todos) => { todos.push(todo); return true; });
     if (!outcome?.saved || !outcome?.todos) throw new Error('The task could not be saved.');
+    const verifiedTodo = await this._verifiedTodo(toAgentTodo(todo));
     await refreshCockpitAfterAgentMutation(this.plugin, outcome.todos);
-    return { ok:true, data:{ todo:toAgentTodo(todo) } };
+    return { ok:true, data:{ todo:verifiedTodo }, receipt:{ action:'create', entityType:'todo', entityId:verifiedTodo.id, verified:true } };
+  }
+  async _updateTodo(args) {
+    const id = agentSafeText(args.id, 72);
+    if (!/^[a-zA-Z0-9_-]{1,72}$/.test(id)) throw new Error('A valid task ID is required.');
+    const fields = ['text','priority','dueDate','clearDueDate','tags'];
+    if (!fields.some((name) => Object.prototype.hasOwnProperty.call(args, name))) throw new Error('At least one task field must be supplied.');
+    if (args.dueDate && args.clearDueDate === true) throw new Error('Provide dueDate or clearDueDate, not both.');
+    const mutate = this.dependencies.mutateTodos;
+    if (typeof mutate !== 'function') throw new Error('Cockpit todo mutation is unavailable.');
+    let updated = null;
+    const outcome = await mutate(this.plugin.app.vault, (todos) => {
+      const todo = todos.find((item) => item?.id === id);
+      if (!todo) return false;
+      if (Object.prototype.hasOwnProperty.call(args, 'text')) todo.text = agentSafeText(args.text, 180);
+      if (Object.prototype.hasOwnProperty.call(args, 'priority')) todo.priority = args.priority;
+      if (Object.prototype.hasOwnProperty.call(args, 'tags')) todo.tags = args.tags.map((tag) => agentSafeText(tag, 40).replace(/^#/, '')).filter(Boolean).slice(0, 8);
+      if (args.clearDueDate === true) { todo.dueDate = null; todo.dueHasTime = false; }
+      else if (Object.prototype.hasOwnProperty.call(args, 'dueDate')) { todo.dueDate = this._moment(args.dueDate, 'YYYY-MM-DD', true); todo.dueHasTime = false; }
+      updated = todo;
+      return true;
+    });
+    if (!outcome?.saved || !updated) throw new Error('The requested task was not found or could not be saved.');
+    const expected = toAgentTodo(updated);
+    const verifiedTodo = await this._verifiedTodo(expected);
+    await refreshCockpitAfterAgentMutation(this.plugin, outcome.todos);
+    return { ok:true, data:{ todo:verifiedTodo }, receipt:{ action:'update', entityType:'todo', entityId:verifiedTodo.id, verified:true } };
   }
   async _completeTodo(args) {
     const id = agentSafeText(args.id, 72);
@@ -268,8 +329,9 @@ class CockpitAgentToolRegistry {
       return true;
     });
     if (!outcome?.saved || !completed) throw new Error('The requested open task was not found.');
+    const verifiedTodo = await this._verifiedTodo({ ...toAgentTodo(completed), done:true });
     await refreshCockpitAfterAgentMutation(this.plugin, outcome.todos);
-    return { ok:true, data:{ todo:toAgentTodo(completed) } };
+    return { ok:true, data:{ todo:verifiedTodo }, receipt:{ action:'complete', entityType:'todo', entityId:verifiedTodo.id, verified:true } };
   }
 }
 

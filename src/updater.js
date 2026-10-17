@@ -89,7 +89,7 @@ class CockpitUpdater {
   open(language) { const modal = new CockpitUpdateModal(this.plugin.app, this, language); modal.open(); return modal; }
 }
 
-class CockpitUpdateModal extends obs.Modal {
+class CockpitUpdateModal extends CockpitModal {
   constructor(app, updater, language) { super(app); this.updater = updater; this.language = normalizeLang(language); this.closed = false; }
   onOpen() { this.modalEl.addClass(PLUGIN_ID + '-update-modal'); this.renderChecking(); }
   renderShell(title) { this.contentEl.empty(); this.contentEl.createEl('h2', { text:title }); return this.contentEl.createDiv({ cls:PLUGIN_ID + '-update-body', attr:{role:'status','aria-live':'polite'} }); }

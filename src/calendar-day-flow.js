@@ -32,7 +32,7 @@ function calendarCountdownItemsForDate(items, dateValue) {
 }
 
 function renderCalendarDayFlow(options) {
-  const { anchor, date, language, t, todosForDate, rssItems, calendarEvents, automationItems, countdownItems, filter, onFilterChange, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm, openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, rerender, rss } = options;
+  const { anchor, date, language, t, todosForDate, rssItems, calendarEvents, automationItems, countdownItems, filter, onFilterChange, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm, openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen, rerender, rss } = options;
   const parent = anchor?.parentNode;
   if (!parent) return null;
   parent.querySelector('.' + PLUGIN_ID + '-cal-detail')?.remove();
@@ -119,7 +119,7 @@ function renderCalendarDayFlow(options) {
     const summary = content.createDiv({ cls:PLUGIN_ID + '-cal-timeline-summary' });
     let text = null;
     if (todo) text = summary.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-title', text:todo.text, attr:{ type:'button', title:todo.text } });
-    else if (calEvent) text = summary.createDiv({ cls:PLUGIN_ID + '-cal-timeline-title is-static', text:calEvent.title, attr:{ title:calEvent.title } });
+    else if (calEvent) text = summary.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-title', text:calEvent.title, attr:{ type:'button', title:calEvent.title } });
     else if (rssEntry) {
       const rssTitle = en ? `RSS digest · ${rssEntry.count} updates` : `RSS 今日摘要 · ${rssEntry.count} 条更新`;
       text = summary.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-title', text:rssTitle, attr:{ type:'button', title:rssTitle } });
@@ -164,7 +164,10 @@ function renderCalendarDayFlow(options) {
       text.onclick = open;
       edit.onclick = open;
     } else if (calEvent) {
-      // 系统日程只读展示，不提供编辑入口。
+      // 系统日程本身只读；入口是生成 / 打开对应的会议笔记。
+      const note = rowActions.createEl('button', { cls:PLUGIN_ID + '-cal-detail-edit', attr:{ type:'button', title:en ? 'Meeting note' : '会议笔记', 'aria-label':en ? 'Meeting note' : '会议笔记' } }); obs.setIcon(note, 'notebook-pen');
+      const openNote = (event) => { event?.stopPropagation?.(); onEventOpen?.(calEvent); };
+      note.onclick = openNote; text.onclick = openNote;
     } else if (rssEntry) {
       const open = rowActions.createEl('button', { cls:PLUGIN_ID + '-cal-detail-edit', attr:{ type:'button', title:en ? 'Open RSS updates' : '查看 RSS 更新', 'aria-label':en ? 'Open RSS updates' : '查看 RSS 更新' } }); obs.setIcon(open, 'external-link');
       const show = (event) => { event?.stopPropagation?.(); openRss?.(date); }; text.onclick=show; open.onclick=show;

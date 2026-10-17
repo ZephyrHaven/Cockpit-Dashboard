@@ -38,6 +38,13 @@ function cleanAiHistoryAgentMode(value) {
   return ['readonly', 'read-write', 'full'].includes(value) ? value : 'read-write';
 }
 
+function cleanAiHistoryAgentToolGrants(value) {
+  return Array.from(new Set((Array.isArray(value) ? value : [])
+    .map((item) => String(item || '').trim())
+    .filter((item) => /^[a-z][a-z0-9_]{0,63}$/.test(item))))
+    .slice(0, 32);
+}
+
 // 会话级编码工作区：与 AI 配置同格式的绝对路径；空表示该会话未绑定工作区。
 function cleanAiHistoryWorkspaceRoot(value) {
   return String(value ?? '').replace(/[\0\r\n]+/g, '').trim().slice(0, 600);
@@ -104,6 +111,7 @@ function normalizeAiHistorySession(value, index = 0) {
     contextPaths:cleanAiHistoryContextPaths(value?.contextPaths),
     contextMode:cleanAiHistoryContextMode(value?.contextMode),
     agentMode:cleanAiHistoryAgentMode(value?.agentMode),
+    agentToolGrants:cleanAiHistoryAgentToolGrants(value?.agentToolGrants),
     workspaceRoot:cleanAiHistoryWorkspaceRoot(value?.workspaceRoot),
     messages
   };
@@ -222,6 +230,7 @@ class CockpitAIHistoryService {
     if (Object.prototype.hasOwnProperty.call(patch, 'contextPaths')) session.contextPaths = cleanAiHistoryContextPaths(patch.contextPaths);
     if (Object.prototype.hasOwnProperty.call(patch, 'contextMode')) session.contextMode = cleanAiHistoryContextMode(patch.contextMode);
     if (Object.prototype.hasOwnProperty.call(patch, 'agentMode')) session.agentMode = cleanAiHistoryAgentMode(patch.agentMode);
+    if (Object.prototype.hasOwnProperty.call(patch, 'agentToolGrants')) session.agentToolGrants = cleanAiHistoryAgentToolGrants(patch.agentToolGrants);
     if (Object.prototype.hasOwnProperty.call(patch, 'workspaceRoot')) session.workspaceRoot = cleanAiHistoryWorkspaceRoot(patch.workspaceRoot);
     session.updatedAt = Date.now();
     await this._save(state);

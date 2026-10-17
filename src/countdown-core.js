@@ -110,6 +110,12 @@ function countdownThresholdMs(threshold, totalMs) {
   return (COUNTDOWN_DURATION_UNITS[threshold.unit] || COUNTDOWN_DURATION_UNITS.hours) * Math.max(0, Number(threshold.value) || 0);
 }
 
+function countdownThresholdProgress(threshold, totalMs) {
+  if (!Number.isFinite(totalMs) || totalMs <= 0) return 100;
+  const remainingMs = Math.max(0, Math.min(totalMs, countdownThresholdMs(threshold, totalMs)));
+  return Math.round((1 - remainingMs / totalMs) * 1000) / 10;
+}
+
 function countdownState(raw, nowValue = Date.now()) {
   const countdown = normalizeCountdown(raw);
   if (!countdown) return null;
@@ -185,5 +191,5 @@ function formatCountdownRemaining(ms, language = 'zh-CN') {
 }
 
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
-  module.exports = { COUNTDOWN_CHANNEL_IDS, COUNTDOWN_MAX_DELIVERY_ATTEMPTS, normalizeCountdownThreshold, normalizeCountdownEmailRule, normalizeCountdown, normalizeCountdowns, countdownThresholdMs, countdownState, dueCountdownEvent, formatCountdownRemaining };
+  module.exports = { COUNTDOWN_CHANNEL_IDS, COUNTDOWN_MAX_DELIVERY_ATTEMPTS, normalizeCountdownThreshold, normalizeCountdownEmailRule, normalizeCountdown, normalizeCountdowns, countdownThresholdMs, countdownThresholdProgress, countdownState, dueCountdownEvent, formatCountdownRemaining };
 }

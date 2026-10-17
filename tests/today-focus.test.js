@@ -144,6 +144,7 @@ assert.match(stylesSource, /today-group/, 'Today queue grouping has dedicated re
 assert.match(frameworkSource, /today-group-actions[\s\S]*Complete all|today-group-actions[\s\S]*全部完成/, 'Today groups expose batch completion.');
 assert.match(frameworkSource, /application\/x-cockpit-todo/, 'Tasks can be dragged onto the calendar for scheduling.');
 assert.match(calendarSource, /cal-week[\s\S]*add\(offset, 'day'\)/, 'Calendar provides a seven-day week view.');
+assert.match(calendarSource, /cal-title-meta[\s\S]*cal-title-year[\s\S]*cal-subtitle[\s\S]*cal-title-week/, 'Calendar groups year, selected day, and week number into one secondary title row.');
 assert.match(frameworkSource, /createEl\('button', \{ cls: PLUGIN_ID\+'-todo-chk'/, 'Task completion controls use native keyboard-operable buttons.');
 const directDataSaves = fs.readdirSync(path.join(root, 'src')).filter((name) => name.endsWith('.js')).filter((name) => {
   if (name === 'data-store.js') return false;

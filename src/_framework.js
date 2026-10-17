@@ -1280,14 +1280,18 @@ class CockpitView extends obs.ItemView {
         }
         return true;
       }, lang === 'en' ? 'Could not schedule this task.' : '待办排期失败。'),
-      onQuickCreate: async (text, dueDate, hasTime) => {
-        const merged = mergeLegacyTodoInput(text, createTodoDraft(null, { dueDate:dueDate.clone(), dueHasTime:hasTime === true }));
+      onQuickCreate: async (text, dueDate, hasTime, priority) => {
+        const merged = mergeLegacyTodoInput(text, createTodoDraft(null, { dueDate:dueDate.clone(), dueHasTime:hasTime === true, priority:['high','mid','low'].includes(priority) ? priority : 'mid' }));
         if (!merged.text) return false;
         return commitTodoMutation((todos) => {
           todos.unshift({ text:merged.text, tags:merged.tags, dueDate:merged.dueDate, dueHasTime:merged.dueHasTime, calendarSync:false, repeat:null, priority:merged.priority, done:false, created:window.moment(), doneDate:null });
           return true;
         }, lang === 'en' ? 'Could not create this task.' : '待办创建失败。');
       },
+      onEventOpen: (event) => openMeetingNote(this._plugin, event).catch((error) => {
+        console.warn('Cockpit meeting note failed', error);
+        new obs.Notice((lang === 'en' ? 'Could not open the meeting note: ' : '会议笔记打开失败：') + (error?.message || error));
+      }),
       loadCalendarEvents: async (rangeStart, rangeEnd) => {
         try { return await this._plugin.appleCalendar?.readEvents?.(rangeStart, rangeEnd) || []; }
         catch (error) {
@@ -2276,7 +2280,7 @@ class CockpitView extends obs.ItemView {
     let selectedLang = this._language;
 
     const overlay = document.createElement('div');
-    overlay.className = PID + '-welcome-backdrop';
+    overlay.className = PID + '-welcome-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
     const card = overlay.createDiv({ cls: PID + '-welcome-card' });
     const welcomeHandle = card.createDiv({ cls: PID + '-welcome-drag-area' });
     welcomeHandle.createDiv({ cls: PID + '-welcome-badge', text: t('welcome.badge') });
@@ -2511,7 +2515,8 @@ class CockpitPlugin extends obs.Plugin {
       this.agentTools = createCockpitAgentToolHub(this, [
         createCockpitLocalToolsRegistry(this),
         createCockpitWorkspaceToolsRegistry(this),
-        createCockpitVaultToolsRegistry(this)
+        createCockpitVaultToolsRegistry(this),
+        createCockpitPluginDataToolsRegistry(this)
       ]);
       // 本地命令允许列表来自 AI 配置：启动时同步一次，配置变更后自动刷新。
       this.ai.getConfig().then((config) => this.agentTools.sync?.(config)).catch(() => {});

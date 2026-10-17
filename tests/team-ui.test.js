@@ -20,7 +20,7 @@ const notices=[];
 const body=new Element(); body.classList={add(){},remove(){}};
 const ctx=vm.createContext({console,require,Buffer,setTimeout,clearTimeout,document:{body},obs:{Modal,Notice:class{constructor(message){notices.push(message);}},ItemView:class{},Plugin:class{}},PLUGIN_ID:'cockpit-dashboard',module:{exports:{}}, navigator:{clipboard:{writeText:async()=>{}}},loadTodos:async()=>[{text:'Personal secret',done:false,tags:[],priority:'mid'}]});
 ctx.makeCockpitDialogDraggable=(panel,handle)=>{ panel.dataset.cockpitDragBound='true'; return ()=>{ delete panel.dataset.cockpitDragBound; }; };
-for(const name of ['lan-sync-core','team-sync-core','team-sync-ui','team-todos','_framework']) vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/'+name+'.js'),'utf8'),ctx);
+for(const name of ['modal-motion','lan-sync-core','team-sync-core','team-sync-ui','team-todos','_framework']) vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/'+name+'.js'),'utf8'),ctx);
 vm.runInContext('this.build = buildTeamTodosModule;this.Editor = CockpitTeamEditorModal;this.Manager = CockpitTeamModal;this.Share = CockpitTeamShareModal;this.Approval = CockpitTeamApprovalModal;this.policyFields = teamSyncPolicyFields;this.normalizePolicy = teamSyncPolicy;this.registry = CockpitView.prototype._moduleRegistry;',ctx);
 const A='a'.repeat(32),B='b'.repeat(32),T='d'.repeat(32);
 const now=Date.now();

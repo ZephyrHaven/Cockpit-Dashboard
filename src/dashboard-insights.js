@@ -1,5 +1,5 @@
 // dashboard-insights.js — 共用详情窗口与可选运维模块；只展示安全的摘要字段。
-class CockpitDetailModal extends obs.Modal {
+class CockpitDetailModal extends CockpitModal {
   constructor(view, title, render) { super(view.app); this.view=view; this.title=title; this.renderBody=render;this.cleanups=[]; }
   onOpen() {
     this.contentEl.createEl('h2',{text:this.title}); this.contentEl.addClass('cockpit-detail');

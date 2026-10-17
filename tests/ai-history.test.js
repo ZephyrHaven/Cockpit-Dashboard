@@ -56,6 +56,14 @@ const readonlyAgentModeSession = normalizeAiHistory({
   sessions:[{ id:'session-6', agentMode:'readonly', messages:[] }]
 });
 assert.equal(readonlyAgentModeSession.sessions[0].agentMode, 'readonly', 'The read-only preference persists per session.');
+const grantedToolSession = normalizeAiHistory({
+  sessions:[{ id:'session-7', agentToolGrants:['cockpit_create_todo','cockpit_create_todo','invalid tool','ws_run_command'], messages:[] }]
+});
+assert.deepEqual(
+  grantedToolSession.sessions[0].agentToolGrants,
+  ['cockpit_create_todo','ws_run_command'],
+  'Conversation-scoped grants persist as a bounded, validated tool allowlist.'
+);
 
 (async () => {
   const files = new Map();
@@ -78,10 +86,11 @@ assert.equal(readonlyAgentModeSession.sessions[0].agentMode, 'readonly', 'The re
   assert.deepEqual(state.sessions[0].messages.map((message) => message.role), ['user','assistant']);
   assert.ok(files.has('.obsidian/plugins/cockpit-dashboard/ai-history.json'), 'History uses a separate plugin-private file instead of data.json.');
 
-  await reloaded.update(created.id, { profileId:'model-b', contextPaths:['Notes/B.md'] });
+  await reloaded.update(created.id, { profileId:'model-b', contextPaths:['Notes/B.md'], agentToolGrants:['cockpit_create_todo'] });
   const updated = await reloaded.load();
   assert.equal(updated.sessions[0].profileId, 'model-b');
   assert.deepEqual(updated.sessions[0].contextPaths, ['Notes/B.md']);
+  assert.deepEqual(updated.sessions[0].agentToolGrants, ['cockpit_create_todo']);
 
   await reloaded.remove(created.id);
   assert.equal((await reloaded.load()).sessions.length, 0, 'Deleting a conversation removes it from local history.');
@@ -110,11 +119,18 @@ assert.equal(readonlyAgentModeSession.sessions[0].agentMode, 'readonly', 'The re
   const root = path.resolve(__dirname, '..');
   const build = fs.readFileSync(path.join(root, 'build.js'), 'utf8');
   const view = fs.readFileSync(path.join(root, 'src/ai-view.js'), 'utf8');
+  const dialogs = fs.readFileSync(path.join(root, 'src/ai-dialogs.js'), 'utf8');
+  const settings = fs.readFileSync(path.join(root, 'src/ai-settings.js'), 'utf8');
   const styles = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
   assert.match(build, /'ai-history\.js'[\s\S]*'ai-view\.js'/, 'Conversation storage is bundled before the view.');
   assert.match(view, /ai-session-drawer/, 'A ChatGPT-style conversation drawer is available without permanently narrowing the app sidebar.');
   assert.match(view, /ai-composer-tools/, 'Model and context controls move into the bottom composer.');
   assert.match(view, /ai-activity-track/, 'Agent progress renders as a left segmented activity track.');
+  assert.match(view, /Auto-allow safe actions/, 'The strongest mode is explicitly limited to low-risk actions.');
+  assert.match(dialogs, /Allow for this conversation/, 'The confirmation dialog offers a conversation-scoped grant when policy permits it.');
+  assert.match(dialogs, /Always allow this action/, 'The confirmation dialog offers a persistent grant only when policy permits it.');
+  assert.match(settings, /Persistent Agent permissions/, 'Persistent grants are visible in settings.');
+  assert.match(settings, /Revoke/, 'Persistent grants can be revoked from settings.');
   assert.match(styles, /cockpit-dashboard-ai-session-drawer/);
   assert.match(styles, /cockpit-dashboard-ai-activity-track/);
 

@@ -560,7 +560,7 @@ class ScheduledTaskService {
 
 function openScheduledTaskLogs(view) {
   const en = view._lang() === 'en';
-  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-scheduler-backdrop';
+  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-scheduler-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const panel = overlay.createDiv({ cls:PLUGIN_ID + '-scheduler-dialog logs' });
   const head = panel.createDiv({ cls:PLUGIN_ID + '-scheduler-dialog-head' });
   head.createDiv({ cls:PLUGIN_ID + '-scheduler-dialog-title', text:en ? 'Scheduled task audit log' : '定时任务审计日志' });
@@ -604,7 +604,7 @@ async function openScheduledTaskEditor(view, existing, options = {}) {
   const draftRaw = existing ? JSON.parse(JSON.stringify(existing)) : { id:scheduledTaskId(), name:'', kind:'obsidian-command', command:'', enabled:true, trusted:false,
     schedule:{type:'daily',intervalMinutes:60,time:'09:00',weekdays:[1,2,3,4,5]}, missedPolicy:'run-once', timeoutSeconds:300, createdAt:new Date().toISOString() };
   const draft = { ...draftRaw, schedule:scheduledTaskEditorSchedule(draftRaw.schedule), smtp:{ accountId:draftRaw.smtp?.accountId || smtpAccounts[0]?.id || '', to:draftRaw.smtp?.to || [], cc:draftRaw.smtp?.cc || [], bcc:draftRaw.smtp?.bcc || [], subject:draftRaw.smtp?.subject || '', body:draftRaw.smtp?.body || '' } };
-  const overlay=document.createElement('div'); overlay.className=PLUGIN_ID+'-scheduler-backdrop';
+  const overlay=document.createElement('div'); overlay.className=PLUGIN_ID+'-scheduler-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const panel=overlay.createDiv({cls:PLUGIN_ID+'-scheduler-dialog'}); const head=panel.createDiv({cls:PLUGIN_ID+'-scheduler-dialog-head'});
   head.createDiv({cls:PLUGIN_ID+'-scheduler-dialog-title',text:editing?(en?'Edit scheduled task':'编辑定时任务'):(en?'New scheduled task':'新建定时任务')});
   const close=head.createEl('button',{attr:{type:'button','aria-label':en?'Close':'关闭'}}); obs.setIcon(close,'x'); close.onclick=()=>overlay.remove();

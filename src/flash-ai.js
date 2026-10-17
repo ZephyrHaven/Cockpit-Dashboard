@@ -53,7 +53,7 @@ function formatFlashDigestMarkdown(plan, items, nowStamp, lang) {
   return lines.join('\n');
 }
 
-class CockpitFlashOrganizeModal extends obs.Modal {
+class CockpitFlashOrganizeModal extends CockpitModal {
   // options: { lang, plan|null, rawAnswer, items, addTodo(text)->Promise<bool>,
   //            saveNote(markdown)->Promise<void>, clearInbox()->Promise<void> }
   constructor(app, options) {

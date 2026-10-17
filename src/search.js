@@ -72,7 +72,7 @@ class CockpitSearchContentCache {
   deletePath(path) { for (const key of this.entries.keys()) if (key.startsWith(path + '\n')) this.deleteKey(key); }
 }
 
-class CockpitGlobalSearchModal extends obs.Modal {
+class CockpitGlobalSearchModal extends CockpitModal {
   constructor(app, language, view, plugin = view?._plugin) {
     super(app);
     this.language = language || DEFAULT_LANG;

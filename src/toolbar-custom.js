@@ -146,7 +146,7 @@ async function openCustomToolbarLogs(view) {
   }
   try {
     const overlay = document.createElement('div');
-    overlay.className = PLUGIN_ID + '-toolbar-log-backdrop';
+    overlay.className = PLUGIN_ID + '-toolbar-log-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
     const panel = overlay.createDiv({ cls:PLUGIN_ID + '-toolbar-log-viewer' });
     overlay.onclick = (evt) => { if (evt.target === overlay) overlay.remove(); };
     const head = panel.createDiv({ cls:PLUGIN_ID + '-toolbar-log-head' });
@@ -187,7 +187,7 @@ function openCustomToolbarButtonEditor(view, root, existing, options = {}) {
     runMode: existing?.runMode || 'background'
   };
   const overlay = document.createElement('div');
-  overlay.className = PID + '-custom-toolbar-backdrop';
+  overlay.className = PID + '-custom-toolbar-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const panel = overlay.createDiv({ cls: PID + '-custom-toolbar-editor' });
   overlay.onclick = (evt) => { if (evt.target === overlay) overlay.remove(); };
   panel.onclick = (evt) => evt.stopPropagation();

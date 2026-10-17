@@ -158,7 +158,8 @@ reconciled = reconcileTodoAlarms([linked], []);
 assert.equal(reconciled[0].enabled, false, 'Deleting a todo disables its linked alarm.');
 
 const framework = fs.readFileSync(path.join(__dirname, '../src/_framework.js'), 'utf8');
-const calendar = fs.readFileSync(path.join(__dirname, '../src/calendar.js'), 'utf8');
+// 日历功能由月/周网格与当日总览两个文件共同组成。
+const calendar = fs.readFileSync(path.join(__dirname, '../src/calendar.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '../src/calendar-day-flow.js'), 'utf8');
 const pomodoro = fs.readFileSync(path.join(__dirname, '../src/pomodoro.js'), 'utf8');
 const constants = fs.readFileSync(path.join(__dirname, '../src/constants.js'), 'utf8');
 const build = fs.readFileSync(path.join(__dirname, '../build.js'), 'utf8');
@@ -174,7 +175,7 @@ assert.match(constants, /breakReminder[\s\S]*breakReminderHint/, 'Pomodoro expos
 assert.match(framework, /openTodoAlarm/, 'Todo rows expose a direct create/edit alarm action.');
 assert.match(framework, /syncTodos\(this\._todos\)/, 'Every successful dashboard todo mutation reconciles linked alarms.');
 assert.match(framework, /todo-btn alarm/, 'Linked alarms have a visible state on todo rows.');
-assert.match(calendar, /hasLinkedTodoAlarm\?\.\(todo\.raw\.id\)/, 'Calendar task rows show whether an alarm is already linked.');
+assert.match(fs.readFileSync(path.join(__dirname, '../src/calendar-day-flow.js'), 'utf8'), /hasLinkedTodoAlarm\?\.\(todo\.raw\.id\)/, 'Calendar task rows show whether an alarm is already linked.');
 assert.match(calendar, /onTodoAlarm\?\.\(todo\.raw\)/, 'Calendar task rows reuse the todo alarm editor action.');
 assert.match(calendar, /cal-detail-alarm[\s\S]*alarm-clock/, 'Calendar task rows expose an alarm-clock action.');
 assert.match(framework, /onTodoAlarm:\s*openTodoAlarm/, 'Calendar receives the shared todo alarm action from the dashboard.');

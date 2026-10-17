@@ -90,7 +90,7 @@ class CockpitTipStore {
   }
 }
 
-class CockpitTipLibraryModal extends obs.Modal {
+class CockpitTipLibraryModal extends CockpitModal {
   constructor(app, view) { super(app); this.view = view; this.activeLang = view._lang(); this.draft = [...(view._editableTips[this.activeLang] || [])]; this.rotationMode = view._tipRotationMode || 'custom-first'; this.draggedIndex = null; this.lastChangedTip = ''; }
 
   _copy() {

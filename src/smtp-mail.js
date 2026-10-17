@@ -207,7 +207,7 @@ function openSmtpAccountEditor(plugin, raw, provider, language, onSaved) {
   const en = language === 'en';
   const draft = raw ? { ...raw } : smtpMailAccountDraft(provider);
   const overlay = document.createElement('div');
-  overlay.className = PLUGIN_ID + '-smtp-account-backdrop';
+  overlay.className = PLUGIN_ID + '-smtp-account-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const panel = overlay.createDiv({ cls:PLUGIN_ID + '-smtp-account-dialog', attr:{ role:'dialog', 'aria-modal':'true' } });
   const head = panel.createDiv({ cls:PLUGIN_ID + '-smtp-account-dialog-head' });
   const heading = head.createDiv({ cls:PLUGIN_ID + '-smtp-account-heading' });

@@ -8,21 +8,36 @@ const {
 } = require('../src/ai-tools.js');
 const {
   AI_DEFAULTS,
+  agentToolPermissionPolicy,
+  buildAgentAuditRecord,
   createAiRequest,
   createAiSseParser,
+  normalizeAiConfig,
   CockpitAIService
 } = require('../src/ai.js');
 
 assert.equal(isProtectedAgentPath('.obsidian/plugins/cockpit-dashboard/main.js'), true, 'The Agent can never address plugin source files.');
 assert.equal(isProtectedAgentPath('.obsidian/plugins/another-plugin/readme.md'), true, 'The entire Obsidian configuration tree is protected.');
 assert.equal(isProtectedAgentPath('_data/todos.md'), false, 'The dedicated Cockpit todo store remains available through fixed-purpose tools.');
+assert.equal(agentToolPermissionPolicy('cockpit_create_todo').maxGrant, 'always', 'Fixed-purpose todo writes may be granted persistently.');
+assert.equal(agentToolPermissionPolicy('ws_run_command').maxGrant, 'once', 'Commands can never receive session or persistent approval.');
+assert.deepEqual(
+  normalizeAiConfig({ alwaysAllowedTools:['cockpit_create_todo','ws_run_command','unknown_tool'] }).alwaysAllowedTools,
+  ['cockpit_create_todo'],
+  'Persistent grants retain only explicitly safe capabilities.'
+);
+const auditRecord = buildAgentAuditRecord({ sessionId:'chat-1', name:'cockpit_create_todo', stage:'completed', result:{ ok:true, data:{ secret:'must-not-log' }, receipt:{ entityType:'todo', entityId:'todo-1', verified:true } }, args:{ text:'private task' } });
+assert.deepEqual(Object.keys(auditRecord).sort(), ['at','entityId','entityType','name','sessionId','stage','verified'], 'Agent audit records contain receipts, never tool arguments or content.');
 
-const now = () => ({
-  format:(pattern) => pattern.includes('HH') ? '2026-08-20T09:30' : '2026-08-20',
+const now = (value) => {
+  const day = /^\d{4}-\d{2}-\d{2}/.test(String(value || '')) ? String(value).slice(0, 10) : '2026-08-20';
+  return ({
+  format:(pattern) => pattern.includes('HH') ? day + 'T09:30' : day,
   clone() { return this; },
   startOf() { return this; },
-  valueOf:() => Date.parse('2026-08-20T09:30:00+08:00')
-});
+  valueOf:() => Date.parse(day + 'T09:30:00+08:00')
+  });
+};
 const files = new Map([
   ['_data/todos.md', '# 待办事项\n\n- [ ] Existing task | id:todo-existing | created: 2026-08-19\n'],
   ['Projects/Alpha.md', '# Alpha\nAgent-accessible project note.'],
@@ -42,13 +57,23 @@ const vault = {
 
 const parseTodosContent = (content) => String(content || '').split('\n').flatMap((line) => {
   const match = line.match(/^- \[([ x])\] (.+?) \| id:([^ |]+)/);
-  return match ? [{ id:match[3], text:match[2], tags:[], priority:'mid', dueDate:null, done:match[1] === 'x', created:now(), doneDate:null }] : [];
+  if (!match) return [];
+  const body = match[2];
+  const due = body.match(/\sdue:(\d{4}-\d{2}-\d{2})/);
+  const priority = body.match(/\sp:(high|mid|low)/);
+  const tags = Array.from(body.matchAll(/(?:^|\s)#([^\s#]+)/g), (item) => item[1]);
+  const text = body.replace(/(?:^|\s)#[^\s#]+/g, '').replace(/\sdue:\d{4}-\d{2}-\d{2}/, '').replace(/\sp:(?:high|mid|low)/, '').trim();
+  return [{ id:match[3], text, tags, priority:priority?.[1] || 'mid', dueDate:due ? now(due[1]) : null, done:match[1] === 'x', created:now(), doneDate:null }];
 });
 const mutateTodos = async (_vault, mutator) => {
   const todos = parseTodosContent(files.get('_data/todos.md'));
   const result = await mutator(todos);
   if (result === false) return { saved:false, todos, result };
-  const content = '# 待办事项\n\n' + todos.map((todo) => '- [' + (todo.done ? 'x' : ' ') + '] ' + todo.text + ' | id:' + todo.id).join('\n') + '\n';
+  const content = '# 待办事项\n\n' + todos.map((todo) => '- [' + (todo.done ? 'x' : ' ') + '] ' + todo.text
+    + (todo.tags || []).map((tag) => ' #' + tag).join('')
+    + (todo.dueDate ? ' due:' + todo.dueDate.format('YYYY-MM-DD') : '')
+    + (todo.priority && todo.priority !== 'mid' ? ' p:' + todo.priority : '')
+    + ' | id:' + todo.id).join('\n') + '\n';
   await vault.modify(fileFor('_data/todos.md'), content);
   return { saved:true, todos, result };
 };
@@ -60,13 +85,14 @@ const plugin = {
   },
   loadData:async () => ({ ai:{ profiles:[{ id:'default', providerId:'custom', baseUrl:'https://provider.example/v1', model:'agent-model', apiKeySecret:'agent-secret' }], activeProfileId:'default' } })
 };
-const registry = createCockpitAgentToolRegistry(plugin, { parseTodosContent, mutateTodos, createTodoId:() => 'todo-agent', moment:now });
+let createdId = 0;
+const registry = createCockpitAgentToolRegistry(plugin, { parseTodosContent, mutateTodos, createTodoId:() => (++createdId === 1 ? 'todo-agent' : 'todo-agent-' + createdId), moment:now });
 plugin.agentTools = registry;
 
 const definitions = registry.definitions();
 assert.deepEqual(
   definitions.map((tool) => tool.function.name),
-  ['cockpit_list_todos', 'cockpit_search_notes', 'cockpit_create_todo', 'cockpit_complete_todo'],
+    ['cockpit_list_todos', 'cockpit_search_notes', 'cockpit_create_todo', 'cockpit_update_todo', 'cockpit_complete_todo'],
   'The first Agent surface is an explicit capability allowlist.'
 );
 definitions.forEach((tool) => {
@@ -106,6 +132,15 @@ definitions.forEach((tool) => {
   assert.equal(created.data.todo.id, 'todo-agent');
   assert.deepEqual(writes, ['_data/todos.md'], 'Agent todo creation can only write the fixed Cockpit todo file.');
 
+  const updatedTodo = await registry.execute('cockpit_update_todo', {
+    id:'todo-agent', text:'Updated Agent task', priority:'low', dueDate:'2026-08-28', tags:['agent','follow-up']
+  }, { confirm:async () => true });
+  assert.equal(updatedTodo.ok, true, 'The Agent can update an existing task through its stable ID.');
+  assert.deepEqual(updatedTodo.data.todo, {
+    id:'todo-agent', text:'Updated Agent task', tags:['agent','follow-up'], priority:'low', dueDate:'2026-08-28', done:false
+  });
+  assert.equal(updatedTodo.receipt.verified, true, 'Todo changes are read back before the Agent may claim success.');
+
   await assert.rejects(
     () => registry.execute('write_file', { path:'src/ai.js', content:'changed' }, { confirm:async () => true }),
     /not available/i,
@@ -120,20 +155,20 @@ definitions.forEach((tool) => {
   );
   const toolRequestBody = JSON.parse(toolRequest.body);
   assert.equal(toolRequestBody.tool_choice, 'auto');
-  assert.equal(toolRequestBody.tools.length, 4, 'Only allowlisted tools are sent to the model.');
+  assert.equal(toolRequestBody.tools.length, 5, 'Only allowlisted tools are sent to the model.');
 
-  // ── 三层权限：只读不下发写工具；完整权限免确认执行写操作 ─────────────────────
+  // ── 三层权限：只读不下发写工具；自动模式仅免确认低风险固定用途写操作 ─────────
   const readonlyDefs = registry.definitions('readonly');
   assert.deepEqual(
     readonlyDefs.map((definition) => definition.function.name).sort(),
     ['cockpit_list_todos', 'cockpit_search_notes'],
     'Read-only mode never offers mutating tools to the model.'
   );
-  assert.equal(registry.definitions('read-write').length, 4, 'Read/write mode exposes every allowlisted tool.');
-  assert.equal(registry.definitions('full').length, 4, 'Full access keeps every allowlisted tool available.');
+  assert.equal(registry.definitions('read-write').length, 5, 'Read/write mode exposes every allowlisted tool.');
+  assert.equal(registry.definitions('full').length, 5, 'Full access keeps every allowlisted tool available.');
 
   const autoApproved = await registry.execute('cockpit_create_todo', { text:'免确认任务' }, { autoApprove:true });
-  assert.equal(autoApproved.ok, true, 'Full-permission mode executes mutations without a confirmation modal.');
+  assert.equal(autoApproved.ok, true, 'Safe-action auto mode executes allowlisted low-risk mutations without a confirmation modal.');
 
   const parserEvents = [];
   const parser = createAiSseParser((event) => parserEvents.push(event));
@@ -168,17 +203,33 @@ definitions.forEach((tool) => {
     };
   };
   const events = [];
+  let confirmationDetail = null;
   const result = await service.completeAgentStream(
     { action:'custom', question:'创建一个待办', language:'zh-CN' },
     (event) => events.push(event),
     null,
-    { confirmTool:async () => true }
+    { confirmTool:async (detail) => { confirmationDetail = detail; return 'session'; } }
   );
   global.fetch = originalFetch;
   assert.equal(result.content, '已创建待办。');
   assert.equal(requestBodies.length, 2, 'The Agent returns tool results to the model for a final answer.');
   assert.ok(requestBodies[1].messages.some((message) => message.role === 'tool'), 'Tool output is isolated in an OpenAI-compatible tool message.');
   assert.ok(events.some((event) => event.type === 'tool' && event.stage === 'completed'), 'Tool execution progress is visible to the sidebar.');
+  assert.equal(confirmationDetail.maxGrant, 'always', 'Confirmation receives the capability-specific maximum grant scope.');
+
+  const noToolService = new CockpitAIService(plugin);
+  noToolService._requestAgentRound = async () => ({
+    reasoning:'', content:'已成功创建待办。', toolCalls:[], streamed:true, usage:null
+  });
+  const noToolEvents = [];
+  const noToolResult = await noToolService.completeAgentStream(
+    { action:'custom', question:'创建一个待办', language:'zh-CN' },
+    (event) => noToolEvents.push(event),
+    null,
+    { mode:'read-write', confirmTool:async () => true }
+  );
+  assert.match(noToolResult.content, /未执行写操作/, 'A model cannot claim success when it did not call a mutating tool.');
+  assert.ok(noToolEvents.some((event) => event.type === 'status' && event.stage === 'mutation_unverified'), 'The sidebar receives a deterministic unverified-mutation status.');
 
   let compatibilityRequest = null;
   global.fetch = async () => ({ ok:false, status:400, headers:{ get:() => 'application/json' } });
@@ -237,13 +288,39 @@ definitions.forEach((tool) => {
       { mode:'full', confirmTool:async () => { throw new Error('full-permission mode must not prompt'); } }
     );
     assert.equal(fullResult.content, '已直接创建。');
-    assert.ok(!fullEvents.some((event) => event.type === 'tool' && event.stage === 'awaiting_confirmation'), 'Full-permission mode never waits for confirmation.');
-    assert.ok(fullEvents.some((event) => event.type === 'tool' && event.stage === 'completed'), 'Full-permission tools still report completion.');
+    assert.ok(!fullEvents.some((event) => event.type === 'tool' && event.stage === 'awaiting_confirmation'), 'Safe-action auto mode skips confirmation for explicitly low-risk tools.');
+    assert.ok(fullEvents.some((event) => event.type === 'tool' && event.stage === 'completed'), 'Auto-approved safe tools still report completion.');
     assert.deepEqual(
       fullResult.usage,
       { prompt:12, completion:7, cached:9, cachedKnown:true, total:19 },
       'Provider usage (including cache hits) reaches the caller for display.'
     );
+
+    let highRiskConfirmed = 0;
+    const commandDefinition = { type:'function', function:{ name:'ws_run_command', description:'Run a command', parameters:{ type:'object', properties:{ command:{ type:'string' } }, required:['command'] } } };
+    const highRiskPlugin = {
+      ...plugin,
+      agentTools:{
+        definitions:() => [commandDefinition],
+        describe:() => ({ name:'ws_run_command', label:'Run command', mutates:true }),
+        execute:async (_name, _args, options) => {
+          if (!options.autoApprove && !await options.confirm({ name:'ws_run_command', label:'Run command' })) return { ok:false, denied:true };
+          return { ok:true, receipt:{ action:'command', verified:true } };
+        }
+      }
+    };
+    const highRiskService = new CockpitAIService(highRiskPlugin);
+    let highRiskRound = 0;
+    highRiskService._requestAgentRound = async () => (++highRiskRound === 1
+      ? { reasoning:'', content:'', streamed:true, toolCalls:[{ id:'call-command', type:'function', function:{ name:'ws_run_command', arguments:'{"command":"pwd"}' } }] }
+      : { reasoning:'', content:'命令已执行。', streamed:true, toolCalls:[] });
+    await highRiskService.completeAgentStream(
+      { action:'custom', question:'执行命令', language:'zh-CN' },
+      () => {},
+      null,
+      { mode:'full', confirmTool:async (detail) => { highRiskConfirmed += 1; assert.equal(detail.maxGrant, 'once'); return 'once'; } }
+    );
+    assert.equal(highRiskConfirmed, 1, 'High-risk tools still require per-action confirmation in safe-action auto mode.');
   }
 
   console.log('AI Agent tool checks passed');

@@ -33,7 +33,7 @@ assert.match(framework, /const missingContent[\s\S]*next\.indexOf\('footer'\)/, 
 assert.match(framework, /moduleLabels:[\s\S]*_customModuleLabels/, 'Layout scenes persist editable module titles.');
 assert.match(framework, /recent-tabs'[\s\S]*classList\.contains\(PLUGIN_ID \+ '-recent'\)/, 'Recent tabs and content belong to the same layout module.');
 assert.match(calendar, /cal-indicators[\s\S]*cal-indicator-counts/, 'Calendar task and RSS counts share a non-overlapping indicator rail.');
-assert.match(calendar, /cal-timeline-content[\s\S]*title:todo\.text/, 'Timeline keeps a single-row title with full text available on hover.');
+assert.match(read('calendar-day-flow.js'), /cal-timeline-content[\s\S]*title:todo\.text/, 'Timeline keeps a single-row title with full text available on hover.');
 assert.match(framework, /hm-cell[\s\S]*role','button'/, 'Heatmap days are keyboard-operable review entry points.');
 
 console.log('Feature completeness checks passed');

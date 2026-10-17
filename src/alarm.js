@@ -313,7 +313,7 @@ function openAlarmEditor(view, alarm, onSaved, linkedTodo) {
   const en = view._lang() === 'en';
   const existing = normalizeAlarm(alarm);
   const overlay = document.createElement('div');
-  overlay.className = PLUGIN_ID + '-alarm-editor-backdrop';
+  overlay.className = PLUGIN_ID + '-alarm-editor-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const sheet = overlay.createDiv({ cls:PLUGIN_ID + '-alarm-editor-sheet', attr:{role:'dialog', 'aria-modal':'true'} });
   const header = sheet.createDiv({ cls:PLUGIN_ID + '-alarm-editor-header' });
   header.createEl('h2', { text:existing ? (en ? 'Edit alarm' : '编辑闹钟') : (en ? 'New alarm' : '新建闹钟') });

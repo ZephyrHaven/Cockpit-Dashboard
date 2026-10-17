@@ -89,7 +89,7 @@ function teamSyncPolicyFields(container, policy = teamSyncDefaultPolicy()) {
       canReassign:editor && reassign.checked, canDelete:editor && remove.checked, syncTodos:sync.checked };
   };
 }
-class CockpitTeamApprovalModal extends obs.Modal {
+class CockpitTeamApprovalModal extends CockpitModal {
   constructor(app, service, name, resolve) { super(app); this.service = service; this.name = name; this.resolve = resolve; }
   onOpen() {
     teamSyncModalFrame(this, 'approval');
@@ -104,7 +104,7 @@ class CockpitTeamApprovalModal extends obs.Modal {
   }
   onClose() { clearTimeout(this.timer); this.resolve?.(false); this.resolve = null; this.service.modals.delete(this); this.contentEl.empty(); }
 }
-class CockpitTeamConfirmModal extends obs.Modal {
+class CockpitTeamConfirmModal extends CockpitModal {
   constructor(app, service, text, action) { super(app); this.service = service; this.text = text; this.action = action; }
   onOpen() {
     teamSyncModalFrame(this, 'confirm');
@@ -127,7 +127,7 @@ class CockpitTeamEditorModal {
     const canComplete = service.isHost() || (!record ? policy.canComplete : teamSyncCanComplete(record, policy, service.state.device));
     const canReassign = service.isHost() || (!record ? policy.canReassign : teamSyncCanReassign(record, policy, service.state.device));
     const PID = PLUGIN_ID;
-    const overlay = document.body.createDiv({ cls:PID + '-todo-editor-backdrop' });
+    const overlay = document.body.createDiv({ cls:PID + '-todo-editor-backdrop' }); if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
     overlay.onclick = event => { if (event.target === overlay) this.close(); };
     this.overlay = overlay;
     this.contentEl = overlay.createDiv({ cls:PID + '-todo-editor-sheet' });
@@ -239,7 +239,7 @@ function teamSyncDescribe(value) {
   return (value.done ? '已完成 · ' : '未完成 · ') + value.text + '\n优先级：' + ({ high:'高',mid:'中',low:'低' }[value.priority])
     + (value.due ? ' · 截止：' + value.due : '') + '\n负责人设备 ID：' + (value.assignee || '未分配');
 }
-class CockpitTeamModal extends obs.Modal {
+class CockpitTeamModal extends CockpitModal {
   constructor(app, service) { super(app); this.service = service; }
   async onOpen() {
     teamSyncModalFrame(this, 'manager');

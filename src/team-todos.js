@@ -1,5 +1,5 @@
 // team-todos.js — 团队模块仅刷新自身；布局能力统一由模块注册表与折叠助手提供。
-class CockpitTeamShareModal extends obs.Modal {
+class CockpitTeamShareModal extends CockpitModal {
   constructor(app, service) { super(app); this.service = service; }
   async onOpen() {
     teamSyncModalFrame(this, 'share');

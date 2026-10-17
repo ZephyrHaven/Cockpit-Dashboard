@@ -29,10 +29,11 @@ assert.match(framework, /const hadSavedLayout/, 'Scheduler migration distinguish
 assert.match(framework, /const hasUserLayout = hadSavedLayout/, 'Scheduler visibility is preserved for existing user layouts.');
 assert.match(layoutEdit, /titleEl\.setAttribute\('role', 'button'\)/, 'Collapsible module headings have a semantic keyboard-operable role.');
 assert.match(layoutEdit, /e\.key !== 'Enter' && e\.key !== ' '/, 'Collapsible module headings support Enter and Space.');
-assert.match(calendar, /cal-timeline-row p-/, 'Timeline row carries priority for a colored status node.');
+assert.match(fs.readFileSync(path.join(root, 'src/calendar-day-flow.js'), 'utf8'), /cal-timeline-row p-/, 'Timeline row carries priority for a colored status node.');
 assert.match(styles, /cal-timeline-rail\.first::before,[\s\S]*?cal-timeline-rail\.last::after \{ display:none; \}/, 'The timeline starts at the first node and ends at the last node.');
 assert.doesNotMatch(styles, /^\.p-(high|mid|low)\s*\{/m, 'Priority colors must not use global selectors that paint entire calendar rows.');
 assert.match(styles, /todo-pdot\.p-high/, 'Todo priority dots retain their high-priority color.');
+assert.match(styles, /cockpit-dashboard-hero:has\(\.cockpit-dashboard-scene-trigger\[aria-expanded="true"\]\)[^{]*\{[^}]*overflow:\s*visible;[^}]*z-index:\s*4;/s, 'The open layout scene menu escapes the hero clipping and stays above following glass cards.');
 assert.match(framework, /'aria-label':lang === 'en' \? 'Start a Pomodoro linked to this task' : '专注此任务：启动并关联番茄钟'/, 'Todo action buttons provide one accessible hover explanation.');
 assert.doesNotMatch(framework, /todo-btn[^\n]*title:/, 'Todo action buttons must not emit duplicate title and aria-label tooltips.');
 assert.match(framework, /_getHeroDueText/, 'The hero uses an exact overdue/today/tomorrow task summary.');

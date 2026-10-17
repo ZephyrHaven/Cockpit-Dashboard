@@ -39,6 +39,17 @@ function componentStoreEntries(view) {
   return view._moduleRegistry().map((module) => ({ ...module, ...(COMPONENT_STORE_META[module.id] || {icon:'layout-grid',category:'basic'}), description:descriptions[module.id] || '' }));
 }
 
+function scheduleComponentStoreScrollRestore(modal, body, scrollTop) {
+  if (!body || !Number.isFinite(scrollTop)) return;
+  if (modal._scrollRestoreFrame) window.cancelAnimationFrame(modal._scrollRestoreFrame);
+  modal._scrollRestoreFrame=window.requestAnimationFrame(()=>{
+    modal._scrollRestoreFrame=0;
+    if(!body.isConnected)return;
+    const maxScroll=Math.max(0,body.scrollHeight-body.clientHeight);
+    body.scrollTop=Math.min(Math.max(0,scrollTop),maxScroll);
+  });
+}
+
 function componentStoreStats(view) {
   const en = view._lang() === 'en';
   return [
@@ -71,22 +82,24 @@ function renderComponentPreview(parent, entry, variant='card') {
   return preview;
 }
 
-class CockpitComponentStoreModal extends obs.Modal {
+class CockpitComponentStoreModal extends CockpitModal {
   constructor(app, view) {
     super(app); this.view=view; this.sceneId=view._activeSceneId; this.draft=cloneComponentLayoutSnapshot(view._sceneSnapshot());
-    this.tab='current'; this.category='all'; this.query=''; this.detailId=''; this.applied=false; this.globalChanged=false; this.dragId='';
+    this.tab='current'; this.category='all'; this.query=''; this.detailId=''; this.applied=false; this.globalChanged=false; this.dragId=''; this._scrollRestoreFrame=0;
   }
   onOpen() {
     this.modalEl.addClass(PLUGIN_ID+'-component-store-modal'); this.contentEl.addClass(PLUGIN_ID+'-component-store');
     this.render();
   }
   onClose() {
+    if(this._scrollRestoreFrame){window.cancelAnimationFrame(this._scrollRestoreFrame);this._scrollRestoreFrame=0;}
     this.contentEl.empty();
     if (this.view._componentStoreModal === this) this.view._componentStoreModal = null;
     if (this.applied || this.globalChanged) this.view._renderDashboard(false, true).catch((e)=>console.warn('Cockpit component store refresh failed',e));
   }
   _visible(id) { return !this.draft.hiddenModules.includes(id); }
-  _setVisible(id, visible) { this.draft=setComponentVisibility(this.draft,id,visible); this.render(); }
+  _rerenderInPlace() { const body=this.contentEl.querySelector('.'+PLUGIN_ID+'-component-store-body'); this.render({bodyScrollTop:body?.scrollTop??0}); }
+  _setVisible(id, visible) { this.draft=setComponentVisibility(this.draft,id,visible); this._rerenderInPlace(); }
   _dashboardRoot() { return this.view.containerEl.children[1]?.querySelector('.'+PLUGIN_ID+'-root') || null; }
   _markGlobalChanged() { this.globalChanged=true; this.draft.toolbarOrder=normalizeToolbarOrder(this.view,this.draft.toolbarOrder); this.render(); }
   async apply() {
@@ -102,7 +115,8 @@ class CockpitComponentStoreModal extends obs.Modal {
     this.view._contentWidth = preservedWidth;
     await this.view._saveActiveSceneLayout(); this.applied=true; this.close();
   }
-  render() {
+  render(options={}) {
+    const bodyScrollTop=Number.isFinite(options.bodyScrollTop)?Math.max(0,options.bodyScrollTop):null;
     const c=componentStoreCopy(this.view); this.contentEl.empty();
     const head=this.contentEl.createDiv({cls:PLUGIN_ID+'-component-store-head'});
     const heading=head.createDiv({cls:PLUGIN_ID+'-component-store-heading'}); const icon=heading.createSpan();obs.setIcon(icon,'blocks');
@@ -115,6 +129,7 @@ class CockpitComponentStoreModal extends obs.Modal {
     footer.createDiv({cls:PLUGIN_ID+'-component-store-scope',text:c.layoutScope});
     const cancel=footer.createEl('button',{text:c.cancel,attr:{type:'button'}});cancel.onclick=()=>this.close();
     const apply=footer.createEl('button',{cls:'mod-cta',text:c.apply,attr:{type:'button'}});apply.onclick=()=>this.apply();
+    if(bodyScrollTop!==null)scheduleComponentStoreScrollRestore(this,body,bodyScrollTop);
   }
   renderNavigation(c) {
     const nav=this.contentEl.createDiv({cls:PLUGIN_ID+'-component-store-nav'});
@@ -140,15 +155,15 @@ class CockpitComponentStoreModal extends obs.Modal {
       const row=list.createDiv({cls:PLUGIN_ID+'-component-layout-row',attr:{'data-module-id':entry.id}});
       row.ondragover=(event)=>{if(!this.dragId||this.dragId===entry.id)return;event.preventDefault();const after=event.clientY>=row.getBoundingClientRect().top+(row.getBoundingClientRect().height/2);list.querySelectorAll('.'+PLUGIN_ID+'-component-layout-row').forEach((item)=>{if(item!==row)item.classList.remove('drop-before','drop-after');});row.classList.toggle('drop-before',!after);row.classList.toggle('drop-after',after);if(event.dataTransfer)event.dataTransfer.dropEffect='move';};
       row.ondragleave=(event)=>{if(!row.contains(event.relatedTarget))row.classList.remove('drop-before','drop-after');};
-      row.ondrop=(event)=>{event.preventDefault();if(this.dragId&&this.dragId!==entry.id){const placeAfter=row.classList.contains('drop-after');this.draft=moveComponentAtDrop(this.draft,this.dragId,entry.id,placeAfter);this.dragId='';this.render();}};
+      row.ondrop=(event)=>{event.preventDefault();if(this.dragId&&this.dragId!==entry.id){const placeAfter=row.classList.contains('drop-after');this.draft=moveComponentAtDrop(this.draft,this.dragId,entry.id,placeAfter);this.dragId='';this._rerenderInPlace();}};
       const handle=row.createEl('button',{cls:PLUGIN_ID+'-component-row-handle',attr:{type:'button',draggable:'true','aria-label':this.view._t('layout.dragHandle',{module:entry.label})}});handle.title=this.view._t('layout.dragHandle',{module:entry.label});obs.setIcon(handle,'grip-vertical');
       handle.ondragstart=(event)=>{this.dragId=entry.id;if(event.dataTransfer){event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',entry.id);}row.classList.add('dragging');};
       handle.ondragend=()=>{this.dragId='';list.querySelectorAll('.'+PLUGIN_ID+'-component-layout-row').forEach((item)=>item.classList.remove('dragging','drop-before','drop-after'));};
       const icon=row.createSpan({cls:PLUGIN_ID+'-component-row-icon'});obs.setIcon(icon,entry.icon);
       const text=row.createDiv({cls:PLUGIN_ID+'-component-row-text'});text.createDiv({cls:PLUGIN_ID+'-component-row-name',text:this.draft.moduleLabels[entry.id]||entry.label});text.createDiv({cls:PLUGIN_ID+'-component-row-description',text:entry.description});
       const tools=row.createDiv({cls:PLUGIN_ID+'-component-row-tools'});
-      const up=tools.createEl('button',{text:'↑',attr:{type:'button','aria-label':'Up'}});up.disabled=index===0;up.onclick=()=>{if(index>0){this.draft=moveComponentBefore(this.draft,entry.id,entries[index-1].id);this.render();}};
-      const down=tools.createEl('button',{text:'↓',attr:{type:'button','aria-label':'Down'}});down.disabled=index===entries.length-1;down.onclick=()=>{if(index<entries.length-1){const after=entries[index+2]?.id||null;this.draft=moveComponentBefore(this.draft,entry.id,after);this.render();}};
+      const up=tools.createEl('button',{text:'↑',attr:{type:'button','aria-label':'Up'}});up.disabled=index===0;up.onclick=()=>{if(index>0){this.draft=moveComponentBefore(this.draft,entry.id,entries[index-1].id);this._rerenderInPlace();}};
+      const down=tools.createEl('button',{text:'↓',attr:{type:'button','aria-label':'Down'}});down.disabled=index===entries.length-1;down.onclick=()=>{if(index<entries.length-1){const after=entries[index+2]?.id||null;this.draft=moveComponentBefore(this.draft,entry.id,after);this._rerenderInPlace();}};
       const settings=tools.createEl('button',{text:c.configure,attr:{type:'button'}});settings.onclick=()=>{this.detailId=entry.id;this.render();};
       const remove=tools.createEl('button',{cls:'danger',text:c.remove,attr:{type:'button'}});remove.onclick=()=>this._setVisible(entry.id,false);
     });
@@ -219,3 +234,5 @@ class CockpitComponentStoreModal extends obs.Modal {
 function openComponentStore(view) {
   view._componentStoreModal?.close(); const modal=new CockpitComponentStoreModal(view.app,view);view._componentStoreModal=modal;modal.open();return modal;
 }
+
+if(typeof module!=='undefined'&&module.exports&&typeof PLUGIN_ID==='undefined')module.exports={scheduleComponentStoreScrollRestore};

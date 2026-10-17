@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const context=vm.createContext({console,TextEncoder,Date,URL,Blob,window:{moment:()=>({format:()=> '2026-09-17'})},obs:{Modal:class{}},lanSyncObject:value=>value&&typeof value==='object',lanSyncDevice:()=>true});
-for(const name of ['team-sync-core','dashboard-insights'])vm.runInContext(fs.readFileSync('src/'+name+'.js','utf8'),context);
+for(const name of ['modal-motion','team-sync-core','dashboard-insights'])vm.runInContext(fs.readFileSync('src/'+name+'.js','utf8'),context);
 vm.runInContext('this.api={cockpitTeamVisible,cockpitTeamStats,cockpitTeamCalendar,cockpitRunRecords,cockpitSyncDiagnostics};',context);
 const records=[{id:'one',value:{text:'Task, a; b #team',done:false,due:'2026-09-16',assignee:'me'},origin:{name:'Alice'},updatedAt:Date.now()}, {id:'two',value:{text:'Secret',done:false,due:'2026-09-19T09:30',assignee:'other'},origin:{name:'Bob'},updatedAt:Date.now()}, {id:'three',value:{text:'Done',done:true,due:'2026-09-16',assignee:'me'},origin:{name:'Alice'},updatedAt:Date.now()}];
 const service={state:{team:{},device:'me',tasks:Object.fromEntries(records.map(record=>[record.id,record]))},policy:()=>({syncTodos:true,visibility:'assigned'})};

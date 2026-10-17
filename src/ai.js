@@ -19,6 +19,27 @@ const AI_DEFAULTS = Object.freeze({
   maxContextChars:12000, activeProfileId:'default'
 });
 
+const AGENT_ALWAYS_GRANT_TOOLS = new Set([
+  'cockpit_create_todo', 'cockpit_complete_todo', 'cockpit_update_todo'
+]);
+const AGENT_SESSION_GRANT_TOOLS = new Set([
+  'vault_create_note', 'vault_append_note', 'vault_move_note', 'vault_add_tags'
+]);
+
+function agentToolPermissionPolicy(name) {
+  const toolName = String(name || '');
+  if (AGENT_ALWAYS_GRANT_TOOLS.has(toolName)) return { maxGrant:'always', risk:'data-write' };
+  if (AGENT_SESSION_GRANT_TOOLS.has(toolName)) return { maxGrant:'session', risk:'content-write' };
+  return { maxGrant:'once', risk:'high' };
+}
+
+function normalizeAiAlwaysAllowedTools(value) {
+  return Array.from(new Set((Array.isArray(value) ? value : [])
+    .map((item) => String(item || '').trim())
+    .filter((item) => agentToolPermissionPolicy(item).maxGrant === 'always')))
+    .slice(0, 32);
+}
+
 function getAiProviderPreset(providerId) {
   return AI_PROVIDER_PRESETS.find((item) => item.id === providerId) || AI_PROVIDER_PRESETS[AI_PROVIDER_PRESETS.length - 1];
 }
@@ -127,6 +148,7 @@ function normalizeAiConfig(raw) {
     activeProfileId:profiles.some((profile) => profile.id === requestedActiveId) ? requestedActiveId : profiles[0].id,
     maxContextChars:Number.isFinite(requestedLimit) ? Math.max(2000, Math.min(50000, Math.round(requestedLimit))) : AI_DEFAULTS.maxContextChars,
     localCommands:normalizeAiLocalCommands(value.localCommands),
+    alwaysAllowedTools:normalizeAiAlwaysAllowedTools(value.alwaysAllowedTools),
     // Agent 编码工作区：用户配置的绝对路径沙箱根目录；空字符串表示关闭。
     workspaceRoot:String(value.workspaceRoot ?? '').replace(/[\r\n\0]+/g, '').trim().slice(0, 600),
     workspaceRecents:normalizeAiWorkspaceRecents(value.workspaceRecents)
@@ -303,6 +325,49 @@ function sumAiUsage(a, b) {
     cachedKnown:a.cachedKnown || b.cachedKnown,
     total:a.total + b.total
   };
+}
+
+function agentMutationIntent(text) {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  return /(?:创建|新增|添加|修改|更新|编辑|删除|完成|标记|移动|重命名|写入|追加|打开|运行|执行|create|add|update|edit|delete|complete|mark|move|rename|write|append|open|run|execute)/i.test(value);
+}
+
+function agentClaimsMutationSuccess(text) {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  return /(?:已(?:成功)?(?:创建|新增|添加|修改|更新|编辑|删除|完成|标记|移动|重命名|写入|追加|打开|运行|执行)|创建成功|添加成功|保存成功|操作成功|successfully\s+(?:created|added|updated|edited|deleted|completed|moved|renamed|written|opened|ran|executed)|(?:has|have)\s+been\s+(?:created|added|updated|edited|deleted|completed|moved|renamed|written))/i.test(value);
+}
+
+function guardAgentMutationClaim(question, content, state = {}, language = 'zh-CN') {
+  const answer = String(content || '').trim();
+  if (Number(state.successfulMutations) > 0 || !agentMutationIntent(question) || !agentClaimsMutationSuccess(answer)) return answer;
+  const en = language === 'en';
+  if (state.denied) return en
+    ? 'The requested change was not made because permission was not granted.'
+    : '操作未执行：本次写操作没有获得授权。';
+  if (state.lastError) return (en ? 'The requested change failed: ' : '操作失败：') + String(state.lastError).slice(0, 240);
+  if (state.toolsUnavailable) return en
+    ? 'No change was made because the current model does not support Agent tool calls. Switch to a tool-capable model and try again.'
+    : '未执行写操作：当前模型不支持 Agent 工具调用，请切换到支持工具的模型后重试。';
+  return en
+    ? 'No change was made because the model did not call a mutating tool. Please try again.'
+    : '未执行写操作：模型没有调用任何写入工具，请重试。';
+}
+
+function buildAgentAuditRecord(value = {}) {
+  const result = value.result && typeof value.result === 'object' ? value.result : {};
+  const receipt = result.receipt && typeof result.receipt === 'object' ? result.receipt : {};
+  const record = {
+    at:new Date().toISOString(),
+    sessionId:String(value.sessionId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100),
+    name:String(value.name || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80),
+    stage:['completed','denied','error'].includes(value.stage) ? value.stage : 'error',
+    entityType:String(receipt.entityType || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40),
+    entityId:String(receipt.entityId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100),
+    verified:receipt.verified === true
+  };
+  return record;
 }
 
 // 无 usage 时的粗略估算：CJK ≈0.75 token/字，其余 ≈0.25 token/字符。
@@ -537,9 +602,10 @@ class CockpitAIService {
   async saveConfig(next) {
     // 未显式携带 localCommands 的保存（如旧设置面板）不得清空用户登记的本地命令。
     const merged = { ...(next && typeof next === 'object' ? next : {}) };
-    if (!Array.isArray(merged.localCommands) || typeof merged.workspaceRoot !== 'string') {
+    if (!Array.isArray(merged.localCommands) || !Array.isArray(merged.alwaysAllowedTools) || typeof merged.workspaceRoot !== 'string') {
       const current = await this.getConfig();
       if (!Array.isArray(merged.localCommands)) merged.localCommands = current.localCommands;
+      if (!Array.isArray(merged.alwaysAllowedTools)) merged.alwaysAllowedTools = current.alwaysAllowedTools;
       if (typeof merged.workspaceRoot !== 'string') merged.workspaceRoot = current.workspaceRoot;
     }
     const normalized = normalizeAiConfig(merged);
@@ -559,6 +625,22 @@ class CockpitAIService {
     if (!config.profiles.some((profile) => profile.id === profileId)) return config;
     config.activeProfileId = profileId;
     return this.saveConfig(config);
+  }
+  async setAgentToolAlwaysAllowed(toolName, allowed = true) {
+    const name = String(toolName || '').trim();
+    if (agentToolPermissionPolicy(name).maxGrant !== 'always') throw new Error('This Agent tool cannot receive persistent approval.');
+    const config = await this.getConfig();
+    const grants = new Set(config.alwaysAllowedTools || []);
+    if (allowed) grants.add(name); else grants.delete(name);
+    return this.saveConfig({ ...config, alwaysAllowedTools:Array.from(grants) });
+  }
+  _appendAgentAudit(value) {
+    if (typeof cockpitPluginLogDir !== 'function' || typeof cockpitAppendJsonl !== 'function') return Promise.resolve();
+    try {
+      const path = require('path');
+      const file = path.join(cockpitPluginLogDir(this.plugin.app, this.plugin.manifest), 'agent-tools.jsonl');
+      return cockpitAppendJsonl(file, buildAgentAuditRecord(value), { limit:500, maxBytes:512 * 1024 });
+    } catch (error) { return Promise.resolve(); }
   }
   getProfileApiKey(profile) {
     const direct = String((profile && profile.apiKey) || '').trim();
@@ -718,7 +800,8 @@ class CockpitAIService {
   async completeAgentStream(options = {}, onEvent, signal, agentOptions = {}) {
     const emit = (event) => { try { onEvent?.(event); } catch (error) { console.warn('Cockpit Agent listener failed', error); } };
     const registry = this.plugin.agentTools;
-    // 三层权限模式：readonly 只暴露只读工具；read-write 写操作需确认（默认）；full 免确认。
+    // 三层权限模式：readonly 只暴露只读工具；read-write 写操作需确认（默认）；
+    // full 仅自动允许显式标记为低风险的固定用途写操作。
     const mode = ['readonly', 'read-write', 'full'].includes(agentOptions.mode) ? agentOptions.mode : 'read-write';
     const tools = registry?.definitions?.(mode) || [];
     if (!tools.length) return this.completeStream(options, onEvent, signal);
@@ -762,6 +845,12 @@ class CockpitAIService {
     let content = '';
     let usedStreaming = true;
     let usageTotal = null;
+    const mutationState = { successfulMutations:0, denied:false, lastError:'', toolsUnavailable:false };
+    const finalizeContent = (value) => {
+      const guarded = guardAgentMutationClaim(options.question, value, mutationState, options.language);
+      if (guarded !== String(value || '').trim()) emit({ type:'status', stage:'mutation_unverified' });
+      return guarded;
+    };
     // 编码任务常见「读文件→改代码→跑验证」链路，放宽到 6 轮；单轮工具调用上限见 ai-tools.js。
     for (let roundIndex = 0; roundIndex < 6; roundIndex++) {
       if (signal?.aborted) throw createAiAbortError();
@@ -771,9 +860,11 @@ class CockpitAIService {
         if (roundIndex !== 0 || error?.code !== 'AI_TOOLS_UNSUPPORTED') throw error;
         emit({ type:'status', stage:'tools_unavailable' });
         const fallbackContent = await waitForAiFallback(this.complete(preparedOptions), signal);
-        emit({ type:'content', text:fallbackContent });
+        mutationState.toolsUnavailable = true;
+        const guardedFallback = finalizeContent(fallbackContent);
+        emit({ type:'content', text:guardedFallback });
         emit({ type:'done' });
-        return { reasoning:'', content:fallbackContent, streamed:false, usage:null };
+        return { reasoning:'', content:guardedFallback, streamed:false, usage:null };
       }
       reasoning += round.reasoning;
       content += round.content;
@@ -782,33 +873,44 @@ class CockpitAIService {
       if (!round.toolCalls.length) {
         emit({ type:'done' });
         if (!content.trim()) throw new Error(reasoning.trim() ? '模型只返回了思考过程，没有生成最终回答' : '模型没有返回可显示的内容');
-        return { reasoning:reasoning.trim(), content:content.trim(), streamed:usedStreaming, usage:usageTotal };
+        return { reasoning:reasoning.trim(), content:finalizeContent(content), streamed:usedStreaming, usage:usageTotal };
       }
       messages.push({ role:'assistant', content:round.content || null, tool_calls:round.toolCalls });
       for (const call of round.toolCalls) {
         callsUsed += 1;
         if (callsUsed > callLimit) throw new Error('Agent 本轮调用的工具过多，已停止');
         const name = call.function.name;
-        const meta = registry.describe?.(name) || { name, label:name, mutates:false };
+        const meta = { ...(registry.describe?.(name) || { name, label:name, mutates:false }), ...agentToolPermissionPolicy(name) };
+        if (meta.mutates) mutationState.lastError = '';
         emit({ type:'tool', stage:'requested', callId:call.id, name, label:meta.label || name });
         let result;
         try {
           const args = parseAiToolArguments(call.function.arguments);
-          // 只读工具与完整权限模式直接执行；读写模式的写操作经 confirm 弹窗批准。
-          if (!meta.mutates || mode === 'full') emit({ type:'tool', stage:'executing', callId:call.id, name, label:meta.label || name, args });
+          // “低风险自动允许”只覆盖显式列入永久授权白名单的固定用途工具；
+          // 命令、任意文件写入等高风险能力即使在 full 兼容模式下也必须逐次确认。
+          const fullAutoApprove = mode === 'full' && meta.maxGrant === 'always';
+          if (!meta.mutates || fullAutoApprove) emit({ type:'tool', stage:'executing', callId:call.id, name, label:meta.label || name, args });
           result = await registry.execute(name, args, {
-            autoApprove:mode === 'full',
+            autoApprove:fullAutoApprove,
             confirm:async (detail) => {
               emit({ type:'tool', stage:'awaiting_confirmation', callId:call.id, name, label:detail.label || meta.label || name, args });
-              const confirmed = typeof agentOptions.confirmTool === 'function' && await agentOptions.confirmTool({ ...detail, callId:call.id });
+              const decision = typeof agentOptions.confirmTool === 'function' && await agentOptions.confirmTool({ ...detail, callId:call.id, maxGrant:meta.maxGrant, risk:meta.risk });
+              const confirmed = decision === true || ['once','session','always'].includes(decision);
               emit({ type:'tool', stage:confirmed ? 'executing' : 'denied', callId:call.id, name, label:detail.label || meta.label || name, args });
               return confirmed;
             }
           });
-          emit({ type:'tool', stage:result?.denied ? 'denied' : 'completed', callId:call.id, name, label:meta.label || name, result });
+          if (result?.denied) mutationState.denied = true;
+          else if (result?.ok === true && meta.mutates) mutationState.successfulMutations += 1;
+          else if (meta.mutates && result?.ok !== true) mutationState.lastError = result?.error || 'Tool execution failed.';
+          const resultStage = result?.denied ? 'denied' : result?.ok === true ? 'completed' : 'error';
+          emit({ type:'tool', stage:resultStage, callId:call.id, name, label:meta.label || name, result, error:resultStage === 'error' ? mutationState.lastError : '' });
+          void this._appendAgentAudit({ sessionId:options.sessionId, name, stage:resultStage, result, error:resultStage === 'error' ? mutationState.lastError : '' }).catch(() => {});
         } catch (error) {
           result = { ok:false, error:error?.message || 'Tool execution failed.' };
+          if (meta.mutates) mutationState.lastError = result.error;
           emit({ type:'tool', stage:'error', callId:call.id, name, label:meta.label || name, error:result.error });
+          void this._appendAgentAudit({ sessionId:options.sessionId, name, stage:'error', result, error:result.error }).catch(() => {});
         }
         messages.push({ role:'tool', tool_call_id:call.id, content:JSON.stringify(result).slice(0, 20000) });
       }
@@ -923,6 +1025,7 @@ class CockpitAIService {
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
   module.exports = {
     AI_PROVIDER_PRESETS, AI_DEFAULTS, getAiProviderPreset, normalizeAiConfig, normalizeAiProfile,
+    agentToolPermissionPolicy, buildAgentAuditRecord,
     getActiveAiProfile, collectRecentMarkdownPaths, normalizeAiBaseUrl, buildAiEndpoint,
     truncateAiContext, buildAiMessages, parseAiResponseText, createAiRequest, createAiSseParser,
     parseAiStreamPayload, mergeAiToolCallDelta, normalizeAiToolCalls, parseAiToolArguments,

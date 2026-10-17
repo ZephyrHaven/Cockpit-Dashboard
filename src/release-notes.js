@@ -1,6 +1,6 @@
 // release-notes.js — 从 GitHub Releases 在线加载并展示最近更新。
 
-class CockpitReleaseNotesModal extends obs.Modal {
+class CockpitReleaseNotesModal extends CockpitModal {
   constructor(app, plugin, language) {
     super(app);
     this._plugin = plugin;

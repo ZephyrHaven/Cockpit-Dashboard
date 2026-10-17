@@ -3610,7 +3610,7 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
 .cockpit-dashboard-ai-tool-confirm-icon svg { width:18px; height:18px; }
 .cockpit-dashboard-ai-tool-confirm-args { max-height:180px; margin:0; padding:11px 12px; overflow:auto; border:1px solid var(--background-modifier-border); border-radius:9px; color:var(--text-muted); background:var(--background-secondary); font-size:11px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .cockpit-dashboard-ai-tool-confirm-boundary { margin:0; color:var(--text-faint); font-size:10px; line-height:1.5; }
-.cockpit-dashboard-ai-tool-confirm-actions { display:flex; justify-content:flex-end; gap:8px; }
+.cockpit-dashboard-ai-tool-confirm-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
 
 .cockpit-dashboard-ai-composer {
   min-width: 0;
@@ -4448,8 +4448,45 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
 .cockpit-dashboard-countdown-target { margin-top:4px; color:var(--text-muted); font-size:.6em; }
 .cockpit-dashboard-countdown-remaining { flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:2px; color:var(--text-accent); font-size:.82em; font-weight:900; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .cockpit-dashboard-countdown-remaining-label { color:var(--text-faint); font-size:.48em; font-weight:800; letter-spacing:.1em; }
-.cockpit-dashboard-countdown-progress { height:4px; overflow:hidden; border-radius:999px; background:color-mix(in srgb,var(--text-faint) 16%,transparent); }
-.cockpit-dashboard-countdown-progress > div { height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--interactive-accent),#a78bfa); transition:width .4s ease; }
+.cockpit-dashboard-countdown-progress-region { display:flex; flex-direction:column; gap:7px; padding-top:1px; }
+.cockpit-dashboard-countdown-progress-summary { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; min-height:19px; }
+.cockpit-dashboard-countdown-current-progress { display:flex; align-items:baseline; gap:7px; color:var(--text-faint); font-size:.5em; font-weight:800; letter-spacing:.08em; }
+.cockpit-dashboard-countdown-current-progress strong { background:linear-gradient(120deg,var(--interactive-accent),#8b7cf6); -webkit-background-clip:text; background-clip:text; color:transparent; font-size:1.75em; font-weight:900; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+.cockpit-dashboard-countdown-progress-scale { color:var(--text-faint); font-size:.48em; font-weight:700; font-variant-numeric:tabular-nums; }
+.cockpit-dashboard-countdown-progress { position:relative; height:6px; border-radius:999px; background:color-mix(in srgb,var(--text-faint) 14%,transparent); box-shadow:inset 0 1px 2px rgba(15,23,42,.08); }
+.cockpit-dashboard-countdown-progress.has-milestones { margin-top:22px; }
+.cockpit-dashboard-countdown-progress-fill { position:absolute; inset:0 auto 0 0; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--interactive-accent),#8b7cf6); box-shadow:0 2px 8px color-mix(in srgb,var(--interactive-accent) 25%,transparent); transition:width .4s ease; }
+.cockpit-dashboard-countdown-progress-now { position:absolute; top:50%; z-index:3; width:10px; height:10px; border:2px solid var(--background-primary); border-radius:50%; background:#8b7cf6; box-shadow:0 2px 7px color-mix(in srgb,#8b7cf6 52%,transparent); transform:translate(-50%,-50%); transition:left .4s ease; }
+.cockpit-dashboard-countdown-milestone-track { position:absolute; inset:0; pointer-events:none; }
+.cockpit-dashboard-countdown-milestone-marker { --countdown-marker-color:color-mix(in srgb,var(--text-muted) 68%,var(--interactive-accent)); position:absolute; top:50%; z-index:2; width:0; height:0; pointer-events:auto; color:var(--countdown-marker-color); transform:translate(-50%,-50%); }
+.cockpit-dashboard-countdown-milestone-marker::before { content:""; position:absolute; left:50%; bottom:5px; width:1px; height:4px; border-radius:999px; background:color-mix(in srgb,var(--countdown-marker-color) 48%,transparent); transform:translateX(-50%); }
+.cockpit-dashboard-countdown-milestone-marker::after { content:""; position:absolute; left:50%; top:50%; width:7px; height:7px; border:2px solid var(--background-primary); border-radius:50%; background:var(--countdown-marker-color); box-shadow:0 1px 5px color-mix(in srgb,var(--countdown-marker-color) 34%,transparent); transform:translate(-50%,-50%); }
+.cockpit-dashboard-countdown-marker-label { position:absolute; left:0; bottom:9px; min-height:18px; display:inline-flex; align-items:center; gap:4px; padding:2px 6px 2px 5px; border:1px solid color-mix(in srgb,var(--countdown-marker-color) 27%,var(--background-modifier-border)); border-radius:999px; background:color-mix(in srgb,var(--background-primary) 91%,transparent); box-shadow:0 4px 12px rgba(15,23,42,.08); color:color-mix(in srgb,var(--countdown-marker-color) 82%,var(--text-normal)); font-size:9px; font-weight:820; line-height:1; letter-spacing:.01em; white-space:nowrap; backdrop-filter:blur(10px); transform:translateX(-50%); }
+.cockpit-dashboard-countdown-marker-icon { width:12px; height:12px; display:inline-flex; align-items:center; justify-content:center; }
+.cockpit-dashboard-countdown-marker-icon svg { width:10px; height:10px; stroke-width:2; }
+.cockpit-dashboard-countdown-marker-value { font-variant-numeric:tabular-nums; }
+.cockpit-dashboard-countdown-milestone-marker.is-near-start .cockpit-dashboard-countdown-marker-label { transform:translateX(-4px); }
+.cockpit-dashboard-countdown-milestone-marker.is-near-end .cockpit-dashboard-countdown-marker-label { transform:translateX(calc(-100% + 4px)); }
+.cockpit-dashboard-countdown-milestone-marker.has-email { --countdown-marker-color:color-mix(in srgb,var(--color-green) 64%,var(--interactive-accent)); }
+.cockpit-dashboard-countdown-milestone-marker.is-reached { --countdown-marker-color:color-mix(in srgb,var(--interactive-accent) 78%,#8b7cf6); }
+.cockpit-dashboard-countdown-milestone-marker.is-delivered { --countdown-marker-color:var(--color-green); }
+.cockpit-dashboard-countdown-milestone-marker.is-delivered::after { box-shadow:0 0 0 3px color-mix(in srgb,var(--color-green) 14%,transparent),0 1px 5px color-mix(in srgb,var(--color-green) 32%,transparent); }
+.cockpit-dashboard-countdown-milestone-marker.has-failure { --countdown-marker-color:var(--color-red); }
+.cockpit-dashboard-countdown-milestone-marker.has-failure::after { box-shadow:0 0 0 3px color-mix(in srgb,var(--color-red) 12%,transparent),0 1px 5px color-mix(in srgb,var(--color-red) 30%,transparent); }
+.cockpit-dashboard-countdown-milestones { display:flex; flex-wrap:wrap; gap:5px; }
+.cockpit-dashboard-countdown-milestone { min-width:0; display:grid; grid-template-columns:18px minmax(0,auto) auto; align-items:center; gap:6px; padding:5px 7px; border:1px solid color-mix(in srgb,var(--interactive-accent) 12%,var(--background-modifier-border)); border-radius:10px; background:color-mix(in srgb,var(--background-primary) 72%,transparent); color:var(--text-muted); }
+.cockpit-dashboard-countdown-milestone-icon { width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center; border-radius:6px; background:color-mix(in srgb,var(--interactive-accent) 9%,transparent); color:var(--text-accent); }
+.cockpit-dashboard-countdown-milestone-icon svg { width:11px; height:11px; }
+.cockpit-dashboard-countdown-milestone-copy { min-width:0; display:flex; flex-direction:column; gap:1px; }
+.cockpit-dashboard-countdown-milestone-main { color:var(--text-normal); font-size:.64em; font-weight:820; line-height:1.2; white-space:nowrap; }
+.cockpit-dashboard-countdown-milestone-detail { color:var(--text-faint); font-size:.52em; line-height:1.2; white-space:nowrap; }
+.cockpit-dashboard-countdown-milestone-status { padding:2px 5px; border-radius:999px; background:color-mix(in srgb,var(--text-faint) 9%,transparent); color:var(--text-faint); font-size:.5em; font-weight:800; white-space:nowrap; }
+.cockpit-dashboard-countdown-milestone.is-reached { border-color:color-mix(in srgb,var(--interactive-accent) 26%,var(--background-modifier-border)); background:color-mix(in srgb,var(--interactive-accent) 7%,var(--background-primary)); }
+.cockpit-dashboard-countdown-milestone.is-reached .cockpit-dashboard-countdown-milestone-status { background:color-mix(in srgb,var(--interactive-accent) 13%,transparent); color:var(--text-accent); }
+.cockpit-dashboard-countdown-milestone.is-delivered { border-color:color-mix(in srgb,var(--color-green) 30%,var(--background-modifier-border)); }
+.cockpit-dashboard-countdown-milestone.is-delivered .cockpit-dashboard-countdown-milestone-status { background:color-mix(in srgb,var(--color-green) 13%,transparent); color:color-mix(in srgb,var(--color-green) 78%,var(--text-normal)); }
+.cockpit-dashboard-countdown-milestone.has-failure { border-color:color-mix(in srgb,var(--color-red) 35%,var(--background-modifier-border)); }
+.cockpit-dashboard-countdown-milestone.has-failure .cockpit-dashboard-countdown-milestone-status { background:color-mix(in srgb,var(--color-red) 12%,transparent); color:var(--color-red); }
 .cockpit-dashboard-countdown-card-footer { min-height:28px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .cockpit-dashboard-countdown-chips { min-width:0; display:flex; flex-wrap:wrap; gap:4px; }
 .cockpit-dashboard-countdown-chips span { padding:3px 7px; border-radius:999px; background:color-mix(in srgb,var(--interactive-accent) 10%,var(--background-primary)); color:var(--text-muted); font-size:.56em; }
@@ -4511,6 +4548,8 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   .cockpit-dashboard-countdown-email-rule textarea,.cockpit-dashboard-countdown-email-rule input[type='text'],.cockpit-dashboard-countdown-email-rule button { grid-column:1; }
   .cockpit-dashboard-countdown-card-top { gap:8px; }
   .cockpit-dashboard-countdown-remaining { font-size:.76em; }
+  .cockpit-dashboard-countdown-progress-scale { display:none; }
+  .cockpit-dashboard-countdown-milestone { flex:1 1 150px; grid-template-columns:18px minmax(0,1fr) auto; }
 }
 
 /* ===== Component Store ===== */
@@ -5028,6 +5067,10 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
     radial-gradient(420px 180px at 100% 0%, color-mix(in srgb, var(--ck-accent-2) 14%, transparent), transparent 70%),
     radial-gradient(380px 200px at 0% 100%, color-mix(in srgb, var(--ck-accent) 13%, transparent), transparent 70%),
     var(--ck-surface);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-hero:has(.cockpit-dashboard-scene-trigger[aria-expanded="true"]) {
+  overflow: visible;
+  z-index: 4;
 }
 .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-greeting {
   padding: 0;
@@ -5575,6 +5618,237 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-quick { left:-2px; right:-2px; }
 }
 
+/* ===== 日历 v3.1：周卡按内容自适应高度，今天改为轻着色 + 渐变数字，不再整块渐变 ===== */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week { align-items:stretch; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day { min-height:132px; padding:12px 12px 10px; gap:8px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today, .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today:not(.selected), .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today:hover { background:color-mix(in srgb, var(--ck-accent) 9%, var(--ck-cal-tile)); color:var(--text-normal); border-color:var(--ck-accent-line); box-shadow:0 10px 26px -18px color-mix(in srgb, var(--ck-accent) 80%, transparent); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today:hover { transform:translateY(-3px); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today::before, .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today::before { content:""; display:block; position:absolute; top:0; left:16px; right:16px; height:3px; border-radius:0 0 4px 4px; background:var(--ck-cal-grad); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today.selected { box-shadow:0 0 0 2px var(--ck-accent), 0 10px 26px -18px color-mix(in srgb, var(--ck-accent) 80%, transparent); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-week-name { color:var(--ck-accent); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-week-sub { color:var(--text-faint); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-week-day-number { background:var(--ck-cal-grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-week-count { background:var(--ck-cal-grad); color:#fff; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-week-count.is-done { background:color-mix(in srgb, var(--ck-cal-low) 18%, transparent); color:var(--ck-cal-low); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-line-time { color:var(--ck-accent); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-line:hover { background:color-mix(in srgb, var(--text-normal) 6%, transparent); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-line-dot { box-shadow:0 0 0 3px color-mix(in srgb, var(--dot) 20%, transparent); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-more, .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-week-empty { color:var(--text-muted); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-week-meter span { background:color-mix(in srgb, var(--text-normal) 9%, transparent); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-week-meter span.on { background:var(--ck-cal-grad); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-ev, .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today .cockpit-dashboard-cal-ev { background:color-mix(in srgb, var(--ck-cal-event) 12%, transparent); color:color-mix(in srgb, var(--ck-cal-event) 55%, var(--text-normal)); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today .cockpit-dashboard-cal-ev::before, .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today .cockpit-dashboard-cal-ev::before { background:var(--ck-cal-event); }
+/* 负载条：只在有待办时出现，空闲日不再拖着一排灰条 */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-meter { opacity:0; transition:opacity var(--ck-dur) ease; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.has-open .cockpit-dashboard-cal-week-meter { opacity:1; }
+/* 空闲日：悬停时提示可双击添加 */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-empty { display:flex; align-items:center; gap:4px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-empty-hint { display:none; color:var(--ck-accent); font-weight:700; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day:hover .cockpit-dashboard-cal-week-empty-text { display:none; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day:hover .cockpit-dashboard-cal-week-empty-hint { display:inline; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day:not(:hover):not(.selected) .cockpit-dashboard-cal-week-empty { opacity:1; }
+
+/* 月视图今天：同样的轻着色 + 渐变数字胶囊 */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today { background:color-mix(in srgb, var(--ck-accent) 9%, var(--ck-cal-tile)); color:var(--text-normal); border-color:var(--ck-accent-line); box-shadow:0 10px 24px -18px color-mix(in srgb, var(--ck-accent) 80%, transparent); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today.selected { box-shadow:0 0 0 2px var(--ck-accent), 0 10px 24px -18px color-mix(in srgb, var(--ck-accent) 80%, transparent); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today .cockpit-dashboard-cal-num { min-width:24px; height:22px; padding:0 7px; display:inline-flex; align-items:center; justify-content:center; border-radius:999px; background:var(--ck-cal-grad); color:#fff; box-shadow:0 4px 12px -4px color-mix(in srgb, var(--ck-accent) 80%, transparent); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today .cockpit-dashboard-cal-badge { background:var(--ck-accent); color:#fff; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today.has-high .cockpit-dashboard-cal-badge { background:var(--ck-cal-high); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today .cockpit-dashboard-cal-lunar { color:var(--text-faint); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today .cockpit-dashboard-cal-key { color:var(--text-normal); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today .cockpit-dashboard-cal-key-time { color:var(--ck-accent); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today .cockpit-dashboard-cal-key::before { box-shadow:0 0 0 3px color-mix(in srgb, var(--dot) 22%, transparent); }
+
+/* ===== 日历 v3.2：降低卡片噪点，统一今天 / 选中 / 负载三层信息 ===== */
+.cockpit-dashboard-root {
+  --ck-cal-tile-rest:color-mix(in srgb, var(--background-primary) 84%, var(--text-normal) 3%);
+  --ck-cal-tile-line:color-mix(in srgb, var(--text-normal) 8%, transparent);
+  --ck-cal-select-line:color-mix(in srgb, var(--ck-accent) 58%, transparent);
+}
+.theme-dark .cockpit-dashboard-root {
+  --ck-cal-tile-rest:color-mix(in srgb, var(--background-primary) 88%, white 4%);
+  --ck-cal-tile-line:color-mix(in srgb, white 8%, transparent);
+}
+
+/* 月视图：过去日期只弱化文字，不再让整块日历发灰；热度仍以轻底色表达。 */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-grid { gap:6px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell {
+  min-height:80px;
+  border-color:var(--ck-cal-tile-line);
+  border-radius:13px;
+  background:var(--ck-cal-tile-rest);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.load-1 { background:color-mix(in srgb, var(--ck-cal-heat) 4%, var(--ck-cal-tile-rest)); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.load-2 { background:color-mix(in srgb, var(--ck-cal-heat) 7%, var(--ck-cal-tile-rest)); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.load-3 { background:color-mix(in srgb, var(--ck-cal-heat) 11%, var(--ck-cal-tile-rest)); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.load-4 { background:color-mix(in srgb, var(--ck-cal-heat) 15%, var(--ck-cal-tile-rest)); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.past { opacity:1; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.past:not(.has-overdue) .cockpit-dashboard-cal-num,
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.past:not(.has-overdue) .cockpit-dashboard-cal-lunar { opacity:.58; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell:hover {
+  transform:translateY(-1px);
+  border-color:color-mix(in srgb, var(--ck-accent) 28%, var(--ck-cal-tile-line));
+  box-shadow:0 10px 24px -20px color-mix(in srgb, var(--text-normal) 45%, transparent);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.selected,
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today.selected {
+  border-color:var(--ck-cal-select-line);
+  box-shadow:0 8px 22px -18px color-mix(in srgb, var(--ck-accent) 68%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--ck-accent) 18%, transparent);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today {
+  border-color:color-mix(in srgb, var(--ck-accent) 34%, var(--ck-cal-tile-line));
+  background:color-mix(in srgb, var(--ck-accent) 6%, var(--ck-cal-tile-rest));
+  box-shadow:0 8px 22px -19px color-mix(in srgb, var(--ck-accent) 60%, transparent);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today::before { display:none; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.today .cockpit-dashboard-cal-num {
+  min-width:23px;
+  height:21px;
+  padding:0 7px;
+  box-shadow:0 4px 10px -6px color-mix(in srgb, var(--ck-accent) 72%, transparent);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-num { font-weight:760; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-rss-badge {
+  min-height:14px;
+  padding:0 5px;
+  background:color-mix(in srgb, var(--ck-cal-team) 9%, transparent);
+  color:color-mix(in srgb, var(--ck-cal-team) 62%, var(--text-muted));
+  font-size:.46em;
+  font-weight:730;
+  letter-spacing:.01em;
+}
+
+/* 周视图：仍是智能卡片而非传统表格，但用轻边界和单一焦点减少“卡片套卡片”。 */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week { gap:7px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day {
+  min-height:136px;
+  padding:12px 11px 10px;
+  gap:7px;
+  border-color:var(--ck-cal-tile-line);
+  border-radius:14px;
+  background:var(--ck-cal-tile-rest);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.past { opacity:1; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.past:not(.has-open) .cockpit-dashboard-cal-week-name,
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.past:not(.has-open) .cockpit-dashboard-cal-week-day-number,
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.past:not(.has-open) .cockpit-dashboard-cal-week-sub { opacity:.58; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day:hover,
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today:hover {
+  transform:translateY(-1px);
+  border-color:color-mix(in srgb, var(--ck-accent) 28%, var(--ck-cal-tile-line));
+  background:var(--ck-cal-tile-rest);
+  box-shadow:0 10px 24px -20px color-mix(in srgb, var(--text-normal) 45%, transparent);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.selected,
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today.selected {
+  border-color:var(--ck-cal-select-line);
+  background:color-mix(in srgb, var(--ck-accent) 5%, var(--ck-cal-tile-rest));
+  box-shadow:0 8px 22px -18px color-mix(in srgb, var(--ck-accent) 68%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--ck-accent) 18%, transparent);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today,
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today:not(.selected) {
+  border-color:color-mix(in srgb, var(--ck-accent) 34%, var(--ck-cal-tile-line));
+  background:color-mix(in srgb, var(--ck-accent) 6%, var(--ck-cal-tile-rest));
+  box-shadow:0 8px 22px -19px color-mix(in srgb, var(--ck-accent) 60%, transparent);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day.today::before { display:none; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day-number { font-size:1.86em; font-weight:790; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-name { font-weight:740; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-count {
+  min-width:22px;
+  height:22px;
+  padding:0 6px;
+  box-shadow:none;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-rss {
+  margin-top:1px;
+  padding:2px 6px;
+  background:color-mix(in srgb, var(--ck-cal-team) 9%, transparent);
+  color:color-mix(in srgb, var(--ck-cal-team) 62%, var(--text-muted));
+  font-size:.57em;
+  font-weight:730;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-meter { gap:4px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-meter span { height:3px; }
+
+/* 日历周期标题：一个主标题 + 一条上下文，避免月 / 年 / 周次各自争抢注意力。 */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-wrap {
+  display:grid;
+  grid-template-columns:max-content;
+  justify-items:start;
+  gap:5px;
+  min-width:210px;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title {
+  display:block;
+  width:max-content;
+  line-height:1;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-month {
+  display:block;
+  font-size:1.78em;
+  font-weight:820;
+  line-height:1;
+  letter-spacing:-.045em;
+  font-variant-numeric:tabular-nums;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-meta {
+  display:flex;
+  align-items:center;
+  min-width:0;
+  width:max-content;
+  color:var(--text-muted);
+  font-size:.7em;
+  font-weight:640;
+  line-height:1;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-meta > * {
+  position:relative;
+  display:block;
+  color:inherit;
+  font:inherit;
+  line-height:1;
+  letter-spacing:.01em;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-meta > * + * {
+  margin-left:16px;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-meta > * + *::before {
+  content:"";
+  position:absolute;
+  left:-8px;
+  top:50%;
+  width:3px;
+  height:3px;
+  border-radius:50%;
+  background:currentColor;
+  opacity:.32;
+  transform:translate(-50%,-50%);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-year {
+  font-variant-numeric:tabular-nums;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-subtitle {
+  color:var(--text-muted);
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-week {
+  padding:0;
+  border-radius:0;
+  background:transparent;
+  color:color-mix(in srgb, var(--ck-accent) 72%, var(--text-muted));
+  font-weight:730;
+}
+
+@container (max-width: 460px) {
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-wrap { min-width:0; gap:4px; }
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-month { font-size:1.5em; }
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-meta { font-size:.64em; }
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-meta > * + * { margin-left:12px; }
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title-meta > * + *::before { left:-6px; }
+}
+
 /* 窄容器：月格只留数字 + 计数，脉搏条两列，周视图横向滚动 */
 @container (max-width: 640px) {
   .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-pulse { display:flex; flex-wrap:wrap; }
@@ -5589,7 +5863,7 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
   .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-cell.has-rss .cockpit-dashboard-cal-indicators { display:none; }
   .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-stage { overflow-x:auto; padding-bottom:2px; }
   .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week { grid-template-columns:repeat(7, minmax(116px, 1fr)); }
-  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day { min-height:170px; }
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-week-day { min-height:120px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -5599,3 +5873,57 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--i
     transition-duration: .001ms !important;
   }
 }
+
+/* ===== 二级弹窗动效：柔和浮现 + 模糊聚焦，退出时轻收后再移除（modal-motion.js） ===== */
+@keyframes ck-dialog-bg-in { from { opacity:0; } }
+@keyframes ck-dialog-bg-out { to { opacity:0; } }
+@keyframes ck-dialog-in {
+  0% { opacity:0; transform:translateY(18px) scale(.955); filter:blur(10px); }
+  60% { opacity:1; filter:blur(0); }
+  100% { opacity:1; transform:none; filter:none; }
+}
+@keyframes ck-dialog-out { to { opacity:0; transform:translateY(10px) scale(.97); filter:blur(6px); } }
+@keyframes ck-dialog-content-in { from { opacity:0; transform:translateY(6px); } }
+.modal-container.cockpit-dashboard-modal-motion .modal-bg { animation:ck-dialog-bg-in .32s ease backwards; }
+.modal-container.cockpit-dashboard-modal-motion .modal { animation:ck-dialog-in .5s cubic-bezier(.16,1,.3,1) backwards; transform-origin:50% 60%; will-change:transform, opacity, filter; }
+.modal-container.cockpit-dashboard-modal-motion .modal > * { animation:ck-dialog-content-in .45s .08s cubic-bezier(.16,1,.3,1) backwards; }
+.modal-container.cockpit-dashboard-modal-motion.is-leaving { pointer-events:none; }
+.modal-container.cockpit-dashboard-modal-motion.is-leaving .modal-bg { animation:ck-dialog-bg-out .2s ease forwards; }
+.modal-container.cockpit-dashboard-modal-motion.is-leaving .modal { animation:ck-dialog-out .2s cubic-bezier(.4,0,1,1) forwards; }
+.cockpit-dashboard-motion-overlay { animation:ck-dialog-bg-in .32s ease backwards; }
+.cockpit-dashboard-motion-overlay > :first-child { animation:ck-dialog-in .5s cubic-bezier(.16,1,.3,1) backwards; transform-origin:50% 60%; }
+.cockpit-dashboard-motion-overlay > :first-child > * { animation:ck-dialog-content-in .45s .08s cubic-bezier(.16,1,.3,1) backwards; }
+.cockpit-dashboard-motion-overlay.is-leaving { pointer-events:none; animation:ck-dialog-bg-out .2s ease forwards; }
+.cockpit-dashboard-motion-overlay.is-leaving > :first-child { animation:ck-dialog-out .2s cubic-bezier(.4,0,1,1) forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .modal-container.cockpit-dashboard-modal-motion .modal-bg,
+  .modal-container.cockpit-dashboard-modal-motion .modal,
+  .modal-container.cockpit-dashboard-modal-motion .modal > *,
+  .cockpit-dashboard-motion-overlay,
+  .cockpit-dashboard-motion-overlay > :first-child,
+  .cockpit-dashboard-motion-overlay > :first-child > * { animation:none !important; }
+}
+
+/* ===== 快速记录（Spotlight 式输入，quick-capture.js） ===== */
+.modal.cockpit-dashboard-quick-capture { width:min(640px, calc(100vw - 32px)); max-width:none; padding:18px 20px 14px; border-radius:20px; border:1px solid color-mix(in srgb, var(--interactive-accent) 22%, var(--background-modifier-border)); box-shadow:0 30px 80px -24px rgba(15,23,42,.45), 0 0 0 1px rgba(255,255,255,.04) inset; align-self:flex-start; margin-top:16vh; }
+.modal.cockpit-dashboard-quick-capture .modal-close-button { display:none; }
+.cockpit-dashboard-qc-kicker { margin-bottom:8px; font-size:.68em; font-weight:800; letter-spacing:.12em; background:linear-gradient(135deg, var(--interactive-accent), #8b7cf6); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.cockpit-dashboard-qc-input { width:100%; height:auto; padding:6px 0 10px; border:0 !important; border-bottom:1px solid var(--background-modifier-border) !important; border-radius:0; background:transparent !important; box-shadow:none !important; color:var(--text-normal); font-size:1.32em; font-weight:600; letter-spacing:-.01em; outline:none; }
+.cockpit-dashboard-qc-input::placeholder { color:var(--text-faint); font-weight:500; }
+.cockpit-dashboard-qc-preview { min-height:30px; margin:12px 0 10px; display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.cockpit-dashboard-qc-empty { color:var(--text-faint); font-size:.78em; }
+.cockpit-dashboard-qc-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:color-mix(in srgb, var(--interactive-accent) 12%, transparent); color:color-mix(in srgb, var(--interactive-accent) 70%, var(--text-normal)); font-size:.78em; font-weight:700; animation:ck-pop-in .22s cubic-bezier(.16,1,.3,1); }
+.cockpit-dashboard-qc-chip-icon { display:inline-flex; }
+.cockpit-dashboard-qc-chip-icon svg { width:13px; height:13px; }
+.cockpit-dashboard-qc-chip.is-time { background:color-mix(in srgb, #0ea5e9 13%, transparent); color:color-mix(in srgb, #0ea5e9 70%, var(--text-normal)); }
+.cockpit-dashboard-qc-chip.p-high { background:color-mix(in srgb, #f43f5e 13%, transparent); color:#f43f5e; }
+.cockpit-dashboard-qc-chip.p-low { background:color-mix(in srgb, #10b981 13%, transparent); color:#10b981; }
+.cockpit-dashboard-qc-chip.is-tag { background:color-mix(in srgb, #8b7cf6 13%, transparent); color:color-mix(in srgb, #8b7cf6 80%, var(--text-normal)); }
+.cockpit-dashboard-qc-chip.is-muted { background:var(--background-modifier-hover); color:var(--text-muted); }
+.cockpit-dashboard-qc-footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px 14px; padding-top:10px; border-top:1px solid var(--background-modifier-border); color:var(--text-faint); font-size:.7em; }
+.cockpit-dashboard-qc-examples { color:var(--text-muted); }
+@media (prefers-reduced-motion: reduce) { .cockpit-dashboard-qc-chip { animation:none; } }
+
+/* 可点击的日程（打开会议笔记） */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-ev.is-actionable { cursor:pointer; transition:background var(--ck-dur) ease, transform .2s var(--ck-ease-out); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-ev.is-actionable:hover { background:color-mix(in srgb, var(--ck-cal-event) 22%, transparent); transform:translateX(1px); }

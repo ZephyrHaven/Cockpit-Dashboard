@@ -16,7 +16,7 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
   this._closeTodoEditor();
 
   const overlay = document.createElement('div');
-  overlay.className = PID + '-todo-editor-backdrop';
+  overlay.className = PID + '-todo-editor-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   overlay.addEventListener('click', (evt) => {
     if (evt.target === overlay) this._closeTodoEditor();
   });

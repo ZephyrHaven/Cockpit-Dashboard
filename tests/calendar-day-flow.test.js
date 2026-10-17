@@ -84,18 +84,46 @@ assert.match(calendar, /onAutomationOpen[\s\S]*onAutomationRun/, 'Automation row
 assert.match(build, /'calendar-day-flow\.js'[\s\S]*'calendar\.js'/, 'The day-flow renderer is bundled before the calendar module.');
 
 // 双击快速新建的时间解析与日历内交互接线。
-const { parseCalendarQuickInput } = require('../src/calendar.js');
-assert.deepEqual(parseCalendarQuickInput('14:30 开会'), { text:'开会', hasTime:true, hour:14, minute:30 });
-assert.deepEqual(parseCalendarQuickInput('下午3点 复盘'), { text:'复盘', hasTime:true, hour:15, minute:0 });
-assert.deepEqual(parseCalendarQuickInput('9点半 晨会'), { text:'晨会', hasTime:true, hour:9, minute:30 });
-assert.equal(parseCalendarQuickInput('买牛奶').hasTime, false, 'Plain text becomes an all-day task.');
-assert.equal(parseCalendarQuickInput('25:00 无效').hasTime, false, 'Out-of-range times are kept as text.');
-assert.equal(parseCalendarQuickInput('10点').hasTime, false, 'A bare time without a title is not treated as a timed task.');
+const { parseQuickTodoInput } = require('../src/quick-parse.js');
+const qNow = new Date(2026, 9, 14, 16, 0); // 周三 16:00
+const q = (text, options) => parseQuickTodoInput(text, qNow, options);
+const qDay = (parsed) => parsed.date && `${parsed.date.m + 1}/${parsed.date.d}`;
+assert.deepEqual([q('14:30 开会').text, q('14:30 开会').hour, q('14:30 开会').minute], ['开会', 14, 30]);
+assert.equal(qDay(q('14:30 开会')), '10/15', 'A time already past today rolls to tomorrow.');
+assert.equal(qDay(q('14:30 开会', { defaultDate:new Date(2026, 9, 20) })), '10/20', 'Calendar quick add keeps the double-clicked day.');
+assert.equal(q('下午3点 复盘').hour, 15);
+assert.deepEqual([q('9点半 晨会').hour, q('9点半 晨会').minute], [9, 30]);
+assert.equal(q('今晚8点 看电影').hour, 20, 'Tonight implies an evening hour.');
+assert.equal(q('两点半 午休结束').hour, 14, 'Bare 1–5 o’clock reads as afternoon.');
+assert.equal(qDay(q('周五 交周报')), '10/16');
+assert.equal(qDay(q('下周一 晨会')), '10/19');
+assert.equal(qDay(q('next mon kickoff')), '10/19');
+assert.equal(qDay(q('3天后 复查')), '10/17');
+assert.equal(qDay(q('10月20日 体检')), '10/20');
+assert.equal(q('2026-02-31 无效日期').date, null, 'Impossible explicit dates are not silently normalized.');
+assert.equal(q('2月31日 无效日期').date, null, 'Impossible month/day dates remain ordinary text.');
+assert.equal(qDay(q('周末 大扫除')), '10/17');
+assert.deepEqual([q('明天 回电话 !高 #工作').priority, q('明天 回电话 !高 #工作').tags], ['high', ['工作']]);
+assert.equal(q('跑快一点').hasTime, false, 'Colloquial “一点” is not a time.');
+assert.equal(q('买2个苹果').date, null, 'Plain text stays undated.');
+assert.equal(q('25:00 无效').hasTime, false, 'Out-of-range times are kept as text.');
 const calendarSource = fs.readFileSync(path.join(__dirname, '../src/calendar.js'), 'utf8');
 const frameworkSource = fs.readFileSync(path.join(__dirname, '../src/_framework.js'), 'utf8');
 assert.match(calendarSource, /application\/x-cockpit-calendar[\s\S]*keepTime/, 'Dragging inside the calendar keeps the original time.');
 assert.match(frameworkSource, /options\.keepTime && target\.dueHasTime/, 'Scheduling preserves the time only for in-calendar drags.');
 assert.match(calendarSource, /addEventListener\('dblclick'[\s\S]*openQuickCreate/, 'Double-clicking a day opens inline quick create.');
 assert.match(frameworkSource, /loadCalendarEvents:[\s\S]*readEvents/, 'The calendar loads read-only system events through the Apple calendar service.');
+
+// 会议笔记：文件名安全、frontmatter 转义、已存在时只打开不覆盖。
+const meetingSource = fs.readFileSync(path.join(__dirname, '../src/meeting-notes.js'), 'utf8');
+assert.match(meetingSource, /if \(!file\) \{[\s\S]*vault\.create/, 'Meeting notes are created only when missing.');
+assert.match(meetingSource, /content\.includes\(link\) \? content/, 'Daily-note links are appended once.');
+assert.doesNotMatch(meetingSource, /vault\.(?:delete|trash|modify)\(/, 'Meeting notes never delete or overwrite vault files.');
+const quickCaptureSource = fs.readFileSync(path.join(__dirname, '../src/quick-capture.js'), 'utf8');
+assert.match(quickCaptureSource, /mutateTodos\(plugin\.app\.vault/, 'Quick capture writes through the shared todo mutation queue.');
+const agentToolsSource = fs.readFileSync(path.join(__dirname, '../src/ai-tools.js'), 'utf8');
+assert.match(agentToolsSource, /cockpitQueueRefreshScopes\(view, \['todos'\]\)/, 'Agent todo changes enter the scoped silent-refresh pipeline.');
+assert.doesNotMatch(agentToolsSource, /refreshCockpitAfterAgentMutation[\s\S]*?_renderDashboard\(true\)/, 'Agent todo changes never rebuild the entire dashboard.');
+assert.match(fs.readFileSync(path.join(__dirname, '../src/commands.js'), 'utf8'), /id:'quick-capture'(?![\s\S]{0,200}hotkeys)/, 'Quick capture is a command without a default hotkey.');
 
 console.log('Calendar day flow checks passed');
