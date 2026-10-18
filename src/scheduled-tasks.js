@@ -8,6 +8,12 @@ const SCHEDULED_LOG_MAX_BYTES = 5 * 1024 * 1024;
 const SCHEDULED_EVENT_NAMES = ['file-saved', 'todo-completed', 'team-todo-completed', 'pomodoro-finished', 'weekly-report-saved', 'countdown-threshold', 'countdown-finished'];
 const SCHEDULED_TEMPLATE_KINDS = ['append-daily', 'create-todo', 'push'];
 const SCHEDULED_TASK_KINDS = ['obsidian-command', 'toolbar-action', 'shell', ...SCHEDULED_TEMPLATE_KINDS, 'smtp-email', 'workflow'];
+const SCHEDULED_NOTIFICATION_CHANNELS = [
+  { id:'serverChan', label:'Server酱³' },
+  { id:'bark', label:'Bark' },
+  { id:'meow', label:'MEOW' },
+  { id:'email', label:'Email' }
+];
 // 事件任务的最小重跑间隔：动作若会改写被监听的文件夹，冷却期兜底防止事件风暴。
 const SCHEDULED_EVENT_COOLDOWN_MS = 20000;
 
@@ -74,6 +80,37 @@ function normalizeScheduledSmtpMail(raw) {
   };
 }
 
+function normalizeScheduledNotification(raw) {
+  const value = raw && typeof raw === 'object' ? raw : {};
+  const allowedStatuses = new Set(['success','failed']);
+  const allowedChannels = new Set(SCHEDULED_NOTIFICATION_CHANNELS.map((item) => item.id));
+  const statuses = Array.from(new Set((Array.isArray(value.statuses) ? value.statuses : ['success','failed'])
+    .map(String).filter((status) => allowedStatuses.has(status))));
+  const channels = Array.from(new Set((Array.isArray(value.channels) ? value.channels : [])
+    .map(String).filter((id) => allowedChannels.has(id))));
+  return {
+    enabled:value.enabled === true,
+    statuses:statuses.length ? statuses : ['success','failed'],
+    channels,
+    includeManual:value.includeManual === true
+  };
+}
+
+function scheduledNotificationShouldSend(policy, status, trigger) {
+  const value = normalizeScheduledNotification(policy);
+  return value.enabled && value.statuses.includes(status) && (trigger !== 'manual' || value.includeManual);
+}
+
+function scheduledDurationLabel(value, language = 'zh-CN') {
+  const milliseconds = Math.max(0, Number(value) || 0);
+  const en = language === 'en';
+  if (milliseconds < 1000) return Math.round(milliseconds) + (en ? ' ms' : ' 毫秒');
+  if (milliseconds < 60000) return (Math.round(milliseconds / 100) / 10) + (en ? ' sec' : ' 秒');
+  const minutes = Math.floor(milliseconds / 60000);
+  const seconds = Math.round((milliseconds % 60000) / 1000);
+  return minutes + (en ? ' min' : ' 分钟') + (seconds ? ' ' + seconds + (en ? ' sec' : ' 秒') : '');
+}
+
 function normalizeScheduledTasks(raw) {
   const seen = new Set();
   return (Array.isArray(raw) ? raw : []).slice(0, SCHEDULED_TASK_LIMIT).map((item) => {
@@ -84,6 +121,7 @@ function normalizeScheduledTasks(raw) {
     const kind = SCHEDULED_TASK_KINDS.includes(item?.kind) ? item.kind : 'shell';
     const command = String(item?.command || '').trim().slice(0, kind === 'shell' ? 12000 : 4000);
     const smtp = kind === 'smtp-email' ? normalizeScheduledSmtpMail(item?.smtp) : null;
+    const notification = normalizeScheduledNotification(item?.notification);
     if (kind === 'smtp-email' ? !smtp : !command) return null;
     const scheduleType = ['interval', 'daily', 'weekly', 'event'].includes(item?.schedule?.type) ? item.schedule.type : 'daily';
     const intervalMinutes = Math.max(1, Math.min(10080, Math.round(Number(item?.schedule?.intervalMinutes) || 60)));
@@ -96,7 +134,7 @@ function normalizeScheduledTasks(raw) {
     const sourceLabel = String(item?.schedule?.sourceLabel || '').trim().slice(0, 100);
     const createdAt = Number.isFinite(Date.parse(item?.createdAt || '')) ? new Date(item.createdAt).toISOString() : new Date().toISOString();
     return {
-      id, name, kind, command, smtp,
+      id, name, kind, command, smtp, notification,
       enabled:item?.enabled === true && (kind !== 'shell' || item?.trusted === true),
       trusted:item?.trusted === true,
       schedule:{ type:scheduleType, intervalMinutes, time, weekdays:weekdays.length ? weekdays : [1,2,3,4,5], event, folder, sourceId, sourceLabel },
@@ -469,8 +507,10 @@ class ScheduledTaskService {
       exitCode = typeof error?.code === 'number' ? error.code : 'unknown';
     }
     const durationMs = Date.now() - startedAt;
+    const trigger = options.trigger || 'manual';
+    const notificationStatus = await this.sendResultNotification(task, { status, durationMs, stderr, trigger });
     try {
-      await this.appendLog({ task, trigger:options.trigger || 'manual', scheduledAt:options.scheduledAt || '', status, durationMs, stdout, stderr, exitCode });
+      await this.appendLog({ task, trigger, scheduledAt:options.scheduledAt || '', status, durationMs, stdout, stderr, exitCode, notificationStatus });
       await this.plugin.mutateData((data) => {
         const tasks = normalizeScheduledTasks(data.scheduledTasks);
         const current = tasks.find((entry) => entry.id === id);
@@ -483,6 +523,46 @@ class ScheduledTaskService {
       this.running.delete(id); this.notify();
     }
     return status === 'success';
+  }
+  async sendResultNotification(task, result) {
+    const policy = normalizeScheduledNotification(task?.notification);
+    if (!scheduledNotificationShouldSend(policy, result.status, result.trigger)) {
+      return { status:'skipped', sent:0, failed:0 };
+    }
+    try {
+      const service = this.plugin.serverChan;
+      if (!service?.getConfig || !service?.sendChannel) throw new Error('notification-service-unavailable');
+      const config = await service.getConfig();
+      const enabledIds = SCHEDULED_NOTIFICATION_CHANNELS.map((item) => item.id).filter((id) => config?.channels?.[id]?.enabled);
+      const channelIds = policy.channels.length ? enabledIds.filter((id) => policy.channels.includes(id)) : enabledIds;
+      if (!channelIds.length) return { status:'unconfigured', sent:0, failed:0 };
+
+      let language = 'zh-CN';
+      try {
+        if (typeof getServerChanSettingsLanguage === 'function') language = await getServerChanSettingsLanguage(this.plugin);
+        else language = (await this.plugin.loadData() || {}).language === 'en' ? 'en' : 'zh-CN';
+      } catch (e) {}
+      const en = language === 'en';
+      const succeeded = result.status === 'success';
+      const triggerLabel = en ? result.trigger : ({schedule:'定时',event:'事件',manual:'手动'}[result.trigger] || result.trigger);
+      const title = (succeeded ? (en ? 'Task completed' : '定时任务已完成') : (en ? 'Task failed' : '定时任务执行失败')) + ' · ' + task.name;
+      const lines = [
+        (en ? 'Task: ' : '任务：') + task.name,
+        (en ? 'Status: ' : '状态：') + (succeeded ? (en ? 'Success' : '成功') : (en ? 'Failed' : '失败')),
+        (en ? 'Trigger: ' : '触发：') + triggerLabel,
+        (en ? 'Duration: ' : '耗时：') + scheduledDurationLabel(result.durationMs, language)
+      ];
+      if (!succeeded && result.stderr) lines.push((en ? 'Error: ' : '错误：') + String(result.stderr).trim().slice(0, 300));
+      const settled = await Promise.allSettled(channelIds.map((id) => service.sendChannel(id, title, lines.join('\n'))));
+      const failed = settled.filter((entry) => entry.status === 'rejected').length;
+      return {
+        status:failed === 0 ? 'sent' : (failed === channelIds.length ? 'failed' : 'partial'),
+        sent:channelIds.length - failed,
+        failed
+      };
+    } catch (error) {
+      return { status:'failed', sent:0, failed:1 };
+    }
   }
   async appendDailyNote(template) {
     const text = scheduledTemplateText(template).slice(0, 4000);
@@ -536,9 +616,12 @@ class ScheduledTaskService {
     if (this.plugin.app.isMobile) return;
     try {
       const sanitize = (value) => { const text = String(value || '').trim(); return text.length > 12000 ? text.slice(0, 12000) + '\n… (truncated)' : text; };
+      const notification = entry.notificationStatus || { status:'skipped', sent:0, failed:0 };
       await cockpitAppendJsonl(this.logPath(), { runId:scheduledTaskId(), timestamp:new Date().toISOString(), taskId:entry.task.id, name:entry.task.name,
         kind:entry.task.kind, trigger:entry.trigger, scheduledAt:entry.scheduledAt || '', status:entry.status, exitCode:entry.exitCode ?? '',
-        durationMs:entry.durationMs || 0, stdout:sanitize(entry.stdout), stderr:sanitize(entry.stderr) }, { limit:SCHEDULED_LOG_LIMIT, maxBytes:SCHEDULED_LOG_MAX_BYTES });
+        durationMs:entry.durationMs || 0, stdout:sanitize(entry.stdout), stderr:sanitize(entry.stderr),
+        notification:{ status:notification.status, sent:notification.sent || 0, failed:notification.failed || 0 }
+      }, { limit:SCHEDULED_LOG_LIMIT, maxBytes:SCHEDULED_LOG_MAX_BYTES });
     } catch (e) { console.warn('[Cockpit scheduled task log]', e); }
   }
   readLogs() {
@@ -575,8 +658,16 @@ function openScheduledTaskLogs(view) {
     if (!logs.length) list.createDiv({ cls:PLUGIN_ID+'-scheduler-empty', text:en ? 'No run records yet.' : '暂无运行记录。' });
     logs.forEach((entry) => {
       const card = list.createDiv({ cls:PLUGIN_ID+'-scheduler-log-card '+entry.status });
-      card.createDiv({ cls:PLUGIN_ID+'-scheduler-log-title', text:entry.name + ' · ' + entry.status });
-      card.createDiv({ cls:PLUGIN_ID+'-scheduler-log-meta', text:window.moment(entry.timestamp).format('YYYY-MM-DD HH:mm:ss') + ' · ' + entry.trigger + ' · ' + entry.durationMs + ' ms' });
+      const statusText = entry.status === 'success' ? (en ? 'Succeeded' : '成功') : entry.status === 'failed' ? (en ? 'Failed' : '失败') : (en ? 'Skipped' : '已跳过');
+      const triggerText = ({schedule:en?'Scheduled':'定时执行',event:en?'Event':'事件触发',manual:en?'Manual':'手动执行'})[entry.trigger] || entry.trigger;
+      card.createDiv({ cls:PLUGIN_ID+'-scheduler-log-title', text:entry.name + ' · ' + statusText });
+      card.createDiv({ cls:PLUGIN_ID+'-scheduler-log-meta', text:window.moment(entry.timestamp).format('YYYY-MM-DD HH:mm:ss') + ' · ' + triggerText + ' · ' + scheduledDurationLabel(entry.durationMs, en ? 'en' : 'zh-CN') });
+      if (entry.notification && entry.notification.status !== 'skipped') {
+        const noticeCopy = entry.notification.status === 'sent' ? (en ? `Notification sent via ${entry.notification.sent} channel(s)` : `通知已发送 · ${entry.notification.sent} 个渠道`)
+          : entry.notification.status === 'unconfigured' ? (en ? 'Notification not sent · no available channel' : '通知未发送 · 暂无可用渠道')
+            : (en ? `Notification issue · ${entry.notification.failed || 0} failed` : `通知异常 · ${entry.notification.failed || 0} 个渠道失败`);
+        card.createDiv({ cls:PLUGIN_ID+'-scheduler-log-notification '+entry.notification.status, text:noticeCopy });
+      }
       if (entry.stdout) card.createEl('pre',{text:'stdout\n'+entry.stdout});
       if (entry.stderr) card.createEl('pre',{text:'stderr\n'+entry.stderr});
     });
@@ -601,9 +692,11 @@ async function openScheduledTaskEditor(view, existing, options = {}) {
   const workflowOptions = view._plugin.workflows ? await view._plugin.workflows.load() : [];
   const countdownOptions = view._plugin.countdowns ? await view._plugin.countdowns.load() : [];
   const smtpAccounts = view._plugin.smtpMail?.listAccounts ? await view._plugin.smtpMail.listAccounts() : [];
+  const notificationConfig = view._plugin.serverChan?.getConfig ? await view._plugin.serverChan.getConfig().catch(() => ({ channels:{} })) : { channels:{} };
+  const availableNotificationChannels = SCHEDULED_NOTIFICATION_CHANNELS.filter((item) => notificationConfig.channels?.[item.id]?.enabled);
   const draftRaw = existing ? JSON.parse(JSON.stringify(existing)) : { id:scheduledTaskId(), name:'', kind:'obsidian-command', command:'', enabled:true, trusted:false,
-    schedule:{type:'daily',intervalMinutes:60,time:'09:00',weekdays:[1,2,3,4,5]}, missedPolicy:'run-once', timeoutSeconds:300, createdAt:new Date().toISOString() };
-  const draft = { ...draftRaw, schedule:scheduledTaskEditorSchedule(draftRaw.schedule), smtp:{ accountId:draftRaw.smtp?.accountId || smtpAccounts[0]?.id || '', to:draftRaw.smtp?.to || [], cc:draftRaw.smtp?.cc || [], bcc:draftRaw.smtp?.bcc || [], subject:draftRaw.smtp?.subject || '', body:draftRaw.smtp?.body || '' } };
+    schedule:{type:'daily',intervalMinutes:60,time:'09:00',weekdays:[1,2,3,4,5]}, notification:normalizeScheduledNotification(null), missedPolicy:'run-once', timeoutSeconds:300, createdAt:new Date().toISOString() };
+  const draft = { ...draftRaw, schedule:scheduledTaskEditorSchedule(draftRaw.schedule), notification:normalizeScheduledNotification(draftRaw.notification), smtp:{ accountId:draftRaw.smtp?.accountId || smtpAccounts[0]?.id || '', to:draftRaw.smtp?.to || [], cc:draftRaw.smtp?.cc || [], bcc:draftRaw.smtp?.bcc || [], subject:draftRaw.smtp?.subject || '', body:draftRaw.smtp?.body || '' } };
   const overlay=document.createElement('div'); overlay.className=PLUGIN_ID+'-scheduler-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
   const panel=overlay.createDiv({cls:PLUGIN_ID+'-scheduler-dialog'}); const head=panel.createDiv({cls:PLUGIN_ID+'-scheduler-dialog-head'});
   head.createDiv({cls:PLUGIN_ID+'-scheduler-dialog-title',text:editing?(en?'Edit scheduled task':'编辑定时任务'):(en?'New scheduled task':'新建定时任务')});
@@ -643,24 +736,310 @@ async function openScheduledTaskEditor(view, existing, options = {}) {
   const eventFolder=field(en?'Folder filter (empty = any)':'文件夹过滤（留空 = 任意）').createEl('input',{attr:{type:'text',maxlength:'200',placeholder:'Projects'}}); eventFolder.value=draft.schedule.folder||'';
   const eventSource=field(en?'Countdown source':'倒计时来源').createEl('select');eventSource.createEl('option',{text:en?'Any countdown':'任意倒计时',attr:{value:''}});countdownOptions.forEach((item)=>eventSource.createEl('option',{text:item.name,attr:{value:item.id}}));if(draft.schedule.sourceId&&!countdownOptions.some((item)=>item.id===draft.schedule.sourceId))eventSource.createEl('option',{text:(en?'Unavailable: ':'已失效：')+(draft.schedule.sourceLabel||draft.schedule.sourceId),attr:{value:draft.schedule.sourceId}});eventSource.value=draft.schedule.sourceId||'';
   const missed=field(en?'After the app was closed':'应用关闭期间错过后').createEl('select'); missed.createEl('option',{text:en?'Run once on next launch':'下次启动补跑一次',attr:{value:'run-once'}}); missed.createEl('option',{text:en?'Skip missed runs':'跳过错过的运行',attr:{value:'skip'}}); missed.value=draft.missedPolicy;
-  const trusted=field(en?'Shell permission':'Shell 权限').createEl('label',{cls:PLUGIN_ID+'-scheduler-check'}); const trustBox=trusted.createEl('input',{attr:{type:'checkbox'}}); trustBox.checked=draft.trusted; trusted.createSpan({text:en?'I understand this command can change files and system data.':'我了解此命令可能修改文件与系统数据。'});
-  const enabled=field(en?'Status':'状态').createEl('label',{cls:PLUGIN_ID+'-scheduler-check'}); const enabledBox=enabled.createEl('input',{attr:{type:'checkbox'}}); enabledBox.checked=draft.enabled; enabled.createSpan({text:en?'Enable this schedule':'启用此计划'});
+  const makeCheck=(parent,text,checked)=>{const label=parent.createEl('label',{cls:PLUGIN_ID+'-scheduler-checkbox-row'});const input=label.createEl('input',{cls:'cockpit-bulk-check',attr:{type:'checkbox'}});input.checked=checked;label.createSpan({text});return input;};
+  const trusted=field(en?'Shell permission':'Shell 权限');const trustBox=makeCheck(trusted,en?'I understand this command can change files and system data.':'我了解此命令可能修改文件与系统数据。',draft.trusted);
+  const enabled=field(en?'Status':'状态');const enabledBox=makeCheck(enabled,en?'Enable this schedule':'启用此计划',draft.enabled);
+  const notificationSection=panel.createDiv({cls:PLUGIN_ID+'-scheduler-notification-section'});
+  const notifyEnabled=notificationSection.createEl('label',{cls:PLUGIN_ID+'-scheduler-notification-head'});const notifyEnabledBox=notifyEnabled.createEl('input',{cls:'cockpit-bulk-check',attr:{type:'checkbox'}});notifyEnabledBox.checked=draft.notification.enabled;const notifyCopy=notifyEnabled.createSpan({cls:PLUGIN_ID+'-scheduler-notification-copy'});notifyCopy.createSpan({cls:PLUGIN_ID+'-scheduler-notification-title',text:en?'Result notification':'执行结果通知'});notifyCopy.createSpan({cls:PLUGIN_ID+'-scheduler-notification-subtitle',text:en?'Send the result through your configured message channels.':'任务结束后，通过已配置的消息渠道发送结果。'});
+  const notificationOptions=notificationSection.createDiv({cls:PLUGIN_ID+'-scheduler-notification-options'});
+  const notifyConditionWrap=notificationOptions.createDiv({cls:PLUGIN_ID+'-scheduler-notification-field'});notifyConditionWrap.createDiv({cls:PLUGIN_ID+'-scheduler-label',text:en?'Notify when':'通知条件'});const notifyCondition=notifyConditionWrap.createEl('select');notifyCondition.createEl('option',{text:en?'Succeeded or failed':'执行成功或失败',attr:{value:'both'}});notifyCondition.createEl('option',{text:en?'Succeeded only':'仅执行成功',attr:{value:'success'}});notifyCondition.createEl('option',{text:en?'Failed only':'仅执行失败',attr:{value:'failed'}});notifyCondition.value=draft.notification.statuses.length===2?'both':draft.notification.statuses[0];
+  const notifyManualBox=makeCheck(notificationOptions,en?'Also notify for manual runs':'手动执行时也发送通知',draft.notification.includeManual);
+  const notifyAllBox=makeCheck(notificationOptions,en?'Use every enabled message channel':'使用所有已启用的消息渠道',!draft.notification.channels.length);
+  const channelList=notificationOptions.createDiv({cls:PLUGIN_ID+'-scheduler-channel-list'});
+  const channelInputs=SCHEDULED_NOTIFICATION_CHANNELS.map((item)=>{const configured=availableNotificationChannels.some((entry)=>entry.id===item.id);const selected=draft.notification.channels.length?draft.notification.channels.includes(item.id):configured;const button=channelList.createEl('button',{cls:PLUGIN_ID+'-scheduler-channel'+(configured?'':' unavailable'),text:item.label+(configured?'':(en?' · not enabled':' · 未启用')),attr:{type:'button','aria-pressed':selected?'true':'false'}});button.disabled=!configured||notifyAllBox.checked;button.onclick=()=>button.setAttribute('aria-pressed',button.getAttribute('aria-pressed')==='true'?'false':'true');return {id:item.id,button,configured};});
+  if(!availableNotificationChannels.length)notificationOptions.createDiv({cls:PLUGIN_ID+'-scheduler-channel-hint',text:en?'No channel enabled. Configure one first.':'暂无可用渠道，请先到设置中启用。'});
   const error=panel.createDiv({cls:PLUGIN_ID+'-scheduler-error'}); const footer=panel.createDiv({cls:PLUGIN_ID+'-scheduler-footer'});
   if(editing){const remove=footer.createEl('button',{cls:'danger',text:en?'Delete':'删除',attr:{type:'button'}});remove.onclick=async()=>{if(!window.confirm(en?'Delete this scheduled task?':'删除这个定时任务？'))return;await view._plugin.scheduledTasks.remove(draft.id);overlay.remove();};}
   const cancel=footer.createEl('button',{text:en?'Cancel':'取消',attr:{type:'button'}});cancel.onclick=()=>overlay.remove(); const save=footer.createEl('button',{cls:'primary',text:en?'Save':'保存',attr:{type:'button'}});
   const smtpFields=[smtpAccountWrap,smtpToWrap,smtpCcWrap,smtpSubjectWrap,smtpBodyWrap];smtpFields.forEach((item)=>item.classList.add(PLUGIN_ID+'-scheduler-smtp-field'));
-  const syncVisibility=()=>{const shell=kind.value==='shell';const obsidianCommand=kind.value==='obsidian-command';const isTemplate=SCHEDULED_TEMPLATE_KINDS.includes(kind.value);const isSmtp=kind.value==='smtp-email';const isEvent=scheduleType.value==='event';const isCountdownEvent=isEvent&&(eventSel.value==='countdown-threshold'||eventSel.value==='countdown-finished');commandWrap.style.display=isSmtp?'none':'';command.style.display=shell||isTemplate?'':'none';commandPicker.style.display=obsidianCommand?'':'none';toolbarPicker.style.display=kind.value==='toolbar-action'?'':'none';workflowPicker.style.display=kind.value==='workflow'?'':'none';smtpFields.forEach((item)=>{item.style.display=isSmtp?'':'none';});if(commandLabel){const labels={shell:[en?'Command':'命令'],'obsidian-command':[en?'Command':'命令'],'toolbar-action':[en?'Command':'命令'],'append-daily':[en?'Diary text':'日记内容'],'create-todo':[en?'Todo text':'待办文本'],push:[en?'Message':'消息内容'],'workflow':[en?'Workflow':'流程']};commandLabel.textContent=(labels[kind.value]||labels.shell)[0];}command.placeholder=isTemplate?(kind.value==='append-daily'?(en?'Text appended to today\'s daily note. Supports {date} {time} {datetime}':'追加到今日日记的文本，支持 {date} {time} {datetime}'):(kind.value==='create-todo'?(en?'Todo text. Supports {date} {time} {datetime}':'待办文本，支持 {date} {time} {datetime}'):(en?'Push message. Supports {date} {time} {datetime}':'推送消息，支持 {date} {time} {datetime}'))):'';interval.parentElement.style.display=!isEvent&&scheduleType.value==='interval'?'':'none';time.parentElement.style.display=!isEvent&&scheduleType.value!=='interval'?'':'none';days.parentElement.style.display=scheduleType.value==='weekly'?'':'none';eventSel.parentElement.style.display=isEvent?'':'none';eventFolder.parentElement.style.display=isEvent&&eventSel.value==='file-saved'?'':'none';eventSource.parentElement.style.display=isCountdownEvent?'':'none';missed.parentElement.style.display=isEvent?'none':'';trusted.parentElement.style.display=shell?'':'none';}; kind.onchange=syncVisibility;scheduleType.onchange=syncVisibility;eventSel.onchange=syncVisibility;syncVisibility();
-  save.onclick=async()=>{error.setText('');const isTemplate=SCHEDULED_TEMPLATE_KINDS.includes(kind.value);const selectedCommand=kind.value==='shell'||isTemplate?command.value.trim():(kind.value==='toolbar-action'?toolbarPicker.value:(kind.value==='workflow'?workflowPicker.value:(kind.value==='obsidian-command'?commandPicker.value:'')));const selectedCountdown=countdownOptions.find((item)=>item.id===eventSource.value);const sourceLabel=eventSource.value?(selectedCountdown?.name||draft.schedule.sourceLabel||''):'';const smtp=kind.value==='smtp-email'?normalizeScheduledSmtpMail({accountId:smtpAccount.value,to:smtpTo.value,cc:smtpCc.value,bcc:smtpBcc.value,subject:smtpSubject.value,body:smtpBody.value}):null;const task={...draft,name:name.value.trim(),kind:kind.value,command:selectedCommand,smtp,enabled:enabledBox.checked,trusted:trustBox.checked,schedule:scheduleType.value==='event'?{type:'event',event:eventSel.value,folder:eventFolder.value.trim(),sourceId:eventSource.value,sourceLabel}:{type:scheduleType.value,intervalMinutes:Number(interval.value),time:time.value,weekdays:days.value.split(',').map(Number)},missedPolicy:missed.value,updatedAt:new Date().toISOString()};if(!task.name||(task.kind==='smtp-email'?!task.smtp:!task.command)){error.setText(task.kind==='smtp-email'?(en?'Choose a sending account and enter at least one valid recipient.':'请选择发件账户，并填写至少一个有效收件邮箱。'):(en?'Name and action are required.':'名称和执行动作不能为空。'));return;}if(task.kind==='smtp-email'&&!smtpAccounts.some((item)=>item.id===task.smtp.accountId&&item.enabled)){error.setText(en?'Choose an enabled SMTP account.':'请选择一个已启用的 SMTP 发件账户。');return;}if(task.kind==='obsidian-command'&&!commandPicker.value){error.setText(en?'Choose an available app command.':'请选择一个可用的应用命令。');return;}if(task.kind==='toolbar-action'&&!toolbarActions.some((action)=>action.id===toolbarPicker.value)){error.setText(en?'Choose an available Toolbar action.':'请选择一个当前可用的 Toolbar 动作。');return;}if(task.kind==='workflow'&&!workflowOptions.some((item)=>item.id===workflowPicker.value)){error.setText(en?'Choose an available workflow.':'请选择一个可用的自动化流程。');return;}if(task.kind==='shell'&&task.enabled&&!task.trusted){error.setText(en?'Confirm Shell permission before enabling.':'启用 Shell 任务前请确认权限。');return;}save.disabled=true;try{await view._plugin.scheduledTasks.upsert(task);overlay.remove();}catch(e){error.setText((en?'Could not save: ':'保存失败：')+(e?.message||e));save.disabled=false;}};
+  const syncVisibility=()=>{const shell=kind.value==='shell';const obsidianCommand=kind.value==='obsidian-command';const isTemplate=SCHEDULED_TEMPLATE_KINDS.includes(kind.value);const isSmtp=kind.value==='smtp-email';const isEvent=scheduleType.value==='event';const isCountdownEvent=isEvent&&(eventSel.value==='countdown-threshold'||eventSel.value==='countdown-finished');commandWrap.style.display=isSmtp?'none':'';command.style.display=shell||isTemplate?'':'none';commandPicker.style.display=obsidianCommand?'':'none';toolbarPicker.style.display=kind.value==='toolbar-action'?'':'none';workflowPicker.style.display=kind.value==='workflow'?'':'none';smtpFields.forEach((item)=>{item.style.display=isSmtp?'':'none';});if(commandLabel){const labels={shell:[en?'Command':'命令'],'obsidian-command':[en?'Command':'命令'],'toolbar-action':[en?'Command':'命令'],'append-daily':[en?'Diary text':'日记内容'],'create-todo':[en?'Todo text':'待办文本'],push:[en?'Message':'消息内容'],'workflow':[en?'Workflow':'流程']};commandLabel.textContent=(labels[kind.value]||labels.shell)[0];}command.placeholder=isTemplate?(kind.value==='append-daily'?(en?'Text appended to today\'s daily note. Supports {date} {time} {datetime}':'追加到今日日记的文本，支持 {date} {time} {datetime}'):(kind.value==='create-todo'?(en?'Todo text. Supports {date} {time} {datetime}':'待办文本，支持 {date} {time} {datetime}'):(en?'Push message. Supports {date} {time} {datetime}':'推送消息，支持 {date} {time} {datetime}'))):'';interval.parentElement.style.display=!isEvent&&scheduleType.value==='interval'?'':'none';time.parentElement.style.display=!isEvent&&scheduleType.value!=='interval'?'':'none';days.parentElement.style.display=scheduleType.value==='weekly'?'':'none';eventSel.parentElement.style.display=isEvent?'':'none';eventFolder.parentElement.style.display=isEvent&&eventSel.value==='file-saved'?'':'none';eventSource.parentElement.style.display=isCountdownEvent?'':'none';missed.parentElement.style.display=isEvent?'none':'';trusted.style.display=shell?'':'none';}; kind.onchange=syncVisibility;scheduleType.onchange=syncVisibility;eventSel.onchange=syncVisibility;syncVisibility();
+  const syncNotificationVisibility=()=>{channelInputs.forEach((item)=>{item.button.disabled=!item.configured||notifyAllBox.checked;if(notifyAllBox.checked)item.button.setAttribute('aria-pressed',item.configured?'true':'false');});};notifyAllBox.onchange=syncNotificationVisibility;syncNotificationVisibility();
+  save.onclick=async()=>{error.setText('');const isTemplate=SCHEDULED_TEMPLATE_KINDS.includes(kind.value);const selectedCommand=kind.value==='shell'||isTemplate?command.value.trim():(kind.value==='toolbar-action'?toolbarPicker.value:(kind.value==='workflow'?workflowPicker.value:(kind.value==='obsidian-command'?commandPicker.value:'')));const selectedCountdown=countdownOptions.find((item)=>item.id===eventSource.value);const sourceLabel=eventSource.value?(selectedCountdown?.name||draft.schedule.sourceLabel||''):'';const smtp=kind.value==='smtp-email'?normalizeScheduledSmtpMail({accountId:smtpAccount.value,to:smtpTo.value,cc:smtpCc.value,bcc:smtpBcc.value,subject:smtpSubject.value,body:smtpBody.value}):null;const selectedChannels=channelInputs.filter((item)=>item.configured&&item.button.getAttribute('aria-pressed')==='true').map((item)=>item.id);const notification={enabled:notifyEnabledBox.checked,statuses:notifyCondition.value==='both'?['success','failed']:[notifyCondition.value],channels:notifyAllBox.checked?[]:selectedChannels,includeManual:notifyManualBox.checked};const task={...draft,name:name.value.trim(),kind:kind.value,command:selectedCommand,smtp,notification,enabled:enabledBox.checked,trusted:trustBox.checked,schedule:scheduleType.value==='event'?{type:'event',event:eventSel.value,folder:eventFolder.value.trim(),sourceId:eventSource.value,sourceLabel}:{type:scheduleType.value,intervalMinutes:Number(interval.value),time:time.value,weekdays:days.value.split(',').map(Number)},missedPolicy:missed.value,updatedAt:new Date().toISOString()};if(!task.name||(task.kind==='smtp-email'?!task.smtp:!task.command)){error.setText(task.kind==='smtp-email'?(en?'Choose a sending account and enter at least one valid recipient.':'请选择发件账户，并填写至少一个有效收件邮箱。'):(en?'Name and action are required.':'名称和执行动作不能为空。'));return;}if(task.kind==='smtp-email'&&!smtpAccounts.some((item)=>item.id===task.smtp.accountId&&item.enabled)){error.setText(en?'Choose an enabled SMTP account.':'请选择一个已启用的 SMTP 发件账户。');return;}if(task.kind==='obsidian-command'&&!commandPicker.value){error.setText(en?'Choose an available app command.':'请选择一个可用的应用命令。');return;}if(task.kind==='toolbar-action'&&!toolbarActions.some((action)=>action.id===toolbarPicker.value)){error.setText(en?'Choose an available Toolbar action.':'请选择一个当前可用的 Toolbar 动作。');return;}if(task.kind==='workflow'&&!workflowOptions.some((item)=>item.id===workflowPicker.value)){error.setText(en?'Choose an available workflow.':'请选择一个可用的自动化流程。');return;}if(task.kind==='shell'&&task.enabled&&!task.trusted){error.setText(en?'Confirm Shell permission before enabling.':'启用 Shell 任务前请确认权限。');return;}if(task.notification.enabled&&!availableNotificationChannels.length){error.setText(en?'Enable at least one message channel in plugin settings first.':'请先在插件设置中启用至少一个消息渠道。');return;}if(task.notification.enabled&&!notifyAllBox.checked&&!task.notification.channels.length){error.setText(en?'Choose at least one notification channel.':'请至少选择一个通知渠道。');return;}save.disabled=true;try{await view._plugin.scheduledTasks.upsert(task);overlay.remove();}catch(e){error.setText((en?'Could not save: ':'保存失败：')+(e?.message||e));save.disabled=false;}};
   overlay.onclick=(event)=>{if(event.target===overlay)overlay.remove();};overlay.addEventListener('keydown',(event)=>{if(event.key==='Escape'){event.preventDefault();overlay.remove();}});document.body.appendChild(overlay);setTimeout(()=>name.focus(),20);
 }
 
-function buildScheduledTasksModule(view, root) {
-  const en=view._lang()==='en'; const title=root.createDiv({cls:PLUGIN_ID+'-section-title',text:en?'Scheduled tasks':'定时任务'});title.dataset.section='scheduled-tasks-title';
-  const body=root.createDiv({cls:PLUGIN_ID+'-scheduler'});body.dataset.section='scheduled-tasks-body';
-  const render=async()=>{body.empty();const tasks=await view._plugin.scheduledTasks.load();const top=body.createDiv({cls:PLUGIN_ID+'-scheduler-summary'});top.createDiv({cls:PLUGIN_ID+'-scheduler-summary-text',text:en?`${tasks.filter(t=>t.enabled).length} enabled · ${tasks.length} total`:`已启用 ${tasks.filter(t=>t.enabled).length} 项 · 共 ${tasks.length} 项`});const controls=top.createDiv({cls:PLUGIN_ID+'-scheduler-controls'});const logs=controls.createEl('button',{text:en?'Logs':'审计日志',attr:{type:'button'}});logs.onclick=()=>openScheduledTaskLogs(view);const add=controls.createEl('button',{cls:'primary',text:'+ '+(en?'New task':'新建任务'),attr:{type:'button'}});add.onclick=()=>openScheduledTaskEditor(view);
-    if(!tasks.length)body.createDiv({cls:PLUGIN_ID+'-scheduler-empty',text:en?'No scheduled tasks. Run actions or send SMTP email on a schedule or event.':'暂无定时任务。你可以按时间或事件运行操作，也可以直接发送 SMTP 邮件。'});
-    const list=body.createDiv({cls:PLUGIN_ID+'-scheduler-list'});tasks.forEach((task)=>{const row=list.createDiv({cls:PLUGIN_ID+'-scheduler-row'});const main=row.createDiv({cls:PLUGIN_ID+'-scheduler-main'});const name=main.createEl('button',{cls:PLUGIN_ID+'-scheduler-name',text:task.name,attr:{type:'button'}});name.onclick=()=>openScheduledTaskEditor(view,task);const kindLabels={shell:'Shell','toolbar-action':'Toolbar','obsidian-command':en?'App':'应用','append-daily':en?'Daily':'日记','create-todo':en?'Todo':'待办','push':en?'Push':'推送','smtp-email':en?'Email':'邮件','workflow':en?'Flow':'流程'};const kindLabel=kindLabels[task.kind]||task.kind;main.createDiv({cls:PLUGIN_ID+'-scheduler-meta',text:scheduleLabel(task,view._lang())+' · '+kindLabel});const next=nextScheduledRun(task);main.createDiv({cls:PLUGIN_ID+'-scheduler-next',text:task.enabled?(next?(en?'Next: ':'下次：')+next.format('MM-DD HH:mm'):(en?'On event':'事件触发')):(en?'Paused':'已暂停')});const status=row.createSpan({cls:PLUGIN_ID+'-scheduler-status '+(task.lastStatus||'idle'),text:task.lastStatus||(en?'Not run':'未运行')});const toggle=row.createEl('button',{cls:PLUGIN_ID+'-scheduler-icon-btn',attr:{type:'button','aria-label':task.enabled?(en?'Pause':'暂停'):(en?'Enable':'启用')}});obs.setIcon(toggle,task.enabled?'pause':'play');toggle.onclick=async()=>{if(task.kind==='shell'&&!task.trusted){new obs.Notice(en?'Edit the task and confirm Shell permission first.':'请先编辑任务并确认 Shell 权限。');return;}await view._plugin.scheduledTasks.toggle(task.id);};const run=row.createEl('button',{cls:PLUGIN_ID+'-scheduler-run',text:view._plugin.scheduledTasks.running.has(task.id)?(en?'Running…':'运行中…'):(en?'Run now':'立即运行'),attr:{type:'button'}});run.disabled=view._plugin.scheduledTasks.running.has(task.id)||view.app.isMobile&&task.kind==='shell';run.onclick=async()=>{run.disabled=true;run.setText(en?'Running…':'运行中…');try{const ok=await view._plugin.scheduledTasks.runTask(task.id,{trigger:'manual'});new obs.Notice(ok?(en?'Task succeeded.':'任务运行成功。'):(en?'Task failed. Check the audit log.':'任务运行失败，请查看审计日志。'));}catch(error){new obs.Notice((en?'Could not run task: ':'无法运行任务：')+(error?.message||error));}};});};
-  view._scheduledTasksUnsubscribe?.();view._scheduledTasksUnsubscribe=view._plugin.scheduledTasks.subscribe(()=>render().catch((e)=>console.warn('[Cockpit scheduler UI]',e)));render();view._makeModuleCollapsible('scheduledTasks',title,body);return render;
+
+// ---- 定时任务模块的展示辅助：把“下次运行 / 健康度 / 周期”提到第一眼 ----
+
+const SCHEDULED_KIND_META = {
+  shell: { zh:'Shell', en:'Shell', icon:'terminal' },
+  'toolbar-action': { zh:'Toolbar', en:'Toolbar', icon:'mouse-pointer-click' },
+  'obsidian-command': { zh:'应用', en:'App', icon:'app-window' },
+  'append-daily': { zh:'日记', en:'Daily', icon:'notebook' },
+  'create-todo': { zh:'待办', en:'Todo', icon:'check-circle' },
+  push: { zh:'推送', en:'Push', icon:'send' },
+  'smtp-email': { zh:'邮件', en:'Email', icon:'mail' },
+  workflow: { zh:'流程', en:'Workflow', icon:'workflow' }
+};
+
+function scheduledKindMeta(kind, en) {
+  return SCHEDULED_KIND_META[kind] || { zh:kind, en:kind, icon:'clock' };
 }
 
-if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports={normalizeScheduledTasks,scheduledSlot,nextScheduledRun,scheduleLabel,scheduledTaskDayPlan,scheduledToolbarActions,scheduledTemplateText,eventTaskMatchesPath,eventTaskMatchesPayload,scheduledTaskEditorSchedule,SCHEDULED_EVENT_COOLDOWN_MS,ScheduledTaskService};
+function scheduledDayLabel(next, now, en) {
+  const diff = next.clone().startOf('day').diff(now.clone().startOf('day'), 'days');
+  if (diff === 0) return en ? 'Today' : (next.hour() >= 18 ? '今晚' : '今天');
+  if (diff === 1) return en ? 'Tomorrow' : '明天';
+  if (diff > 1 && diff < 7) return en ? next.format('ddd') : '周' + ['日','一','二','三','四','五','六'][next.day()];
+  return next.format('MM-DD');
+}
+
+function scheduledRelativeLabel(next, now, en) {
+  const minutes = Math.round((next.valueOf() - now.valueOf()) / 60000);
+  if (minutes <= 0) return en ? 'due now' : '即将运行';
+  if (minutes < 60) return en ? 'in ' + minutes + ' min' : minutes + ' 分钟后';
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return en ? 'in ' + hours + ' h' : hours + ' 小时后';
+  const days = Math.round(hours / 24);
+  return en ? 'in ' + days + ' d' : days + ' 天后';
+}
+
+function scheduledWeekPreview(tasks, now, en) {
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const day = now.clone().startOf('day').add(i, 'day');
+    const count = tasks.filter((task) => {
+      if (!task.enabled) return false;
+      const schedule = task.schedule || {};
+      if (schedule.type === 'daily' || schedule.type === 'interval') return true;
+      if (schedule.type === 'weekly') return (schedule.weekdays || []).includes(day.day());
+      return false;
+    }).length;
+    days.push({
+      day, count, today: i === 0,
+      label: i === 0 ? (en ? 'Today' : '今天') : i === 1 ? (en ? 'Tmrw' : '明天') : (en ? day.format('ddd') : '周' + ['日','一','二','三','四','五','六'][day.day()])
+    });
+  }
+  return days;
+}
+
+function scheduledNextInfo(tasks, now, en) {
+  let best = null;
+  tasks.filter((task) => task.enabled).forEach((task) => {
+    const next = nextScheduledRun(task, now.valueOf());
+    if (next && (!best || next.isBefore(best.next))) best = { task, next };
+  });
+  if (best) {
+    return {
+      task: best.task,
+      next: best.next,
+      day: scheduledDayLabel(best.next, now, en),
+      time: best.next.format('HH:mm'),
+      relative: scheduledRelativeLabel(best.next, now, en)
+    };
+  }
+  const hasEvent = tasks.some((task) => task.enabled && task.schedule?.type === 'event');
+  return {
+    task: null, next: null,
+    day: en ? 'None' : '暂无',
+    time: '—',
+    relative: hasEvent ? (en ? 'Waiting for an event' : '等待事件触发') : (en ? 'Nothing scheduled' : '没有计划中的运行')
+  };
+}
+
+function scheduledStatusMeta(task, running, en) {
+  if (running) return { key:'running', label: en ? 'Running' : '运行中' };
+  if (!task.enabled) return { key:'paused', label: en ? 'Paused' : '已暂停' };
+  if (task.lastStatus === 'failed') return { key:'failed', label: en ? 'Failed' : '失败' };
+  if (task.lastStatus === 'skipped') return { key:'skipped', label: en ? 'Skipped' : '已跳过' };
+  if (task.lastStatus === 'success') return { key:'success', label: en ? 'Healthy' : '正常' };
+  return { key:'idle', label: en ? 'Not run' : '未运行' };
+}
+
+function buildScheduledTasksModule(view, root) {
+  const en = view._lang() === 'en';
+  const S = PLUGIN_ID + '-scheduler-';
+  const title = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: en ? 'Scheduled tasks' : '定时任务' });
+  title.dataset.section = 'scheduled-tasks-title';
+  const body = root.createDiv({ cls: PLUGIN_ID + '-scheduler' });
+  body.dataset.section = 'scheduled-tasks-body';
+
+  const makeControl = (parent, iconName, text, extraClass) => {
+    const button = parent.createEl('button', { cls: extraClass || '', attr: { type:'button' } });
+    const icon = button.createSpan({ cls: S + 'control-icon' });
+    obs.setIcon(icon, iconName);
+    button.createSpan({ text });
+    return button;
+  };
+
+  const render = async () => {
+    body.empty();
+    const tasks = await view._plugin.scheduledTasks.load();
+    const now = window.moment();
+
+    if (!tasks.length) {
+      const empty = body.createDiv({ cls: S + 'empty-state' });
+      const icon = empty.createDiv({ cls: S + 'empty-icon' });
+      obs.setIcon(icon, 'calendar-clock');
+      empty.createDiv({ cls: S + 'empty-title', text: en ? 'No scheduled tasks yet' : '还没有定时任务' });
+      empty.createDiv({ cls: S + 'empty-desc', text: en ? 'Let daily notes, reports and pushes run on a schedule.' : '让日志、周报和推送按计划自动执行。' });
+      const emptyActions = empty.createDiv({ cls: S + 'empty-actions' });
+      const addFirst = makeControl(emptyActions, 'plus', en ? 'Create the first task' : '新建第一个任务', 'primary');
+      addFirst.onclick = () => openScheduledTaskEditor(view);
+      const history = makeControl(emptyActions, 'history', en ? 'Run history' : '运行记录');
+      history.onclick = () => openScheduledTaskLogs(view);
+      return;
+    }
+
+    const enabledCount = tasks.filter((task) => task.enabled).length;
+    const pausedCount = tasks.length - enabledCount;
+    const failedCount = tasks.filter((task) => task.lastStatus === 'failed').length;
+    const running = tasks.some((task) => view._plugin.scheduledTasks.running.has(task.id));
+    const nextInfo = scheduledNextInfo(tasks, now, en);
+
+    let healthKey = 'success';
+    let healthText = en ? enabledCount + ' active · all healthy' : enabledCount + ' 项启用 · 全部正常';
+    if (failedCount) { healthKey = 'failed'; healthText = en ? failedCount + ' failed' : failedCount + ' 项失败'; }
+    else if (running) { healthKey = 'running'; healthText = en ? 'Running now' : '正在运行'; }
+    else if (!enabledCount) { healthKey = 'paused'; healthText = en ? 'All paused' : '全部暂停'; }
+    else if (pausedCount) { healthText += en ? ' · ' + pausedCount + ' paused' : ' · ' + pausedCount + ' 项暂停'; }
+
+    const overview = body.createDiv({ cls: S + 'overview' });
+    const head = overview.createDiv({ cls: S + 'overview-head' });
+    const main = head.createDiv({ cls: S + 'overview-main' });
+    const kicker = main.createDiv({ cls: S + 'overview-kicker' });
+    obs.setIcon(kicker.createSpan({ cls: S + 'overview-kicker-icon' }), 'calendar-clock');
+    kicker.createSpan({ text: en ? 'NEXT RUN' : '下一次运行' });
+    const time = main.createDiv({ cls: S + 'overview-time' });
+    time.createSpan({ cls: S + 'overview-day', text: nextInfo.day });
+    time.createSpan({ cls: S + 'overview-clock', text: nextInfo.time });
+    const sub = main.createDiv({ cls: S + 'overview-sub' });
+    if (nextInfo.task) {
+      sub.createSpan({ cls: S + 'overview-task', text: nextInfo.task.name });
+      sub.createSpan({ cls: S + 'overview-sep', text: '·' });
+    }
+    sub.createSpan({ text: nextInfo.relative });
+
+    const side = head.createDiv({ cls: S + 'overview-side' });
+    const health = side.createDiv({ cls: S + 'overview-health ' + healthKey });
+    health.createSpan({ cls: S + 'overview-health-dot' });
+    health.createSpan({ text: healthText });
+    const controls = side.createDiv({ cls: S + 'controls' });
+    const logs = makeControl(controls, 'history', en ? 'Run history' : '运行记录');
+    logs.onclick = () => openScheduledTaskLogs(view);
+    const add = makeControl(controls, 'plus', en ? 'New task' : '新建任务', 'primary');
+    add.onclick = () => openScheduledTaskEditor(view);
+
+    const preview = scheduledWeekPreview(tasks, now, en);
+    if (preview.some((day) => day.count)) {
+      const week = overview.createDiv({ cls: S + 'week' });
+      preview.forEach((day) => {
+        const cell = week.createDiv({
+          cls: S + 'week-day' + (day.today ? ' is-today' : '') + (day.count ? ' level-' + Math.min(3, day.count) : ''),
+          attr: { 'aria-label': day.label + (day.count ? (en ? ': ' + day.count + ' tasks' : '：' + day.count + ' 项') : (en ? ': none' : '：无')) }
+        });
+        cell.createSpan({ cls: S + 'week-label', text: day.label });
+        cell.createSpan({ cls: S + 'week-dot' });
+      });
+    }
+
+    const list = body.createDiv({ cls: S + 'list' });
+    tasks.forEach((task) => {
+      const isRunning = view._plugin.scheduledTasks.running.has(task.id);
+      const status = scheduledStatusMeta(task, isRunning, en);
+      const next = nextScheduledRun(task, now.valueOf());
+      const kind = scheduledKindMeta(task.kind, en);
+      const schedule = task.schedule || {};
+      const row = list.createDiv({ cls: S + 'task ' + status.key + (task.enabled ? '' : ' paused') });
+      const taskMain = row.createDiv({ cls: S + 'task-main' });
+      const top = taskMain.createDiv({ cls: S + 'task-top' });
+      const heading = top.createDiv({ cls: S + 'task-heading' });
+      heading.createSpan({ cls: S + 'task-dot ' + status.key });
+      const name = heading.createEl('button', { cls: S + 'task-name', text: task.name, attr: { type:'button', title: en ? 'Edit task' : '编辑任务' } });
+      name.onclick = () => openScheduledTaskEditor(view, task);
+      const chip = heading.createSpan({ cls: S + 'task-kind' });
+      obs.setIcon(chip.createSpan({ cls: S + 'task-kind-icon' }), kind.icon);
+      chip.createSpan({ text: en ? kind.en : kind.zh });
+      const state = heading.createSpan({ cls: S + 'task-state ' + status.key });
+      state.createSpan({ text: status.label });
+
+      const nextBox = top.createDiv({ cls: S + 'task-next' });
+      if (!task.enabled) {
+        nextBox.createSpan({ cls: S + 'task-next-label', text: en ? 'Paused' : '已暂停' });
+        nextBox.createSpan({ cls: S + 'task-next-time', text: '—' });
+      } else if (next) {
+        nextBox.createSpan({ cls: S + 'task-next-label', text: scheduledDayLabel(next, now, en) });
+        nextBox.createSpan({ cls: S + 'task-next-time', text: next.format('HH:mm') });
+        nextBox.createSpan({ cls: S + 'task-next-rel', text: scheduledRelativeLabel(next, now, en) });
+      } else {
+        nextBox.createSpan({ cls: S + 'task-next-label', text: en ? 'Event' : '事件' });
+        nextBox.createSpan({ cls: S + 'task-next-time', text: en ? 'Listening' : '监听中' });
+      }
+
+      const meta = taskMain.createDiv({ cls: S + 'task-meta' });
+      const scheduleText = meta.createSpan({ cls: S + 'task-schedule' });
+      obs.setIcon(scheduleText.createSpan({ cls: S + 'task-meta-icon' }), schedule.type === 'event' ? 'zap' : 'clock');
+      scheduleText.createSpan({ cls: S + 'task-meta-text', text: scheduleLabel(task, view._lang()) });
+      if (task.notification.enabled) {
+        const channels = task.notification.channels.length
+          ? SCHEDULED_NOTIFICATION_CHANNELS.filter((item) => task.notification.channels.includes(item.id)).map((item) => item.label).join(' / ')
+          : (en ? 'all enabled channels' : '所有已启用渠道');
+        const notify = meta.createSpan({ cls: S + 'task-notify', attr: { title: (en ? 'Notify: ' : '通知：') + channels } });
+        obs.setIcon(notify.createSpan(), 'bell');
+        notify.createSpan({ text: channels });
+      }
+
+      const foot = taskMain.createDiv({ cls: S + 'task-foot' });
+      if (schedule.type === 'event') {
+        const event = foot.createSpan({ cls: S + 'task-event' });
+        obs.setIcon(event.createSpan(), 'zap');
+        event.createSpan({ text: en ? 'Event triggered' : '事件触发' });
+      } else {
+        const week = foot.createSpan({ cls: S + 'mini-week' });
+        for (let i = 0; i < 7; i++) {
+          const day = now.clone().startOf('day').add(i, 'day');
+          const active = schedule.type === 'daily' || schedule.type === 'interval' || (schedule.type === 'weekly' && (schedule.weekdays || []).includes(day.day()));
+          week.createSpan({
+            cls: S + 'mini-dot' + (active ? ' is-active' : '') + (i === 0 ? ' is-today' : ''),
+            attr: { title: ['日','一','二','三','四','五','六'][day.day()] }
+          });
+        }
+      }
+      const lastRun = task.lastRunAt
+        ? (task.lastStatus === 'failed' ? (en ? 'Last failed ' : '上次失败 ') : (en ? 'Last ' : '上次 ')) + window.moment(task.lastRunAt).format('MM-DD HH:mm') + (task.lastDurationMs != null ? ' · ' + scheduledDurationLabel(task.lastDurationMs, view._lang()) : '')
+        : (en ? 'Never run' : '尚未运行');
+      foot.createSpan({ cls: S + 'task-last' + (task.lastStatus === 'failed' ? ' is-error' : ''), text: lastRun });
+
+      if (task.lastStatus === 'failed' && task.lastError) {
+        const error = taskMain.createDiv({ cls: S + 'task-error' });
+        obs.setIcon(error.createSpan({ cls: S + 'task-error-icon' }), 'alert-circle');
+        error.createSpan({ cls: S + 'task-error-text', text: task.lastError });
+        const link = error.createEl('button', { cls: S + 'task-error-link', text: en ? 'View log' : '查看记录', attr: { type:'button' } });
+        link.onclick = () => openScheduledTaskLogs(view);
+      }
+
+      const actions = foot.createDiv({ cls: S + 'task-actions' });
+      const edit = actions.createEl('button', { cls: S + 'icon-btn', attr: { type:'button', 'aria-label': en ? 'Edit task' : '编辑任务', title: en ? 'Edit task' : '编辑任务' } });
+      obs.setIcon(edit, 'pencil');
+      edit.onclick = () => openScheduledTaskEditor(view, task);
+      const toggle = actions.createEl('button', { cls: S + 'icon-btn', attr: { type:'button', 'aria-label': task.enabled ? (en ? 'Pause' : '暂停') : (en ? 'Enable' : '启用'), title: task.enabled ? (en ? 'Pause schedule' : '暂停计划') : (en ? 'Enable schedule' : '启用计划') } });
+      obs.setIcon(toggle, task.enabled ? 'pause' : 'play');
+      toggle.onclick = async () => {
+        if (task.kind === 'shell' && !task.trusted) { new obs.Notice(en ? 'Edit the task and confirm Shell permission first.' : '请先编辑任务并确认 Shell 权限。'); return; }
+        await view._plugin.scheduledTasks.toggle(task.id);
+      };
+      const run = actions.createEl('button', { cls: S + 'run', attr: { type:'button' } });
+      obs.setIcon(run.createSpan({ cls: S + 'run-icon' }), 'circle-play');
+      const runText = run.createSpan({ cls: S + 'run-text', text: isRunning ? (en ? 'Running…' : '运行中…') : (en ? 'Run now' : '立即运行') });
+      run.disabled = isRunning || (view.app.isMobile && task.kind === 'shell');
+      run.onclick = async () => {
+        run.disabled = true;
+        runText.setText(en ? 'Running…' : '运行中…');
+        try {
+          const ok = await view._plugin.scheduledTasks.runTask(task.id, { trigger:'manual' });
+          new obs.Notice(ok ? (en ? 'Task succeeded.' : '任务运行成功。') : (en ? 'Task failed. Check the run history.' : '任务运行失败，请查看运行记录。'));
+        } catch (error) {
+          new obs.Notice((en ? 'Could not run task: ' : '无法运行任务：') + (error?.message || error));
+        }
+      };
+    });
+  };
+
+  view._scheduledTasksUnsubscribe?.();
+  view._scheduledTasksUnsubscribe = view._plugin.scheduledTasks.subscribe(() => render().catch((e) => console.warn('[Cockpit scheduler UI]', e)));
+  view._makeModuleCollapsible('scheduledTasks', title, body);
+  render();
+  return render;
+}
+
+if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports={normalizeScheduledTasks,normalizeScheduledNotification,scheduledNotificationShouldSend,scheduledDurationLabel,scheduledSlot,nextScheduledRun,scheduleLabel,scheduledTaskDayPlan,scheduledToolbarActions,scheduledTemplateText,eventTaskMatchesPath,eventTaskMatchesPayload,scheduledTaskEditorSchedule,SCHEDULED_EVENT_COOLDOWN_MS,ScheduledTaskService};

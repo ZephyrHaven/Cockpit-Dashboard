@@ -5,21 +5,21 @@
 function cockpitToolbarButtonDefs(view) {
   const desktopOnly = view._isMobile() ? new Set(['hermes','cockpit-h5','work-log']) : new Set();
   const buttons = [
-    { icon: '+', label: view._t('toolbar.new'), action: 'new', primary: true },
-    { icon: E.search, label: view._t('toolbar.search'), action: 'search' },
-    { icon: E.tag, label: view._t('toolbar.tag'), action: 'tag' },
-    { icon: E.graph, label: view._t('toolbar.graph'), action: 'graph' },
-    { icon: E.bolt, label: view._t('toolbar.command'), action: 'command' },
-    { icon: '🤖', label: view._toolbarCmds?.Hermes?.label || view._t('toolbar.hermes'), action: 'hermes' },
-    { icon: '🛩️', label: view._toolbarCmds?.['驾驶舱']?.label || view._t('toolbar.cockpit'), action: 'cockpit-h5' },
-    { icon: '📝', label: view._toolbarCmds?.['工作日志']?.label || view._t('toolbar.workLog'), action: 'work-log' },
-    { icon: E.cal, label: view._t('toolbar.todayNote'), action: 'today-note' },
-    { icon: '🔔', label: view._lang() === 'en' ? 'Notifications' : '通知设置', action: 'notifications' },
-    { icon: '🍅', label: view._t('toolbar.pomodoro'), action: 'pomodoro' }
+    { icon: 'plus', label: view._t('toolbar.new'), action: 'new', primary: true },
+    { icon: 'search', label: view._t('toolbar.search'), action: 'search' },
+    { icon: 'tag', label: view._t('toolbar.tag'), action: 'tag' },
+    { icon: 'git-fork', label: view._t('toolbar.graph'), action: 'graph' },
+    { icon: 'zap', label: view._t('toolbar.command'), action: 'command' },
+    { icon: 'bot', label: view._toolbarCmds?.Hermes?.label || view._t('toolbar.hermes'), action: 'hermes' },
+    { icon: 'plane', label: view._toolbarCmds?.['驾驶舱']?.label || view._t('toolbar.cockpit'), action: 'cockpit-h5' },
+    { icon: 'notebook', label: view._toolbarCmds?.['工作日志']?.label || view._t('toolbar.workLog'), action: 'work-log' },
+    { icon: 'calendar', label: view._t('toolbar.todayNote'), action: 'today-note' },
+    { icon: 'bell', label: view._lang() === 'en' ? 'Notifications' : '通知设置', action: 'notifications' },
+    { icon: 'timer', label: view._t('toolbar.pomodoro'), action: 'pomodoro' }
   ].filter((button) => !view._deletedToolbarActions.has(button.action) && !desktopOnly.has(button.action));
   if (!view._isMobile()) return buttons;
   const primary = buttons.filter((button) => ['new','search','pomodoro'].includes(button.action));
-  primary.push({ icon:'•••', label:view._lang() === 'en' ? 'More' : '更多', action:'more' });
+  primary.push({ icon:'more-horizontal', label:view._lang() === 'en' ? 'More' : '更多', action:'more' });
   return primary;
 }
 function cockpitDefaultToolbarCommands(view) {

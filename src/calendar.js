@@ -1,7 +1,13 @@
 // calendar.js — 日历看板模块
 
+function calendarSplitOwner(calRoot, splitHandle) {
+  const rootParent = calRoot?.parentElement || null;
+  const handleParent = splitHandle?.parentElement || null;
+  return rootParent || handleParent;
+}
+
 function buildCalendar(root, todos, opts) {
-  const { language, t, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, lunarEnabled, teamTodos, loadCalendarEvents, onQuickCreate, onEventOpen } = opts;
+  const { language, t, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, initialSplitRatio, onSplitRatioChange, lunarEnabled, teamTodos, loadCalendarEvents, onQuickCreate, onEventOpen } = opts;
   // 刷新时必须读取视图的最新待办数组；不能闭包捕获初次渲染的旧快照。
   const getTodos = typeof todos === 'function' ? todos : () => todos;
   let calYear = window.moment().year();
@@ -20,6 +26,8 @@ function buildCalendar(root, todos, opts) {
   let eventRequestKey = '';
   let titleMonthEl = null;
   let titleYearEl = null;
+  let splitHandle = null;
+  let splitRatio = Number.isFinite(Number(initialSplitRatio)) ? Math.max(.3, Math.min(.7, Number(initialSplitRatio))) : null;
   const getSelectedDate = () => window.moment([calYear, calMonth, selDay]);
   const updateCalendarSubtitle = () => {
     const selected = getSelectedDate();
@@ -56,13 +64,126 @@ function buildCalendar(root, todos, opts) {
     }
     calRoot.empty();
   };
+  const splitDefaultRatio = () => viewMode === 'week' ? .475 : .512;
+  const splitBounds = (width) => {
+    const safeWidth = Math.max(1, Number(width) || 1);
+    const min = Math.max(.3, Math.min(.46, 240 / safeWidth));
+    const max = Math.min(.7, (safeWidth - 24 - 300) / safeWidth);
+    return max >= min ? { min, max } : { min:.5, max:.5 };
+  };
+  const ensureSplitHandle = () => {
+    const module = calendarSplitOwner(calRoot, splitHandle);
+    if (!module) return null;
+    if (!splitHandle || !splitHandle.isConnected) {
+      splitHandle = document.createElement('button');
+      splitHandle.className = PLUGIN_ID + '-cal-split-resize';
+      splitHandle.type = 'button';
+      splitHandle.setAttribute('role', 'separator');
+      splitHandle.setAttribute('aria-orientation', 'vertical');
+      obs.setIcon(splitHandle, 'grip-vertical');
+      let drag = null;
+      let dragFrame = 0;
+      let pendingRatio = null;
+      const apply = (value, { persist = false, bounds = null, live = false, target = null } = {}) => {
+        const activeModule = target || calendarSplitOwner(calRoot, splitHandle);
+        if (!activeModule) return;
+        const activeBounds = bounds || splitBounds(activeModule.getBoundingClientRect().width);
+        const requested = value == null ? null : Number(value);
+        splitRatio = Number.isFinite(requested) ? Math.max(activeBounds.min, Math.min(activeBounds.max, requested)) : null;
+        if (splitRatio == null) {
+          activeModule.style.removeProperty('grid-template-columns');
+          activeModule.style.removeProperty('--ck-cal-split-left');
+        } else {
+          activeModule.style.gridTemplateColumns = `minmax(0, ${(splitRatio * 100).toFixed(2)}%) var(--ck-cal-split-handle-width) minmax(0, 1fr)`;
+        }
+        const effective = splitRatio ?? splitDefaultRatio();
+        const leftPercent = Math.round(effective * 100);
+        if (!live) {
+          splitHandle.setAttribute('aria-valuemin', String(Math.round(activeBounds.min * 100)));
+          splitHandle.setAttribute('aria-valuemax', String(Math.round(activeBounds.max * 100)));
+          splitHandle.setAttribute('aria-valuenow', String(leftPercent));
+          splitHandle.setAttribute('aria-valuetext', (language === 'en' ? 'Left panel ' : '左栏 ') + leftPercent + '%');
+        }
+        if (persist) Promise.resolve(onSplitRatioChange?.(splitRatio)).catch((error) => console.warn('[Cockpit calendar split ratio]', error));
+      };
+      const flushDragFrame = () => {
+        dragFrame = 0;
+        if (!drag || pendingRatio == null) return;
+        const value = pendingRatio;
+        pendingRatio = null;
+        apply(value, { bounds:drag.bounds, live:true, target:drag.module });
+      };
+      const finish = (event) => {
+        if (!drag) return;
+        if (dragFrame) cancelAnimationFrame(dragFrame);
+        dragFrame = 0;
+        if (pendingRatio != null) apply(pendingRatio, { bounds:drag.bounds, live:true, target:drag.module });
+        pendingRatio = null;
+        const bounds = drag.bounds;
+        const activeModule = drag.module;
+        drag = null;
+        activeModule.closest('.' + PLUGIN_ID + '-root')?.classList.remove('is-cal-split-resizing');
+        try { splitHandle.releasePointerCapture?.(event.pointerId); } catch (error) {}
+        apply(splitRatio, { persist:true, bounds, target:activeModule });
+      };
+      splitHandle.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0 || event.isPrimary === false) return;
+        const activeModule = calendarSplitOwner(calRoot, splitHandle);
+        if (!activeModule) return;
+        const rect = activeModule.getBoundingClientRect();
+        drag = { pointerId:event.pointerId, left:rect.left, width:Math.max(1, rect.width), bounds:splitBounds(rect.width), module:activeModule };
+        splitHandle.setPointerCapture?.(event.pointerId);
+        activeModule.closest('.' + PLUGIN_ID + '-root')?.classList.add('is-cal-split-resizing');
+        event.preventDefault();
+      });
+      splitHandle.addEventListener('pointermove', (event) => {
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        pendingRatio = (event.clientX - drag.left) / drag.width;
+        if (!dragFrame) dragFrame = requestAnimationFrame(flushDragFrame);
+        event.preventDefault();
+      });
+      splitHandle.addEventListener('pointerup', finish);
+      splitHandle.addEventListener('pointercancel', finish);
+      splitHandle.addEventListener('keydown', (event) => {
+        if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+        const activeModule = calendarSplitOwner(calRoot, splitHandle);
+        if (!activeModule) return;
+        const rect = activeModule.getBoundingClientRect();
+        const bounds = splitBounds(rect.width);
+        const current = splitRatio ?? splitDefaultRatio();
+        const next = event.key === 'Home' ? bounds.min : event.key === 'End' ? bounds.max : current + (event.key === 'ArrowRight' ? .02 : -.02);
+        apply(next, { persist:true, bounds, target:activeModule });
+        event.preventDefault();
+      });
+      splitHandle.addEventListener('dblclick', () => apply(null, { persist:true, target:calendarSplitOwner(calRoot, splitHandle) }));
+    }
+    splitHandle.title = language === 'en' ? 'Drag to resize the calendar columns; double-click to reset' : '拖动调整日历左右宽度；双击恢复默认比例';
+    splitHandle.setAttribute('aria-label', language === 'en' ? 'Resize calendar columns' : '调整日历左右分栏宽度');
+    module.insertBefore(splitHandle, calRoot.nextSibling);
+    const rect = module.getBoundingClientRect();
+    const bounds = splitBounds(rect.width);
+    const effective = splitRatio ?? splitDefaultRatio();
+    if (splitRatio == null) {
+      module.style.removeProperty('grid-template-columns');
+      module.style.removeProperty('--ck-cal-split-left');
+    } else {
+      module.style.gridTemplateColumns = `minmax(0, ${(splitRatio * 100).toFixed(2)}%) var(--ck-cal-split-handle-width) minmax(0, 1fr)`;
+    }
+    const leftPercent = Math.round(effective * 100);
+    splitHandle.setAttribute('aria-valuemin', String(Math.round(bounds.min * 100)));
+    splitHandle.setAttribute('aria-valuemax', String(Math.round(bounds.max * 100)));
+    splitHandle.setAttribute('aria-valuenow', String(leftPercent));
+    splitHandle.setAttribute('aria-valuetext', (language === 'en' ? 'Left panel ' : '左栏 ') + leftPercent + '%');
+    return splitHandle;
+  };
   // 当日总览渲染失败时只给出一行提示，不再保留旧版详情渲染（控制产物体积）。
   const renderDetailError = () => {
     calRoot?.parentNode?.querySelector('.' + PLUGIN_ID + '-cal-detail')?.remove();
     if (!calRoot?.parentNode) return;
     const detail = document.createElement('div');
     detail.className = PLUGIN_ID + '-cal-detail is-empty';
-    calRoot.parentNode.insertBefore(detail, calRoot.nextSibling);
+    const handle = ensureSplitHandle();
+    calRoot.parentNode.insertBefore(detail, handle?.nextSibling || calRoot.nextSibling);
     detail.createDiv({ cls:PLUGIN_ID + '-cal-detail-empty-text', text:language === 'en' ? 'Day overview is unavailable right now.' : '当日总览暂时无法显示。' });
   };
   const renderDetail = (todoMap) => {
@@ -76,7 +197,7 @@ function buildCalendar(root, todos, opts) {
       Promise.resolve(loadCountdownItems?.(date.clone()) || [])
     ]).then(([automationItems,countdownItems]) => {
       if (request !== detailRequest || !calRoot?.parentNode) return;
-      return renderCalendarDayFlow({
+      const detail = renderCalendarDayFlow({
         anchor:calRoot, date, language, t, todosForDate, rssItems, calendarEvents:eventsForDate(date),
         automationItems:Array.isArray(automationItems) ? automationItems : [],
         countdownItems:Array.isArray(countdownItems) ? countdownItems : [],
@@ -86,6 +207,8 @@ function buildCalendar(root, todos, opts) {
         openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen,
         rerender:() => renderDetail(todoMap), rss
       });
+      ensureSplitHandle();
+      return detail;
     }).catch((error) => {
       console.warn('Cockpit calendar day flow failed', error);
       if (request === detailRequest) renderDetailError();
@@ -221,7 +344,8 @@ function buildCalendar(root, todos, opts) {
   const getDayInfo = (date) => ((lunarEnabled === false || language === 'en') ? null : getCockpitDayInfo(date));
   const selectDate = (date) => { calYear = date.year(); calMonth = date.month(); selDay = date.date(); followsToday = date.isSame(window.moment(), 'day'); renderAll(); };
   // 顶部脉搏条：今天剩余、下一项、逾期、本周负载，一眼看清关键信息。
-  const renderPulse = (surface, todoMap, now) => {
+  // 顶部摘要条：今天待办 / 下一项 / 逾期 / 本周，四项信息压成一行。
+  const renderSummary = (surface, todoMap, now) => {
     const en = language === 'en';
     const todayOpen = sortDayTodos((todoMap[now.format('YYYY-MM-DD')] || []).filter((todo) => !todo.done));
     const upcomingTodo = todayOpen.find((todo) => todo.dueHasTime && todo.dueDate.isSameOrAfter(now));
@@ -234,25 +358,29 @@ function buildCalendar(root, todos, opts) {
     const weekStart = now.clone().startOf('isoWeek');
     let weekOpen = 0;
     for (let i = 0; i < 7; i++) weekOpen += (todoMap[weekStart.clone().add(i, 'day').format('YYYY-MM-DD')] || []).filter((todo) => !todo.done).length;
-    const pulse = surface.createDiv({ cls:PLUGIN_ID + '-cal-pulse' });
-    const stat = (cls, value, label, onClick) => {
-      const item = pulse.createEl('button', { cls:PLUGIN_ID + '-cal-pulse-item ' + cls, attr:{ type:'button' } });
-      item.createSpan({ cls:PLUGIN_ID + '-cal-pulse-value', text:String(value) });
-      item.createSpan({ cls:PLUGIN_ID + '-cal-pulse-label', text:label });
+
+    const summary = surface.createDiv({ cls:PLUGIN_ID + '-cal-summary' });
+    const stats = summary.createDiv({ cls:PLUGIN_ID + '-cal-summary-stats' });
+    const stat = (cls, label, value, unit, onClick, title) => {
+      const item = stats.createEl('button', { cls:PLUGIN_ID + '-cal-summary-stat' + (cls ? ' ' + cls : ''), attr:{ type:'button', title:title || '' } });
+      item.createSpan({ cls:PLUGIN_ID + '-cal-summary-stat-label', text:label });
+      const line = item.createSpan({ cls:PLUGIN_ID + '-cal-summary-stat-line' });
+      line.createSpan({ cls:PLUGIN_ID + '-cal-summary-stat-value', text:String(value) });
+      line.createSpan({ cls:PLUGIN_ID + '-cal-summary-stat-unit', text:unit });
       item.onclick = onClick;
       return item;
     };
-    stat('is-today' + (todayOpen.length ? '' : ' is-clear'), todayOpen.length, en ? 'open today' : '今天待办', () => { followsToday = true; renderAll(); });
-    const next = pulse.createEl('button', { cls:PLUGIN_ID + '-cal-pulse-next' + (nextEvent ? ' is-event' : nextTodo ? ' p-' + (nextTodo.priority || 'mid') : ' is-clear'), attr:{ type:'button', title:nextEvent ? eventTitle(nextEvent) : (nextTodo?.text || '') } });
-    next.createSpan({ cls:PLUGIN_ID + '-cal-pulse-kicker', text:nextEvent ? (en ? 'NEXT EVENT' : '下一个日程') : nextTodo ? (en ? 'UP NEXT' : '下一项') : (en ? 'ALL CLEAR' : '今天已清空') });
-    const nextBody = next.createSpan({ cls:PLUGIN_ID + '-cal-pulse-next-body' });
-    if (nextEvent) nextBody.createSpan({ cls:PLUGIN_ID + '-cal-pulse-time', text:window.moment(nextEvent.start).format('HH:mm') });
-    else if (nextTodo?.dueHasTime) nextBody.createSpan({ cls:PLUGIN_ID + '-cal-pulse-time', text:nextTodo.dueDate.format('HH:mm') });
-    nextBody.createSpan({ cls:PLUGIN_ID + '-cal-pulse-text', text:nextEvent ? nextEvent.title : nextTodo ? nextTodo.text : (en ? 'Nothing left for today' : '没有剩余待办，享受空档') });
-    if (nextEvent?.location) nextBody.createSpan({ cls:PLUGIN_ID + '-cal-pulse-where', text:nextEvent.location });
+    stat('is-today', en ? 'Today' : '今天', todayOpen.length, en ? 'tasks' : '项待办', () => { followsToday = true; renderAll(); }, en ? 'Back to today' : '回到今天');
+    stat(overdue.length ? 'is-overdue' : 'is-zero', en ? 'Overdue' : '逾期', overdue.length, en ? 'due' : '项', () => { if (overdue.length) selectDate(overdue[0].dueDate.clone().startOf('day')); }, en ? 'Overdue tasks' : '已逾期待办');
+    stat('', en ? 'This week' : '本周', weekOpen, en ? 'open' : '项', () => { viewMode = 'week'; followsToday = true; renderAll(); Promise.resolve(onViewModeChange?.(viewMode)).catch(() => {}); }, en ? 'Switch to week view' : '切换到周视图');
+
+    const next = summary.createEl('button', { cls:PLUGIN_ID + '-cal-summary-next' + (nextEvent ? ' is-event' : nextTodo ? ' p-' + (nextTodo.priority || 'mid') : ' is-clear'), attr:{ type:'button', title:nextEvent ? eventTitle(nextEvent) : (nextTodo?.text || '') } });
+    const nextHead = next.createSpan({ cls:PLUGIN_ID + '-cal-summary-next-head' });
+    nextHead.createSpan({ cls:PLUGIN_ID + '-cal-summary-kicker', text:nextEvent ? (en ? 'NEXT EVENT' : '下一日程') : nextTodo ? (en ? 'NEXT' : '下一项') : (en ? 'ALL CLEAR' : '今天已清空') });
+    if (nextEvent) nextHead.createSpan({ cls:PLUGIN_ID + '-cal-summary-time', text:window.moment(nextEvent.start).format('HH:mm') });
+    else if (nextTodo?.dueHasTime) nextHead.createSpan({ cls:PLUGIN_ID + '-cal-summary-time', text:nextTodo.dueDate.format('HH:mm') });
+    next.createSpan({ cls:PLUGIN_ID + '-cal-summary-text', text:nextEvent ? nextEvent.title : nextTodo ? nextTodo.text : (en ? 'Nothing left for today' : '没有剩余待办，享受空档') });
     next.onclick = () => (nextEvent ? (typeof onEventOpen === 'function' ? onEventOpen(nextEvent) : selectDate(now.clone().startOf('day'))) : nextTodo ? openCalendarTodo(nextTodo) : openTodoEditor({ dueDate:now.clone().startOf('day') }));
-    if (overdue.length) stat('is-overdue', overdue.length, en ? 'overdue' : '已逾期', () => selectDate(overdue[0].dueDate.clone().startOf('day')));
-    stat('is-week', weekOpen, en ? 'this week' : '本周待办', () => { viewMode = 'week'; followsToday = true; renderAll(); Promise.resolve(onViewModeChange?.(viewMode)).catch(() => {}); });
   };
   const renderAll = () => {
     const now = window.moment();
@@ -272,6 +400,7 @@ function buildCalendar(root, todos, opts) {
     requestEvents(rangeStart, rangeEnd);
     eventMap = buildEventMap();
     ensureRoot();
+    ensureSplitHandle();
     const surface = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-surface is-' + viewMode });
     const header = surface.createDiv({ cls: PLUGIN_ID + '-cal-header' });
     const title = header.createDiv({ cls: PLUGIN_ID + '-cal-title-wrap', attr:{ 'aria-label':formatMonthTitle(calYear, calMonth, language) } });
@@ -308,7 +437,7 @@ function buildCalendar(root, todos, opts) {
       if (unreadRss) rssButtonEl.createSpan({ cls:PLUGIN_ID + '-cal-rss-count', text:unreadRss > 99 ? '99+' : String(unreadRss) });
       rssButtonEl.onclick = () => openRss?.(getSelectedDate());
     }
-    renderPulse(surface, todoMap, now);
+    renderSummary(surface, todoMap, now);
     const stage = surface.createDiv({ cls: PLUGIN_ID + '-cal-stage' });
     if (viewMode === 'week') {
       const week = stage.createDiv({ cls:PLUGIN_ID + '-cal-week' });
@@ -427,10 +556,14 @@ function buildCalendar(root, todos, opts) {
         }
       }
       const indicators = cell.createDiv({ cls:PLUGIN_ID + '-cal-indicators' + (dayTodos.length && dayRss.length ? ' has-both' : '') });
-      if (dayTodos.length) {
-        const dots = indicators.createDiv({ cls: PLUGIN_ID + '-cal-dots' });
-        dayTodos.slice(0, 4).forEach((todo) => dots.createDiv({ cls: PLUGIN_ID + '-cal-dot p-' + (todo.priority || 'mid') + (todo.done ? ' done' : '') }));
+      const dots = indicators.createDiv({ cls: PLUGIN_ID + '-cal-dots' });
+      if (dayEvents.length) {
+        dots.createDiv({ cls: PLUGIN_ID + '-cal-dot is-event', attr:{ title:eventTitle(dayEvents[0]) } });
       }
+      dayTodos.slice(0, dayEvents.length ? 3 : 4).forEach((todo) => dots.createDiv({
+        cls: PLUGIN_ID + '-cal-dot p-' + (todo.priority || 'mid') + (todo.done ? ' done' : ''),
+        attr: { title: (todo.dueHasTime ? todo.dueDate.format('HH:mm') + ' ' : '') + (todo.text || '') }
+      }));
       const counts = indicators.createDiv({ cls:PLUGIN_ID + '-cal-indicator-counts' });
       if (dayRss.length) counts.createSpan({ cls:PLUGIN_ID + '-cal-rss-badge', text:'RSS ' + (dayRss.length > 99 ? '99+' : dayRss.length), attr:{ title:'RSS: ' + dayRss.length } });
       cell.onclick = () => { selDay = day; followsToday = date.isSame(window.moment(), 'day'); renderDayDetailOnly(todoMap); };
@@ -476,3 +609,5 @@ function buildCalendar(root, todos, opts) {
   renderAll.reloadEvents = () => { eventStore = { key:'', at:0, events:[] }; eventRequestKey = ''; renderAll(); };
   return renderAll;
 }
+
+if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports = { calendarSplitOwner };

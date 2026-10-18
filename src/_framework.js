@@ -1,5 +1,5 @@
 class CockpitView extends obs.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio', 'teamStats', 'runHistory', 'syncHealth']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._refreshCalendarRef = null; this._calendarAutomationUnsubscribe = null; this._calendarCountdownUnsubscribe = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._countdownUnsubscribe = null; this._countdownDisplayTimer = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; this._contentWidth = null; this._contentResizeCleanup = null; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._calendarLayout = 'stacked'; this._calendarSplitRatio = null; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio', 'teamStats', 'runHistory', 'syncHealth']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._calendarAutomationUnsubscribe = null; this._calendarCountdownUnsubscribe = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._countdownUnsubscribe = null; this._countdownDisplayTimer = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; this._contentWidth = null; this._contentResizeCleanup = null; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -580,6 +580,11 @@ class CockpitView extends obs.ItemView {
       new obs.Notice('Language switch failed: ' + (e?.message || 'unknown error'));
     }
   }
+  _applyCalendarLayoutClass() {
+    const root = this.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
+    if (!root) return;
+    root.classList.toggle(PLUGIN_ID + '-calendar-split', this._calendarLayout === 'split');
+  }
   async _setCalendarViewMode(mode) {
     const next = mode === 'week' ? 'week' : 'month';
     this._calendarViewMode = next;
@@ -588,6 +593,17 @@ class CockpitView extends obs.ItemView {
     } catch (error) {
       console.warn('Cockpit: save calendar view failed', error);
       new obs.Notice(this._lang() === 'en' ? 'Could not save the calendar view preference.' : '日历视图偏好保存失败。');
+    }
+  }
+  async _setCalendarSplitRatio(value) {
+    const numeric = value == null ? NaN : Number(value);
+    const next = Number.isFinite(numeric) ? Math.max(.3, Math.min(.7, Math.round(numeric * 10000) / 10000)) : null;
+    this._calendarSplitRatio = next;
+    try {
+      await this._mutatePluginData((data) => { data.calendarSplitRatio = next; });
+    } catch (error) {
+      console.warn('Cockpit: save calendar split ratio failed', error);
+      new obs.Notice(this._lang() === 'en' ? 'Could not save the calendar column width.' : '日历分栏宽度保存失败。');
     }
   }
 
@@ -629,6 +645,9 @@ class CockpitView extends obs.ItemView {
       this._pomodoroCompletions = normalizePomodoroCompletions(pluginData?.pomodoroCompletions);
       this._focusChartSettings = { range:pluginData?.focusChartSettings?.range === 'month' ? 'month' : 'week', type:pluginData?.focusChartSettings?.type === 'bar' ? 'bar' : 'line' };
       this._calendarViewMode = pluginData?.calendarViewMode === 'week' ? 'week' : 'month';
+      this._calendarLayout = pluginData?.calendarLayout === 'split' ? 'split' : 'stacked';
+      const calendarSplitRatio = Number(pluginData?.calendarSplitRatio);
+      this._calendarSplitRatio = Number.isFinite(calendarSplitRatio) && calendarSplitRatio >= .3 && calendarSplitRatio <= .7 ? calendarSplitRatio : null;
       this._calendarLunarEnabled = pluginData?.calendarLunarEnabled !== false;
       this._username = pluginData?.username || this._t('hero.defaultName');
       const savedContentWidth = Number(pluginData?.dashboardContentWidth);
@@ -740,7 +759,7 @@ class CockpitView extends obs.ItemView {
       }
       this._startDate = pluginData.startDate;
       this._onboardingDone = pluginData?.onboardingDone || false;
-    } catch(e) { this._language = DEFAULT_LANG; this._calendarViewMode = 'month'; this._calendarLunarEnabled = true; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio', 'teamStats', 'runHistory', 'syncHealth']); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:this._sceneSnapshot() } }; this._activeSceneId = 'default'; }
+    } catch(e) { this._language = DEFAULT_LANG; this._calendarViewMode = 'month'; this._calendarLayout = 'stacked'; this._calendarSplitRatio = null; this._calendarLunarEnabled = true; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio', 'teamStats', 'runHistory', 'syncHealth']); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:this._sceneSnapshot() } }; this._activeSceneId = 'default'; }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -913,6 +932,7 @@ class CockpitView extends obs.ItemView {
     if (this._isMobile() || initialWidth < 680) initialClasses.push(PLUGIN_ID+'-phone');
     if (initialWidth < 390) initialClasses.push(PLUGIN_ID+'-phone-narrow');
     if (!this._isMobile() && initialWidth >= 680 && initialWidth < 980) initialClasses.push(PLUGIN_ID+'-tablet');
+    if (this._calendarLayout === 'split') initialClasses.push(PLUGIN_ID+'-calendar-split');
     const root = container.createDiv({ cls:initialClasses.join(' ') });
     if (previousRoot) root.classList.add(PLUGIN_ID + '-scene-preparing');
     this._ensureStylesheetLoaded();
@@ -1336,7 +1356,9 @@ class CockpitView extends obs.ItemView {
       },
       onCountdownOpen:(countdown) => openCountdownEditor(this,countdown),
       initialViewMode:this._calendarViewMode,
-      onViewModeChange:(mode) => this._setCalendarViewMode(mode)
+      onViewModeChange:(mode) => this._setCalendarViewMode(mode),
+      initialSplitRatio:this._calendarSplitRatio,
+      onSplitRatioChange:(ratio) => this._setCalendarSplitRatio(ratio)
     });
     refreshCalendarRef = refreshCalendar;
     this._refreshCalendarRef = refreshCalendar;

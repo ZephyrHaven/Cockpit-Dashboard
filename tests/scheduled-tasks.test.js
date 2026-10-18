@@ -43,6 +43,19 @@ assert.equal(smtpTask.kind, 'smtp-email', 'SMTP email is a first-class scheduled
 assert.equal(smtpTask.smtp.accountId, 'work-163');
 assert.deepEqual(smtpTask.smtp.to, ['owner@example.com']);
 
+const notifiedTask = api.normalizeScheduledTasks([{
+  id:'notified', name:'Nightly backup', kind:'shell', command:'backup', enabled:true, trusted:true,
+  notification:{ enabled:true, statuses:['failed','success','unknown'], channels:['bark','email','invalid'], includeManual:true },
+  schedule:{type:'daily',time:'23:00'}, createdAt:'2026-08-01T00:00:00Z'
+}])[0];
+assert.deepEqual(notifiedTask.notification, {
+  enabled:true, statuses:['failed','success'], channels:['bark','email'], includeManual:true
+}, 'Per-task result notification settings are normalized without copying channel credentials.');
+assert.equal(api.scheduledNotificationShouldSend(notifiedTask.notification, 'success', 'schedule'), true);
+assert.equal(api.scheduledNotificationShouldSend(notifiedTask.notification, 'failed', 'manual'), true);
+assert.equal(api.scheduledNotificationShouldSend({ ...notifiedTask.notification, includeManual:false }, 'failed', 'manual'), false);
+assert.equal(api.scheduledDurationLabel(1250, 'zh-CN'), '1.3 秒');
+
 const countdownEditorSchedule = api.scheduledTaskEditorSchedule({
   type:'event', event:'countdown-finished', sourceId:'release', sourceLabel:'版本发布'
 });
@@ -60,6 +73,7 @@ assert.deepEqual(toolbarActions.map((action) => action.id), ['new','custom:daily
 const source = fs.readFileSync(path.join(__dirname, '../src/scheduled-tasks.js'), 'utf8');
 const framework = fs.readFileSync(path.join(__dirname, '../src/_framework.js'), 'utf8');
 const build = fs.readFileSync(path.join(__dirname, '../build.js'), 'utf8');
+const styles = fs.readFileSync(path.join(__dirname, '../styles.css'), 'utf8');
 assert.match(source, /scheduled-tasks\.jsonl/);
 assert.match(source, /SCHEDULED_LOG_LIMIT\s*=\s*500/);
 assert.match(source, /plugin\.mutateData/, 'Scheduler claims and results use the shared data queue.');
@@ -74,6 +88,15 @@ assert.match(source, /plugin\._open[\s\S]*_toolbarView/, 'A due Toolbar action c
 assert.match(source, /Toolbar action no longer exists/, 'Deleted Toolbar actions fail explicitly instead of reporting a false success.');
 assert.match(source, /toolbar-action[\s\S]*toolbarPicker/, 'The scheduled task editor exposes a Toolbar action picker.');
 assert.match(source, /smtp-email[\s\S]*plugin\.smtpMail\.send/, 'Scheduled SMTP actions route through the configured mail-account service.');
+assert.match(source, /async sendResultNotification\(/, 'Task completion notifications use a dedicated result-notification path.');
+assert.match(source, /notificationStatus[\s\S]*appendLog/, 'Notification delivery is recorded separately from task execution status.');
+assert.match(source, /scheduler-notification-section/, 'The task editor exposes result-notification settings.');
+assert.doesNotMatch(source, /openScheduledTaskLogs\(view, task\.id\)/, 'Run history has one consistent entry point with log clearing instead of a duplicate card action.');
+assert.match(source, /cockpit-bulk-check[\s\S]*aria-pressed/, 'Notification settings reuse the todo checkbox and selectable channel buttons.');
+assert.match(source, /trusted\.style\.display=shell/, 'Non-Shell tasks hide only the permission field, never the entire editor panel.');
+assert.doesNotMatch(source, /trusted\.parentElement\.style\.display/, 'Permission visibility must not target the editor panel after the field wrapper refactor.');
+assert.match(styles, /scheduler-field input:not\(\[type='checkbox'\]\)/, 'Full-width scheduler fields must not stretch checkbox controls.');
+assert.match(styles, /scheduler-notification-section \{ flex:0 0 auto;/, 'The notification configuration must not collapse inside the scrollable editor.');
 assert.doesNotMatch(source, /_data\/.+\.md/, 'Scheduled tasks do not add Markdown files under _data.');
 assert.match(framework, /id:'scheduledTasks'[\s\S]*collapsible:true/, 'The scheduler participates in layout, visibility, scenes, and collapse state.');
 assert.match(build, /'scheduled-tasks\.js'/);

@@ -21,6 +21,16 @@ class MiniMoment {
 global.window = { moment:(value=Date.now()) => new MiniMoment(value) };
 const api = require('../src/scheduled-tasks.js');
 const dayFlowApi = require('../src/calendar-day-flow.js');
+const { calendarSplitOwner } = require('../src/calendar.js');
+
+const initialCalendarHost = { id:'dashboard-root' };
+const mountedCalendarModule = { id:'calendar-module' };
+const splitCalendarNode = { parentElement:initialCalendarHost };
+const splitHandleNode = { parentElement:initialCalendarHost };
+assert.equal(calendarSplitOwner(splitCalendarNode, splitHandleNode), initialCalendarHost);
+splitCalendarNode.parentElement = mountedCalendarModule;
+splitHandleNode.parentElement = mountedCalendarModule;
+assert.equal(calendarSplitOwner(splitCalendarNode, splitHandleNode), mountedCalendarModule, 'The splitter resolves its current module after the calendar is reparented by the layout system.');
 
 const rssSummary = dayFlowApi.summarizeCalendarRss([
   {id:'a',feedId:'ops',title:'服务器巡检',publishedAt:Date.parse('2026-08-12T08:00:00Z')},
@@ -80,6 +90,22 @@ assert.match(styles, /\.cockpit-dashboard-cal-timeline-content\s*\{[^}]*grid-tem
 assert.match(styles, /\.cockpit-dashboard-cal-timeline-summary\s*\{[^}]*min-width:0/, 'Timeline summary content can shrink without displacing its actions.');
 assert.match(styles, /cal-timeline-summary > button\.cockpit-dashboard-cal-timeline-title\s*\{[^}]*display:block[^}]*justify-content:flex-start/, 'Timeline titles override the host button centering and align from one common left edge.');
 assert.match(styles, /cal-timeline-tag\.cockpit-dashboard-todo-tag-pill/, 'Calendar tags preserve the shared personal-task pill vocabulary.');
+assert.match(styles, /--ck-cal-split-week-height:clamp\(640px, 68vh, 760px\)/, 'Split week view and daily overview share a bounded height.');
+assert.match(styles, /cal-surface\.is-week\)[^{]*\{[^}]*--ck-cal-split-left:47\.5%/s, 'Split week view gives the actionable daily overview a slight visual priority.');
+assert.match(styles, /cal-timeline:has\(> \.cockpit-dashboard-cal-timeline-row:nth-child\(4\)\)[^{]*> \.cockpit-dashboard-cal-timeline-row\s*\{[^}]*flex:1 1 0[^}]*min-height:88px/s, 'Busy split-week timelines distribute rows across the available body height.');
+assert.match(styles, /cal-surface\.is-week \.cockpit-dashboard-cal-week\s*\{[^}]*grid-template-columns:repeat\(6,[^}]*grid-template-rows:repeat\(3,/s, 'Split week view keeps the requested 3 + 2 + 2 three-row rhythm.');
+assert.match(styles, /cal-week-day:nth-child\(4\)[\s\S]*cal-week-day:nth-child\(7\)[^{]*\{[^}]*grid-column:span 3/s, 'The final four days form two balanced two-card rows.');
+assert.match(calendar, /cal-split-resize[\s\S]*setPointerCapture[\s\S]*pointermove[\s\S]*ArrowLeft[\s\S]*dblclick/, 'Split calendar exposes a pointer, keyboard, and reset-capable resize handle.');
+assert.match(calendar, /gridTemplateColumns[\s\S]*requestAnimationFrame\(flushDragFrame\)/, 'Calendar resizing updates the grid once per animation frame.');
+assert.match(calendar, /const activeModule = calendarSplitOwner\(calRoot, splitHandle\);[\s\S]*drag = \{[^}]*module:activeModule/, 'A drag targets the splitter current module instead of the parent captured before layout mounting.');
+assert.match(calendar, /apply\(splitRatio, \{ persist:true, bounds, target:activeModule \}\)/, 'Calendar resizing persists its final ratio after interaction.');
+assert.match(calendar, /onSplitRatioChange\?\.\(splitRatio\)/, 'Calendar resizing reports its settled ratio to plugin persistence.');
+const splitPointerMove = calendar.match(/splitHandle\.addEventListener\('pointermove',[\s\S]*?\n\s*\}\);/)?.[0] || '';
+assert.doesNotMatch(splitPointerMove, /getBoundingClientRect/, 'Pointer movement reuses drag-start geometry instead of forcing a synchronous layout read on every event.');
+assert.match(framework, /calendarSplitRatio[\s\S]*_setCalendarSplitRatio[\s\S]*onSplitRatioChange/, 'The calendar split ratio is restored from and saved to plugin data.');
+assert.match(styles, /grid-template-columns:minmax\(0, var\(--ck-cal-split-left\)\) var\(--ck-cal-split-handle-width\) minmax\(0, 1fr\)/, 'Split calendar reserves a dedicated draggable middle column.');
+assert.match(styles, /cal-split-resize\s*\{[^}]*width:20px[^}]*height:72px[^}]*cursor:ew-resize[^}]*opacity:\.35/s, 'The calendar splitter mirrors the overall dashboard resize handle dimensions and resting state.');
+assert.match(styles, /@container \(max-width: 440px\)[\s\S]*grid-template-columns:repeat\(2,[\s\S]*grid-template-rows:repeat\(4,/, 'A narrowed week pane reflows its seven cards instead of clipping them.');
 assert.match(calendar, /onAutomationOpen[\s\S]*onAutomationRun/, 'Automation rows expose inspect and run-now actions.');
 assert.match(build, /'calendar-day-flow\.js'[\s\S]*'calendar\.js'/, 'The day-flow renderer is bundled before the calendar module.');
 

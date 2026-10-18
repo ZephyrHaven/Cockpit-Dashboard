@@ -66,7 +66,9 @@ function renderCalendarDayFlow(options) {
 
   const counts = { all:flowItems.length, todo:todos.filter((todo) => !todo.teamTodo).length, teamTodo:todos.filter((todo) => todo.teamTodo).length, countdown:countdowns.length, automation:automations.length, rss:articles.length, event:events.length };
   const filters = detail.createDiv({ cls:PLUGIN_ID + '-cal-flow-filters', attr:{ role:'tablist', 'aria-label':en ? 'Filter day items' : '筛选日期事项' } });
-  [['all',en?'All':'全部'],...(events.length ? [['event',en?'Calendar':'日程']] : []),['todo',en?'Personal':'个人待办'],['teamTodo',en?'Team tasks':'团队待办'],['countdown',en?'Countdowns':'倒计时'],['automation',en?'Automations':'自动化'],['rss','RSS']].forEach(([id,label]) => {
+  const filterDefs = [['all',en?'All':'全部'],...(events.length ? [['event',en?'Calendar':'日程']] : []),['todo',en?'Personal':'个人待办'],['teamTodo',en?'Team tasks':'团队待办'],['countdown',en?'Countdowns':'倒计时'],['automation',en?'Automations':'自动化'],['rss','RSS']];
+  // 只显示当前日期真实存在的分类，避免一排 0 计数标签把时间线挤下去。
+  filterDefs.filter(([id]) => id === 'all' || counts[id] > 0 || filter === id).forEach(([id,label]) => {
     const button = filters.createEl('button', { cls:PLUGIN_ID + '-cal-flow-filter' + (filter === id ? ' active' : ''), attr:{ type:'button', role:'tab', 'aria-selected':String(filter === id) } });
     button.createSpan({ text:label });
     button.createSpan({ cls:PLUGIN_ID + '-cal-flow-filter-count', text:String(counts[id]) });

@@ -506,6 +506,33 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
           ? 'Mark each month-grid day with its lunar date, traditional festivals, statutory holidays, and make-up workdays. Turn off to keep a clean calendar.'
           : '在月视图标注农历日期、传统节日、法定假日与调休上班日；关闭后日历保持简洁样式。')
         .addToggle((toggle) => toggle.setValue(lunarOn).onChange((value) => applyLunarSetting(value)));
+      const layout = currentData.calendarLayout === 'split' ? 'split' : 'stacked';
+      new obs.Setting(panels.calendar)
+        .setName(en ? 'Calendar layout' : '日历布局')
+        .setDesc(en
+          ? 'Choose how the month grid and the day timeline are arranged. Side by side puts them in two columns; stacked keeps the original order. This is a fixed choice, not automatic.'
+          : '选择月历与当日时间线的排列方式。左右分栏把两者并排；上下堆叠保持原来的顺序。由你决定，不按窗口宽度自动切换。')
+        .addDropdown((dropdown) => dropdown
+          .addOption('stacked', en ? 'Stacked' : '上下堆叠')
+          .addOption('split', en ? 'Side by side' : '左右分栏')
+          .setValue(layout)
+          .onChange(async (value) => {
+            const next = value === 'split' ? 'split' : 'stacked';
+            try {
+              await this.plugin.mutateData((data) => { data.calendarLayout = next; });
+            } catch (error) {
+              console.warn('Cockpit calendar layout setting failed', error);
+              return;
+            }
+            this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((leaf) => {
+              try {
+                if (!leaf.view) return;
+                leaf.view._calendarLayout = next;
+                leaf.view._applyCalendarLayoutClass?.();
+                leaf.view._refreshCalendarRef?.();
+              } catch (error) { console.warn('Cockpit calendar layout refresh failed', error); }
+            });
+          }));
     } catch (e) { console.warn('Cockpit calendar settings failed', e); }
 
     const appleService = this.plugin.appleCalendar;

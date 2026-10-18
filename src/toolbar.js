@@ -91,7 +91,7 @@ function buildToolbar(view, root, allFiles, t) {
   const toolbar = root.createDiv({ cls:PLUGIN_ID+'-toolbar' });
   const rawButtons = [
     ...view._toolbarButtons().map((button) => ({ ...button, builtin:true })),
-    ...view._customToolbarButtons.map((button) => ({ ...button, action:'custom:' + button.id, icon:button.type === 'url' ? '🌐' : '⌘', builtin:false }))
+    ...view._customToolbarButtons.map((button) => ({ ...button, action:'custom:' + button.id, icon:button.type === 'url' ? 'globe' : 'terminal', builtin:false }))
   ];
   view._toolbarOrder = normalizeToolbarOrder(view, view._toolbarOrder);
   const orderIndex = new Map(view._toolbarOrder.map((action, index) => [action, index]));
@@ -104,7 +104,10 @@ function buildToolbar(view, root, allFiles, t) {
     if (!button.builtin) { slot.dataset.customId = button.id; slot.dataset.hidden = button.hidden ? 'true' : 'false'; }
     const el = slot.createEl('button', { cls:PLUGIN_ID+'-toolbtn'+(button.primary?' primary':''), attr:{type:'button'} });
     el.dataset.action = button.action;
-    el.createSpan({ cls:PLUGIN_ID+'-icon', text:button.icon });
+    const iconEl = el.createSpan({ cls:PLUGIN_ID+'-icon' });
+    // Lucide 名称是小写连字符；emoji / 文本符号继续按文本渲染。
+    if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(button.icon || ''))) obs.setIcon(iconEl, button.icon);
+    else iconEl.textContent = button.icon;
     el.createSpan({ cls:PLUGIN_ID+'-toolbtn-label', text:button.label });
     el.onclick = () => { if (!view._editMode) view._doAction(button.action, el); };
 

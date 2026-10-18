@@ -6,7 +6,8 @@ function buildSceneSwitcher(view, parent) {
   const icon = trigger.createSpan({ cls: PLUGIN_ID + '-scene-icon' });
   obs.setIcon(icon, 'layers-3');
   const label = trigger.createSpan({ cls: PLUGIN_ID + '-scene-label' });
-  trigger.createSpan({ cls: PLUGIN_ID + '-scene-chevron', text: '⌄' });
+  const chevron = trigger.createSpan({ cls: PLUGIN_ID + '-scene-chevron' });
+  obs.setIcon(chevron, 'chevron-down');
   let menu = null;
 
   const close = () => {
@@ -30,7 +31,10 @@ function buildSceneSwitcher(view, parent) {
     const sceneList = menu.createDiv({ cls:PLUGIN_ID + '-scene-menu-list' });
     view._sceneList().forEach((scene) => {
       const item = sceneList.createEl('button', { cls: PLUGIN_ID + '-scene-menu-item' + (scene.id === view._activeSceneId ? ' active' : ''), attr: { type: 'button', role: 'menuitem' } });
-      item.createSpan({ cls: PLUGIN_ID + '-scene-menu-icon', text: scene.icon || '◈' });
+      const sceneIcon = item.createSpan({ cls: PLUGIN_ID + '-scene-menu-icon' });
+      if (!scene.icon || scene.icon === '◈') obs.setIcon(sceneIcon, 'layers-3');
+      else if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(scene.icon)) obs.setIcon(sceneIcon, scene.icon);
+      else sceneIcon.textContent = scene.icon;
       item.createSpan({ cls: PLUGIN_ID + '-scene-menu-name', text: view._sceneLabel(scene) });
       if (scene.id === view._activeSceneId) item.createSpan({ cls: PLUGIN_ID + '-scene-menu-check', text: '✓' });
       item.onclick = async () => { close(); await view._switchScene(scene.id); };

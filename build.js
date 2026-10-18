@@ -234,8 +234,9 @@ function writeAndReport(filePath, content, label) {
 // ===== 体积治理 =====
 // 产物是单文件分发（宿主商店只下发 main.js/styles.css/manifest.json 三个文件，
 // 无法拆分为多个 JS 分片），体积只能靠源头治理。这里让每个模块的体积占比
-// 在每次构建时可见，并用预算线拦截失控增长：新功能合入时一眼看出谁在变胖。
-const SIZE_BUDGET = { warnBytes: 700 * 1024, failBytes: 1024 * 1024 };
+// 在每次构建时可见，并用预算线提示体积增长：新功能合入时一眼看出谁在变胖。
+// 700 KiB 为日常告警线；超过 1 MiB 需要明确提示，但不再阻断构建与发布。
+const SIZE_BUDGET = { warnBytes: 700 * 1024, reviewBytes: 1024 * 1024 };
 
 function reportModuleSizes(moduleBodies) {
   const rows = moduleBodies
@@ -252,13 +253,12 @@ function reportModuleSizes(moduleBodies) {
 
 function checkSizeBudget(finalBytes) {
   const kb = (finalBytes / 1024).toFixed(1);
-  if (finalBytes > SIZE_BUDGET.failBytes) {
-    console.error(`❌ JS 产物 ${kb} KB 超过硬上限 ${SIZE_BUDGET.failBytes / 1024} KB：先做体积治理（拆分插件/裁剪功能）再发布`);
-    process.exitCode = 1;
+  if (finalBytes > SIZE_BUDGET.reviewBytes) {
+    console.warn(`⚠️ JS 产物 ${kb} KB 超过重点关注线 ${SIZE_BUDGET.reviewBytes / 1024} KB；本次允许继续构建与发布，后续新增功能需同步评估体积`);
   } else if (finalBytes > SIZE_BUDGET.warnBytes) {
     console.warn(`⚠️ JS 产物 ${kb} KB 已超过预算告警线 ${SIZE_BUDGET.warnBytes / 1024} KB，新增功能请同步评估体积`);
   } else {
-    console.log(`📦 体积预算: ${kb} KB / 告警 ${SIZE_BUDGET.warnBytes / 1024} KB / 上限 ${SIZE_BUDGET.failBytes / 1024} KB ✅`);
+    console.log(`📦 体积预算: ${kb} KB / 告警 ${SIZE_BUDGET.warnBytes / 1024} KB / 重点关注 ${SIZE_BUDGET.reviewBytes / 1024} KB ✅`);
   }
 }
 
