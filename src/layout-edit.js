@@ -214,8 +214,10 @@ function cockpitWireModuleDnD(view, root) {
       if (!dragged) return;
       const rect = wrapper.getBoundingClientRect();
       const before = evt.clientY < rect.top + rect.height / 2;
+      const first = cockpitCaptureLayout(root.querySelectorAll('[data-motion-key]'));
       if (before) root.insertBefore(dragged, wrapper);
       else root.insertBefore(dragged, wrapper.nextSibling);
+      cockpitPlayFlip(root, first, view);
       cockpitClearModuleDropHints(view, root);
       await view._saveModuleOrder(Array.from(root.querySelectorAll('.' + PLUGIN_ID + '-module')).map((el) => el.dataset.moduleId));
     };
@@ -249,6 +251,7 @@ function cockpitApplyModuleLayout(view, root) {
     const wrapper = document.createElement('section');
     wrapper.className = PLUGIN_ID + '-module';
     wrapper.dataset.moduleId = moduleId;
+    wrapper.dataset.motionKey = 'module:' + moduleId;
     wrapper.dataset.moduleLabel = view._moduleLabel(moduleId);
     wrapper.style.setProperty('--ck-i', String(fragment.childNodes.length));
     nodes.forEach((node) => wrapper.appendChild(node));
@@ -273,7 +276,7 @@ function cockpitMakeCollapsible(view, titleEl, contentEl, key, defaultCollapsed)
   let collapsed = view._collapsed && view._collapsed[key];
   if (collapsed === undefined) collapsed = defaultCollapsed || false;
   const apply = (animated) => {
-    if (animated) cockpitAnimateCollapse(contentEl, collapsed);
+    if (animated) cockpitAnimateCollapse(contentEl, collapsed, view);
     else contentEl.style.display = collapsed ? 'none' : '';
     // 箭头保持同一个字符，由 CSS 旋转表达折叠状态，过渡更顺滑。
     arrow.classList.toggle('is-collapsed', collapsed);

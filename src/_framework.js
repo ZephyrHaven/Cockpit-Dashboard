@@ -649,6 +649,7 @@ class CockpitView extends obs.ItemView {
       const calendarSplitRatio = Number(pluginData?.calendarSplitRatio);
       this._calendarSplitRatio = Number.isFinite(calendarSplitRatio) && calendarSplitRatio >= .3 && calendarSplitRatio <= .7 ? calendarSplitRatio : null;
       this._calendarLunarEnabled = pluginData?.calendarLunarEnabled !== false;
+      this._motionV2Enabled = pluginData?.motionV2Enabled !== false;
       this._username = pluginData?.username || this._t('hero.defaultName');
       const savedContentWidth = Number(pluginData?.dashboardContentWidth);
       this._contentWidth = Number.isFinite(savedContentWidth) && savedContentWidth >= 480 ? Math.round(savedContentWidth) : null;
@@ -934,13 +935,20 @@ class CockpitView extends obs.ItemView {
     if (!this._isMobile() && initialWidth >= 680 && initialWidth < 980) initialClasses.push(PLUGIN_ID+'-tablet');
     if (this._calendarLayout === 'split') initialClasses.push(PLUGIN_ID+'-calendar-split');
     const root = container.createDiv({ cls:initialClasses.join(' ') });
+    cockpitApplyMotionState(root, this);
     if (previousRoot) root.classList.add(PLUGIN_ID + '-scene-preparing');
     this._ensureStylesheetLoaded();
     this._attachRootContextMenu(container);
     await this._buildAll(root);
-    if (!this._hasPlayedEntrance || previousRoot) cockpitPlayEntrance(root);
+    if (previousRoot) {
+      const first = cockpitCaptureLayout(previousRoot.querySelectorAll('[data-motion-key]'));
+      cockpitPlayFlip(root, first, this);
+    }
+    if (!this._hasPlayedEntrance || previousRoot) cockpitPlayEntrance(root, this);
     this._hasPlayedEntrance = true;
-    cockpitBindPointerGlow(root);
+    cockpitBindPointerGlow(root, this);
+    cockpitBindMotionInteractions(root, this);
+    cockpitBindCinematicMotion(root, this);
     this._syncResponsiveViewport();
     requestAnimationFrame(() => root.classList.remove(PLUGIN_ID+'-initializing'));
     if (previousRoot) {
@@ -948,7 +956,7 @@ class CockpitView extends obs.ItemView {
         previousRoot.classList.add(PLUGIN_ID + '-scene-leaving');
         root.classList.remove(PLUGIN_ID + '-scene-preparing');
         root.classList.add(PLUGIN_ID + '-scene-entering');
-        setTimeout(() => previousRoot.remove(), 460);
+        setTimeout(() => previousRoot.remove(), 340);
       });
     }
     if (this._pendingOnboarding) {
@@ -2508,6 +2516,9 @@ class CockpitPlugin extends obs.Plugin {
     return mutatePluginData(this, mutator);
   }
   async onload() {
+    const initialData = await this.loadData() || {};
+    this._motionV2Enabled = initialData.motionV2Enabled !== false;
+    globalThis.__cockpitMotionV2Enabled = this._motionV2Enabled;
     this.updater = new CockpitUpdater(this);
     void this.updater.start().catch((error) => console.warn('Cockpit updater initialization failed', error));
     this.lanSync = new CockpitLanSync(this);

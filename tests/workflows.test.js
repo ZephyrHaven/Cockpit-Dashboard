@@ -24,6 +24,28 @@ assert.equal(api.workflowTimeoutMs(30), 30000, 'Shell timeout seconds are conver
 assert.equal(api.workflowTimeoutMs(1), 5000, 'Shell timeout respects the configured minimum before conversion.');
 assert.equal(api.workflowTimeoutMs(99999), 1800000, 'Shell timeout respects the configured maximum before conversion.');
 
+// ── 总览聚合 ────────────────────────────────────────────────────────────────
+{
+  const stats = api.workflowOverviewStats([
+    { id:'healthy', enabled:true, lastStatus:'success', steps:[{}, {}], runs:[
+      { at:'2026-08-12T09:30:00.000Z', status:'success' },
+      { at:'2026-08-11T09:30:00.000Z', status:'success' }
+    ] },
+    { id:'attention', enabled:false, lastStatus:'failed', steps:[{}], runs:[
+      { at:'2026-08-10T09:30:00.000Z', status:'failed' }
+    ] }
+  ], [
+    { enabled:true, kind:'workflow', command:'healthy', schedule:{ type:'daily' } },
+    { enabled:true, kind:'workflow', command:'healthy', schedule:{ type:'event' } },
+    { enabled:true, kind:'workflow', command:'missing', schedule:{ type:'daily' } },
+    { enabled:false, kind:'workflow', command:'attention', schedule:{ type:'daily' } }
+  ]);
+  assert.deepEqual(stats, {
+    total:2, enabled:1, attention:1, totalSteps:3,
+    automaticTriggers:2, eventTriggers:1, recentRuns:3, successRate:67
+  }, 'Workflow overview combines health, recent reliability, steps and only enabled linked triggers.');
+}
+
 // ── 数据模型 ────────────────────────────────────────────────────────────────
 {
   const normalized = api.normalizeWorkflows([
@@ -71,6 +93,8 @@ const plugin = {
   }
 };
 const engine = new api.CockpitWorkflowEngine(plugin, { sleep:async () => {} });
+const progressEvents = [];
+engine.subscribe((event) => progressEvents.push(event));
 const seed = async (workflow) => { state.workflows = api.normalizeWorkflows([workflow]); };
 
 (async () => {
@@ -81,6 +105,7 @@ await seed({ id:'flow', name:'链路', enabled:true, steps:[
   { type:'create-todo', text:'复核 {date}' }
 ]});
 {
+  progressEvents.length = 0;
   const outcome = await engine.run('flow', { trigger:'schedule' });
   assert.equal(outcome.ok, true);
   assert.equal(outcome.status, 'success');
@@ -90,6 +115,10 @@ await seed({ id:'flow', name:'链路', enabled:true, steps:[
   assert.equal(record.status, 'success');
   assert.equal(record.trigger, 'schedule');
   assert.equal(state.workflows[0].lastRunAt !== '', true);
+  assert.deepEqual(progressEvents.map((event) => event.type), [
+    'run-start','step-start','step-success','step-start','step-success','step-start','step-success','run-complete','data'
+  ], 'The UI receives a deterministic, step-level motion state sequence.');
+  assert.equal(progressEvents.some((event) => Object.hasOwn(event, 'text') || Object.hasOwn(event, 'output')), false, 'Progress events never expose command text or output.');
 }
 
 // 条件跳过 + 失败中止 + 失败推送

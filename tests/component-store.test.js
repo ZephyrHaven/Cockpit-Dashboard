@@ -89,6 +89,7 @@ const store = fs.readFileSync(path.join(root, 'src/component-store.js'), 'utf8')
 const scenes = fs.readFileSync(path.join(root, 'src/scenes.js'), 'utf8');
 const framework = fs.readFileSync(path.join(root, 'src/_framework.js'), 'utf8');
 const build = fs.readFileSync(path.join(root, 'build.js'), 'utf8');
+const styles = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 
 assert.match(build, /'component-store-core\.js'[\s\S]*'component-store\.js'/, 'The component store is included in the production bundle.');
 assert.match(scenes, /openComponentStore\(view\)/, 'Scene management opens the component store.');
@@ -109,7 +110,14 @@ assert.match(currentLayoutSource, /component-row-handle[\s\S]*draggable:'true'/,
 assert.match(currentLayoutSource, /drop-before[\s\S]*drop-after/, 'Layout dragging exposes an exact before/after insertion target.');
 assert.match(store, /_rerenderInPlace\(\)[\s\S]*body\?\.scrollTop\?\?0[\s\S]*bodyScrollTop/, 'In-place component changes capture the store body scroll offset before rendering.');
 assert.match(store, /if\(bodyScrollTop!==null\)scheduleComponentStoreScrollRestore\(this,body,bodyScrollTop\)/, 'The component store restores its body scroll offset after layout completes.');
-assert.match(store, /_setVisible\(id, visible\)[^\n]*_rerenderInPlace\(\)/, 'Adding or removing a component keeps the current store viewport.');
+const setVisibleSource = store.slice(store.indexOf('_setVisible(id, visible)'), store.indexOf('\n  _syncVisibilityItem', store.indexOf('_setVisible(id, visible)')));
+assert.doesNotMatch(setVisibleSource, /render|_rerenderInPlace|_renderDashboard/, 'Adding or removing a component only updates the draft and never redraws either surface.');
+assert.match(setVisibleSource, /_syncVisibilityItem\(id\)/, 'Adding or removing a component synchronizes only its existing row or card.');
+assert.match(store, /initialSnapshot[\s\S]*is-pending-add[\s\S]*is-pending-remove/, 'The component store compares draft visibility with the opening snapshot.');
+assert.match(store, /data-component-visibility-action/, 'Visibility actions expose stable in-place synchronization hooks.');
+assert.match(store, /onClose\(\)[\s\S]*this\.applied \|\| this\.globalChanged/, 'Cancel discards the visibility draft without refreshing the dashboard.');
+assert.match(styles, /\.cockpit-dashboard-component-layout-row\.is-pending-remove/, 'Pending removals remain visible in their current-layout position.');
+assert.match(styles, /\.cockpit-dashboard-component-card\.is-pending-add[\s\S]*\.cockpit-dashboard-component-card\.is-pending-remove/, 'Catalog cards expose both staged visibility states.');
 assert.match(currentLayoutSource, /ondrop=[^\n]*_rerenderInPlace\(\)/, 'Drag reordering keeps the current layout viewport.');
 assert.match(store, /function renderComponentPreview\(/, 'The store provides a reusable component preview renderer.');
 assert.match(store, /component-card-preview/, 'Catalog cards include a component preview.');

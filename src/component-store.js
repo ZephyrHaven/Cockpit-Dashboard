@@ -11,12 +11,12 @@ const COMPONENT_STORE_META = {
 };
 
 const COMPONENT_STORE_COPY = {
-  zh:{ title:'组件商店', current:'当前布局', catalog:'全部组件', search:'搜索组件', add:'添加到布局', remove:'从布局移除', configure:'设置', added:'已添加',
+  zh:{ title:'组件商店', current:'当前布局', catalog:'全部组件', search:'搜索组件', add:'添加到布局', remove:'从布局移除', undo:'撤销', configure:'设置', added:'已添加', pendingAdd:'待添加', pendingRemove:'待移除',
     cancel:'取消', apply:'应用布局', back:'返回组件商店', rename:'当前布局名称', restore:'恢复默认', componentSettings:'组件设置', layoutScope:'仅影响当前情景布局',
     globalScope:'全局设置，保存后会影响所有情景布局', toolbarItems:'Toolbar 按钮', statsItems:'统计卡片', show:'显示', hide:'隐藏', edit:'编辑', delete:'删除',
     addCustom:'添加自定义按钮', logs:'运行日志', tips:'管理提示库', empty:'当前布局还没有组件', noResults:'没有找到组件', sceneChanged:'情景布局已经切换，请重新打开组件商店。',
     categories:{all:'全部',basic:'基础',planning:'计划',focus:'效率',automation:'自动化',knowledge:'知识',insights:'洞察'} },
-  en:{ title:'Component Store', current:'Current layout', catalog:'All components', search:'Search components', add:'Add to layout', remove:'Remove from layout', configure:'Settings', added:'Added',
+  en:{ title:'Component Store', current:'Current layout', catalog:'All components', search:'Search components', add:'Add to layout', remove:'Remove from layout', undo:'Undo', configure:'Settings', added:'Added', pendingAdd:'Pending add', pendingRemove:'Pending removal',
     cancel:'Cancel', apply:'Apply layout', back:'Back to store', rename:'Name in this layout', restore:'Restore default', componentSettings:'Component settings', layoutScope:'Only affects the current layout scene',
     globalScope:'Global setting; saves immediately for every layout scene', toolbarItems:'Toolbar buttons', statsItems:'Statistic cards', show:'Show', hide:'Hide', edit:'Edit', delete:'Delete',
     addCustom:'Add custom button', logs:'Run logs', tips:'Manage tip library', empty:'No components in this layout', noResults:'No components found', sceneChanged:'The layout scene changed. Reopen the component store.',
@@ -84,7 +84,7 @@ function renderComponentPreview(parent, entry, variant='card') {
 
 class CockpitComponentStoreModal extends CockpitModal {
   constructor(app, view) {
-    super(app); this.view=view; this.sceneId=view._activeSceneId; this.draft=cloneComponentLayoutSnapshot(view._sceneSnapshot());
+    super(app); this.view=view; this.sceneId=view._activeSceneId; this.initialSnapshot=cloneComponentLayoutSnapshot(view._sceneSnapshot());this.draft=cloneComponentLayoutSnapshot(this.initialSnapshot);
     this.tab='current'; this.category='all'; this.query=''; this.detailId=''; this.applied=false; this.globalChanged=false; this.dragId=''; this._scrollRestoreFrame=0;
   }
   onOpen() {
@@ -98,8 +98,20 @@ class CockpitComponentStoreModal extends CockpitModal {
     if (this.applied || this.globalChanged) this.view._renderDashboard(false, true).catch((e)=>console.warn('Cockpit component store refresh failed',e));
   }
   _visible(id) { return !this.draft.hiddenModules.includes(id); }
-  _rerenderInPlace() { const body=this.contentEl.querySelector('.'+PLUGIN_ID+'-component-store-body'); this.render({bodyScrollTop:body?.scrollTop??0}); }
-  _setVisible(id, visible) { this.draft=setComponentVisibility(this.draft,id,visible); this._rerenderInPlace(); }
+  _initialVisible(id) { return !this.initialSnapshot.hiddenModules.includes(id); }
+  _rerenderInPlace() { const body=this.contentEl.querySelector('.'+PLUGIN_ID+'-component-store-body'); const first=cockpitCaptureLayout(body?.querySelectorAll?.('[data-motion-key]')); this.render({bodyScrollTop:body?.scrollTop??0}); cockpitPlayFlip(this.contentEl,first,this.view); }
+  _setVisible(id, visible) { this.draft=setComponentVisibility(this.draft,id,visible); this._syncVisibilityItem(id); }
+  _syncVisibilityItem(id) {
+    const c=componentStoreCopy(this.view);const visible=this._visible(id);const initial=this._initialVisible(id);const pendingAdd=!initial&&visible;const pendingRemove=initial&&!visible;
+    Array.from(this.contentEl.querySelectorAll('[data-module-id]')).filter((item)=>item.dataset.moduleId===id).forEach((item)=>{
+      const isRow=item.classList.contains(PLUGIN_ID+'-component-layout-row');const isCard=item.classList.contains(PLUGIN_ID+'-component-card');
+      item.classList.toggle('added',isCard&&visible);item.classList.toggle('is-pending-add',pendingAdd);item.classList.toggle('is-pending-remove',isRow?!visible:pendingRemove);
+      const action=item.querySelector('[data-component-visibility-action]');
+      if(action){const pending=pendingAdd||pendingRemove;action.textContent=isRow&&!visible?c.undo:(pending?c.undo:(visible?c.remove:c.add));action.classList.toggle('danger',visible&&!pendingAdd);action.classList.toggle('mod-cta',!visible||pendingAdd);action.setAttribute('aria-pressed',String(visible));}
+      const marker=item.querySelector('[data-component-added-marker]');
+      if(marker){marker.hidden=!visible&&!pendingRemove;marker.textContent=pendingAdd?'+ '+c.pendingAdd:(pendingRemove?'− '+c.pendingRemove:'✓ '+c.added);}
+    });
+  }
   _dashboardRoot() { return this.view.containerEl.children[1]?.querySelector('.'+PLUGIN_ID+'-root') || null; }
   _markGlobalChanged() { this.globalChanged=true; this.draft.toolbarOrder=normalizeToolbarOrder(this.view,this.draft.toolbarOrder); this.render(); }
   async apply() {
@@ -146,13 +158,14 @@ class CockpitComponentStoreModal extends CockpitModal {
     const byId=new Map(componentStoreEntries(this.view).map((entry)=>[entry.id,entry]));
     const ordered=this.draft.moduleOrder.map((id)=>byId.get(id)).filter(Boolean);
     componentStoreEntries(this.view).forEach((entry)=>{if(!ordered.some((item)=>item.id===entry.id))ordered.push(entry);});
-    return ordered.filter((entry)=>(!visibleOnly||this._visible(entry.id))&&(this.category==='all'||entry.category===this.category)&&(!query||`${entry.label} ${entry.description}`.toLowerCase().includes(query)));
+    return ordered.filter((entry)=>(!visibleOnly||this._visible(entry.id)||this._initialVisible(entry.id))&&(this.category==='all'||entry.category===this.category)&&(!query||`${entry.label} ${entry.description}`.toLowerCase().includes(query)));
   }
   renderCurrent(body,c) {
     const list=body.createDiv({cls:PLUGIN_ID+'-component-layout-list'});const entries=this._filteredEntries(true);
     if(!entries.length){list.createDiv({cls:PLUGIN_ID+'-component-store-empty',text:this.query?c.noResults:c.empty});return;}
     entries.forEach((entry,index)=>{
       const row=list.createDiv({cls:PLUGIN_ID+'-component-layout-row',attr:{'data-module-id':entry.id}});
+      row.dataset.motionKey='component:'+entry.id;
       row.ondragover=(event)=>{if(!this.dragId||this.dragId===entry.id)return;event.preventDefault();const after=event.clientY>=row.getBoundingClientRect().top+(row.getBoundingClientRect().height/2);list.querySelectorAll('.'+PLUGIN_ID+'-component-layout-row').forEach((item)=>{if(item!==row)item.classList.remove('drop-before','drop-after');});row.classList.toggle('drop-before',!after);row.classList.toggle('drop-after',after);if(event.dataTransfer)event.dataTransfer.dropEffect='move';};
       row.ondragleave=(event)=>{if(!row.contains(event.relatedTarget))row.classList.remove('drop-before','drop-after');};
       row.ondrop=(event)=>{event.preventDefault();if(this.dragId&&this.dragId!==entry.id){const placeAfter=row.classList.contains('drop-after');this.draft=moveComponentAtDrop(this.draft,this.dragId,entry.id,placeAfter);this.dragId='';this._rerenderInPlace();}};
@@ -165,21 +178,22 @@ class CockpitComponentStoreModal extends CockpitModal {
       const up=tools.createEl('button',{text:'↑',attr:{type:'button','aria-label':'Up'}});up.disabled=index===0;up.onclick=()=>{if(index>0){this.draft=moveComponentBefore(this.draft,entry.id,entries[index-1].id);this._rerenderInPlace();}};
       const down=tools.createEl('button',{text:'↓',attr:{type:'button','aria-label':'Down'}});down.disabled=index===entries.length-1;down.onclick=()=>{if(index<entries.length-1){const after=entries[index+2]?.id||null;this.draft=moveComponentBefore(this.draft,entry.id,after);this._rerenderInPlace();}};
       const settings=tools.createEl('button',{text:c.configure,attr:{type:'button'}});settings.onclick=()=>{this.detailId=entry.id;this.render();};
-      const remove=tools.createEl('button',{cls:'danger',text:c.remove,attr:{type:'button'}});remove.onclick=()=>this._setVisible(entry.id,false);
+      const remove=tools.createEl('button',{cls:'danger',text:c.remove,attr:{type:'button','data-component-visibility-action':'','aria-pressed':'true'}});remove.onclick=()=>this._setVisible(entry.id,!this._visible(entry.id));this._syncVisibilityItem(entry.id);
     });
   }
   renderCatalog(body,c) {
     const grid=body.createDiv({cls:PLUGIN_ID+'-component-catalog-grid'});const entries=this._filteredEntries(false);
     if(!entries.length){grid.createDiv({cls:PLUGIN_ID+'-component-store-empty',text:c.noResults});return;}
     entries.forEach((entry)=>{
-      const card=grid.createDiv({cls:PLUGIN_ID+'-component-card'+(this._visible(entry.id)?' added':'')});
+      const card=grid.createDiv({cls:PLUGIN_ID+'-component-card'+(this._visible(entry.id)?' added':'') ,attr:{'data-module-id':entry.id}});
+      card.dataset.motionKey='component:'+entry.id;
       const icon=card.createSpan({cls:PLUGIN_ID+'-component-card-icon'});obs.setIcon(icon,entry.icon);
       const main=card.createDiv({cls:PLUGIN_ID+'-component-card-main'});main.createDiv({cls:PLUGIN_ID+'-component-card-name',text:entry.label});main.createDiv({cls:PLUGIN_ID+'-component-card-category',text:c.categories[entry.category]});main.createDiv({cls:PLUGIN_ID+'-component-card-description',text:entry.description});
       renderComponentPreview(card,entry,'card');
       const actions=card.createDiv({cls:PLUGIN_ID+'-component-card-actions'});
       const settings=actions.createEl('button',{text:c.configure,attr:{type:'button'}});settings.onclick=()=>{this.detailId=entry.id;this.render();};
-      const visible=this._visible(entry.id);const toggle=actions.createEl('button',{cls:visible?'':'mod-cta',text:visible?c.remove:c.add,attr:{type:'button'}});toggle.onclick=()=>this._setVisible(entry.id,!visible);
-      if(visible)card.createSpan({cls:PLUGIN_ID+'-component-card-added',text:'✓ '+c.added});
+      const visible=this._visible(entry.id);const toggle=actions.createEl('button',{cls:visible?'danger':'mod-cta',text:visible?c.remove:c.add,attr:{type:'button','data-component-visibility-action':'','aria-pressed':String(visible)}});toggle.onclick=()=>this._setVisible(entry.id,!this._visible(entry.id));
+      const marker=card.createSpan({cls:PLUGIN_ID+'-component-card-added',text:'✓ '+c.added,attr:{'data-component-added-marker':''}});marker.hidden=!visible;this._syncVisibilityItem(entry.id);
     });
   }
   renderDetail(body,c) {
@@ -190,7 +204,7 @@ class CockpitComponentStoreModal extends CockpitModal {
     const rename=generic.createDiv({cls:PLUGIN_ID+'-component-rename-row'});const input=rename.createEl('input',{attr:{type:'text',maxlength:'40'}});input.value=this.draft.moduleLabels[entry.id]||'';input.placeholder=entry.label;
     input.oninput=()=>{const value=input.value.trim().slice(0,40);if(value)this.draft.moduleLabels[entry.id]=value;else delete this.draft.moduleLabels[entry.id];};
     const restore=rename.createEl('button',{text:c.restore,attr:{type:'button'}});restore.onclick=()=>{delete this.draft.moduleLabels[entry.id];this.render();};
-    const visibility=generic.createEl('button',{cls:this._visible(entry.id)?'danger':'mod-cta',text:this._visible(entry.id)?c.remove:c.add,attr:{type:'button'}});visibility.onclick=()=>this._setVisible(entry.id,!this._visible(entry.id));
+    generic.dataset.moduleId=entry.id;const visibility=generic.createEl('button',{cls:this._visible(entry.id)?'danger':'mod-cta',text:this._visible(entry.id)?c.remove:c.add,attr:{type:'button','data-component-visibility-action':'','aria-pressed':String(this._visible(entry.id))}});visibility.onclick=()=>this._setVisible(entry.id,!this._visible(entry.id));this._syncVisibilityItem(entry.id);
     if(entry.manager==='toolbar')this.renderToolbarManager(body,c);else if(entry.manager==='stats')this.renderStatsManager(body,c);else if(entry.manager==='tip')this.renderTipManager(body,c);
   }
   _toolbarButtons() {

@@ -133,12 +133,12 @@ class CockpitWorkflowEngine {
     this.listeners = new Set();
   }
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
-  notify() { this.listeners.forEach((listener) => { try { listener(); } catch (e) {} }); }
+  notify(event = { type:'data' }) { this.listeners.forEach((listener) => { try { listener(event); } catch (e) {} }); }
   async load() { return normalizeWorkflows((await this.plugin.loadData())?.workflows); }
   async save(workflows) {
     const normalized = normalizeWorkflows(workflows);
     await this.plugin.mutateData((data) => { data.workflows = normalized; });
-    this.notify();
+    this.notify({ type:'data' });
     return normalized;
   }
   async upsert(workflow) {
@@ -151,12 +151,12 @@ class CockpitWorkflowEngine {
       else list.push(normalized);
       data.workflows = list.slice(0, WORKFLOW_LIMITS.maxWorkflows);
     });
-    this.notify();
+    this.notify({ type:'data' });
     return normalized;
   }
   async remove(id) {
     await this.plugin.mutateData((data) => { data.workflows = normalizeWorkflows(data.workflows).filter((item) => item.id !== id); });
-    this.notify();
+    this.notify({ type:'data' });
   }
   _actions() {
     const service = this.plugin.scheduledTasks;
@@ -210,17 +210,20 @@ class CockpitWorkflowEngine {
     const workflow = (await this.load()).find((item) => item.id === id);
     if (!workflow) throw new Error('workflow-not-found');
     this.running.add(id);
+    this.notify({ type:'run-start', workflowId:id, stepCount:workflow.steps.length });
     const startedAt = Date.now();
     const stepResults = [];
     let lastResult = null;
     let anyFailed = false;
     let aborted = false;
     try {
-      for (const step of workflow.steps) {
+      for (const [stepIndex, step] of workflow.steps.entries()) {
         if (!stepConditionAllows(step, lastResult)) {
           stepResults.push({ id:step.id, type:step.type, status:'skipped' });
+          this.notify({ type:'step-skipped', workflowId:id, stepId:step.id, stepIndex });
           continue;
         }
+        this.notify({ type:'step-start', workflowId:id, stepId:step.id, stepIndex });
         const maxAttempts = 1 + Math.max(0, Math.min(WORKFLOW_LIMITS.retryMax, step.retryCount || 0));
         let attempt = 0;
         let result = null;
@@ -232,6 +235,7 @@ class CockpitWorkflowEngine {
         }
         lastResult = result;
         stepResults.push({ id:step.id, type:step.type, status:result.ok ? 'success' : 'failed', attempts:attempt, error:result.ok ? '' : String(result.error || '').slice(0, 300) });
+        this.notify({ type:result.ok ? 'step-success' : 'step-failure', workflowId:id, stepId:step.id, stepIndex, attempts:attempt });
         if (!result.ok) {
           anyFailed = true;
           if (!step.continueOnError) { aborted = true; break; }
@@ -259,7 +263,8 @@ class CockpitWorkflowEngine {
       }
       if (latest?.logNote) await this._appendRunLog(latest, record);
     } catch (error) { console.warn('[Cockpit workflow] result routing failed', error); }
-    this.notify();
+    this.notify({ type:'run-complete', workflowId:id, status, durationMs:record.durationMs });
+    this.notify({ type:'data' });
     return { ok:status === 'success', status, record };
   }
   async _appendRunLog(workflow, record) {
@@ -322,9 +327,31 @@ function workflowRunStatusText(status, en) {
   return (labels[status] || labels.failed)[0];
 }
 
-function workflowOpenOverlay(view, titleText) {
+function workflowOverviewStats(workflows, scheduledTasks = []) {
+  const list = Array.isArray(workflows) ? workflows : [];
+  const workflowIds = new Set(list.map((workflow) => workflow.id));
+  const runs = list.flatMap((workflow) => Array.isArray(workflow.runs) ? workflow.runs : [])
+    .filter((run) => ['success', 'failed', 'aborted'].includes(run?.status))
+    .sort((a, b) => Date.parse(b.at || '') - Date.parse(a.at || ''))
+    .slice(0, 20);
+  const automaticTasks = (Array.isArray(scheduledTasks) ? scheduledTasks : []).filter((task) => (
+    task?.enabled === true && task.kind === 'workflow' && workflowIds.has(task.command)
+  ));
+  return {
+    total:list.length,
+    enabled:list.filter((workflow) => workflow.enabled).length,
+    attention:list.filter((workflow) => ['failed', 'aborted'].includes(workflow.lastStatus)).length,
+    totalSteps:list.reduce((sum, workflow) => sum + (Array.isArray(workflow.steps) ? workflow.steps.length : 0), 0),
+    automaticTriggers:automaticTasks.length,
+    eventTriggers:automaticTasks.filter((task) => task.schedule?.type === 'event').length,
+    recentRuns:runs.length,
+    successRate:runs.length ? Math.round(runs.filter((run) => run.status === 'success').length / runs.length * 100) : null
+  };
+}
+
+function workflowOpenOverlay(view, titleText, trigger = null) {
   const en = view._lang() === 'en';
-  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-scheduler-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay);
+  const overlay = document.createElement('div'); overlay.className = PLUGIN_ID + '-scheduler-backdrop'; if (typeof cockpitAnimateOverlay === 'function') cockpitAnimateOverlay(overlay, { trigger, owner:view });
   const panel = overlay.createDiv({ cls:PLUGIN_ID + '-scheduler-dialog' });
   const head = panel.createDiv({ cls:PLUGIN_ID + '-scheduler-dialog-head' });
   head.createDiv({ cls:PLUGIN_ID + '-scheduler-dialog-title', text:titleText });
@@ -365,38 +392,190 @@ function buildWorkflowsModule(view, root) {
   title.dataset.section = 'workflows-title';
   const body = root.createDiv({ cls:PLUGIN_ID+'-workflows' });
   body.dataset.section = 'workflows-body';
-  const openEditor = (workflowIdValue = null) => openWorkflowEditor(view, workflowIdValue).catch((error) => {
+  const openEditor = (workflowIdValue = null, trigger = null) => openWorkflowEditor(view, workflowIdValue, trigger).catch((error) => {
     console.warn('[Cockpit workflows editor]', error);
     new obs.Notice((en ? 'Could not open workflow editor: ' : '无法打开流程编辑器：') + (error?.message || error));
   });
   let renderRevision = 0;
+  const applyProgress = (event) => {
+    if (!event?.workflowId || event.type === 'data') return false;
+    const card = body.querySelector('[data-workflow-id="' + event.workflowId + '"]');
+    if (!card) return true;
+    const state = card.querySelector('.' + PLUGIN_ID + '-workflow-card-state');
+    const nodes = Array.from(card.querySelectorAll('.' + PLUGIN_ID + '-workflow-card-step'));
+    if (event.type === 'run-start') {
+      card.classList.remove('success','failed','aborted'); card.classList.add('running');
+      card.dataset.runState = 'charge'; if (state) state.setText(en ? 'Running' : '运行中');
+      nodes.forEach((node) => { node.classList.remove('is-active','is-success','is-failed','is-skipped'); node.removeAttribute('aria-current'); });
+    } else if (event.type === 'step-start') {
+      card.dataset.runState = 'conduct';
+      const node = nodes[event.stepIndex]; node?.classList.add('is-active'); node?.setAttribute('aria-current','step');
+    } else if (event.type === 'step-success' || event.type === 'step-failure' || event.type === 'step-skipped') {
+      const node = nodes[event.stepIndex];
+      node?.classList.remove('is-active'); node?.removeAttribute('aria-current');
+      node?.classList.add(event.type === 'step-success' ? 'is-success' : (event.type === 'step-failure' ? 'is-failed' : 'is-skipped'));
+      if (node && event.type !== 'step-skipped') cockpitSettle(node, event.type === 'step-success' ? 'success' : 'failed', view);
+    } else if (event.type === 'run-complete') {
+      card.dataset.runState = event.status === 'success' ? 'crystallize' : 'halt';
+      card.classList.remove('running'); card.classList.add(event.status);
+      if (state) state.setText(workflowRunStatusText(event.status, en));
+      cockpitSettle(card, event.status === 'success' ? 'success' : 'failed', view);
+    }
+    return true;
+  };
 
   const render = async () => {
     const revision = ++renderRevision;
-    const workflows = await engine.load();
+    const scheduledPromise = plugin.scheduledTasks?.load
+      ? plugin.scheduledTasks.load().catch(() => [])
+      : Promise.resolve([]);
+    const [workflows, scheduledTasks] = await Promise.all([engine.load(), scheduledPromise]);
     if (revision !== renderRevision) return;
     body.empty();
-    const top = body.createDiv({ cls:PLUGIN_ID+'-scheduler-summary' });
-    top.createDiv({ cls:PLUGIN_ID+'-scheduler-summary-text', text:en ? `${workflows.length} pipelines · run manually or via schedules/events` : `${workflows.length} 条流程 · 手动运行或按时间/事件触发` });
-    const controls = top.createDiv({ cls:PLUGIN_ID+'-scheduler-controls' });
-    const add = controls.createEl('button', { cls:'primary', text:'+ ' + (en ? 'New workflow' : '新建流程'), attr:{ type:'button' } });
-    add.onclick = () => openEditor();
-    if (!workflows.length) {
-      body.createDiv({ cls:PLUGIN_ID+'-scheduler-empty', text:en ? 'No workflows yet. Start from an inspection template (disk / website / backup freshness).' : '暂无自动化流程。可从巡检模板开始（磁盘空间 / 网站可达性 / 备份新鲜度）。' });
+    const now = window.moment();
+    const stats = workflowOverviewStats(workflows, scheduledTasks);
+    const isRunning = workflows.some((workflow) => engine.running.has(workflow.id));
+    const linkedTasks = scheduledTasks.filter((task) => task?.enabled && task.kind === 'workflow' && workflows.some((workflow) => workflow.id === task.command));
+    const nextAutomatic = linkedTasks
+      .filter((task) => task.schedule?.type !== 'event')
+      .map((task) => ({ task, at:nextScheduledRun(task, now.valueOf()) }))
+      .filter((item) => item.at)
+      .sort((a, b) => a.at.valueOf() - b.at.valueOf())[0] || null;
+
+    let healthKey = 'healthy';
+    let healthTitle = en ? 'Automation is ready' : '自动化运行正常';
+    let healthDescription = en ? 'Your enabled workflows are ready to run.' : '已启用流程均处于可运行状态。';
+    if (stats.attention) {
+      healthKey = 'attention';
+      healthTitle = en ? `${stats.attention} workflow${stats.attention > 1 ? 's' : ''} need attention` : `${stats.attention} 条流程需要关注`;
+      healthDescription = en ? 'Review the latest failed or stopped runs.' : '建议检查最近失败或中止的运行记录。';
+    } else if (isRunning) {
+      healthKey = 'running';
+      healthTitle = en ? 'Automation is running' : '自动化正在运行';
+      healthDescription = en ? 'A workflow is currently processing its steps.' : '当前有流程正在依次执行步骤。';
+    } else if (!stats.enabled && stats.total) {
+      healthKey = 'paused';
+      healthTitle = en ? 'All workflows are paused' : '所有流程均已停用';
+      healthDescription = en ? 'Enable a workflow when you are ready to automate it.' : '准备好后，可启用流程并配置自动触发。';
+    } else if (!stats.total) {
+      healthKey = 'empty';
+      healthTitle = en ? 'Build your first automation' : '创建第一条自动化流程';
+      healthDescription = en ? 'Connect actions into a repeatable, observable pipeline.' : '把多个操作串成可重复、可观察的执行链。';
     }
-    const list = body.createDiv({ cls:PLUGIN_ID+'-scheduler-list' });
+
+    const overview = body.createDiv({ cls:PLUGIN_ID+'-workflow-overview '+healthKey });
+    const overviewHead = overview.createDiv({ cls:PLUGIN_ID+'-workflow-overview-head' });
+    const identity = overviewHead.createDiv({ cls:PLUGIN_ID+'-workflow-overview-identity' });
+    const mark = identity.createDiv({ cls:PLUGIN_ID+'-workflow-overview-mark' });
+    obs.setIcon(mark, healthKey === 'attention' ? 'triangle-alert' : (healthKey === 'running' ? 'loader-circle' : 'workflow'));
+    const overviewCopy = identity.createDiv({ cls:PLUGIN_ID+'-workflow-overview-copy' });
+    overviewCopy.createDiv({ cls:PLUGIN_ID+'-workflow-overview-kicker', text:en ? 'AUTOMATION HEALTH' : '自动化健康度' });
+    overviewCopy.createDiv({ cls:PLUGIN_ID+'-workflow-overview-title', text:healthTitle });
+    overviewCopy.createDiv({ cls:PLUGIN_ID+'-workflow-overview-description', text:healthDescription });
+    const overviewActions = overviewHead.createDiv({ cls:PLUGIN_ID+'-workflow-overview-actions' });
+    if (stats.attention) {
+      const attention = overviewActions.createEl('button', { cls:PLUGIN_ID+'-workflow-overview-attention', attr:{ type:'button' } });
+      obs.setIcon(attention.createSpan(), 'circle-alert');
+      attention.createSpan({ text:en ? 'Review' : '查看异常' });
+      attention.onclick = () => body.querySelector('.'+PLUGIN_ID+'-workflow-card.failed, .'+PLUGIN_ID+'-workflow-card.aborted')?.scrollIntoView({ behavior:'smooth', block:'center' });
+    }
+    const add = overviewActions.createEl('button', { cls:'primary '+PLUGIN_ID+'-workflow-overview-add', attr:{ type:'button' } });
+    obs.setIcon(add.createSpan(), 'plus');
+    add.createSpan({ text:en ? 'New workflow' : '新建流程' });
+    add.onclick = (event) => openEditor(null, event.currentTarget);
+
+    const metrics = overview.createDiv({ cls:PLUGIN_ID+'-workflow-overview-metrics' });
+    const metricItems = [
+      { label:en ? 'Workflows' : '流程', value:String(stats.total), detail:en ? `${stats.totalSteps} steps` : `${stats.totalSteps} 个步骤` },
+      { label:en ? 'Enabled' : '已启用', value:`${stats.enabled}/${stats.total}`, detail:stats.enabled ? (en ? 'Ready to run' : '可随时运行') : (en ? 'None active' : '暂无启用') },
+      { label:en ? 'Recent success' : '近期成功率', value:stats.successRate == null ? '—' : `${stats.successRate}%`, detail:stats.recentRuns ? (en ? `${stats.recentRuns} runs sampled` : `统计最近 ${stats.recentRuns} 次`) : (en ? 'Awaiting runs' : '等待首次运行') },
+      { label:en ? 'Auto triggers' : '自动触发', value:String(stats.automaticTriggers), detail:stats.eventTriggers ? (en ? `${stats.eventTriggers} event listeners` : `${stats.eventTriggers} 个事件监听`) : (en ? 'Schedules and events' : '定时与事件') }
+    ];
+    metricItems.forEach((item, index) => {
+      const metric = metrics.createDiv({ cls:PLUGIN_ID+'-workflow-overview-metric'+(index === 2 && stats.successRate != null && stats.successRate < 80 ? ' is-warning' : '') });
+      metric.createSpan({ cls:PLUGIN_ID+'-workflow-overview-metric-label', text:item.label });
+      metric.createSpan({ cls:PLUGIN_ID+'-workflow-overview-metric-value', text:item.value });
+      metric.createSpan({ cls:PLUGIN_ID+'-workflow-overview-metric-detail', text:item.detail });
+    });
+
+    const activity = overview.createDiv({ cls:PLUGIN_ID+'-workflow-overview-activity' });
+    const activityIcon = activity.createSpan({ cls:PLUGIN_ID+'-workflow-overview-activity-icon' });
+    if (nextAutomatic) {
+      obs.setIcon(activityIcon, 'calendar-clock');
+      activity.createSpan({ cls:PLUGIN_ID+'-workflow-overview-activity-label', text:en ? 'NEXT AUTOMATIC RUN' : '下一次自动触发' });
+      const workflow = workflows.find((item) => item.id === nextAutomatic.task.command);
+      activity.createSpan({ cls:PLUGIN_ID+'-workflow-overview-activity-name', text:workflow?.name || nextAutomatic.task.name });
+      activity.createSpan({ cls:PLUGIN_ID+'-workflow-overview-activity-time', text:scheduledDayLabel(nextAutomatic.at, now, en)+' '+nextAutomatic.at.format('HH:mm')+' · '+scheduledRelativeLabel(nextAutomatic.at, now, en) });
+    } else if (stats.eventTriggers) {
+      obs.setIcon(activityIcon, 'zap');
+      activity.createSpan({ cls:PLUGIN_ID+'-workflow-overview-activity-label', text:en ? 'EVENT AUTOMATION' : '事件自动化' });
+      activity.createSpan({ cls:PLUGIN_ID+'-workflow-overview-activity-name', text:en ? `${stats.eventTriggers} listener${stats.eventTriggers > 1 ? 's' : ''} active` : `${stats.eventTriggers} 个事件正在监听` });
+      activity.createSpan({ cls:PLUGIN_ID+'-workflow-overview-activity-time', text:en ? 'Runs when matching activity occurs' : '匹配事件发生时自动运行' });
+    } else {
+      obs.setIcon(activityIcon, 'mouse-pointer-click');
+      activity.createSpan({ cls:PLUGIN_ID+'-workflow-overview-activity-label', text:en ? 'MANUAL MODE' : '当前为手动模式' });
+      activity.createSpan({ cls:PLUGIN_ID+'-workflow-overview-activity-name', text:en ? 'Add a schedule or event from any workflow card' : '可从任一流程卡片添加定时或事件触发' });
+    }
+
+    if (!workflows.length) {
+      const empty = body.createDiv({ cls:PLUGIN_ID+'-workflow-empty' });
+      const emptyIcon = empty.createDiv({ cls:PLUGIN_ID+'-workflow-empty-icon' });
+      obs.setIcon(emptyIcon, 'blocks');
+      empty.createDiv({ cls:PLUGIN_ID+'-workflow-empty-title', text:en ? 'Turn repeatable work into a workflow' : '把重复操作变成自动化流程' });
+      empty.createDiv({ cls:PLUGIN_ID+'-workflow-empty-description', text:en ? 'Start from an inspection template, then connect actions, conditions and notifications.' : '可从巡检模板开始，再组合操作、条件与通知。' });
+      return;
+    }
+    const list = body.createDiv({ cls:PLUGIN_ID+'-workflow-list' });
     workflows.forEach((workflow) => {
-      const row = list.createDiv({ cls:PLUGIN_ID+'-scheduler-row' });
-      const main = row.createDiv({ cls:PLUGIN_ID+'-scheduler-main' });
-      const name = main.createEl('button', { cls:PLUGIN_ID+'-scheduler-name', text:workflow.name, attr:{ type:'button' } });
-      name.onclick = () => openEditor(workflow.id);
-      const lastText = workflow.lastRunAt
-        ? workflowRunStatusText(workflow.lastStatus, en) + ' · ' + window.moment(workflow.lastRunAt).format('MM-DD HH:mm')
-        : (en ? 'Never run' : '未运行');
-      main.createDiv({ cls:PLUGIN_ID+'-scheduler-meta', text:workflow.steps.length + (en ? ' steps · ' : ' 步 · ') + lastText + (workflow.enabled ? '' : ' · ' + (en ? 'Paused' : '已停用')) });
-      const status = row.createSpan({ cls:PLUGIN_ID+'-scheduler-status ' + (workflow.lastStatus || 'idle'), text:workflow.lastStatus ? workflowRunStatusText(workflow.lastStatus, en) : (en ? 'Not run' : '未运行') });
-      // 图标按钮收进一个容器，保持 -scheduler-row 的四列网格不换行：信息 | 状态 | 图标组 | 运行
-      const actions = row.createDiv({ cls:PLUGIN_ID+'-workflow-actions' });
+      const running = engine.running.has(workflow.id);
+      const statusKey = running ? 'running' : (workflow.lastStatus || 'idle');
+      const triggers = linkedTasks.filter((task) => task.command === workflow.id);
+      const latestRun = Array.isArray(workflow.runs) ? workflow.runs[0] : null;
+      const row = list.createDiv({ cls:PLUGIN_ID+'-workflow-card '+statusKey+(workflow.enabled ? '' : ' paused') });
+      row.dataset.workflowId = workflow.id;
+      row.dataset.motionKey = 'workflow:' + workflow.id;
+      const head = row.createDiv({ cls:PLUGIN_ID+'-workflow-card-head' });
+      const heading = head.createDiv({ cls:PLUGIN_ID+'-workflow-card-heading' });
+      heading.createSpan({ cls:PLUGIN_ID+'-workflow-card-dot '+statusKey });
+      const name = heading.createEl('button', { cls:PLUGIN_ID+'-workflow-card-name', text:workflow.name, attr:{ type:'button', title:en ? 'Edit workflow' : '编辑流程' } });
+      name.onclick = (event) => openEditor(workflow.id, event.currentTarget.closest('.'+PLUGIN_ID+'-workflow-card'));
+      heading.createSpan({ cls:PLUGIN_ID+'-workflow-card-state '+statusKey, text:running ? (en ? 'Running' : '运行中') : (!workflow.enabled ? (en ? 'Paused' : '已停用') : (workflow.lastStatus ? workflowRunStatusText(workflow.lastStatus, en) : (en ? 'Ready' : '待运行'))) });
+      const last = head.createDiv({ cls:PLUGIN_ID+'-workflow-card-last' });
+      last.createSpan({ cls:PLUGIN_ID+'-workflow-card-last-label', text:workflow.lastRunAt ? (en ? 'LAST RUN' : '最近运行') : (en ? 'STATUS' : '当前状态') });
+      last.createSpan({ cls:PLUGIN_ID+'-workflow-card-last-value', text:workflow.lastRunAt ? window.moment(workflow.lastRunAt).format('MM-DD HH:mm') : (workflow.enabled ? (en ? 'Ready' : '可运行') : '—') });
+
+      const chain = row.createDiv({ cls:PLUGIN_ID+'-workflow-card-chain', attr:{ 'aria-label':en ? 'Workflow steps' : '流程步骤' } });
+      workflow.steps.slice(0, 4).forEach((step, index) => {
+        const icons = { shell:'terminal', 'obsidian-command':'command', 'toolbar-action':'mouse-pointer-click', 'append-daily':'file-plus-2', 'create-todo':'list-checks', push:'bell', wait:'timer' };
+        const node = chain.createDiv({ cls:PLUGIN_ID+'-workflow-card-step' });
+        node.dataset.stepIndex = String(index);
+        node.dataset.motionKey = 'workflow-step:' + workflow.id + ':' + step.id;
+        const icon = node.createSpan({ cls:PLUGIN_ID+'-workflow-card-step-icon' });
+        obs.setIcon(icon, icons[step.type] || 'circle');
+        node.createSpan({ cls:PLUGIN_ID+'-workflow-card-step-index', text:String(index + 1).padStart(2, '0') });
+        node.createSpan({ cls:PLUGIN_ID+'-workflow-card-step-label', text:workflowStepLabel(step.type, en) });
+      });
+      if (workflow.steps.length > 4) chain.createSpan({ cls:PLUGIN_ID+'-workflow-card-step-more', text:'+'+(workflow.steps.length - 4) });
+
+      const foot = row.createDiv({ cls:PLUGIN_ID+'-workflow-card-foot' });
+      const meta = foot.createDiv({ cls:PLUGIN_ID+'-workflow-card-meta' });
+      if (triggers.length) {
+        triggers.slice(0, 2).forEach((task) => {
+          const trigger = meta.createSpan({ cls:PLUGIN_ID+'-workflow-card-trigger '+(task.schedule?.type === 'event' ? 'event' : 'schedule'), attr:{ title:scheduleLabel(task, view._lang()) } });
+          obs.setIcon(trigger.createSpan(), task.schedule?.type === 'event' ? 'zap' : 'calendar-clock');
+          trigger.createSpan({ text:scheduleLabel(task, view._lang()) });
+        });
+        if (triggers.length > 2) meta.createSpan({ cls:PLUGIN_ID+'-workflow-card-trigger-more', text:'+'+(triggers.length - 2) });
+      } else {
+        const manual = meta.createSpan({ cls:PLUGIN_ID+'-workflow-card-trigger manual' });
+        obs.setIcon(manual.createSpan(), 'mouse-pointer-click');
+        manual.createSpan({ text:en ? 'Manual' : '手动运行' });
+      }
+      const runMeta = meta.createSpan({ cls:PLUGIN_ID+'-workflow-card-run-meta' });
+      obs.setIcon(runMeta.createSpan(), 'history');
+      runMeta.createSpan({ text:latestRun ? workflowRunStatusText(latestRun.status, en)+' · '+scheduledDurationLabel(latestRun.durationMs, view._lang()) : (en ? 'No run history' : '暂无运行记录') });
+
+      const actions = foot.createDiv({ cls:PLUGIN_ID+'-workflow-card-actions' });
       const history = actions.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':en ? 'Run history' : '运行历史' } });
       obs.setIcon(history, 'history');
       history.onclick = () => openWorkflowRuns(view, workflow.id);
@@ -405,14 +584,16 @@ function buildWorkflowsModule(view, root) {
       schedule.onclick = () => openWorkflowSchedule(view, workflow);
       const edit = actions.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':en ? 'Edit' : '编辑' } });
       obs.setIcon(edit, 'pencil');
-      edit.onclick = () => openEditor(workflow.id);
+      edit.onclick = (event) => openEditor(workflow.id, event.currentTarget.closest('.'+PLUGIN_ID+'-workflow-card'));
       const toggle = actions.createEl('button', { cls:PLUGIN_ID+'-scheduler-icon-btn', attr:{ type:'button', 'aria-label':workflow.enabled ? (en ? 'Pause' : '停用') : (en ? 'Enable' : '启用') } });
       obs.setIcon(toggle, workflow.enabled ? 'pause' : 'play');
       toggle.onclick = async () => { await engine.upsert({ ...workflow, enabled:!workflow.enabled, updatedAt:new Date().toISOString() }); };
-      const run = row.createEl('button', { cls:PLUGIN_ID+'-scheduler-run', text:engine.running.has(workflow.id) ? (en ? 'Running…' : '运行中…') : (en ? 'Run now' : '立即运行'), attr:{ type:'button' } });
-      run.disabled = engine.running.has(workflow.id) || (view.app.isMobile && workflow.steps.some((step) => step.type === 'shell'));
+      const run = actions.createEl('button', { cls:PLUGIN_ID+'-workflow-card-run', attr:{ type:'button' } });
+      obs.setIcon(run.createSpan({ cls:PLUGIN_ID+'-workflow-card-run-icon' }), running ? 'loader-circle' : 'circle-play');
+      const runText = run.createSpan({ text:running ? (en ? 'Running…' : '运行中…') : (en ? 'Run now' : '立即运行') });
+      run.disabled = running || (view.app.isMobile && workflow.steps.some((step) => step.type === 'shell'));
       run.onclick = async () => {
-        run.disabled = true; run.setText(en ? 'Running…' : '运行中…');
+        run.disabled = true; runText.setText(en ? 'Running…' : '运行中…');
         try {
           const outcome = await engine.run(workflow.id, { trigger:'manual' });
           new obs.Notice(outcome.ok ? (en ? 'Workflow succeeded.' : '流程运行成功。') : (en ? 'Workflow finished: ' : '流程结束：') + workflowRunStatusText(outcome.status, en));
@@ -422,9 +603,13 @@ function buildWorkflowsModule(view, root) {
         render().catch(() => {});
       };
     });
+    cockpitRevealList(list, '.'+PLUGIN_ID+'-workflow-card', view);
   };
   view._workflowsUnsubscribe?.();
-  view._workflowsUnsubscribe = engine.subscribe(() => render().catch((e) => console.warn('[Cockpit workflows UI]', e)));
+  view._workflowsUnsubscribe = engine.subscribe((event) => {
+    if (applyProgress(event)) return;
+    render().catch((e) => console.warn('[Cockpit workflows UI]', e));
+  });
   render().catch((e) => console.warn('[Cockpit workflows UI]', e));
   view._makeModuleCollapsible('workflows', title, body);
   return render;
@@ -449,13 +634,13 @@ async function openWorkflowRuns(view, workflowIdValue) {
   document.body.appendChild(overlay);
 }
 
-async function openWorkflowEditor(view, workflowIdValue = null) {
+async function openWorkflowEditor(view, workflowIdValue = null, trigger = null) {
   const en = view._lang() === 'en';
   const engine = view._plugin.workflows;
   const all = await engine.load();
   const existing = workflowIdValue ? all.find((item) => item.id === workflowIdValue) : null;
   const draft = existing ? JSON.parse(JSON.stringify(existing)) : { id:workflowId(), name:'', enabled:false, trusted:false, notifyOnFailure:true, logNote:'', steps:[] };
-  const { overlay, panel } = workflowOpenOverlay(view, existing ? (en ? 'Edit workflow' : '编辑流程') : (en ? 'New workflow' : '新建流程'));
+  const { overlay, panel } = workflowOpenOverlay(view, existing ? (en ? 'Edit workflow' : '编辑流程') : (en ? 'New workflow' : '新建流程'), trigger);
   panel.classList.add(PLUGIN_ID+'-workflow-editor');
   const field = (label) => { const wrap = panel.createDiv({ cls:PLUGIN_ID+'-scheduler-field' }); wrap.createDiv({ cls:PLUGIN_ID+'-scheduler-label', text:label }); return wrap; };
 
@@ -473,9 +658,11 @@ async function openWorkflowEditor(view, workflowIdValue = null) {
   const addStep = stepsWrap.createEl('button', { cls:PLUGIN_ID+'-workflow-add-step', text:en ? '+ Add step' : '+ 添加步骤', attr:{ type:'button' } });
 
   const rebuildSteps = () => {
+    const first = cockpitCaptureLayout(stepsList.querySelectorAll('[data-motion-key]'));
     stepsList.empty();
     draft.steps.forEach((step, index) => {
       const row = stepsList.createDiv({ cls:PLUGIN_ID+'-workflow-step' });
+      row.dataset.motionKey = 'editor-step:' + step.id;
       const head = row.createDiv({ cls:PLUGIN_ID+'-workflow-step-head' });
       head.createSpan({ cls:PLUGIN_ID+'-workflow-step-index', text:String(index + 1).padStart(2, '0') });
       const typeSel = head.createEl('select');
@@ -536,6 +723,7 @@ async function openWorkflowEditor(view, workflowIdValue = null) {
     if (!draft.steps.length) stepsList.createDiv({ cls:PLUGIN_ID+'-workflow-steps-empty', text:en ? 'No steps yet.' : '还没有步骤。' });
     addStep.setText((en ? '+ Add step' : '+ 添加步骤') + `  ${draft.steps.length}/${WORKFLOW_LIMITS.maxSteps}`);
     addStep.disabled = draft.steps.length >= WORKFLOW_LIMITS.maxSteps;
+    cockpitPlayFlip(stepsList, first, view);
   };
   const appendStep = () => {
     if (draft.steps.length >= WORKFLOW_LIMITS.maxSteps) { new obs.Notice(en ? 'Step limit reached.' : '步骤数量已达上限。'); return; }
@@ -620,6 +808,6 @@ if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'und
   module.exports = {
     WORKFLOW_LIMITS, WORKFLOW_STEP_TYPES, WORKFLOW_CONDITION_WHEN, WORKFLOW_TEMPLATES,
     workflowId, workflowStepLabel, workflowTimeoutMs, normalizeWorkflows, workflowInterpolate,
-    stepConditionAllows, CockpitWorkflowEngine, createWorkflowEngine
+    stepConditionAllows, workflowOverviewStats, CockpitWorkflowEngine, createWorkflowEngine
   };
 }

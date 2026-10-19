@@ -24,6 +24,7 @@ const api = context.channelTestApi;
 assert.deepEqual(
   JSON.parse(JSON.stringify(api.getCockpitSettingsSections('zh-CN'))),
   [
+    { id:'appearance', label:'外观与动效', icon:'wand-sparkles' },
     { id:'ai', label:'AI 模型', icon:'bot-message-square' },
     { id:'updates', label:'软件更新', icon:'download' },
     { id:'sync', label:'附近设备', icon:'scan-line' },
@@ -37,7 +38,8 @@ assert.deepEqual(
 );
 assert.equal(api.normalizeCockpitSettingsSection('schedule'), 'schedule');
 assert.equal(api.normalizeCockpitSettingsSection('updates'), 'updates');
-assert.equal(api.normalizeCockpitSettingsSection('unknown'), 'ai', 'Invalid remembered tabs safely fall back to the AI module.');
+assert.equal(api.normalizeCockpitSettingsSection('appearance'), 'appearance');
+assert.equal(api.normalizeCockpitSettingsSection('unknown'), 'appearance', 'Invalid remembered tabs safely fall back to the appearance module.');
 
 assert.deepEqual(Object.keys(api.NOTIFICATION_CHANNELS), ['serverChan', 'bark', 'meow', 'email']);
 assert.equal(api.normalizeServerChanConfig({ apiUrl: 'https://5923.push.ft07.com/send/key.send' }).channels.serverChan.enabled, true, 'Legacy ServerChan config migrates to the shared channel shape.');

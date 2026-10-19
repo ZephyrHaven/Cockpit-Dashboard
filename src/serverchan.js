@@ -240,6 +240,7 @@ async function getServerChanSettingsLanguage(plugin) {
 function getCockpitSettingsSections(language) {
   const en = language === 'en';
   return [
+    { id:'appearance', label:en ? 'Appearance' : '外观与动效', icon:'wand-sparkles' },
     { id:'ai', label:en ? 'AI models' : 'AI 模型', icon:'bot-message-square' },
     { id:'updates', label:en ? 'Updates' : '软件更新', icon:'download' },
     { id:'sync', label:en ? 'Nearby devices' : '附近设备', icon:'scan-line' },
@@ -253,7 +254,7 @@ function getCockpitSettingsSections(language) {
 
 function normalizeCockpitSettingsSection(value) {
   const id = String(value || '');
-  return ['ai','updates','sync','channels','brief','schedule','scope','calendar'].includes(id) ? id : 'ai';
+  return ['appearance','ai','updates','sync','channels','brief','schedule','scope','calendar'].includes(id) ? id : 'appearance';
 }
 
 class ServerChanService {
@@ -338,7 +339,7 @@ class ServerChanService {
 }
 
 class CockpitServerChanSettingTab extends obs.PluginSettingTab {
-  constructor(app, plugin, registerCleanup = null) { super(app, plugin); this.plugin = plugin; this._registerCleanup=registerCleanup; this._displayVersion = 0; this._activeSection = 'ai'; }
+  constructor(app, plugin, registerCleanup = null) { super(app, plugin); this.plugin = plugin; this._registerCleanup=registerCleanup; this._displayVersion = 0; this._activeSection = 'appearance'; }
   async display() {
     const { containerEl } = this; const renderVersion = ++this._displayVersion; containerEl.empty();
     const [config, language, appleCalendarConfig] = await Promise.all([
@@ -355,6 +356,7 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     hero.createEl('p', { text:en ? 'Manage each capability separately. Changes are saved as you edit.' : '按模块管理插件能力，修改后会自动保存。' });
     const sections = getCockpitSettingsSections(language);
     const tabs = shell.createDiv({ cls:PLUGIN_ID + '-settings-tabs', attr:{ role:'tablist', 'aria-label':en ? 'Cockpit settings modules' : 'Cockpit 设置模块' } });
+    const tabIndicator = tabs.createDiv({ cls:PLUGIN_ID + '-settings-tab-indicator', attr:{ 'aria-hidden':'true' } });
     const panelsHost = shell.createDiv({ cls:PLUGIN_ID + '-settings-panels' });
     const panels = {};
     const buttons = {};
@@ -367,6 +369,23 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
         buttons[section.id].setAttribute('aria-selected', selected ? 'true' : 'false');
         buttons[section.id].tabIndex = selected ? 0 : -1;
         panels[section.id].hidden = !selected;
+      });
+      (window.requestAnimationFrame || ((callback) => callback()))(() => {
+        const active = buttons[id];
+        if (!active) return;
+        const nextWidth = active.offsetWidth;
+        const nextLeft = active.offsetLeft;
+        const previousWidth = Number.parseFloat(tabIndicator.style.width) || 0;
+        const previousLeft = Number.parseFloat(tabIndicator.dataset.left) || 0;
+        tabIndicator.style.width = nextWidth + 'px';
+        tabIndicator.style.transform = 'translateX(' + nextLeft + 'px)';
+        tabIndicator.dataset.left = String(nextLeft);
+        tabIndicator._cockpitMove?.cancel?.();
+        if (focus || !previousWidth || !cockpitMotionAllowed(this.plugin) || typeof tabIndicator.animate !== 'function') return;
+        tabIndicator._cockpitMove = cockpitTrackAnimation(tabIndicator.animate([
+          { transform:'translateX(' + previousLeft + 'px) scaleX(' + (previousWidth / Math.max(1, nextWidth)) + ')' },
+          { transform:'translateX(' + nextLeft + 'px) scaleX(1)' }
+        ], { duration:COCKPIT_MOTION.ui, easing:COCKPIT_MOTION.easeInOut }));
       });
       if (focus) buttons[id].focus();
     };
@@ -409,6 +428,33 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
       header.createEl('h2', { text:title });
       header.createEl('p', { text:intro });
     };
+
+    const motionData = await this.plugin.loadData() || {};
+    addPanelIntro(panels.appearance, en ? 'Motion & interaction' : '动效与交互', en
+      ? 'Use spatial continuity, responsive feedback and animated state changes across the dashboard.'
+      : '在驾驶舱中使用空间连续性、即时反馈和状态转场。');
+    const motionStatus = panels.appearance.createDiv({ cls:PLUGIN_ID + '-motion-settings-preview' });
+    const previewOrb = motionStatus.createDiv({ cls:PLUGIN_ID + '-motion-settings-orb' });
+    obs.setIcon(previewOrb, 'sparkles');
+    const previewCopy = motionStatus.createDiv({ cls:PLUGIN_ID + '-motion-settings-copy' });
+    previewCopy.createEl('strong', { text:en ? 'Cockpit Motion V2' : 'Cockpit Motion V2' });
+    previewCopy.createDiv({ text:cockpitPrefersReducedMotion()
+      ? (en ? 'System Reduce Motion is active. Movement is replaced by gentle fades.' : '系统已开启“减少动态效果”，位移动画会自动替换为柔和淡入淡出。')
+      : (en ? 'Shared transitions, FLIP layout motion and live automation paths.' : '共享元素转场、FLIP 布局动画与自动化执行路径。') });
+    const previewTrack = motionStatus.createDiv({ cls:PLUGIN_ID + '-motion-settings-track', attr:{ 'aria-hidden':'true' } });
+    for (let i = 0; i < 3; i++) previewTrack.createSpan({ cls:PLUGIN_ID + '-motion-settings-node' });
+    const replayMotion = motionStatus.createEl('button', { cls:PLUGIN_ID + '-motion-settings-replay', text:en ? 'Replay motion' : '播放动效演示', attr:{ type:'button' } });
+    replayMotion.onclick = () => cockpitReplayMotion(this.plugin, motionStatus);
+    const motionSetting = new obs.Setting(panels.appearance)
+      .setName(en ? 'Enhanced motion' : '增强动效')
+      .setDesc(en ? 'Master switch for Motion V2. Turning it off keeps all functions and removes decorative movement.' : 'Motion V2 总开关。关闭后保留全部功能，仅移除增强位移与装饰动画。')
+      .addToggle((toggle) => toggle.setValue(motionData.motionV2Enabled !== false).onChange(async (value) => {
+        await this.plugin.mutateData((data) => { data.motionV2Enabled = value === true; });
+        cockpitRefreshMotionRoots(this.plugin, value === true);
+        motionStatus.classList.toggle('is-off', value !== true);
+      }));
+    motionSetting.settingEl.addClass(PLUGIN_ID + '-settings-master-toggle');
+    motionStatus.classList.toggle('is-off', motionData.motionV2Enabled === false);
 
     addPanelIntro(panels.channels, copy.channels, en ? 'Choose one or more delivery services and test each connection independently.' : '选择一个或多个推送服务，并可分别测试连接。');
     const masterSetting = new obs.Setting(panels.channels).setName(copy.enabled).setDesc(copy.enabledDesc).addToggle((toggle) => toggle.setValue(config.enabled).onChange(async (value) => { config.enabled = value; await save(); }));

@@ -12,7 +12,9 @@ function buildSceneSwitcher(view, parent) {
 
   const close = () => {
     if (!menu) return;
-    menu.remove(); menu = null;
+    const closing = menu; menu = null;
+    if (typeof cockpitClosePopover === 'function') cockpitClosePopover(closing, view, () => closing.remove());
+    else closing.remove();
     trigger.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', onOutside, true);
   };
@@ -27,6 +29,7 @@ function buildSceneSwitcher(view, parent) {
   const open = () => {
     if (menu) { close(); return; }
     menu = wrap.createDiv({ cls: PLUGIN_ID + '-scene-menu', attr: { role: 'menu' } });
+    menu.dataset.motionKey = 'scene-menu';
     menu.createDiv({ cls:PLUGIN_ID + '-scene-menu-caption', text:view._lang() === 'en' ? 'LAYOUT SCENES' : '布局情景' });
     const sceneList = menu.createDiv({ cls:PLUGIN_ID + '-scene-menu-list' });
     view._sceneList().forEach((scene) => {
@@ -60,6 +63,7 @@ function buildSceneSwitcher(view, parent) {
       remove.onclick = async () => { close(); await view._deleteActiveScene(); };
     }
     trigger.setAttribute('aria-expanded', 'true');
+    if (typeof cockpitAnimatePopover === 'function') cockpitAnimatePopover(menu, trigger, view);
     setTimeout(() => document.addEventListener('pointerdown', onOutside, true), 0);
   };
   trigger.onclick = (evt) => { evt.preventDefault(); evt.stopPropagation(); open(); };
