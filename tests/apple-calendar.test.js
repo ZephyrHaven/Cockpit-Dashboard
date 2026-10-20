@@ -116,6 +116,68 @@ assert.doesNotMatch(settings, /请先读取并选择一个可写日历/, 'The se
   assert.equal(calls[1].payload.desired[0].title, '客户电话');
   assert.equal(stored.appleCalendarSync.mappings.timed.uid, 'event-timed', 'Successful sync persists the system event UID through the shared data queue.');
 
+  let noOpStored = { appleCalendarSync:{ enabled:true, calendarId:'Cockpit', calendarName:'Cockpit', durationMinutes:30, mappings:{}, lastSyncResult:{ at:'2026-10-20T00:15:14.519Z', status:'failed', error:'stale failure' } } };
+  let noOpCalls = 0;
+  const noOpService = new AppleCalendarService({
+    app:{ isMobile:false },
+    async loadData() { return noOpStored; },
+    async mutateData(mutator) { mutator(noOpStored); }
+  }, { platform:'darwin', execFile:() => { noOpCalls += 1; throw new Error('An empty reconciliation must not launch Calendar'); } });
+  assert.equal(await noOpService.syncTodos([], { silent:false }), true, 'An empty reconciliation succeeds without contacting Calendar.');
+  assert.equal(noOpCalls, 0, 'No system script runs when there are no desired events or persisted mappings.');
+  assert.equal(noOpStored.appleCalendarSync.lastSyncResult.status, 'success', 'A successful no-op clears a stale failure status.');
+
+  let recoveryStored = { appleCalendarSync:{ enabled:true, calendarId:'Cockpit', calendarName:'Cockpit', durationMinutes:30,
+    mappings:{ old:{ uid:'missing-event', calendarId:'Cockpit', hash:'old' } } } };
+  const recoveryCalls = [];
+  let recoveryListCount = 0;
+  const recoveryExecFile = (file, args, options, callback) => {
+    if (args[0] === '-e' && args[1] === APPLE_CALENDAR_LIST_SCRIPT) {
+      recoveryListCount += 1;
+      recoveryCalls.push({ type:'list' });
+      callback(null, recoveryListCount === 1 ? 'Personal\n' : 'Personal\nCockpit\n', '');
+      return;
+    }
+    if (args[0] === '-e' && args[1] === APPLE_CALENDAR_CREATE_SCRIPT) {
+      recoveryCalls.push({ type:'create' });
+      callback(null, 'Cockpit\n', '');
+      return;
+    }
+    const payload = JSON.parse(args.at(-1));
+    recoveryCalls.push({ type:'sync', payload });
+    if (recoveryCalls.filter((call) => call.type === 'sync').length === 1) {
+      const error = new Error('Command failed with a long embedded automation script');
+      error.stderr = 'execution error: Error: calendar-not-found. (-2700)';
+      callback(error, '', error.stderr);
+      return;
+    }
+    callback(null, JSON.stringify({ mappings:{ recovered:{ uid:'event-recovered', calendarId:'Cockpit', hash:payload.desired[0]?.hash || '' } } }), '');
+  };
+  const recoveryService = new AppleCalendarService({
+    app:{ isMobile:false },
+    async loadData() { return recoveryStored; },
+    async mutateData(mutator) { mutator(recoveryStored); }
+  }, { platform:'darwin', execFile:recoveryExecFile });
+  await recoveryService.syncTodos([{ id:'recovered', text:'恢复同步', tags:[], priority:'mid', done:false, calendarSync:true, dueHasTime:false, dueDate:localMomentLike('2026-10-21') }], { silent:false });
+  assert.deepEqual(recoveryCalls.map((call) => call.type), ['sync','list','create','list','sync'], 'A missing configured calendar is recreated and the reconciliation is retried exactly once.');
+  assert.deepEqual(recoveryCalls.at(-1).payload.mappings, {}, 'Mappings from the missing calendar are discarded before retrying against the replacement.');
+  assert.equal(recoveryStored.appleCalendarSync.mappings.recovered.uid, 'event-recovered', 'The recovered synchronization persists only mappings returned by the replacement calendar.');
+
+  let errorStored = { appleCalendarSync:{ enabled:true, calendarId:'Cockpit', calendarName:'Cockpit', durationMinutes:30, mappings:{} } };
+  const errorService = new AppleCalendarService({
+    app:{ isMobile:false },
+    async loadData() { return errorStored; },
+    async mutateData(mutator) { mutator(errorStored); }
+  }, { platform:'darwin', execFile:(file, args, options, callback) => {
+    if (args[0] === '-e') { callback(null, 'Cockpit\n', ''); return; }
+    const error = new Error('Command failed: osascript -l JavaScript -e function run(argv) { /* hundreds of script characters */ }');
+    error.stderr = 'execution error: Not authorized to send Apple events. (-1743)';
+    callback(error, '', error.stderr);
+  } });
+  await assert.rejects(() => errorService.syncTodos([{ id:'denied', text:'权限测试', tags:[], priority:'mid', done:false, calendarSync:true, dueHasTime:false, dueDate:localMomentLike('2026-10-22') }], { silent:false }), /Command failed/);
+  assert.match(errorStored.appleCalendarSync.lastSyncResult.error, /Not authorized to send Apple events.*-1743/, 'Persisted failures keep the actionable Calendar stderr and error code.');
+  assert.doesNotMatch(errorStored.appleCalendarSync.lastSyncResult.error, /function run/, 'Persisted failures omit the embedded automation source.');
+
   let setupStored = {};
   let listCount = 0;
   const setupCalls = [];
@@ -181,9 +243,14 @@ assert.doesNotMatch(settings, /请先读取并选择一个可写日历/, 'The se
   assert.deepEqual(expanded.filter((item) => item.uid === 'until').map((item) => new Date(item.start).getDate()), [31], 'Monthly rules keep the anchor day (Sep 31 does not exist, Oct 31 does).');
   assert.ok(expanded.findIndex((item) => item.allDay) <= 0, 'All-day events sort first.');
   assert.doesNotMatch(APPLE_CALENDAR_READ_JXA, /calendarApp\.(?:delete|save)|events\.push|make new|\.Event\(/, 'The read script never creates, edits or deletes calendar data.');
+  assert.match(APPLE_CALENDAR_READ_JXA, /records = query\.properties\(\)/, 'Filtered event properties are fetched in one Calendar bridge call.');
+  assert.match(APPLE_CALENDAR_READ_JXA, /event\.properties\(\)/, 'Older Calendar bridges retain a per-event property-record fallback.');
+  assert.doesNotMatch(APPLE_CALENDAR_READ_JXA, /query\[prop\]\(\)/, 'Calendar filters are not rerun separately for each property.');
   assert.equal(normalizeAppleCalendarConfig({}).showEvents, false, 'System events stay hidden until the user opts in.');
   const readCalls = [];
-  const reader = new AppleCalendarService({ loadData:async () => ({ appleCalendarSync:{ showEvents:true, enabled:true, calendarName:'Cockpit', calendarId:'Cockpit', hiddenCalendars:['节假日'] } }) }, {
+  let readerStored = { appleCalendarSync:{ showEvents:true, enabled:true, calendarName:'Cockpit', calendarId:'Cockpit', hiddenCalendars:['节假日'] } };
+  const readerPlugin = { loadData:async () => readerStored, mutateData:async (mutator) => { mutator(readerStored); } };
+  const reader = new AppleCalendarService(readerPlugin, {
     platform:'darwin',
     execFile:(command, args, options, callback) => { readCalls.push(JSON.parse(args[4])); callback(null, JSON.stringify({ events:[{ uid:'a', title:'评审', calendar:'工作', startAt:iso(local(2026, 10, 9, 14)), endAt:iso(local(2026, 10, 9, 15)) }] }), ''); }
   });
@@ -192,6 +259,11 @@ assert.doesNotMatch(settings, /请先读取并选择一个可写日历/, 'The se
   assert.equal(firstRead.length, 1);
   assert.equal(readCalls.length, 1, 'Event reads are cached per window.');
   assert.deepEqual(readCalls[0].hidden, ['节假日', 'Cockpit'], 'Hidden calendars and the managed Cockpit calendar are excluded from reads.');
+  assert.equal(readerStored.appleCalendarEventCache.events[0].title, '评审', 'The latest read-only result is persisted locally for instant reloads.');
+  const restoredReader = new AppleCalendarService(readerPlugin, { platform:'darwin', execFile:() => { throw new Error('fresh cache must not launch a system query'); } });
+  assert.equal((await restoredReader.readEvents(octStart, octEnd))[0].title, '评审', 'A new plugin instance restores a fresh event window without waiting for Calendar.');
+  await restoredReader.clearEventCache();
+  assert.equal(readerStored.appleCalendarEventCache, undefined, 'Clearing calendar events removes the local persisted cache.');
   const disabledReader = new AppleCalendarService({ loadData:async () => ({}) }, { platform:'darwin', execFile:() => { throw new Error('must not run'); } });
   assert.deepEqual(await disabledReader.readEvents(octStart, octEnd), [], 'No system script runs while event display is off.');
 

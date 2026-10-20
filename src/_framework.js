@@ -93,7 +93,7 @@ class CockpitView extends obs.ItemView {
       { id:'alarms', label:this._t('layout.modules.alarms'), collapsible:true, matches:(el) => el.dataset.section === 'alarms-title' || el.dataset.section === 'alarms-body' || el.classList.contains(PLUGIN_ID + '-alarms') },
       { id:'countdowns', label:this._t('layout.modules.countdowns'), collapsible:true, matches:(el) => el.dataset.section === 'countdowns-title' || el.dataset.section === 'countdowns-body' || el.classList.contains(PLUGIN_ID + '-countdowns') },
       { id:'agenda', label:this._t('layout.modules.agenda'), collapsible:true, matches:(el) => el.dataset.section === 'agenda-title' || el.dataset.section === 'agenda-body' || el.classList.contains(PLUGIN_ID + '-agenda') },
-      { id:'calendar', label:this._t('layout.modules.calendar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-cal-wrap') || el.classList.contains(PLUGIN_ID + '-cal-detail') },
+      { id:'calendar', label:this._t('layout.modules.calendar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-cal-wrap') || el.classList.contains(PLUGIN_ID + '-cal-detail') || el.classList.contains(PLUGIN_ID + '-cal-split-resize') },
       { id:'cats', label:this._t('sections.cats'), collapsible:true, matches:(el) => el.dataset.section === 'cats-title' || el.classList.contains(PLUGIN_ID + '-cats') },
       { id:'stats', label:this._t('sections.stats'), collapsible:true, matches:(el) => el.dataset.section === 'stats-title' || el.classList.contains(PLUGIN_ID + '-stats') },
       { id:'todos', label:this._t('sections.todos'), collapsible:true, matches:(el) => el.classList.contains(PLUGIN_ID + '-todo-header') || el.dataset.section === 'todos-body' },
@@ -1370,6 +1370,8 @@ class CockpitView extends obs.ItemView {
     });
     refreshCalendarRef = refreshCalendar;
     this._refreshCalendarRef = refreshCalendar;
+    this._calendarEventsUnsubscribe?.();
+    this._calendarEventsUnsubscribe = this._plugin.appleCalendar?.subscribeEvents?.(() => refreshCalendar.reloadEvents());
     this._calendarAutomationUnsubscribe?.();
     this._calendarAutomationUnsubscribe = this._plugin.scheduledTasks.subscribe(() => refreshCalendar());
     this._calendarCountdownUnsubscribe?.();
@@ -2285,6 +2287,8 @@ class CockpitView extends obs.ItemView {
     this._calendarAutomationUnsubscribe = null;
     this._calendarCountdownUnsubscribe?.();
     this._calendarCountdownUnsubscribe = null;
+    this._calendarEventsUnsubscribe?.();
+    this._calendarEventsUnsubscribe = null;
     if (this._countdownDisplayTimer) { clearInterval(this._countdownDisplayTimer); this._countdownDisplayTimer = null; }
     this._agendaAlarmUnsubscribe?.();
     this._agendaAlarmUnsubscribe = null;

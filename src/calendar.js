@@ -6,6 +6,36 @@ function calendarSplitOwner(calRoot, splitHandle) {
   return rootParent || handleParent;
 }
 
+function calendarBuildEventDayMap(events, momentFactory) {
+  const map = {};
+  const seriesIndexes = {};
+  (Array.isArray(events) ? events : []).forEach((event) => {
+    const start = Number(event?.start);
+    if (!Number.isFinite(start)) return;
+    const end = Number.isFinite(Number(event.end)) ? Number(event.end) : start;
+    const startDay = momentFactory(start).startOf('day');
+    const lastDay = momentFactory(Math.max(start, end - 1)).startOf('day');
+    const eventStartKey = momentFactory(start).format('YYYY-MM-DD');
+    for (let cursor = startDay.clone(), guard = 0; cursor.valueOf() <= lastDay.valueOf() && guard < 14; cursor.add(1, 'day'), guard++) {
+      const dayKey = cursor.format('YYYY-MM-DD');
+      const list = (map[dayKey] ||= []);
+      if (!event.uid) { list.push(event); continue; }
+      const seriesKey = String(event.calendar || '') + '\u0000' + String(event.uid);
+      const indexes = (seriesIndexes[dayKey] ||= new Map());
+      const existingIndex = indexes.get(seriesKey);
+      if (existingIndex === undefined) {
+        indexes.set(seriesKey, list.length);
+        list.push(event);
+        continue;
+      }
+      const existing = list[existingIndex];
+      const existingStartsToday = momentFactory(existing.start).format('YYYY-MM-DD') === dayKey;
+      if (!existingStartsToday && eventStartKey === dayKey) list[existingIndex] = event;
+    }
+  });
+  return map;
+}
+
 function buildCalendar(root, todos, opts) {
   const { language, t, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, initialSplitRatio, onSplitRatioChange, lunarEnabled, teamTodos, loadCalendarEvents, onQuickCreate, onEventOpen } = opts;
   // 刷新时必须读取视图的最新待办数组；不能闭包捕获初次渲染的旧快照。
@@ -226,17 +256,7 @@ function buildCalendar(root, todos, opts) {
   });
   const openCalendarTodo = (todo) => (todo.teamTodo ? onTeamTodoOpen?.(todo.raw) : openTodoEditor({ id:todo.raw.id }));
   const loadLevel = (count) => (count >= 5 ? 4 : count >= 3 ? 3 : count);
-  const buildEventMap = () => {
-    const map = {};
-    (eventStore.events || []).forEach((event) => {
-      const startDay = window.moment(event.start).startOf('day');
-      const lastMoment = window.moment(Math.max(event.start, event.end - 1));
-      for (let cursor = startDay.clone(), guard = 0; cursor.isSameOrBefore(lastMoment, 'day') && guard < 14; cursor.add(1, 'day'), guard++) {
-        (map[cursor.format('YYYY-MM-DD')] ||= []).push(event);
-      }
-    });
-    return map;
-  };
+  const buildEventMap = () => calendarBuildEventDayMap(eventStore.events, window.moment);
   let eventMap = {};
   const eventsForDate = (date) => eventMap[date.format('YYYY-MM-DD')] || [];
   const eventTimeText = (event, date) => {
@@ -610,4 +630,4 @@ function buildCalendar(root, todos, opts) {
   return renderAll;
 }
 
-if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports = { calendarSplitOwner };
+if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports = { calendarSplitOwner, calendarBuildEventDayMap };

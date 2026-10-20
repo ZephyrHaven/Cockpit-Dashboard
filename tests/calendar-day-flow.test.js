@@ -21,7 +21,7 @@ class MiniMoment {
 global.window = { moment:(value=Date.now()) => new MiniMoment(value) };
 const api = require('../src/scheduled-tasks.js');
 const dayFlowApi = require('../src/calendar-day-flow.js');
-const { calendarSplitOwner } = require('../src/calendar.js');
+const { calendarSplitOwner, calendarBuildEventDayMap } = require('../src/calendar.js');
 
 const initialCalendarHost = { id:'dashboard-root' };
 const mountedCalendarModule = { id:'calendar-module' };
@@ -31,6 +31,22 @@ assert.equal(calendarSplitOwner(splitCalendarNode, splitHandleNode), initialCale
 splitCalendarNode.parentElement = mountedCalendarModule;
 splitHandleNode.parentElement = mountedCalendarModule;
 assert.equal(calendarSplitOwner(splitCalendarNode, splitHandleNode), mountedCalendarModule, 'The splitter resolves its current module after the calendar is reparented by the layout system.');
+
+const repeatedUid = 'daily-multiday-series';
+const overlappingOccurrences = Array.from({ length:7 }, (_, index) => ({
+  id:repeatedUid + '@' + index,
+  uid:repeatedUid,
+  calendar:'工作',
+  title:'重复日程',
+  start:Date.parse(`2026-10-${18 + index}T00:00:00Z`),
+  end:Date.parse(`2026-10-${25 + index}T00:00:00Z`),
+  allDay:true
+}));
+const separateEvent = { id:'separate', uid:'separate', calendar:'工作', title:'另一项', start:Date.parse('2026-10-24T08:00:00Z'), end:Date.parse('2026-10-24T09:00:00Z') };
+const eventDayMap = calendarBuildEventDayMap([...overlappingOccurrences, separateEvent], window.moment);
+assert.equal(eventDayMap['2026-10-24'].length, 2, 'Overlapping occurrences from one recurring UID appear only once on a given day.');
+assert.equal(eventDayMap['2026-10-24'][0].start, Date.parse('2026-10-24T00:00:00Z'), 'The day keeps the occurrence that starts on that date.');
+assert.equal(eventDayMap['2026-10-23'].length, 1, 'A recurring multi-day series still remains visible on every covered day.');
 
 const rssSummary = dayFlowApi.summarizeCalendarRss([
   {id:'a',feedId:'ops',title:'服务器巡检',publishedAt:Date.parse('2026-08-12T08:00:00Z')},
@@ -100,6 +116,7 @@ assert.match(calendar, /gridTemplateColumns[\s\S]*requestAnimationFrame\(flushDr
 assert.match(calendar, /const activeModule = calendarSplitOwner\(calRoot, splitHandle\);[\s\S]*drag = \{[^}]*module:activeModule/, 'A drag targets the splitter current module instead of the parent captured before layout mounting.');
 assert.match(calendar, /apply\(splitRatio, \{ persist:true, bounds, target:activeModule \}\)/, 'Calendar resizing persists its final ratio after interaction.');
 assert.match(calendar, /onSplitRatioChange\?\.\(splitRatio\)/, 'Calendar resizing reports its settled ratio to plugin persistence.');
+assert.match(framework, /id:'calendar'[\s\S]{0,360}cal-split-resize/, 'The split handle belongs to the calendar module during first-pass layout mounting.');
 const splitPointerMove = calendar.match(/splitHandle\.addEventListener\('pointermove',[\s\S]*?\n\s*\}\);/)?.[0] || '';
 assert.doesNotMatch(splitPointerMove, /getBoundingClientRect/, 'Pointer movement reuses drag-start geometry instead of forcing a synchronous layout read on every event.');
 assert.match(framework, /calendarSplitRatio[\s\S]*_setCalendarSplitRatio[\s\S]*onSplitRatioChange/, 'The calendar split ratio is restored from and saved to plugin data.');
