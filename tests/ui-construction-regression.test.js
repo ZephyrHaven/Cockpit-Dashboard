@@ -23,9 +23,13 @@ assert.match(styles, /\.cockpit-dashboard-workflow-overview-metrics\s*\{[^}]*gri
 assert.match(styles, /@media \(prefers-reduced-motion:reduce\)[\s\S]*\.cockpit-dashboard-workflow-card:hover\s*\{[^}]*transform:none/s, 'Workflow motion must respect reduced-motion preferences.');
 assert.match(styles, /\.cockpit-dashboard-workflow-steps\s*\{[^}]*overflow-y:auto/s, 'Only the workflow step list should scroll.');
 assert.match(styles, /data-run-state="conduct"[\s\S]*ck-workflow-conduct/, 'Workflow execution must expose a visible conducting path.');
-assert.match(styles, /\.cockpit-dashboard-settings-tab-indicator/, 'Settings tabs must use one sliding active indicator.');
-assert.doesNotMatch(styles, /settings-tab-indicator[^}]*transition:[^;}]*width/s, 'The settings indicator must not animate layout width.');
-assert.match(serverchan, /previousWidth \/ Math\.max\(1, nextWidth\)[\s\S]*COCKPIT_MOTION\.easeInOut/, 'The settings indicator uses a GPU transform FLIP between tabs.');
+assert.match(styles, /\.cockpit-dashboard-settings-layout\s*\{[^}]*grid-template-columns:\s*176px minmax\(0, 1fr\)/s, 'Settings use a visible side navigation on wide windows.');
+assert.match(styles, /@container \(max-width: 760px\)[\s\S]*\.cockpit-dashboard-settings-tabs\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit/s, 'Settings categories wrap according to the actual pane width.');
+assert.doesNotMatch(styles, /\.cockpit-dashboard-settings-tabs\s*\{[^}]*overflow-x:\s*auto/s, 'Settings categories must not require horizontal scrolling.');
+assert.match(styles, /\.cockpit-dashboard-settings-panel \.setting-item\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) fit-content\(42%\)/s, 'Every settings row reserves separate space for text and controls.');
+assert.match(styles, /\.cockpit-dashboard-settings-panel \.setting-item-info\s*\{[^}]*min-width:\s*0;[^}]*overflow-wrap:\s*anywhere/s, 'Long setting descriptions must wrap inside their column.');
+assert.match(styles, /\.view-content:has\(> \.cockpit-dashboard-root\[data-glass="on"\]\)[\s\S]*background:[^}]*transparent/s, 'Glass mode leaves the dashboard canvas translucent.');
+assert.match(serverchan, /\['ArrowRight', 'ArrowDown'\][\s\S]*\['ArrowLeft', 'ArrowUp'\]/, 'All arrow directions can reach settings categories.');
 assert.match(motion, /function cockpitPlayFlip\(/, 'Motion V2 must centralize FLIP layout transitions.');
 assert.match(motion, /function cockpitBindMotionInteractions\(/, 'Motion V2 must centralize press and ripple feedback.');
 assert.match(motion, /function cockpitBindCinematicMotion\(/, 'Motion V2 must centralize hero and card pointer lighting.');

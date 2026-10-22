@@ -237,11 +237,12 @@ function cockpitPlayFlip(container, first, owner) {
 }
 function cockpitRevealList(container, selector, owner) {
   if (!container || !cockpitMotionAllowed(owner)) return;
+  if (container.closest?.('.' + PLUGIN_ID + '-root[data-glass="on"]')) return;
   Array.from(container.querySelectorAll(selector)).slice(0, 8).forEach((element, index) => {
     cockpitTrackAnimation(element.animate([
       { opacity:0, transform:'translateY(20px) scale(.955)', filter:'blur(7px)' },
       { opacity:1, transform:'none', filter:'blur(0)' }
-    ], { duration:460, delay:index * 64, easing:COCKPIT_MOTION.easeOut, fill:'both' }));
+    ], { duration:460, delay:index * 64, easing:COCKPIT_MOTION.easeOut, fill:'backwards' }));
   });
 }
 function cockpitSettle(element, status, owner) {
@@ -264,7 +265,7 @@ function cockpitAnimatePopover(popover, trigger, owner) {
   const frames = reduced
     ? [{ opacity:0 }, { opacity:1 }]
     : [{ opacity:0, transform:'translateY(-6px) scale(.96)' }, { opacity:1, transform:'none' }];
-  popover._cockpitPopoverAnim = cockpitTrackAnimation(popover.animate(frames, { duration:COCKPIT_MOTION.popover, easing:COCKPIT_MOTION.easeOut, fill:'both' }));
+  popover._cockpitPopoverAnim = cockpitTrackAnimation(popover.animate(frames, { duration:COCKPIT_MOTION.popover, easing:COCKPIT_MOTION.easeOut, fill:'backwards' }));
 }
 function cockpitClosePopover(popover, owner, done) {
   if (!popover) return;
@@ -283,25 +284,30 @@ function cockpitPlayEntrance(root, owner) {
   root.classList.add(PLUGIN_ID + '-entering');
   const hero = root.querySelector('.' + PLUGIN_ID + '-hero');
   const modules = Array.from(root.querySelectorAll(':scope > .' + PLUGIN_ID + '-module')).slice(0, 14);
+  const glass = root.dataset.glass === 'on';
   const canAnimate = typeof root.animate === 'function' && (!hero || typeof hero.animate === 'function');
   if (canAnimate) {
     root.classList.add('ck-waapi-entrance');
-    if (hero) cockpitTrackAnimation(hero.animate([
+    if (hero) cockpitTrackAnimation(hero.animate(glass ? [
+      { opacity:0 }, { opacity:1 }
+    ] : [
       { opacity:0, transform:'scale(.94)', filter:'blur(14px)', clipPath:'inset(0 0 42% 0 round 22px)' },
       { opacity:1, transform:'scale(1)', filter:'blur(0)', clipPath:'inset(0 0 0 0 round 18px)', offset:.76 },
       { opacity:1, transform:'none', filter:'blur(0)', clipPath:'inset(0 0 0 0 round 18px)' }
-    ], { duration:820, easing:COCKPIT_MOTION.easeOut, fill:'both' }));
-    modules.forEach((element, index) => cockpitTrackAnimation(element.animate([
+    ], { duration:glass ? 260 : 820, easing:COCKPIT_MOTION.easeOut, fill:'backwards' }));
+    modules.forEach((element, index) => cockpitTrackAnimation(element.animate(glass ? [
+      { opacity:0 }, { opacity:1 }
+    ] : [
       { opacity:0, transform:'scale(.955)', filter:'blur(11px)', clipPath:'inset(14% 0 0 0 round 18px)' },
       { opacity:1, transform:'scale(1)', filter:'blur(0)', clipPath:'inset(0 0 0 0 round 18px)', offset:.78 },
       { opacity:1, transform:'none', filter:'blur(0)' }
-    ], { duration:720, delay:150 + index * 72, easing:COCKPIT_MOTION.easeOut, fill:'both' })));
+    ], { duration:glass ? 220 : 720, delay:glass ? 40 + index * 20 : 150 + index * 72, easing:COCKPIT_MOTION.easeOut, fill:'backwards' })));
   }
-  const timeout = 150 + Math.max(0, modules.length - 1) * 72 + 820;
+  const timeout = glass ? 40 + Math.max(0, modules.length - 1) * 20 + 260 : 150 + Math.max(0, modules.length - 1) * 72 + 820;
   setTimeout(() => {
     root.classList.remove(PLUGIN_ID + '-entering');
     root.classList.remove('ck-waapi-entrance');
-  }, Math.max(1050, timeout));
+  }, glass ? timeout : Math.max(1050, timeout));
 }
 
 function cockpitReplayMotion(plugin, previewEl) {

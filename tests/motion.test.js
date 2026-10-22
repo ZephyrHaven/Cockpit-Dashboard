@@ -20,10 +20,12 @@ const context = vm.createContext({
   requestAnimationFrame:(callback) => { callback(0); return 1; },
   cancelAnimationFrame:() => {},
   performance:{ now:() => 0 },
+  setTimeout:() => 1,
+  clearTimeout:() => {},
   Set, Map, WeakMap, Object, Array, Math
 });
 const source = fs.readFileSync(path.join(__dirname, '../src/motion.js'), 'utf8');
-vm.runInContext(source + ';globalThis.motionApi={cockpitMotionEnabled,cockpitMotionAllowed,cockpitApplyMotionState,cockpitCaptureLayout,cockpitBindCinematicMotion,cockpitReplayMotion,cockpitAnimatePopover,cockpitClosePopover,COCKPIT_MOTION};', context);
+vm.runInContext(source + ';globalThis.motionApi={cockpitMotionEnabled,cockpitMotionAllowed,cockpitApplyMotionState,cockpitCaptureLayout,cockpitBindCinematicMotion,cockpitPlayEntrance,cockpitRevealList,cockpitReplayMotion,cockpitAnimatePopover,cockpitClosePopover,COCKPIT_MOTION};', context);
 const api = context.motionApi;
 
 assert.equal(api.cockpitMotionEnabled({ _motionV2Enabled:true }), true);
@@ -67,11 +69,43 @@ api.cockpitAnimatePopover(popover,trigger,{_motionV2Enabled:true});
 assert.equal(popoverRun.options.duration,180);
 assert.equal(popoverRun.frames[0].transform,'translateY(-6px) scale(.96)');
 assert.equal(popoverRun.frames.length,2,'Popover entrance has one surface animation without a second overshoot phase.');
+assert.equal(popoverRun.options.fill,'backwards','Finished popovers release their animated compositor layer.');
 reduced=true;popoverRun=null;
 api.cockpitAnimatePopover(popover,trigger,{_motionV2Enabled:true});
 assert.equal(popoverRun.options.duration,180);
 assert.equal(Object.keys(popoverRun.frames[0]).join(','),'opacity','Reduced motion keeps opacity while removing geometric movement.');
 reduced=false;
+
+const entranceRuns = [];
+const entranceElement = () => ({ animate(frames, options) { entranceRuns.push({frames, options}); return fakeAnimation(); } });
+const entranceHero = entranceElement();
+const entranceModule = entranceElement();
+const entranceRoot = {
+  dataset:{glass:'on'},
+  classList:{add(){},remove(){}},
+  animate(){},
+  querySelector:() => entranceHero,
+  querySelectorAll:() => [entranceModule]
+};
+api.cockpitPlayEntrance(entranceRoot,{_motionV2Enabled:true});
+assert.equal(entranceRuns.length,2);
+assert.equal(entranceRuns.every(({frames,options}) => options.fill === 'backwards' && frames.every((frame) => !('filter' in frame) && !('clipPath' in frame) && !('transform' in frame))),true,'Glass entrances release their compositor effect and never blur scrolling content.');
+entranceRuns.length=0;
+entranceRoot.dataset.glass='off';
+api.cockpitPlayEntrance(entranceRoot,{_motionV2Enabled:true});
+assert.equal(entranceRuns.some(({frames}) => frames.some((frame) => 'filter' in frame)),true,'The regular entrance remains available outside glass mode.');
+assert.equal(entranceRuns.every(({options}) => options.fill === 'backwards'),true,'Finished entrances must not retain animated layers.');
+
+entranceRuns.length=0;
+const list = {
+  closest:(selector) => selector.includes('data-glass="on"') ? {} : null,
+  querySelectorAll:() => [entranceModule]
+};
+api.cockpitRevealList(list,'.cockpit-dashboard-workflow-card',{_motionV2Enabled:true});
+assert.equal(entranceRuns.length,0,'Glass workflow cards do not animate filtered layers while scrolling.');
+list.closest=() => null;
+api.cockpitRevealList(list,'.cockpit-dashboard-workflow-card',{_motionV2Enabled:true});
+assert.equal(entranceRuns[0].options.fill,'backwards','Finished list reveals release their compositor layers.');
 
 assert.match(source,/getComputedStyle\?\.\(target\)\?\.position/, 'Ripple hosts inspect computed positioning before adding a relative-position helper.');
 assert.match(source,/ck-motion-ripple-host/, 'Only actual ripple hosts opt into clipping.');

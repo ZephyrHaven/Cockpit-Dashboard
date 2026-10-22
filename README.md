@@ -21,6 +21,7 @@ Cockpit Dashboard is a local-first Obsidian home-page plugin that brings todos, 
 - **Weekly report studio**: keep multiple report configurations in reliable full-row accordions, generate drafts manually, compare the untouched script output with a streaming AI-polished version, continue the same optimization in Agent, and explicitly choose which version to save. A saved report can trigger the existing scheduled-task event pipeline
 - **Focus analytics**: focus trend charts (line/bar), this week vs last week, golden focus hours, top-3 task investment insights, one-click weekly-report share card PNG
 - **Layout system**: a searchable component store with previews for adding, hiding, and reordering modules without covering the live dashboard in edit controls; dedicated Toolbar, statistics-card, and tip-library managers; preservation of existing user order/visibility/collapse state; and multi-scene layouts that switch automatically by weekday/time range/folder
+- **Appearance & settings**: responsive settings categories and wrapping controls avoid sideways scrolling. The optional unified glass switch makes dashboard surfaces translucent, and the companion Cockpit Glass theme extends the same look across the window in light and dark mode while following the host accent color
 - **Also included**: unified Spotlight search (todos / note content / file names in one query), two-pane RSS reader, bilingual UI, first-run onboarding
 
 ## Architecture
@@ -122,6 +123,12 @@ No telemetry or uploads to the plugin developer. Optional LAN sync sends only ta
 **Community plugins (recommended)**: Settings → Community plugins → Browse → search **Cockpit Dashboard** → install & enable.
 
 **Manual install**: download `main.js`, `manifest.json`, and `styles.css` from [Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases), drop them into `.obsidian/plugins/cockpit-dashboard/`, then enable the plugin.
+
+### Optional glass appearance
+
+For a unified frosted window on macOS, use host version 1.14 or newer and enable **Settings → Appearance → Translucent window**. Copy the companion theme's [`manifest.json`](theme/cockpit-glass/manifest.json) and [`theme.css`](theme/cockpit-glass/theme.css) into your vault's `.obsidian/themes/Cockpit Glass/` folder, then select **Cockpit Glass** under Appearance → Themes. Finally, open **Settings → Cockpit → Appearance & motion** and enable **Unified glass appearance**. This plugin switch is off by default and updates an open dashboard immediately.
+
+The theme makes the title bar, tabs, sidebars, and workspace share the window's native translucency; the plugin switch makes dashboard cards translucent. Both light and dark modes retain the host accent color. The operating system provides the window blur, so the dashboard does not add per-card blur or swap its background while scrolling. Without the host's translucent-window setting, the desktop will not show through. The companion theme is included in the source tree, separate from the plugin's three Release assets.
 
 ## Development
 

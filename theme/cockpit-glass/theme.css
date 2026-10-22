@@ -1,0 +1,154 @@
+/* Cockpit Glass — a quiet translucent shell for the dashboard and everyday notes. */
+body.theme-light {
+  --background-primary: #f5f6f7;
+  --background-primary-alt: #eef0f1;
+  --background-secondary: #e9ebed;
+  --background-secondary-alt: #e2e5e7;
+  --background-modifier-border: rgba(38, 43, 48, .16);
+  --background-modifier-border-hover: rgba(38, 43, 48, .25);
+  --text-normal: #20252a;
+  --text-muted: #58616a;
+  --interactive-normal: rgba(255, 255, 255, .64);
+  --interactive-hover: rgba(255, 255, 255, .78);
+  --cg-shell: rgba(250, 251, 253, .04);
+  --cg-haze: rgba(255, 255, 255, .05);
+  --cg-topbar: rgba(255, 255, 255, .4);
+  --cg-tab-active: transparent;
+  --cg-reading: rgba(255, 255, 255, .18);
+  --cg-solid: rgba(242, 245, 247, .88);
+  --cg-line: rgba(255, 255, 255, .32);
+  --cg-glint: rgba(255, 255, 255, .38);
+  --workspace-background-translucent: rgba(250, 251, 253, .04);
+}
+
+body.theme-dark {
+  --background-primary: #202226;
+  --background-primary-alt: #282b30;
+  --background-secondary: #292c31;
+  --background-secondary-alt: #1e2024;
+  --background-modifier-border: rgba(235, 237, 240, .15);
+  --background-modifier-border-hover: rgba(235, 237, 240, .25);
+  --text-normal: #eceef0;
+  --text-muted: #b6bac0;
+  --interactive-normal: rgba(38, 40, 46, .64);
+  --interactive-hover: rgba(52, 55, 62, .78);
+  --cg-shell: rgba(13, 15, 19, .04);
+  --cg-haze: rgba(255, 255, 255, .025);
+  --cg-topbar: rgba(255, 255, 255, .05);
+  --cg-tab-active: transparent;
+  --cg-reading: rgba(22, 24, 29, .18);
+  --cg-solid: rgba(39, 41, 47, .86);
+  --cg-line: rgba(255, 255, 255, .08);
+  --cg-glint: rgba(255, 255, 255, .1);
+  --workspace-background-translucent: rgba(13, 15, 19, .04);
+}
+
+body {
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 18px;
+}
+
+/* The operating system supplies the window blur; the theme supplies tint and edges. */
+body.is-translucent {
+  --tab-container-background: transparent;
+  --tab-background-active: var(--cg-tab-active);
+  --tab-divider-color: transparent;
+  --tab-outline-color: transparent;
+  --tab-outline-width: 0px;
+  background: transparent;
+}
+
+/* One tint over the native frosted window, rather than a tint per pane. */
+body.is-translucent .app-container {
+  background: radial-gradient(ellipse 95% 70% at 50% 10%, var(--cg-haze), transparent 75%), var(--cg-shell);
+}
+body.is-translucent .titlebar,
+body.is-translucent .horizontal-main-container,
+body.is-translucent .workspace,
+body.is-translucent .workspace-split.mod-root,
+body.is-translucent .workspace-split.mod-left-split,
+body.is-translucent .workspace-split.mod-right-split,
+body.is-translucent .workspace-ribbon,
+body.is-translucent .workspace-ribbon::before,
+body.is-translucent .workspace-tabs,
+body.is-translucent .workspace-tab-header-container,
+body.is-translucent .workspace-tab-container,
+body.is-translucent .workspace-sidedock-vault-profile,
+body.is-translucent .workspace-leaf,
+body.is-translucent .workspace-leaf-content,
+body.is-translucent .view-header,
+body.is-translucent .workspace-split.mod-root .view-content {
+  background: transparent;
+}
+
+body.is-translucent .workspace-ribbon,
+body.is-translucent .workspace-split.mod-left-split,
+body.is-translucent .workspace-split.mod-right-split,
+body.is-translucent .workspace-tab-header-container,
+body.is-translucent .workspace-sidedock-vault-profile,
+body.is-translucent .titlebar {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* The native title area has a different base tone from the content area.
+   A thin tint joins the two without making the whole workspace opaque. */
+body.is-translucent .titlebar,
+body.is-translucent .workspace-tab-header-container {
+  background: var(--cg-topbar);
+}
+
+/* Notes read on a soft sheet; media and dialogs keep a firmer surface. */
+body.is-translucent .markdown-source-view,
+body.is-translucent .markdown-preview-view {
+  background: var(--cg-reading);
+}
+
+body.is-translucent .settings-container {
+  background: var(--cg-solid);
+}
+
+body.is-translucent .workspace-tab-header.is-active {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+body.is-translucent .workspace-tab-header.is-active::before,
+body.is-translucent .workspace-tab-header.is-active::after {
+  box-shadow: none;
+}
+
+body.is-translucent .modal {
+  background: var(--cg-solid);
+  border: 1px solid var(--cg-line);
+  box-shadow: inset 0 1px 0 var(--cg-glint), 0 22px 60px rgba(0, 0, 0, .18);
+}
+
+/* Keep the workspace visible behind settings instead of covering it in black. */
+body.theme-light.is-translucent .modal-container.mod-dim .modal-bg {
+  background: rgba(22, 32, 42, .12);
+}
+body.theme-dark.is-translucent .modal-container.mod-dim .modal-bg {
+  background: rgba(0, 0, 0, .18);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  body.is-translucent .app-container,
+  body.is-translucent .workspace,
+  body.is-translucent .workspace-split.mod-root,
+  body.is-translucent .workspace-tabs,
+  body.is-translucent .workspace-tab-container {
+    background: var(--background-primary);
+  }
+  body.is-translucent .workspace-ribbon,
+  body.is-translucent .workspace-split.mod-left-split,
+  body.is-translucent .workspace-split.mod-right-split {
+    background: transparent;
+  }
+  body.is-translucent .markdown-source-view,
+  body.is-translucent .markdown-preview-view,
+  body.is-translucent .settings-container {
+    background: var(--background-primary);
+  }
+}

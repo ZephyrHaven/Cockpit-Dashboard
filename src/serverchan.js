@@ -257,6 +257,15 @@ function normalizeCockpitSettingsSection(value) {
   return ['appearance','ai','updates','sync','channels','brief','schedule','scope','calendar'].includes(id) ? id : 'appearance';
 }
 
+function cockpitRefreshGlassRoots(plugin, enabled) {
+  plugin.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((leaf) => {
+    const root = leaf.view?.containerEl?.querySelector('.' + PLUGIN_ID + '-root');
+    if (!root) return;
+    leaf.view._glassCardsEnabled = enabled;
+    root.dataset.glass = enabled ? 'on' : 'off';
+  });
+}
+
 class ServerChanService {
   constructor(plugin) { this.plugin = plugin; this._reminderPromise = null; this._schedulerRunning = false; this._config = null; }
   startScheduler() { const check = () => this._runScheduledCheck().catch((e) => console.warn('Cockpit notification scheduler failed', e)); check(); this.plugin.registerInterval(window.setInterval(check, 1000)); }
@@ -352,12 +361,12 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     containerEl.addClass(PLUGIN_ID + '-settings-root');
     const shell = containerEl.createDiv({ cls:PLUGIN_ID + '-settings-shell' });
     const hero = shell.createDiv({ cls:PLUGIN_ID + '-settings-hero' });
-    hero.createEl('h1', { text:en ? 'Cockpit settings' : 'Cockpit 设置' });
-    hero.createEl('p', { text:en ? 'Manage each capability separately. Changes are saved as you edit.' : '按模块管理插件能力，修改后会自动保存。' });
+    hero.createEl('strong', { text:en ? 'Cockpit settings' : '驾驶舱设置' });
+    hero.createEl('p', { text:en ? 'Choose a category. Changes save automatically.' : '选择分类，修改后自动保存。' });
     const sections = getCockpitSettingsSections(language);
-    const tabs = shell.createDiv({ cls:PLUGIN_ID + '-settings-tabs', attr:{ role:'tablist', 'aria-label':en ? 'Cockpit settings modules' : 'Cockpit 设置模块' } });
-    const tabIndicator = tabs.createDiv({ cls:PLUGIN_ID + '-settings-tab-indicator', attr:{ 'aria-hidden':'true' } });
-    const panelsHost = shell.createDiv({ cls:PLUGIN_ID + '-settings-panels' });
+    const layout = shell.createDiv({ cls:PLUGIN_ID + '-settings-layout' });
+    const tabs = layout.createDiv({ cls:PLUGIN_ID + '-settings-tabs', attr:{ role:'tablist', 'aria-label':en ? 'Cockpit settings modules' : 'Cockpit 设置模块' } });
+    const panelsHost = layout.createDiv({ cls:PLUGIN_ID + '-settings-panels' });
     const panels = {};
     const buttons = {};
     const activate = (requestedId, focus = false) => {
@@ -370,23 +379,6 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
         buttons[section.id].tabIndex = selected ? 0 : -1;
         panels[section.id].hidden = !selected;
       });
-      (window.requestAnimationFrame || ((callback) => callback()))(() => {
-        const active = buttons[id];
-        if (!active) return;
-        const nextWidth = active.offsetWidth;
-        const nextLeft = active.offsetLeft;
-        const previousWidth = Number.parseFloat(tabIndicator.style.width) || 0;
-        const previousLeft = Number.parseFloat(tabIndicator.dataset.left) || 0;
-        tabIndicator.style.width = nextWidth + 'px';
-        tabIndicator.style.transform = 'translateX(' + nextLeft + 'px)';
-        tabIndicator.dataset.left = String(nextLeft);
-        tabIndicator._cockpitMove?.cancel?.();
-        if (focus || !previousWidth || !cockpitMotionAllowed(this.plugin) || typeof tabIndicator.animate !== 'function') return;
-        tabIndicator._cockpitMove = cockpitTrackAnimation(tabIndicator.animate([
-          { transform:'translateX(' + previousLeft + 'px) scaleX(' + (previousWidth / Math.max(1, nextWidth)) + ')' },
-          { transform:'translateX(' + nextLeft + 'px) scaleX(1)' }
-        ], { duration:COCKPIT_MOTION.ui, easing:COCKPIT_MOTION.easeInOut }));
-      });
       if (focus) buttons[id].focus();
     };
     sections.forEach((section, index) => {
@@ -398,7 +390,7 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
       button.createSpan({ text:section.label });
       button.onclick = () => activate(section.id);
       button.onkeydown = (event) => {
-        const move = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+        const move = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 0;
         if (!move && event.key !== 'Home' && event.key !== 'End') return;
         event.preventDefault();
         const next = event.key === 'Home' ? 0 : event.key === 'End' ? sections.length - 1 : (index + move + sections.length) % sections.length;
@@ -430,9 +422,16 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     };
 
     const motionData = await this.plugin.loadData() || {};
-    addPanelIntro(panels.appearance, en ? 'Motion & interaction' : '动效与交互', en
-      ? 'Use spatial continuity, responsive feedback and animated state changes across the dashboard.'
-      : '在驾驶舱中使用空间连续性、即时反馈和状态转场。');
+    addPanelIntro(panels.appearance, en ? 'Appearance & motion' : '外观与动效', en
+      ? 'Adjust the dashboard surfaces and motion.'
+      : '调整驾驶舱的卡片表面与动效。');
+    new obs.Setting(panels.appearance)
+      .setName(en ? 'Unified glass appearance' : '一体式玻璃外观')
+      .setDesc(en ? 'A translucent dashboard that uses the host window frost.' : '驾驶舱与宿主窗口连成一层轻透玻璃。')
+      .addToggle((toggle) => toggle.setValue(motionData.glassCardsEnabled === true).onChange(async (value) => {
+        await this.plugin.mutateData((data) => { data.glassCardsEnabled = value === true; });
+        cockpitRefreshGlassRoots(this.plugin, value === true);
+      }));
     const motionStatus = panels.appearance.createDiv({ cls:PLUGIN_ID + '-motion-settings-preview' });
     const previewOrb = motionStatus.createDiv({ cls:PLUGIN_ID + '-motion-settings-orb' });
     obs.setIcon(previewOrb, 'sparkles');

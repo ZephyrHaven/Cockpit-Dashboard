@@ -12,14 +12,25 @@ const context = vm.createContext({
   URL,
   Date,
   console,
+  PLUGIN_ID: 'cockpit-dashboard',
+  VIEW_TYPE: 'cockpit-view',
   navigator: { language: 'en-US' },
   obs: {
     PluginSettingTab: class {},
     requestUrl: async (request) => { requests.push(request); return { status: 200, json: { code: 0, status: 200 } }; }
   }
 });
-vm.runInContext(source + ';globalThis.channelTestApi = { normalizeServerChanConfig, normalizeNotificationTimes, getServerChanScheduleSlot, suppressElapsedNotificationSlots, safeHttpsBase, sendNotificationChannel, NOTIFICATION_CHANNELS, getCockpitSettingsSections, normalizeCockpitSettingsSection };', context);
+vm.runInContext(source + ';globalThis.channelTestApi = { normalizeServerChanConfig, normalizeNotificationTimes, getServerChanScheduleSlot, suppressElapsedNotificationSlots, safeHttpsBase, sendNotificationChannel, NOTIFICATION_CHANNELS, getCockpitSettingsSections, normalizeCockpitSettingsSection, cockpitRefreshGlassRoots };', context);
 const api = context.channelTestApi;
+
+const glassRoot = { dataset:{} };
+const glassView = { containerEl:{ querySelector:(selector) => selector === '.cockpit-dashboard-root' ? glassRoot : null } };
+const glassPlugin = { app:{ workspace:{ getLeavesOfType:(type) => type === 'cockpit-view' ? [{ view:glassView }] : [] } } };
+api.cockpitRefreshGlassRoots(glassPlugin, true);
+assert.equal(glassRoot.dataset.glass, 'on', 'The appearance switch updates an open dashboard immediately.');
+assert.equal(glassView._glassCardsEnabled, true);
+api.cockpitRefreshGlassRoots(glassPlugin, false);
+assert.equal(glassRoot.dataset.glass, 'off', 'The glass appearance can be reversed without rebuilding the dashboard.');
 
 assert.deepEqual(
   JSON.parse(JSON.stringify(api.getCockpitSettingsSections('zh-CN'))),

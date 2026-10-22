@@ -626,6 +626,7 @@ class CockpitView extends obs.ItemView {
     if (loaded === null || HERMES_TODOS.length) await syncHermesTodos(this.app.vault, this._todos);
 
     // 加载用户自定义名称 + 初始化首次使用日期
+    this._glassCardsEnabled = false;
     try {
       const pluginData = await this._plugin.loadData() || {};
       const originalMentionedModules = cockpitMentionedModules(pluginData);
@@ -650,6 +651,7 @@ class CockpitView extends obs.ItemView {
       this._calendarSplitRatio = Number.isFinite(calendarSplitRatio) && calendarSplitRatio >= .3 && calendarSplitRatio <= .7 ? calendarSplitRatio : null;
       this._calendarLunarEnabled = pluginData?.calendarLunarEnabled !== false;
       this._motionV2Enabled = pluginData?.motionV2Enabled !== false;
+      this._glassCardsEnabled = pluginData?.glassCardsEnabled === true;
       this._username = pluginData?.username || this._t('hero.defaultName');
       const savedContentWidth = Number(pluginData?.dashboardContentWidth);
       this._contentWidth = Number.isFinite(savedContentWidth) && savedContentWidth >= 480 ? Math.round(savedContentWidth) : null;
@@ -935,6 +937,7 @@ class CockpitView extends obs.ItemView {
     if (!this._isMobile() && initialWidth >= 680 && initialWidth < 980) initialClasses.push(PLUGIN_ID+'-tablet');
     if (this._calendarLayout === 'split') initialClasses.push(PLUGIN_ID+'-calendar-split');
     const root = container.createDiv({ cls:initialClasses.join(' ') });
+    root.dataset.glass = this._glassCardsEnabled ? 'on' : 'off';
     cockpitApplyMotionState(root, this);
     if (previousRoot) root.classList.add(PLUGIN_ID + '-scene-preparing');
     this._ensureStylesheetLoaded();
