@@ -12,12 +12,20 @@ body.theme-light {
   --interactive-hover: rgba(255, 255, 255, .78);
   --cg-shell: rgba(250, 251, 253, .04);
   --cg-haze: rgba(255, 255, 255, .05);
-  --cg-topbar: rgba(255, 255, 255, .4);
   --cg-tab-active: transparent;
   --cg-reading: rgba(255, 255, 255, .18);
   --cg-solid: rgba(242, 245, 247, .88);
+  --cg-window-surface: #f2f5f7;
   --cg-line: rgba(255, 255, 255, .32);
   --cg-glint: rgba(255, 255, 255, .38);
+  --cg-control: rgba(255, 255, 255, .16);
+  --cg-control-hover: rgba(255, 255, 255, .3);
+  --cg-control-active: rgba(255, 255, 255, .24);
+  --cg-edge: rgba(255, 255, 255, .52);
+  --cg-edge-low: rgba(49, 61, 73, .09);
+  --cg-reflection: rgba(255, 255, 255, .26);
+  --cg-shadow: rgba(30, 42, 55, .09);
+  --cg-selection: color-mix(in srgb, var(--interactive-accent) 10%, var(--cg-control-active));
   --workspace-background-translucent: rgba(250, 251, 253, .04);
 }
 
@@ -34,12 +42,20 @@ body.theme-dark {
   --interactive-hover: rgba(52, 55, 62, .78);
   --cg-shell: rgba(13, 15, 19, .04);
   --cg-haze: rgba(255, 255, 255, .025);
-  --cg-topbar: rgba(255, 255, 255, .05);
   --cg-tab-active: transparent;
   --cg-reading: rgba(22, 24, 29, .18);
   --cg-solid: rgba(39, 41, 47, .86);
+  --cg-window-surface: #27292f;
   --cg-line: rgba(255, 255, 255, .08);
   --cg-glint: rgba(255, 255, 255, .1);
+  --cg-control: rgba(255, 255, 255, .025);
+  --cg-control-hover: rgba(255, 255, 255, .075);
+  --cg-control-active: rgba(255, 255, 255, .065);
+  --cg-edge: rgba(255, 255, 255, .17);
+  --cg-edge-low: rgba(255, 255, 255, .045);
+  --cg-reflection: rgba(255, 255, 255, .075);
+  --cg-shadow: rgba(5, 8, 14, .2);
+  --cg-selection: color-mix(in srgb, var(--interactive-accent) 13%, var(--cg-control-active));
   --workspace-background-translucent: rgba(13, 15, 19, .04);
 }
 
@@ -47,10 +63,16 @@ body {
   --radius-s: 8px;
   --radius-m: 12px;
   --radius-l: 18px;
+  --cg-ease: cubic-bezier(.2, .75, .25, 1);
+  --cg-motion: 160ms;
+  --cg-glass-face: linear-gradient(155deg, var(--cg-reflection), transparent 62%);
+  --cg-glass-edge: inset 0 1px 0 var(--cg-edge), inset 0 0 0 1px var(--cg-edge-low);
 }
 
 /* The operating system supplies the window blur; the theme supplies tint and edges. */
 body.is-translucent {
+  --titlebar-background: transparent;
+  --titlebar-background-focused: transparent;
   --tab-container-background: transparent;
   --tab-background-active: var(--cg-tab-active);
   --tab-divider-color: transparent;
@@ -92,21 +114,10 @@ body.is-translucent .titlebar {
   box-shadow: none;
 }
 
-/* The native title area has a different base tone from the content area.
-   A thin tint joins the two without making the whole workspace opaque. */
-body.is-translucent .titlebar,
-body.is-translucent .workspace-tab-header-container {
-  background: var(--cg-topbar);
-}
-
 /* Notes read on a soft sheet; media and dialogs keep a firmer surface. */
 body.is-translucent .markdown-source-view,
 body.is-translucent .markdown-preview-view {
   background: var(--cg-reading);
-}
-
-body.is-translucent .settings-container {
-  background: var(--cg-solid);
 }
 
 body.is-translucent .workspace-tab-header.is-active {
@@ -119,18 +130,214 @@ body.is-translucent .workspace-tab-header.is-active::after {
   box-shadow: none;
 }
 
+/* Thin glass controls on one continuous window. No pane-level blur or tint. */
+body.is-translucent {
+  --tab-text-color: var(--text-muted);
+  --tab-text-color-focused: var(--text-muted);
+  --tab-text-color-active: var(--text-normal);
+  --tab-text-color-focused-active: var(--text-normal);
+  --tab-text-color-focused-active-current: var(--text-normal);
+  --tab-background-hover: transparent;
+  --tab-inner-background-hover: var(--cg-control-hover);
+  --tab-inner-background-active: var(--cg-control-active);
+  --tab-inner-border-color: transparent;
+  --tab-inner-border-color-hover: transparent;
+  --tab-inner-border-color-active: transparent;
+  --nav-item-background-hover: var(--cg-control-hover);
+  --nav-item-background-active: var(--cg-selection);
+  --nav-item-color: var(--text-muted);
+  --nav-item-color-hover: var(--text-normal);
+  --nav-item-color-active: var(--text-normal);
+  --nav-item-weight-active: 600;
+  --nav-item-radius: 9px;
+}
+
+/* Keep the native traffic-light spacing, drag region and stacked-tab layout. */
+body.is-translucent .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header {
+  padding: 2px 3px 5px;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+body.is-translucent .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header::before,
+body.is-translucent .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header::after {
+  display: none;
+}
+body.is-translucent .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header-inner {
+  border-radius: 10px;
+  transition: background-color var(--cg-motion) var(--cg-ease), box-shadow var(--cg-motion) var(--cg-ease), color var(--cg-motion) ease;
+}
+body.is-translucent .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header.is-active .workspace-tab-header-inner {
+  background-image: var(--cg-glass-face);
+  box-shadow: var(--cg-glass-edge), 0 3px 9px -5px var(--cg-shadow);
+}
+body.is-translucent .workspace-tab-header.is-active .workspace-tab-header-inner-title {
+  font-weight: 600;
+}
+
+/* Center the tab group in the full bar, with equal room for edge controls.
+   Grid keeps native tab sizing and drag handling; stacked tabs stay native. */
+body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container {
+  --cg-tab-gutter: max(80px, var(--frame-left-space, 0px), calc(var(--frame-right-space, 0px) + 38px));
+  display: grid;
+  grid-template-columns: minmax(var(--cg-tab-gutter), 1fr) minmax(0, max-content) minmax(var(--cg-tab-gutter), 1fr);
+  /* Equal gutters include the native frame controls, even when either dock closes. */
+  padding-inline: 0 !important;
+}
+body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-container-inner {
+  grid-area: 1 / 2;
+  margin-inline: 0;
+  padding-inline: 0;
+  min-width: 0;
+}
+body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-new-tab {
+  grid-area: 1 / 3;
+  justify-self: start;
+}
+body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-spacer {
+  grid-area: 1 / 1;
+}
+body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-tab-list {
+  grid-area: 1 / 3;
+  justify-self: end;
+}
+body.is-translucent .mod-root .workspace-tabs.mod-top-right-space:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-tab-list {
+  margin-inline-end: calc(38px + var(--frame-right-space, 0px));
+}
+body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .sidebar-toggle-button.mod-left {
+  grid-area: 1 / 1;
+  justify-self: start;
+  z-index: 1;
+}
+body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .sidebar-toggle-button.mod-right {
+  grid-area: 1 / 3;
+  justify-self: end;
+  z-index: 1;
+}
+/* The selected tab is part of the canvas, identified by type and a fine underline. */
+body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header.is-active .workspace-tab-header-inner {
+  background: transparent;
+  box-shadow: inset 0 -1px 0 var(--cg-edge);
+}
+
+/* File tree rhythm and selection. Inset edges do not change hit areas or widths. */
+body.is-translucent :is(.mod-left-split, .mod-right-split) .tree-item-self {
+  margin-block: 2px;
+  padding-block: 6px;
+  transition: background-color var(--cg-motion) var(--cg-ease), box-shadow var(--cg-motion) var(--cg-ease), color var(--cg-motion) ease;
+}
+body.is-translucent :is(.mod-left-split, .mod-right-split) .nav-folder-title {
+  font-weight: 550;
+  color: var(--text-normal);
+}
+body.is-translucent :is(.mod-left-split, .mod-right-split) .tree-item-self.is-active:not(.is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus) {
+  background-color: var(--cg-selection);
+  background-image: var(--cg-glass-face);
+  box-shadow: var(--cg-glass-edge), inset 2px 0 0 var(--interactive-accent), 0 3px 8px -6px var(--cg-shadow);
+}
+body.is-translucent :is(.mod-left-split, .mod-right-split) .tree-item-children {
+  border-inline-start-color: var(--cg-edge-low);
+}
+body.is-translucent .nav-buttons-container {
+  gap: 6px;
+  padding-block: 10px;
+}
+body.is-translucent .workspace-sidedock-vault-profile {
+  box-shadow: inset 0 1px 0 var(--cg-edge-low);
+}
+
+/* Small controls lift once on hover and settle on press; content never moves. */
+body.is-translucent :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon) {
+  border-radius: 8px;
+  transition: background-color var(--cg-motion) var(--cg-ease), box-shadow var(--cg-motion) var(--cg-ease), color var(--cg-motion) ease, translate var(--cg-motion) var(--cg-ease), scale var(--cg-motion) var(--cg-ease);
+}
+@media (hover: hover) {
+  body.is-translucent :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):hover {
+    background-color: var(--cg-control-hover);
+    box-shadow: var(--cg-glass-edge), 0 3px 8px -5px var(--cg-shadow);
+    color: var(--text-normal);
+    translate: 0 -1px;
+  }
+  body.is-translucent :is(.mod-left-split, .mod-right-split) .tree-item-self:not(.is-active, .is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus):hover {
+    box-shadow: inset 0 1px 0 var(--cg-glint);
+  }
+}
+body.is-translucent :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):active {
+  translate: 0 0;
+  scale: .96;
+  background-color: var(--cg-control-active);
+}
+body.is-translucent :is(.workspace-tab-header, .tree-item-self, .nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+/* Search has its own shallow surface; the surrounding sidebar stays clear. */
+body.is-translucent :is(.mod-left-split, .mod-right-split) .search-input-container input {
+  background: var(--cg-control);
+  border-color: var(--cg-edge-low);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 var(--cg-glint);
+  transition: background-color var(--cg-motion) ease, box-shadow var(--cg-motion) ease;
+}
+body.is-translucent :is(.mod-left-split, .mod-right-split) .search-input-container input:focus {
+  background: var(--cg-control-hover);
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+}
+body.is-translucent .status-bar {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body { --cg-motion: 0ms; }
+  body.is-translucent :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):is(:hover, :active) {
+    translate: none;
+    scale: none;
+  }
+}
+
 body.is-translucent .modal {
   background: var(--cg-solid);
   border: 1px solid var(--cg-line);
   box-shadow: inset 0 1px 0 var(--cg-glint), 0 22px 60px rgba(0, 0, 0, .18);
 }
 
+/* Settings paint one surface only. Nested headers/panes must not add opaque fills. */
+body:is(.is-translucent, .is-popout-modal) .modal:is(.mod-settings, .mod-community-modal) {
+  --settings-background: var(--cg-window-surface);
+  --modal-sidebar-background: transparent;
+  background: var(--cg-window-surface);
+}
+body:is(.is-translucent, .is-popout-modal) .modal:is(.mod-settings, .mod-community-modal) :is(.modal-content, .vertical-tabs-container, .vertical-tab-header, .vertical-tab-content, .modal-sidebar, .setting-page-content) {
+  background: transparent;
+  box-shadow: none;
+}
+/* Detached windows may lack is-translucent. Their entire shell shares one tint. */
+body.is-popout-modal {
+  --titlebar-background: var(--cg-window-surface);
+  --titlebar-background-focused: var(--cg-window-surface);
+  background: var(--cg-window-surface);
+}
+body.is-popout-modal.is-frameless .titlebar {
+  background: var(--cg-window-surface);
+  border-bottom: 0;
+  box-shadow: none;
+}
+body.is-popout-modal > .modal:is(.mod-settings, .mod-community-modal) {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
 /* Keep the workspace visible behind settings instead of covering it in black. */
 body.theme-light.is-translucent .modal-container.mod-dim .modal-bg {
-  background: rgba(22, 32, 42, .12);
+  background: transparent;
 }
 body.theme-dark.is-translucent .modal-container.mod-dim .modal-bg {
-  background: rgba(0, 0, 0, .18);
+  background: transparent;
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -148,7 +355,7 @@ body.theme-dark.is-translucent .modal-container.mod-dim .modal-bg {
   }
   body.is-translucent .markdown-source-view,
   body.is-translucent .markdown-preview-view,
-  body.is-translucent .settings-container {
+  body.is-translucent .modal:is(.mod-settings, .mod-community-modal) {
     background: var(--background-primary);
   }
 }
