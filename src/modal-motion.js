@@ -14,7 +14,7 @@ function cockpitAnimateSurfaceExit(shell, panel, backdrop) {
   const reduced = cockpitPrefersReducedMotion();
   const panelStyle = window.getComputedStyle(panel);
   const backdropStyle = backdrop && backdrop !== panel ? window.getComputedStyle(backdrop) : null;
-  const panelStart = { opacity:panelStyle.opacity, transform:panelStyle.transform, filter:panelStyle.filter };
+  const panelStart = { opacity:panelStyle.opacity, transform:panelStyle.transform };
   const backdropOpacity = backdropStyle?.opacity || '1';
   [shell, backdrop, panel].filter(Boolean).forEach((element) => element.getAnimations?.().forEach((animation) => animation.cancel()));
   shell.classList.add('is-leaving', 'is-waapi-leaving');
@@ -25,8 +25,8 @@ function cockpitAnimateSurfaceExit(shell, panel, backdrop) {
   track(panel.animate([
     panelStart,
     reduced
-      ? { opacity:0, transform:panelStart.transform, filter:'none' }
-      : { opacity:0, transform:'translateY(10px) scale(.97)', filter:'blur(4px)' }
+      ? { opacity:0, transform:panelStart.transform }
+      : { opacity:0, transform:'translateY(6px) scale(.985)' }
   ], { duration:COCKPIT_MODAL_LEAVE_MS, easing:'cubic-bezier(.23,1,.32,1)', fill:'forwards' }));
   return true;
 }

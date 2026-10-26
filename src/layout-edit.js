@@ -269,7 +269,7 @@ function cockpitMakeModuleCollapsible(view, moduleId, titleEl, contentEl, defaul
 }
 function cockpitMakeCollapsible(view, titleEl, contentEl, key, defaultCollapsed) {
   if (titleEl.dataset.collapseBound === 'true') return;
-  const arrow = titleEl.createSpan({ cls: PLUGIN_ID+'-collapse-arrow', text: '▼', attr:{ style:'margin-left:6px;font-size:0.7em;opacity:0.45;display:inline-block;' } });
+  const arrow = titleEl.createSpan({ cls: PLUGIN_ID+'-collapse-arrow', attr:{ 'aria-hidden':'true' } });
   titleEl.style.cursor = 'pointer';
   titleEl.tabIndex = 0;
   titleEl.setAttribute('role', 'button');
@@ -278,7 +278,7 @@ function cockpitMakeCollapsible(view, titleEl, contentEl, key, defaultCollapsed)
   const apply = (animated) => {
     if (animated) cockpitAnimateCollapse(contentEl, collapsed, view);
     else contentEl.style.display = collapsed ? 'none' : '';
-    // 箭头保持同一个字符，由 CSS 旋转表达折叠状态，过渡更顺滑。
+    // 箭头由 CSS 绘制并旋转，避免字体字形的基线造成视觉偏移。
     arrow.classList.toggle('is-collapsed', collapsed);
     titleEl.setAttribute('aria-expanded', String(!collapsed));
   };

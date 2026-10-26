@@ -43,12 +43,14 @@ assert.doesNotMatch(globalMotionButtonRule, /position\s*:|overflow\s*:/, 'Global
 assert.match(styles, /\.ck-motion-relative\s*\{\s*position:relative/, 'Only static ripple hosts receive relative positioning.');
 assert.match(styles, /\.ck-motion-ripple-host\s*\{\s*overflow:hidden/, 'Only actual ripple hosts receive clipping.');
 assert.match(styles, /\.cockpit-dashboard-content-resize-handle\s*\{[^}]*position:\s*absolute;[^}]*top:\s*50%;[^}]*right:\s*-10px;/s, 'The dashboard width handle remains absolutely positioned at the outer edge.');
-assert.match(styles, /@keyframes ck-dialog-in\s*\{\s*from\s*\{[^}]*translateY\(10px\) scale\(\.97\)[^}]*blur\(4px\)/s, 'Dialogs and overlays share one restrained entrance frame.');
-assert.match(styles, /\.modal-container\.cockpit-dashboard-modal-motion \.modal\s*\{[^}]*ck-dialog-in 320ms[^}]*--ck-ease-out/s, 'Secondary modals use the shared 320ms entrance and easing.');
-assert.match(modalMotion, /function cockpitAnimateSurfaceExit\([\s\S]*getComputedStyle\(panel\)[\s\S]*duration:COCKPIT_MODAL_LEAVE_MS[\s\S]*translateY\(10px\) scale\(\.97\)/, 'Overlay exits continue from the current rendered frame through the shared 180ms surface target.');
+assert.match(styles, /@keyframes ck-dialog-in\s*\{\s*from\s*\{[^}]*translateY\(6px\) scale\(\.985\)/s, 'Dialogs and overlays share one restrained entrance frame.');
+assert.doesNotMatch(styles, /@keyframes ck-dialog-in\s*\{[^}]*blur\(/s, 'Dialog entrances do not blur transparent window surfaces.');
+assert.match(styles, /\.modal-container\.cockpit-dashboard-modal-motion \.modal\s*\{[^}]*ck-dialog-in 240ms[^}]*--ck-ease-out/s, 'Secondary modals use the shared 240ms entrance and easing.');
+assert.match(modalMotion, /function cockpitAnimateSurfaceExit\([\s\S]*getComputedStyle\(panel\)[\s\S]*duration:COCKPIT_MODAL_LEAVE_MS[\s\S]*translateY\(6px\) scale\(\.985\)/, 'Overlay exits continue from the current rendered frame through the shared 180ms surface target.');
+assert.doesNotMatch(modalMotion, /filter:'blur\(/, 'Dialog exits do not add blur layers.');
 assert.doesNotMatch(styles, /cockpit-dashboard-modal-motion \.modal > \*\s*\{[^}]*animation|cockpit-dashboard-motion-overlay > :first-child > \*\s*\{[^}]*animation/s, 'Secondary surface children must not replay a second entrance animation.');
 assert.match(styles, /prefers-reduced-motion:\s*reduce[\s\S]*ck-dialog-opacity-in 180ms/s, 'Reduced motion keeps an opacity-only 180ms entrance.');
-assert.match(modalMotion, /reduced\s*\?\s*\{ opacity:0, transform:panelStart\.transform, filter:'none' \}/, 'Reduced motion exits without adding movement, scale, or blur.');
+assert.match(modalMotion, /reduced\s*\?\s*\{ opacity:0, transform:panelStart\.transform \}/, 'Reduced motion exits without adding movement, scale, or blur.');
 assert.match(styles, /cockpit-dashboard-scene-leaving[^}]*cockpit-scene-out 320ms[^}]*--ck-ease-in-out[\s\S]*cockpit-dashboard-scene-entering[^}]*cockpit-scene-enter 320ms[^}]*--ck-ease-in-out/s, 'Page and scene changes keep the separate 320ms layout-transition language.');
 assert.match(framework, /setTimeout\(\(\) => previousRoot\.remove\(\), 340\)/, 'The outgoing scene is removed immediately after the shared 320ms transition.');
 assert.match(modalMotion, /COCKPIT_MODAL_LEAVE_MS = 180/, 'Modal and overlay removal waits for the shared exit token.');

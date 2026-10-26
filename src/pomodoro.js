@@ -45,7 +45,7 @@ function createPomodoro(view, root, initialTodo) {
     const floatEl = document.createElement('div');
     floatEl.className = PID + '-pomodoro';
     if (isMobile) floatEl.classList.add(PID + '-pomodoro-mobile');
-    floatEl.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:999;width:218px;max-width:calc(100vw - 24px);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;border-radius:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:box-shadow 0.25s,border-color 0.25s,transform 0.25s,background 0.25s;';
+    floatEl.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:999;width:218px;max-width:calc(100vw - 24px);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;border-radius:18px;transition:box-shadow 0.25s,border-color 0.25s,transform 0.25s,background 0.25s;';
 
     // 标题栏（拖拽区域）
     const header = floatEl.createDiv({ cls: PID + '-pomo-header' });
