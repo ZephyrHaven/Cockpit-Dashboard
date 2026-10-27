@@ -122,13 +122,13 @@ No telemetry or uploads to the plugin developer. Optional LAN sync sends only ta
 
 **Community plugins (recommended)**: Settings → Community plugins → Browse → search **Cockpit Dashboard** → install & enable.
 
-**Manual install**: download `main.js`, `manifest.json`, and `styles.css` from [Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases), drop them into `.obsidian/plugins/cockpit-dashboard/`, then enable the plugin.
+**Manual install**: download `cockpit-dashboard-<version>.zip` from [Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases) and extract it into your vault's `.obsidian/plugins/` folder. The resulting path is `.obsidian/plugins/cockpit-dashboard/`, containing `main.js`, `manifest.json`, and `styles.css`. Enable the plugin in Settings. For a manual upgrade, copy these three files into the existing folder; do not replace the whole folder, which contains your `data.json` settings. The three files are also available as separate Release downloads.
 
 ### Optional glass appearance
 
 For a unified frosted window on macOS, use host version 1.14 or newer and enable **Settings → Appearance → Translucent window**. Copy the companion theme's [`manifest.json`](theme/cockpit-glass/manifest.json) and [`theme.css`](theme/cockpit-glass/theme.css) into your vault's `.obsidian/themes/Cockpit Glass/` folder, then select **Cockpit Glass** under Appearance → Themes. Finally, open **Settings → Cockpit → Appearance & motion** and enable **Unified glass appearance**. This plugin switch is off by default and updates an open dashboard immediately.
 
-The theme makes the title bar, tabs, sidebars, and workspace share the window's native translucency; the plugin switch makes dashboard cards translucent. Both light and dark modes retain the host accent color. The operating system provides the window blur, so the dashboard does not add per-card blur or swap its background while scrolling. Without the host's translucent-window setting, the desktop will not show through. The companion theme is included in the source tree, separate from the plugin's three Release assets.
+The theme makes the title bar, tabs, sidebars, and workspace share the window's native translucency; the plugin switch makes dashboard cards translucent. Both light and dark modes retain the host accent color. The operating system provides the window blur, so the dashboard does not add per-card blur or swap its background while scrolling. Without the host's translucent-window setting, the desktop will not show through. The companion theme is included in the source tree, separate from the plugin zip and Release runtime files.
 
 ## Development
 
@@ -146,7 +146,7 @@ node build.js
 bash deploy.sh
 ```
 
-Release convention: bump the version in `manifest.json` → build and test → tag without a `v` prefix → use `gh release create <version>` to upload `dist/main.js`, `dist/styles.css`, and `manifest.json` as three separate assets (the plugin store relies on them for update detection). Build artifacts are never committed to the source repository.
+Release convention: bump the version in `manifest.json` → build and test → tag without a `v` prefix → upload `dist/main.js`, `dist/styles.css`, and `manifest.json` as three separate Release assets (the plugin store relies on them for update detection), plus a `cockpit-dashboard-<version>.zip` containing those files under `cockpit-dashboard/` for manual installation. Build artifacts are never committed to the source repository.
 
 ## Sponsor
 

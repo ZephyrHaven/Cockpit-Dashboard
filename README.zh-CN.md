@@ -105,13 +105,13 @@ constants → data-store → ai-index → ai-context → ai … → ai-launcher
 
 **社区插件市场（推荐）**：设置 → 第三方插件 → 浏览 → 搜索 **Cockpit Dashboard** → 安装并启用。
 
-**手动安装**：从 [Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases) 下载 `main.js`、`manifest.json`、`styles.css` 三个文件，放入 `.obsidian/plugins/cockpit-dashboard/` 后启用插件。
+**手动安装**：从 [Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases) 下载 `cockpit-dashboard-<版本号>.zip`，解压到知识库的 `.obsidian/plugins/` 目录。解压后应得到 `.obsidian/plugins/cockpit-dashboard/`，其中包含 `main.js`、`manifest.json`、`styles.css`；随后在设置中启用插件。手动升级时，只把这三个文件覆盖到现有插件目录，不要替换整个文件夹，以保留 `data.json` 中的设置。Release 也提供这三个文件的独立下载。
 
 ### 可选的玻璃外观
 
 在 Mac 上使用一体式毛玻璃，需要宿主应用 1.14 或更新版本，并在「设置 → 外观」开启「半透明窗口」。把配套主题的 [`manifest.json`](theme/cockpit-glass/manifest.json) 和 [`theme.css`](theme/cockpit-glass/theme.css) 放入库内 `.obsidian/themes/Cockpit Glass/`，然后在「外观 → 主题」选择 **Cockpit Glass**。最后打开「设置 → Cockpit → 外观与动效」，启用「一体式玻璃外观」。插件开关默认关闭；修改后，已打开的驾驶舱会立即更新。
 
-主题负责标题栏、页签、侧栏与工作区的一体化透明效果；插件开关负责驾驶舱卡片。浅色和深色模式均沿用宿主的强调色。窗口的模糊由系统提供，驾驶舱不会在卡片上叠加模糊滤镜，也不会在滚动时切换背景。若未开启宿主的「半透明窗口」，桌面背景不会透出。配套主题存放在源码目录中，不包含在插件 Release 的三个附件里。
+主题负责标题栏、页签、侧栏与工作区的一体化透明效果；插件开关负责驾驶舱卡片。浅色和深色模式均沿用宿主的强调色。窗口的模糊由系统提供，驾驶舱不会在卡片上叠加模糊滤镜，也不会在滚动时切换背景。若未开启宿主的「半透明窗口」，桌面背景不会透出。配套主题存放在源码目录中，不包含在插件安装压缩包或运行文件附件中。
 
 ## 开发
 
@@ -129,7 +129,7 @@ node build.js
 bash deploy.sh
 ```
 
-发布约定：更新 `manifest.json` 版本号 → 构建并测试 → 打不带 `v` 前缀的 tag → 用 `gh release create <version>` 上传 `dist/main.js`、`dist/styles.css`、`manifest.json` 三个独立附件（宿主插件商店据此检测更新）。源码仓库不提交构建产物。
+发布约定：更新 `manifest.json` 版本号 → 构建并测试 → 打不带 `v` 前缀的 tag → 上传 `dist/main.js`、`dist/styles.css`、`manifest.json` 三个独立附件（宿主插件商店据此检测更新），并额外上传包含 `cockpit-dashboard/` 目录及这三个文件的 `cockpit-dashboard-<版本号>.zip` 供手动安装。源码仓库不提交构建产物。
 
 ## 赞助作者
 
