@@ -129,27 +129,33 @@ function renderCalendarDayFlow(options) {
     else if (countdown) text = summary.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-title', text:countdown.name, attr:{ type:'button', title:countdown.name } });
     else text = summary.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-title', text:automation.name, attr:{ type:'button', title:automation.name } });
     const meta = summary.createDiv({ cls:PLUGIN_ID + '-cal-timeline-meta' });
+    // 胶囊分三级：窄栏先收掉补充说明（meta-3），再收掉分类（meta-2），只保留状态类信息（meta-1）。
+    const chip = (tier, cls, text, attr) => meta.createSpan({ cls:[PLUGIN_ID + '-cal-flow-chip', cls, PLUGIN_ID + '-cal-meta-' + tier].filter(Boolean).join(' '), text, attr });
     if (todo) {
-      if (todo.teamTodo) meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip source-team', text:en ? 'Team' : '团队' });
-      (todo.tags || []).slice(0,3).forEach((tag) => meta.createSpan({ cls:PLUGIN_ID + '-todo-tag-pill ' + PLUGIN_ID + '-cal-timeline-tag', text:'#' + tag }));
-      const due = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-date' }); obs.setIcon(due.createSpan(), 'calendar-days'); due.createSpan({ text:formatTodoDue(todo.dueDate, language, todo.dueHasTime) });
-      const priority = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-priority p-' + (todo.priority || 'mid') }); obs.setIcon(priority.createSpan(), priorityIcon[todo.priority] || 'minus'); priority.createSpan({ text:priorityText[todo.priority] || priorityText.mid });
+      if (todo.teamTodo) chip(1, 'source-team', en ? 'Team' : '团队');
+      (todo.tags || []).slice(0,3).forEach((tag) => meta.createSpan({ cls:PLUGIN_ID + '-todo-tag-pill ' + PLUGIN_ID + '-cal-timeline-tag ' + PLUGIN_ID + '-cal-meta-2', text:'#' + tag }));
+      // 左侧时间线已给出时刻，这里不再重复“日期 + 时刻”胶囊。
+      const priority = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-priority p-' + (todo.priority || 'mid') + ' ' + PLUGIN_ID + '-cal-meta-1' }); obs.setIcon(priority.createSpan(), priorityIcon[todo.priority] || 'minus'); priority.createSpan({ text:priorityText[todo.priority] || priorityText.mid });
     } else if (calEvent) {
-      if (calEvent.calendar) meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip source-event', text:calEvent.calendar });
-      if (!calEvent.allDay) meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip', text:window.moment(calEvent.start).format('HH:mm') + ' – ' + window.moment(calEvent.end).format(window.moment(calEvent.end).isSame(calEvent.start, 'day') ? 'HH:mm' : 'MM-DD HH:mm') });
-      if (calEvent.location) meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip', text:'📍 ' + calEvent.location });
+      if (calEvent.calendar) chip(2, 'source-event', calEvent.calendar);
+      if (!calEvent.allDay) {
+        const end = window.moment(calEvent.end);
+        chip(3, '', (en ? 'Ends ' : '结束 ') + end.format(end.isSame(calEvent.start, 'day') ? 'HH:mm' : 'MM-DD HH:mm'));
+      }
+      if (calEvent.location) chip(3, '', '📍 ' + calEvent.location);
     } else if (rssEntry) {
-      meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip source-rss', text:rssEntry.sources.slice(0, 3).join(' · ') || 'RSS' });
-      meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip', text:en ? `${rssEntry.unreadCount} unread` : `${rssEntry.unreadCount} 条未读` });
+      chip(2, 'source-rss', rssEntry.sources.slice(0, 3).join(' · ') || 'RSS');
+      chip(3, '', en ? `${rssEntry.unreadCount} unread` : `${rssEntry.unreadCount} 条未读`);
     } else if (countdown) {
       const target = window.moment(countdown.targetAt);
-      meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip source-countdown', text:(en ? 'Completes ' : '完成于 ')+target.format('MM-DD HH:mm') });
       const finished = target.valueOf() <= now.valueOf();
-      meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip status-' + (finished ? 'success' : countdown.enabled === false ? 'paused' : 'pending'), text:finished ? (en?'Completed':'已完成') : countdown.enabled === false ? (en?'Paused':'已暂停') : (en?'Pending':'待完成') });
+      chip(1, 'status-' + (finished ? 'success' : countdown.enabled === false ? 'paused' : 'pending'), finished ? (en?'Completed':'已完成') : countdown.enabled === false ? (en?'Paused':'已暂停') : (en?'Pending':'待完成'));
     } else {
-      meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip source-automation', text:automation.scheduleLabel });
-      meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip', text:automation.actionLabel });
-      meta.createSpan({ cls:PLUGIN_ID + '-cal-flow-chip status-' + automation.status, text:statusText[automation.status] || automation.status });
+      // 排期文案去掉与时间线重复的时刻，保留节奏（每天 / 每周几 / 每 N 分钟）。
+      const scheduleText = String(automation.scheduleLabel || '').replace(/\s*·?\s*\d{1,2}:\d{2}$/, '').trim();
+      if (scheduleText) chip(3, 'source-automation', scheduleText, { title:automation.scheduleLabel });
+      chip(2, '', automation.actionLabel);
+      chip(1, 'status-' + automation.status, statusText[automation.status] || automation.status);
     }
     if (todo && todo === nextTimed) summary.createSpan({ cls:PLUGIN_ID + '-cal-timeline-now', text:'NOW' });
     const rowActions = content.createDiv({ cls:PLUGIN_ID + '-cal-timeline-actions' });

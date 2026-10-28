@@ -31,9 +31,26 @@ function cockpitAnimateSurfaceExit(shell, panel, backdrop) {
   return true;
 }
 
+// 全局浮层挂在 body 下，拿不到驾驶舱根节点的主题 token；
+// 统一打上作用域类并同步玻璃模式，样式层再按此补齐 token 与遮罩。
+function cockpitOverlayGlassEnabled() {
+  try {
+    if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return false;
+    return !!document.querySelector('.' + PLUGIN_ID + '-root[data-glass="on"]');
+  } catch (e) { return false; }
+}
+
+function cockpitApplyOverlayTheme(element) {
+  if (!element?.classList || typeof element.classList.add !== 'function') return element;
+  element.classList.add(PLUGIN_ID + '-overlay-theme');
+  if (element.dataset) element.dataset.glass = cockpitOverlayGlassEnabled() ? 'on' : 'off';
+  return element;
+}
+
 class CockpitModal extends obs.Modal {
   open() {
     this._cockpitLeaving = false;
+    cockpitApplyOverlayTheme(this.containerEl);
     const result = super.open();
     if (typeof cockpitMotionEnabled !== 'function' || cockpitMotionEnabled(this)) this.containerEl?.classList?.add(PLUGIN_ID + '-modal-motion');
     return result;
@@ -55,6 +72,7 @@ class CockpitModal extends obs.Modal {
 // 自建遮罩层：只替换这一个元素实例的 remove / detach，调用方原有的关闭逻辑无需改动。
 function cockpitAnimateOverlay(overlay, options = {}) {
   if (!overlay || overlay._cockpitMotion || typeof overlay.remove !== 'function' || !overlay.classList?.add) return overlay;
+  cockpitApplyOverlayTheme(overlay);
   if (typeof cockpitMotionEnabled === 'function' && !cockpitMotionEnabled(options.owner)) return overlay;
   overlay._cockpitMotion = true;
   overlay.classList.add(PLUGIN_ID + '-motion-overlay');
