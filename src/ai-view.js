@@ -29,6 +29,9 @@ class CockpitAIView extends obs.ItemView {
     this._abortController = null;
     this._aiConfigUnsubscribe = null;
     this._toolConfirmModal = null;
+    this._queuedMessages = [];
+    // 与仪表盘共用玻璃开关：AI 侧栏不再固定使用不透明的 background-primary。
+    this._glassCardsEnabled = false;
   }
   getViewType() { return AI_VIEW_TYPE; }
   getDisplayText() { return this._language === 'en' ? 'Cockpit AI' : 'Cockpit AI 助手'; }
@@ -65,6 +68,7 @@ class CockpitAIView extends obs.ItemView {
   async _initializeView() {
     const data = await this.plugin.loadData() || {};
     this._language = normalizeLang(data.language || DEFAULT_LANG);
+    this._glassCardsEnabled = data.glassCardsEnabled === true;
     const config = await this.plugin.ai.getConfig();
     this._openStage = 'history-read';
     this._historyState = await this.plugin.aiHistory.load();
@@ -96,8 +100,11 @@ class CockpitAIView extends obs.ItemView {
     });
     // 恢复本会话绑定的编码工作区（若有且与当前不同）。
     try { await this._restoreSessionWorkspace(session); } catch (error) { console.warn('Cockpit AI workspace restore failed', error); }
-    // 后台预热本地检索索引：用户开始输入前就把自动 RAG 准备好，首问不再等待全库构建。
-    try { this.plugin.rag?.warmUp?.(); } catch (error) { console.warn('Cockpit AI warm-up failed', error); }
+    // 后台预热本地检索索引：只在会话真的使用自动 RAG 时进行，
+    // 避免“打开侧栏就全库建索引”把主线程和内存拖住。
+    if (this._contextMode === 'auto') {
+      try { this.plugin.rag?.warmUp?.(); } catch (error) { console.warn('Cockpit AI warm-up failed', error); }
+    }
     if (this._fileOpenRegistered) return;
     this._fileOpenRegistered = true;
     this.registerEvent(this.app.workspace.on('file-open', async (file) => {
@@ -110,11 +117,16 @@ class CockpitAIView extends obs.ItemView {
     obs.setIcon(button, iconName);
     return button;
   }
+  _applyGlassState() {
+    if (!this.contentEl) return;
+    this.contentEl.dataset.glass = this._glassCardsEnabled ? 'on' : 'off';
+  }
   async _render() {
     const en = this._language === 'en';
     const container = this.contentEl;
     container.empty();
     container.addClass(PLUGIN_ID + '-ai-view');
+    this._applyGlassState();
     const shell = container.createDiv({ cls:PLUGIN_ID + '-ai-shell' });
 
     const header = shell.createEl('header', { cls:PLUGIN_ID + '-ai-header' });
@@ -123,13 +135,27 @@ class CockpitAIView extends obs.ItemView {
     this._sessionTitleEl = titleWrap.createDiv({ cls:PLUGIN_ID + '-ai-conversation-title' });
     titleWrap.createDiv({ cls:PLUGIN_ID + '-ai-conversation-subtitle', text:en ? 'Stored locally' : '本地会话' });
     const headerControls = header.createDiv({ cls:PLUGIN_ID + '-ai-header-controls' });
-    const newChat = this._iconButton(headerControls, 'square-pen', en ? 'New conversation' : '新建对话');
-    const settings = this._iconButton(headerControls, 'settings-2', en ? 'AI settings' : 'AI 设置');
-    const close = this._iconButton(headerControls, 'x', en ? 'Close AI sidebar' : '关闭 AI 侧栏', PLUGIN_ID + '-ai-close');
+    const more = this._iconButton(headerControls, 'ellipsis-vertical', en ? 'More actions' : '更多操作');
+    const headerMenu = headerControls.createDiv({ cls:PLUGIN_ID + '-ai-header-menu', attr:{ role:'menu' } });
+    headerMenu.hidden = true;
+    this._headerMenuEl = headerMenu;
+    const headerAction = (iconName, label, onClick, className = '') => {
+      const item = headerMenu.createEl('button', { attr:{ type:'button', role:'menuitem' } });
+      if (className) item.addClass(className);
+      const icon = item.createSpan({ cls:PLUGIN_ID + '-ai-header-menu-icon' }); obs.setIcon(icon, iconName);
+      item.createSpan({ text:label });
+      item.onclick = () => { this._closeHeaderMenu(); onClick(); };
+    };
+    headerAction('square-pen', en ? 'New conversation' : '新建对话', () => this._newSession());
+    headerAction('settings-2', en ? 'AI settings' : 'AI 设置', () => { this.app.setting.open(); this.app.setting.openTabById(PLUGIN_ID); });
+    headerAction('x', en ? 'Close sidebar' : '关闭侧栏', () => this.plugin.closeAI(), PLUGIN_ID + '-ai-close');
+    more.onclick = (event) => {
+      event.stopPropagation();
+      headerMenu.hidden = !headerMenu.hidden;
+      more.setAttribute('aria-expanded', String(!headerMenu.hidden));
+    };
+    headerMenu.onclick = (event) => event.stopPropagation();
     historyButton.onclick = () => this._toggleSessionDrawer(true);
-    newChat.onclick = () => this._newSession();
-    settings.onclick = () => { this.app.setting.open(); this.app.setting.openTabById(PLUGIN_ID); };
-    close.onclick = () => this.plugin.closeAI();
 
     this._buildSessionDrawer(shell);
     this._messagesEl = shell.createEl('main', { cls:PLUGIN_ID + '-ai-messages', attr:{ 'aria-live':'polite' } });
@@ -139,7 +165,7 @@ class CockpitAIView extends obs.ItemView {
     this._renderSessionList();
     if (!this._contextClickRegistered) {
       this._contextClickRegistered = true;
-      this.registerDomEvent(document, 'click', () => this._closeContextPopover());
+      this.registerDomEvent(document, 'click', () => { this._closeContextPopover(); this._closeHeaderMenu(); });
     }
   }
   _buildSessionDrawer(shell) {
@@ -154,8 +180,8 @@ class CockpitAIView extends obs.ItemView {
     const search = drawer.createEl('input', { cls:PLUGIN_ID + '-ai-session-search', attr:{ type:'search', placeholder:en ? 'Search conversations' : '搜索对话', 'aria-label':en ? 'Search conversations' : '搜索对话' } });
     const list = drawer.createDiv({ cls:PLUGIN_ID + '-ai-session-list' });
     drawer.createDiv({ cls:PLUGIN_ID + '-ai-session-privacy', text:en
-      ? 'Local history excludes attachments, RAG excerpts, reasoning, and tool arguments.'
-      : '本地历史不保存附件、RAG 片段、思考过程和工具参数。' });
+      ? 'Local history keeps messages and tool names/statuses. It excludes attachments, RAG excerpts, reasoning, and tool arguments.'
+      : '本地历史保存消息及工具名称、状态；不保存附件、RAG 片段、思考过程和工具参数。' });
     backdrop.onclick = () => this._toggleSessionDrawer(false);
     add.onclick = () => this._newSession();
     search.oninput = () => this._renderSessionList(search.value);
@@ -234,6 +260,7 @@ class CockpitAIView extends obs.ItemView {
   }
   async _newSession() {
     if (this._busy) return;
+    this._queuedMessages = []; this._renderQueuedMessages();
     const config = await this.plugin.ai.getConfig();
     const session = await this.plugin.aiHistory.create({ language:this._language, profileId:config.activeProfileId, contextPaths:[] });
     this._historyState = await this.plugin.aiHistory.load();
@@ -258,6 +285,7 @@ class CockpitAIView extends obs.ItemView {
   }
   async _switchSession(sessionId) {
     if (this._busy || sessionId === this._activeSessionId) { this._toggleSessionDrawer(false); return; }
+    this._queuedMessages = []; this._renderQueuedMessages();
     const session = await this.plugin.aiHistory.setActive(sessionId);
     if (!session) return;
     this._historyState = await this.plugin.aiHistory.load();
@@ -292,13 +320,25 @@ class CockpitAIView extends obs.ItemView {
   _renderWelcome() {
     const en = this._language === 'en';
     const welcome = this._messagesEl.createDiv({ cls:PLUGIN_ID + '-ai-welcome' });
-    const icon = welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-icon' }); obs.setIcon(icon, 'sparkles');
-    welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-title', text:en ? 'What are we working on?' : '今天想处理什么？' });
-    welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-copy', text:en ? 'Ask directly, or add notes and files from the composer.' : '直接提问，或者从输入框添加笔记与文件。' });
+    const root = String(this._activeWorkspaceRoot || '');
+    welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-title', text:en ? 'What should the Agent work on?' : '让 Agent 处理什么？' });
+    welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-copy', text:en ? 'Give it a task. You can review tool actions and approve changes as it works.' : '描述任务。执行过程中可以查看工具步骤，并在写入前审阅变更。' });
     const prompts = welcome.createDiv({ cls:PLUGIN_ID + '-ai-welcome-prompts' });
-    const summarize = prompts.createEl('button', { text:en ? 'Summarize selected notes' : '总结所选笔记' });
-    const todos = prompts.createEl('button', { text:en ? 'Extract next actions' : '提取下一步行动' });
-    summarize.onclick = () => this._run('summarize', ''); todos.onclick = () => this._run('extract-todos', '');
+    const action = (iconName, label, onClick) => {
+      const button = prompts.createEl('button', { attr:{ type:'button' } });
+      const icon = button.createSpan({ cls:PLUGIN_ID + '-ai-welcome-action-icon' }); obs.setIcon(icon, iconName);
+      button.createSpan({ text:label });
+      const arrow = button.createSpan({ cls:PLUGIN_ID + '-ai-welcome-action-arrow' }); obs.setIcon(arrow, 'arrow-up-right');
+      button.onclick = onClick;
+    };
+    if (root) action('folder-search', en ? 'Inspect this workspace' : '了解当前工作区', () => this._run('custom', en
+      ? 'Inspect the current coding workspace and summarize its structure and likely entry points. Do not change files.'
+      : '请查看当前编码工作区，概述目录结构与主要入口；不要修改文件。'));
+    else action('folder-plus', en ? 'Choose a coding workspace' : '选择编码工作区', () => this._toggleWorkspacePopover(true));
+    action('list-todo', en ? 'Review my open tasks' : '梳理未完成待办', () => this._run('custom', en
+      ? 'List my open Cockpit tasks and suggest a practical order. Do not modify them.'
+      : '请读取我的未完成待办，建议一个实际可执行的处理顺序；不要修改待办。'));
+    if (this._selectedContextPaths.length || this._uploadedContexts.length) action('file-text', en ? 'Summarize selected notes' : '总结已选笔记', () => this._run('summarize', ''));
   }
   _renderActiveSession() {
     if (!this._messagesEl) return;
@@ -306,7 +346,7 @@ class CockpitAIView extends obs.ItemView {
     if (this._sessionTitleEl) this._sessionTitleEl.setText(session?.title || (this._language === 'en' ? 'New chat' : '新对话'));
     this._messagesEl.empty();
     if (!session?.messages?.length) this._renderWelcome();
-    else session.messages.forEach((message) => this._appendMessage(message.role, message.content, false, { markdown:message.role === 'assistant' }));
+    else session.messages.forEach((message) => this._appendMessage(message.role, message.content, false, { markdown:message.role === 'assistant', activity:message.activity, changedFiles:message.changedFiles, plan:message.plan }));
     this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
   }
   async _buildComposer(shell) {
@@ -314,15 +354,18 @@ class CockpitAIView extends obs.ItemView {
     const composer = shell.createEl('section', { cls:PLUGIN_ID + '-ai-composer' });
     const uploadInput = composer.createEl('input', { cls:PLUGIN_ID + '-ai-upload-input', attr:{ type:'file', multiple:'multiple', accept:'.md,.txt,.csv,.json,.yaml,.yml,.log,.html,.htm,.xml,image/*,text/*' } });
     const chips = composer.createDiv({ cls:PLUGIN_ID + '-ai-context-chips' });
-    const input = composer.createEl('textarea', { cls:PLUGIN_ID + '-ai-input', attr:{ rows:'2', maxlength:'8000', placeholder:en ? 'Message Cockpit AI' : '向 Cockpit AI 提问（可 Ctrl+V 贴图）', 'aria-label':en ? 'Ask Cockpit AI' : '向 Cockpit AI 提问' } });
+    const input = composer.createEl('textarea', { cls:PLUGIN_ID + '-ai-input', attr:{ rows:'2', maxlength:'8000', placeholder:en ? 'Work with Cockpit Agent' : '和 Cockpit Agent 一起工作（可 Ctrl+V 贴图）', 'aria-label':en ? 'Ask Cockpit AI' : '向 Cockpit AI 提问' } });
+    const queuePanel = composer.createDiv({ cls:PLUGIN_ID + '-ai-queue' }); queuePanel.hidden = true;
+    // 底栏单行：左侧上下文与权限，右侧模型与发送，与常见编码 Agent 的输入条一致。
     const footer = composer.createDiv({ cls:PLUGIN_ID + '-ai-composer-footer' });
     const tools = footer.createDiv({ cls:PLUGIN_ID + '-ai-composer-tools' });
     const add = tools.createEl('button', { cls:PLUGIN_ID + '-ai-composer-add', attr:{ type:'button', title:en ? 'Add context or file' : '添加上下文或文件', 'aria-label':en ? 'Add context or file' : '添加上下文或文件', 'aria-expanded':'false' } }); obs.setIcon(add, 'plus');
     const contextButton = tools.createEl('button', { cls:PLUGIN_ID + '-ai-context-summary', attr:{ type:'button', 'aria-expanded':'false' } });
     const contextIcon = contextButton.createSpan(); obs.setIcon(contextIcon, 'database-zap');
     const contextLabel = contextButton.createSpan({ cls:PLUGIN_ID + '-ai-context-summary-label' });
-    const right = footer.createDiv({ cls:PLUGIN_ID + '-ai-composer-right' });
-    const agentSelect = right.createEl('select', { cls:PLUGIN_ID + '-ai-agent-select dropdown', attr:{ 'aria-label':en ? 'Agent permission mode' : 'Agent 权限模式', title:en ? 'Agent permission mode' : 'Agent 权限模式' } });
+    const perm = tools.createDiv({ cls:PLUGIN_ID + '-ai-perm' });
+    const permIcon = perm.createSpan({ cls:PLUGIN_ID + '-ai-perm-icon' });
+    const agentSelect = perm.createEl('select', { cls:PLUGIN_ID + '-ai-agent-select dropdown', attr:{ 'aria-label':en ? 'Agent permission mode' : 'Agent 权限模式', title:en ? 'Agent permission mode' : 'Agent 权限模式' } });
     [['readonly', en ? 'Read-only' : '只读'],
      ['read-write', en ? 'Read/write' : '读写'],
      ['full', en ? 'Auto-allow safe actions' : '自动允许低风险操作']].forEach(([value, label]) => {
@@ -330,38 +373,45 @@ class CockpitAIView extends obs.ItemView {
     });
     agentSelect.value = this._agentMode;
     agentSelect.classList.toggle('is-full', this._agentMode === 'full');
+    const syncPermIcon = () => obs.setIcon(permIcon, this._agentMode === 'full' ? 'shield-alert' : 'shield-check');
+    syncPermIcon();
     agentSelect.onchange = async () => {
       const previous = this._agentMode;
       this._agentMode = agentSelect.value;
       agentSelect.classList.toggle('is-full', this._agentMode === 'full');
+      syncPermIcon();
       agentSelect.disabled = true;
       try { await this.plugin.aiHistory.update(this._activeSessionId, { agentMode:this._agentMode }); }
       catch (error) {
         this._agentMode = previous;
         agentSelect.value = previous;
         agentSelect.classList.toggle('is-full', previous === 'full');
+        syncPermIcon();
         new obs.Notice(en ? 'Could not save the permission mode.' : '权限模式保存失败。');
       }
       finally { agentSelect.disabled = false; if (this._busy) agentSelect.disabled = true; }
     };
     const config = await this.plugin.ai.getConfig();
-    // 工作区指示 + 就地编辑：像 DeepSeek Harness 一样把工作区管理放在对话区，
-    // 点击徽标弹出面板即可粘贴路径、切换最近使用或清除，不必进设置页。
-    const wsChip = right.createEl('button', { cls:PLUGIN_ID + '-ai-ws-chip', attr:{ type:'button', title:en ? 'Coding workspace (click to switch)' : '编码工作区（点击切换）', 'aria-label':en ? 'Coding workspace' : '编码工作区', 'aria-haspopup':'dialog', 'aria-expanded':'false' } });
+    const right = footer.createDiv({ cls:PLUGIN_ID + '-ai-composer-right' });
+    const modelSelect = right.createEl('select', { cls:PLUGIN_ID + '-ai-model-select dropdown', attr:{ 'aria-label':en ? 'AI model' : 'AI 模型', title:en ? 'Switch AI model' : '切换 AI 模型' } });
+    this._fillModelOptions(modelSelect, config);
+    const send = right.createEl('button', { cls:PLUGIN_ID + '-ai-send', attr:{ type:'button' } });
+    const queueSend = right.createEl('button', { cls:PLUGIN_ID + '-ai-queue-send', attr:{ type:'button', title:en ? 'Queue this message' : '将消息加入队列', 'aria-label':en ? 'Queue this message' : '将消息加入队列' } }); obs.setIcon(queueSend, 'list-plus');
+    // 输入卡下方的状态条：工作区切换 + 本会话用量，像编码 Agent 的底栏一样不占输入区。
+    const meta = shell.createDiv({ cls:PLUGIN_ID + '-ai-composer-meta' });
+    // 工作区指示 + 就地编辑：点击徽标弹出面板即可粘贴路径、切换最近使用或清除，不必进设置页。
+    const wsChip = meta.createEl('button', { cls:PLUGIN_ID + '-ai-ws-chip', attr:{ type:'button', title:en ? 'Coding workspace (click to switch)' : '编码工作区（点击切换）', 'aria-label':en ? 'Coding workspace' : '编码工作区', 'aria-haspopup':'dialog', 'aria-expanded':'false' } });
     obs.setIcon(wsChip.createSpan(), 'folder-open');
     const wsChipLabel = wsChip.createSpan({ cls:PLUGIN_ID + '-ai-ws-chip-label' });
     this._workspaceChipEls = { chip:wsChip, label:wsChipLabel };
     this._updateWorkspaceChip(config.workspaceRoot);
-    const modelSelect = right.createEl('select', { cls:PLUGIN_ID + '-ai-model-select dropdown', attr:{ 'aria-label':en ? 'AI model' : 'AI 模型', title:en ? 'Switch AI model' : '切换 AI 模型' } });
-    this._fillModelOptions(modelSelect, config);
-    const send = right.createEl('button', { cls:PLUGIN_ID + '-ai-send', attr:{ type:'button' } });
     const popover = composer.createDiv({ cls:PLUGIN_ID + '-ai-context-popover' }); popover.hidden = true;
     const menu = popover.createDiv({ cls:PLUGIN_ID + '-ai-context-menu', attr:{ role:'menu' } });
     this._contextPickerEls = { composer, popover, menu, chips, uploadInput, add, contextButton, contextLabel };
     const togglePopover = (event) => { event.stopPropagation(); const open = popover.hidden; popover.hidden = !open; add.setAttribute('aria-expanded', String(open)); contextButton.setAttribute('aria-expanded', String(open)); };
     add.onclick = togglePopover; contextButton.onclick = togglePopover; popover.onclick = (event) => event.stopPropagation();
-    // 工作区面板：挂在 composer 上，与上下文弹出层同一交互模式（点外部关闭）。
-    this._buildWorkspacePopover(composer, wsChip);
+    // 工作区面板挂在状态条上，紧贴徽标向上展开，与上下文弹出层同一交互模式（点外部关闭）。
+    this._buildWorkspacePopover(meta, wsChip);
     uploadInput.onchange = async () => {
       if (this._busy) { uploadInput.value = ''; new obs.Notice(en ? 'Wait for the current reply to finish.' : '请等待当前回答完成'); return; }
       try {
@@ -400,11 +450,19 @@ class CockpitAIView extends obs.ItemView {
     const submit = () => {
       const question = input.value.trim();
       // 纯贴图（无文字）也允许发送。
-      if ((!question && !this._pendingImages.length) || this._busy) return;
+      if (!question && !this._pendingImages.length) return;
+      if (this._busy) {
+        if (!question) return;
+        if (this._queuedMessages.length >= 5) { new obs.Notice(en ? 'At most five messages can be queued.' : '最多排队 5 条消息。'); return; }
+        this._queuedMessages.push(question);
+        input.value = ''; resize(); this._renderQueuedMessages();
+        return;
+      }
       input.value = ''; resize();
       this._run('custom', question);
     };
     send.onclick = () => { if (this._busy) this._abortController?.abort(); else submit(); };
+    queueSend.onclick = submit;
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); submit(); }
     });
@@ -417,11 +475,12 @@ class CockpitAIView extends obs.ItemView {
       finally { modelSelect.disabled = false; }
     };
     // 输入栏底部：本会话累计输入/输出 tokens、缓存命中率与最近回答的 token 速度。
-    const sessionStats = composer.createDiv({ cls:PLUGIN_ID + '-ai-session-stats', attr:{ role:'status' } });
+    const sessionStats = meta.createDiv({ cls:PLUGIN_ID + '-ai-session-stats', attr:{ role:'status' } });
     this._sessionStatsEl = sessionStats;
     this._renderSessionStats();
-    this._composerEls = { input, send, modelSelect, agentSelect, composer, sessionStats };
+    this._composerEls = { input, send, queueSend, queuePanel, modelSelect, agentSelect, composer, sessionStats };
     this._renderSendState(false);
+    this._renderQueuedMessages();
   }
   async _addPendingImages(files) {
     const en = this._language === 'en';
@@ -486,6 +545,9 @@ class CockpitAIView extends obs.ItemView {
     if (!element) return;
     const en = this._language === 'en';
     const usage = this._sessionUsage;
+    // 没有用量时不占位：底部只保留模型选择，避免一行灰字制造噪声。
+    if (!usage && this._lastTokSpeed == null) { element.hidden = true; element.setText(''); return; }
+    element.hidden = false;
     const parts = [en ? 'This chat' : '本会话'];
     parts.push('↑ ' + this._formatStatNumber(usage?.prompt || 0) + ' tok');
     parts.push('↓ ' + this._formatStatNumber(usage?.completion || 0) + ' tok');
@@ -514,10 +576,10 @@ class CockpitAIView extends obs.ItemView {
     els.label.setText(clean ? (name || (en ? 'Workspace' : '工作区')) : (en ? 'Workspace' : '工作区'));
   }
   // ── 工作区弹出面板：粘贴路径即用、最近使用一键切换、清除；无需进设置页 ──────────
-  _buildWorkspacePopover(composer, chip) {
-    if (!composer || !chip) return;
+  _buildWorkspacePopover(host, chip) {
+    if (!host || !chip) return;
     const en = this._language === 'en';
-    const popover = composer.createDiv({ cls:PLUGIN_ID + '-ai-ws-popover' }); popover.hidden = true;
+    const popover = host.createDiv({ cls:PLUGIN_ID + '-ai-ws-popover' }); popover.hidden = true;
     const head = popover.createDiv({ cls:PLUGIN_ID + '-ai-context-menu-head' });
     head.createEl('strong', { text:en ? 'Coding workspace' : '编码工作区' });
     const closeWrap = head.createDiv();
@@ -534,11 +596,16 @@ class CockpitAIView extends obs.ItemView {
     const apply = inputRow.createEl('button', { cls:PLUGIN_ID + '-ai-ws-apply', attr:{ type:'button' }, text:en ? 'Use' : '使用' });
     const status = body.createDiv({ cls:PLUGIN_ID + '-ai-ws-status', attr:{ role:'status' } });
     const recents = body.createDiv({ cls:PLUGIN_ID + '-ai-ws-recents' });
+    const isolate = body.createDiv({ cls:PLUGIN_ID + '-ai-ws-isolate' });
+    isolate.createDiv({ text:en
+      ? 'Isolate Git work in a detached copy of the committed HEAD. Uncommitted changes stay in the original folder.'
+      : '从当前 Git 仓库已提交的 HEAD 创建独立副本；未提交的修改仍留在原目录。' });
+    const isolateButton = isolate.createEl('button', { attr:{ type:'button' }, text:en ? 'Create isolated worktree' : '创建隔离工作区' });
     const footerRow = body.createDiv({ cls:PLUGIN_ID + '-ai-ws-footer' });
     const clearButton = footerRow.createEl('button', { cls:PLUGIN_ID + '-ai-ws-clear', attr:{ type:'button' }, text:en ? 'Clear workspace' : '清除工作区' });
     const settingsLink = footerRow.createEl('span', { cls:PLUGIN_ID + '-ai-ws-settings-hint', text:en ? 'Default lives in plugin settings.' : '默认值也可在插件设置里配置。' });
     void settingsLink;
-    this._wsPopoverEls = { popover, chip, input, apply, status, recents, clearButton };
+    this._wsPopoverEls = { popover, chip, input, apply, status, recents, clearButton, isolateButton };
     const submit = async () => {
       apply.disabled = true; input.disabled = true; browse.disabled = true;
       try {
@@ -574,6 +641,19 @@ class CockpitAIView extends obs.ItemView {
       try { if (await this._applyWorkspaceRoot('')) this._toggleWorkspacePopover(false); }
       finally { clearButton.disabled = false; }
     };
+    isolateButton.onclick = async () => {
+      if (this._busy) { new obs.Notice(en ? 'Wait for the current task to finish before switching workspaces.' : '请等待当前任务结束后再切换工作区。'); return; }
+      isolateButton.disabled = true;
+      status.setText(en ? 'Creating an isolated Git worktree…' : '正在创建 Git 隔离工作区…');
+      try {
+        const result = await this.plugin.agentTools.createIsolatedWorktree();
+        if (!result?.ok || !result.root) throw new Error('Could not create the worktree.');
+        if (await this._applyWorkspaceRoot(result.root)) this._toggleWorkspacePopover(false);
+        else status.setText((en ? 'Created here; switch to it manually: ' : '已创建，可手动切换：') + result.root);
+      } catch (error) {
+        status.setText((en ? 'Worktree creation failed: ' : '创建隔离工作区失败：') + (error?.message || 'unknown'));
+      } finally { isolateButton.disabled = false; }
+    };
     closeButton.onclick = () => this._toggleWorkspacePopover(false);
     popover.onclick = (event) => event.stopPropagation();
     chip.onclick = (event) => { event.stopPropagation(); this._toggleWorkspacePopover(); };
@@ -599,6 +679,7 @@ class CockpitAIView extends obs.ItemView {
     if (!els) return;
     const en = this._language === 'en';
     const activeRoot = String(this._activeWorkspaceRoot || '');
+    if (els.isolateButton) els.isolateButton.disabled = !activeRoot || this._busy;
     els.input.value = activeRoot;
     els.status.setText(activeRoot ? ((en ? 'Active sandbox root: ' : '当前沙箱根目录：') + activeRoot) : (en ? 'No workspace set — coding tools are off.' : '未设置工作区，编码工具不可用。'));
     els.recents.empty();
@@ -622,6 +703,7 @@ class CockpitAIView extends obs.ItemView {
   // saveConfig 的订阅者会把新沙箱同步给工具层，下一条消息立即生效。
   async _applyWorkspaceRoot(rawValue, options = {}) {
     const en = this._language === 'en';
+    if (this._busy) { new obs.Notice(en ? 'Wait for the current task to finish before switching workspaces.' : '请等待当前任务结束后再切换工作区。'); return false; }
     const value = String(rawValue ?? '').trim();
     let root = '';
     if (value) {
@@ -676,6 +758,11 @@ class CockpitAIView extends obs.ItemView {
     this._contextPickerEls.add.setAttribute('aria-expanded', 'false');
     this._contextPickerEls.contextButton.setAttribute('aria-expanded', 'false');
   }
+  _closeHeaderMenu() {
+    if (!this._headerMenuEl || this._headerMenuEl.hidden) return;
+    this._headerMenuEl.hidden = true;
+    this._headerMenuEl.parentElement?.querySelector('button')?.setAttribute('aria-expanded', 'false');
+  }
   async _refreshContextOptions() {
     if (!this._contextPickerEls) return;
     try {
@@ -714,7 +801,11 @@ class CockpitAIView extends obs.ItemView {
     const auto = elements.menu.createEl('button', { cls:PLUGIN_ID + '-ai-context-option is-auto' + (effectiveMode === 'auto' ? ' is-selected' : ''), attr:{ type:'button', role:'menuitem' } });
     const autoIcon = auto.createSpan({ cls:PLUGIN_ID + '-ai-context-option-icon' }); obs.setIcon(autoIcon, 'sparkles');
     const autoCopy = auto.createSpan({ cls:PLUGIN_ID + '-ai-context-option-copy' }); autoCopy.createSpan({ text:en ? 'Automatic local RAG' : '自动本地 RAG' }); autoCopy.createSpan({ text:en ? 'Search the Vault only when you send' : '仅在发送问题时检索知识库' });
-    auto.onclick = () => { this._contextMode = 'auto'; this._renderContextPicker(); };
+    auto.onclick = () => {
+      this._contextMode = 'auto';
+      this._renderContextPicker();
+      try { this.plugin.rag?.warmUp?.(); } catch (error) { console.warn('Cockpit AI warm-up failed', error); }
+    };
     const none = elements.menu.createEl('button', { cls:PLUGIN_ID + '-ai-context-option is-none' + (effectiveMode === 'none' ? ' is-selected' : ''), attr:{ type:'button', role:'menuitem' } });
     const noneIcon = none.createSpan({ cls:PLUGIN_ID + '-ai-context-option-icon' }); obs.setIcon(noneIcon, 'circle-slash');
     const noneCopy = none.createSpan({ cls:PLUGIN_ID + '-ai-context-option-copy' }); noneCopy.createSpan({ text:en ? 'No context' : '不使用上下文' }); noneCopy.createSpan({ text:en ? 'Reply from the chat only, without notes or RAG' : '仅凭问题与对话回答，不检索笔记' });
@@ -775,11 +866,58 @@ class CockpitAIView extends obs.ItemView {
     if (role === 'assistant') { const avatar = row.createDiv({ cls:PLUGIN_ID + '-ai-message-avatar' }); obs.setIcon(avatar, 'sparkles'); }
     const content = row.createDiv({ cls:PLUGIN_ID + '-ai-message-content' });
     const body = content.createDiv({ cls:PLUGIN_ID + '-ai-message-body' });
+    if (role === 'assistant') this._renderAgentPlan(content, options.plan, body);
     if (options.markdown && role === 'assistant') this._renderMarkdown(body, text); else body.setText(text || '');
+    if (role === 'assistant') this._renderChangedFiles(content, options.changedFiles, body);
+    // 处理过程放在回答与改动文件之后：先给结论，再给可展开的执行细节。
+    if (role === 'assistant' && Array.isArray(options.activity) && options.activity.length) {
+      const en = this._language === 'en';
+      const activity = content.createEl('details', { cls:PLUGIN_ID + '-ai-activity is-history' });
+      const summary = activity.createEl('summary', { cls:PLUGIN_ID + '-ai-activity-summary' });
+      const icon = summary.createSpan({ cls:PLUGIN_ID + '-ai-activity-icon' }); obs.setIcon(icon, 'list-checks');
+      summary.createSpan({ cls:PLUGIN_ID + '-ai-activity-label', text:en ? 'Work log' : '处理过程' });
+      summary.createSpan({ cls:PLUGIN_ID + '-ai-activity-meta', text:options.activity.length + (en ? ' tools' : ' 项工具') });
+      const toolActivity = activity.createDiv({ cls:PLUGIN_ID + '-ai-activity-track' });
+      const historyMessage = { toolActivity, toolRows:new Map() };
+      options.activity.forEach((item, index) => {
+        const label = this.plugin.agentTools?.describe?.(item.name)?.label || item.name;
+        this._renderToolEvent(historyMessage, { callId:'history-' + index, name:item.name, label, stage:item.stage });
+      });
+    }
     // 用户消息与历史 AI 回复同样提供复制；流式占位消息由完成后的工具行接管。
     if (!pending && options.copy !== false) this._appendMessageActions(content, () => String(text || ''), role);
     this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
     return { row, content, body };
+  }
+  _renderAgentPlan(parent, steps, before = null) {
+    if (!Array.isArray(steps) || !steps.length) return null;
+    const en = this._language === 'en';
+    const panel = parent.createEl('section', { cls:PLUGIN_ID + '-ai-plan' });
+    if (before) parent.insertBefore(panel, before);
+    const completed = steps.filter((step) => step.status === 'completed').length;
+    panel.createEl('strong', { text:(en ? 'Agent plan' : 'Agent 计划') + ` · ${completed}/${steps.length}`, attr:{ title:en ? 'Progress is reported by the Agent.' : '进度由 Agent 更新，文件写入以回读验证为准。' } });
+    const list = panel.createEl('ol');
+    steps.forEach((step) => {
+      const row = list.createEl('li', { cls:PLUGIN_ID + '-ai-plan-step is-' + step.status });
+      const icon = row.createSpan({ cls:PLUGIN_ID + '-ai-plan-icon' });
+      obs.setIcon(icon, step.status === 'completed' ? 'check' : step.status === 'in_progress' ? 'circle-dot' : 'circle');
+      row.createSpan({ text:step.text });
+    });
+    return panel;
+  }
+  _renderChangedFiles(parent, files, before = null) {
+    if (!Array.isArray(files) || !files.length) return null;
+    const en = this._language === 'en';
+    const section = parent.createEl('section', { cls:PLUGIN_ID + '-ai-changed-files' });
+    if (before) parent.insertBefore(section, before);
+    section.createEl('strong', { text:(en ? 'Changed files · ' : '已修改文件 · ') + files.length });
+    files.forEach((file) => {
+      const row = section.createDiv({ cls:PLUGIN_ID + '-ai-changed-file' });
+      const icon = row.createSpan({ cls:PLUGIN_ID + '-ai-changed-file-icon' }); obs.setIcon(icon, 'file-check-2');
+      row.createEl('code', { text:file.path, attr:{ title:file.path } });
+      row.createSpan({ cls:PLUGIN_ID + '-ai-changed-file-state', text:en ? 'Verified' : '已回读验证' });
+    });
+    return section;
   }
   _appendMessageActions(content, getText, role = 'assistant') {
     const en = this._language === 'en';
@@ -810,17 +948,17 @@ class CockpitAIView extends obs.ItemView {
     const en = this._language === 'en';
     const message = this._appendMessage('assistant', '', false, { copy:false });
     message.body.addClass(PLUGIN_ID + '-ai-stream');
-    const activity = message.body.createEl('details', { cls:PLUGIN_ID + '-ai-activity', attr:{ open:'open' } });
-    activity.createEl('summary', { text:en ? 'Work log' : '处理过程' });
+    // 单行状态即任务流入口：spinner + 当前阶段 + 计时，展开后才是工具时间线。
+    const activity = message.body.createEl('details', { cls:PLUGIN_ID + '-ai-activity is-live', attr:{ open:'open' } });
+    const summary = activity.createEl('summary', { cls:PLUGIN_ID + '-ai-activity-summary is-running' });
+    const statusIcon = summary.createSpan({ cls:PLUGIN_ID + '-ai-activity-icon' }); obs.setIcon(statusIcon, 'loader-circle');
+    const statusText = summary.createSpan({ cls:PLUGIN_ID + '-ai-activity-label', text:en ? 'Connecting to model' : '正在连接模型' });
+    const statusMeta = summary.createSpan({ cls:PLUGIN_ID + '-ai-activity-meta' });
     const toolActivity = activity.createDiv({ cls:PLUGIN_ID + '-ai-activity-track', attr:{ 'aria-live':'polite' } });
-    const status = toolActivity.createDiv({ cls:PLUGIN_ID + '-ai-activity-step is-running', attr:{ role:'status' } });
-    const statusIcon = status.createSpan({ cls:PLUGIN_ID + '-ai-activity-icon' }); obs.setIcon(statusIcon, 'loader-circle');
-    const statusText = status.createSpan({ cls:PLUGIN_ID + '-ai-activity-label', text:en ? 'Connecting to model' : '正在连接模型' });
-    status.createSpan({ cls:PLUGIN_ID + '-ai-tool-state' });
     const reasoning = message.body.createEl('details', { cls:PLUGIN_ID + '-ai-reasoning is-empty' }); reasoning.createEl('summary', { text:en ? 'Reasoning' : '思考过程' });
     const reasoningText = reasoning.createDiv({ cls:PLUGIN_ID + '-ai-reasoning-text' });
     const answer = message.body.createDiv({ cls:PLUGIN_ID + '-ai-stream-answer' });
-    return { ...message, activity, status, statusText, reasoning, reasoningText, answer, toolActivity, toolRows:new Map() };
+    return { ...message, activity, summary, statusIcon, statusText, statusMeta, reasoning, reasoningText, answer, toolActivity, toolRows:new Map() };
   }
   _renderToolEvent(message, event) {
     if (!message?.toolActivity || !event?.callId) return;
@@ -833,8 +971,8 @@ class CockpitAIView extends obs.ItemView {
       row.createSpan({ cls:PLUGIN_ID + '-ai-activity-label', text:event.label || event.name || (en ? 'Cockpit tool' : 'Cockpit 工具') }); row.createSpan({ cls:PLUGIN_ID + '-ai-tool-state' });
       message.toolRows.set(event.callId, row);
     }
-    const states = en ? { requested:'Queued', awaiting_confirmation:'Waiting', executing:'Running', completed:'Done', denied:'Denied', error:'Failed' }
-      : { requested:'已排队', awaiting_confirmation:'等待确认', executing:'执行中', completed:'已完成', denied:'已拒绝', error:'失败' };
+    const states = en ? { requested:'Queued', awaiting_confirmation:'Waiting', executing:'Running', completed:'Done', denied:'Denied', cancelled:'Stopped', error:'Failed' }
+      : { requested:'已排队', awaiting_confirmation:'等待确认', executing:'执行中', completed:'已完成', denied:'已拒绝', cancelled:'已停止', error:'失败' };
     row.className = PLUGIN_ID + '-ai-activity-step is-' + String(event.stage || 'requested').replace(/_/g, '-');
     if (event.label) row.querySelector('.' + PLUGIN_ID + '-ai-activity-label')?.setText(event.label);
     row.querySelector('.' + PLUGIN_ID + '-ai-tool-state')?.setText(states[event.stage] || event.stage || '');
@@ -847,7 +985,7 @@ class CockpitAIView extends obs.ItemView {
     const decision = await new Promise((resolve) => {
       const signal = this._abortController?.signal; let modal = null;
       const finish = (value) => { signal?.removeEventListener?.('abort', onAbort); if (this._toolConfirmModal === modal) this._toolConfirmModal = null; resolve(value); };
-      const onAbort = () => modal?.close(); modal = new CockpitAgentConfirmationModal(this.app, tool, this._language, finish); this._toolConfirmModal = modal;
+      const onAbort = () => modal?.close(); modal = new CockpitAgentConfirmationModal(this.app, { ...tool, workspaceRoot:this._activeWorkspaceRoot }, this._language, finish); this._toolConfirmModal = modal;
       signal?.addEventListener?.('abort', onAbort, { once:true }); modal.open();
     });
     if (decision === 'session' && maxGrant !== 'once') {
@@ -877,13 +1015,46 @@ class CockpitAIView extends obs.ItemView {
     const en = this._language === 'en'; send.empty(); obs.setIcon(send, running ? 'square' : 'arrow-up'); send.classList.toggle('is-stop', running);
     send.setAttribute('aria-label', running ? (en ? 'Stop generation' : '停止生成') : (en ? 'Send message' : '发送消息'));
     send.setAttribute('title', running ? (en ? 'Stop generation' : '停止生成') : (en ? 'Send message' : '发送消息'));
+    if (this._composerEls?.queueSend) this._composerEls.queueSend.hidden = !running;
+  }
+  _renderQueuedMessages() {
+    const panel = this._composerEls?.queuePanel;
+    if (!panel) return;
+    const en = this._language === 'en';
+    panel.empty(); panel.hidden = !this._queuedMessages.length;
+    if (!this._queuedMessages.length) return;
+    const heading = panel.createDiv({ cls:PLUGIN_ID + '-ai-queue-heading' });
+    heading.createEl('strong', { text:(en ? 'Queued · ' : '排队中 · ') + this._queuedMessages.length });
+    if (!this._busy) {
+      const resume = heading.createEl('button', { attr:{ type:'button' }, text:en ? 'Run next' : '继续下一条' });
+      resume.onclick = () => this._runQueuedNext();
+    }
+    this._queuedMessages.forEach((message, index) => {
+      const row = panel.createDiv({ cls:PLUGIN_ID + '-ai-queue-row' });
+      row.createSpan({ text:message, attr:{ title:message } });
+      const remove = row.createEl('button', { attr:{ type:'button', 'aria-label':en ? 'Remove queued message' : '移除排队消息' } });
+      obs.setIcon(remove, 'x');
+      remove.onclick = () => { this._queuedMessages.splice(index, 1); this._renderQueuedMessages(); };
+    });
+  }
+  _runQueuedNext() {
+    if (this._busy || !this._messagesEl || !this._queuedMessages.length) return;
+    const next = this._queuedMessages.shift();
+    this._renderQueuedMessages();
+    this._run('custom', next).catch((error) => {
+      this._queuedMessages.unshift(next);
+      this._renderQueuedMessages();
+      new obs.Notice((this._language === 'en' ? 'Could not start queued message: ' : '排队消息启动失败：') + (error?.message || 'unknown error'));
+    });
   }
   _setBusy(value) {
     this._busy = value;
     const { input, send, modelSelect, agentSelect, composer } = this._composerEls || {};
-    if (input) input.disabled = value; if (send) send.disabled = false; if (modelSelect) modelSelect.disabled = value;
+    if (input) input.placeholder = value ? (this._language === 'en' ? 'Type a follow-up to queue' : '输入后续指令并加入队列') : (this._language === 'en' ? 'Message Cockpit AI' : '向 Cockpit AI 提问（可 Ctrl+V 贴图）');
+    if (send) send.disabled = false; if (modelSelect) modelSelect.disabled = value;
     if (agentSelect && !this._busy) agentSelect.disabled = value;
     this._renderSendState(value);
+    this._renderQueuedMessages();
     composer?.querySelectorAll('.' + PLUGIN_ID + '-ai-context-popover button').forEach((button) => { button.disabled = value; });
   }
   async _safeHistory(operation) {
@@ -932,13 +1103,31 @@ class CockpitAIView extends obs.ItemView {
     let streamMessage = this._appendStreamingMessage(); let clock = null; const startedAt = Date.now(); let stage = en ? 'Connecting to model' : '正在连接模型';
     const runStats = { contextCount:0, contextChars:0 };
     let firstOutputAt = null;
+    let statusState = 'is-running';
+    let streamFinished = false;
     const elapsedLabel = () => Math.max(0, (Date.now() - startedAt) / 1000).toFixed(1) + 's';
-    const setStatus = (text, state = 'is-running') => { streamMessage.status.className = PLUGIN_ID + '-ai-activity-step ' + state; streamMessage.statusText.setText(text); };
+    const setStatus = (text, state = 'is-running') => {
+      if (state !== statusState) {
+        statusState = state;
+        streamMessage.summary.className = PLUGIN_ID + '-ai-activity-summary ' + state;
+        obs.setIcon(streamMessage.statusIcon, state === 'is-done' ? 'check' : state === 'is-error' ? 'alert-triangle' : state === 'is-stopped' ? 'square' : 'loader-circle');
+      }
+      streamMessage.statusText.setText(text);
+    };
     // 流式输出必须缓冲后批量刷写：推理模型每秒可推送数百个 delta，
     // 逐 token 追加 DOM 会把主线程打满（样式重算 + 上万文本节点），整个应用假死。
     // 这里统一走 ≥120ms 的节拍器合并刷新；字符串始终是完整真相，DOM 只是投影。
     let lastPaintAt = 0;
-    let answer = ''; let reasoning = ''; let mutationUnverified = false;
+    let answer = ''; let reasoning = ''; let mutationUnverified = false; let runSucceeded = false;
+    let currentPlan = []; let planElement = null;
+    const completedTools = new Map();
+    const changedFiles = new Map();
+    let changesRendered = false;
+    const renderChanges = () => {
+      if (changesRendered || !changedFiles.size) return;
+      this._renderChangedFiles(streamMessage.body, Array.from(changedFiles.values()), streamMessage.answer);
+      changesRendered = true;
+    };
     let reasoningSent = 0; let answerSent = 0;
     const shownStreamRows = new Set();
     const showStreamRowOnce = (callId, name, label) => {
@@ -948,10 +1137,12 @@ class CockpitAIView extends obs.ItemView {
     };
     const scrollToBottom = () => { if (this._messagesEl) this._messagesEl.scrollTop = this._messagesEl.scrollHeight; };
     const flushStreamUi = (force = false) => {
+      if (streamFinished) return;
       const now = Date.now();
       if (!force && now - lastPaintAt < 120) return;
       lastPaintAt = now;
-      setStatus(stage + ' · ' + elapsedLabel());
+      setStatus(stage);
+      streamMessage.statusMeta.setText(elapsedLabel());
       if (reasoning.length > reasoningSent) {
         streamMessage.reasoning.removeClass('is-empty');
         streamMessage.reasoningText.append(document.createTextNode(reasoning.slice(reasoningSent)));
@@ -1016,6 +1207,20 @@ class CockpitAIView extends obs.ItemView {
         }
         if (event.type === 'tool') {
           this._renderToolEvent(streamMessage, event);
+          if (['completed','denied','cancelled','error'].includes(event.stage) && event.callId) {
+            completedTools.set(event.callId, { name:event.name, stage:event.stage });
+          }
+          if (event.stage === 'completed' && event.result?.ok === true && event.result?.data?.verified === true
+            && ['ws_write_file','ws_edit_file'].includes(event.name)) {
+            const file = event.result.data;
+            const path = String(file.path || '');
+            if (path) changedFiles.set(path, { path, operation:event.name === 'ws_edit_file' ? 'edited' : file.created ? 'created' : 'overwritten', verified:true });
+          }
+          if (event.stage === 'completed' && event.name === 'agent_update_plan' && Array.isArray(event.result?.data?.steps)) {
+            currentPlan = event.result.data.steps;
+            planElement?.remove();
+            planElement = this._renderAgentPlan(streamMessage.body, currentPlan, streamMessage.answer);
+          }
           if (event.stage === 'awaiting_confirmation') stage = en ? 'Waiting for approval' : '等待你的确认';
           else if (event.stage === 'executing') stage = en ? 'Running Cockpit tool' : '正在执行 Cockpit 工具';
           else if (event.stage === 'completed') stage = en ? 'Tool completed' : '工具执行完成';
@@ -1027,13 +1232,17 @@ class CockpitAIView extends obs.ItemView {
       });
       // 流结束：先把缓冲里剩余的文本一次性刷进 DOM，再做收尾渲染。
       flushStreamUi(true);
+      streamFinished = true;
       answer = result.content || answer; reasoning = result.reasoning || reasoning;
       if (!streamMessage.answer.textContent && answer) streamMessage.answer.setText(answer);
       if (!streamMessage.reasoningText.textContent && reasoning) { streamMessage.reasoning.removeClass('is-empty'); streamMessage.reasoningText.setText(reasoning); }
       if (reasoning) this._renderToolEvent(streamMessage, { callId:'reasoning-' + startedAt, name:'reasoning', label:en ? 'Reasoned through the request' : '已完成思考', stage:'completed' });
       if (answer) this._renderToolEvent(streamMessage, { callId:'writing-' + startedAt, name:'writing', label:en ? 'Answer completed' : '回答已生成', stage:'completed' });
-      setStatus((mutationUnverified ? (en ? 'Not executed' : '未执行') : (en ? 'Completed' : '已完成')) + ' · ' + elapsedLabel(), mutationUnverified ? 'is-error' : 'is-done');
+      setStatus(mutationUnverified ? (en ? 'Not executed' : '未执行') : (en ? 'Completed' : '已完成'), mutationUnverified ? 'is-error' : 'is-done');
+      streamMessage.statusMeta.setText((completedTools.size ? completedTools.size + (en ? ' tools · ' : ' 项工具 · ') : '') + elapsedLabel());
+      streamMessage.activity.open = false;
       await this._renderMarkdown(streamMessage.answer, answer);
+      renderChanges();
       const toolsRow = this._appendMessageActions(streamMessage.content, () => answer);
       // 底部统计行：优先使用服务端 usage；缺失时输出按字数估算（带 ≈）。
       const usage = result.usage;
@@ -1052,23 +1261,38 @@ class CockpitAIView extends obs.ItemView {
         if (outTokens > 0) this._lastTokSpeed = outTokens / seconds;
       }
       this._renderSessionStats();
-      await this._safeHistory(this.plugin.aiHistory.appendMessage(this._activeSessionId, { role:'assistant', content:answer, language:this._language }));
+      const completedAnswer = answer || (en ? 'The Agent finished without a written answer.' : 'Agent 已完成操作，但未生成文字回答。');
+      if (!answer) streamMessage.answer.setText(completedAnswer);
+      await this._safeHistory(this.plugin.aiHistory.appendMessage(this._activeSessionId, { role:'assistant', content:completedAnswer, language:this._language, activity:Array.from(completedTools.values()), changedFiles:Array.from(changedFiles.values()), plan:currentPlan }));
+      runSucceeded = true;
     } catch (error) {
       if (this._abortController?.signal.aborted || error?.name === 'AbortError') {
+        flushStreamUi(true);
+        streamFinished = true;
         const partial = streamMessage.answer.textContent || '';
         if (!partial && !streamMessage.reasoningText.textContent) streamMessage.answer.setText(en ? 'Generation stopped.' : '已停止生成。');
-        setStatus((en ? 'Stopped' : '已停止') + ' · ' + elapsedLabel(), 'is-stopped');
-        if (partial) {
-          await this._safeHistory(this.plugin.aiHistory.appendMessage(this._activeSessionId, { role:'assistant', content:partial, language:this._language }));
-          this._appendMessageActions(streamMessage.content, () => partial);
-        }
+        setStatus(en ? 'Stopped' : '已停止', 'is-stopped');
+        streamMessage.statusMeta.setText(elapsedLabel());
+        renderChanges();
+        const stoppedAnswer = partial || (en ? 'Generation stopped.' : '已停止生成。');
+        if (partial) this._appendMessageActions(streamMessage.content, () => partial);
+        await this._safeHistory(this.plugin.aiHistory.appendMessage(this._activeSessionId, { role:'assistant', content:stoppedAnswer, language:this._language, activity:Array.from(completedTools.values()), changedFiles:Array.from(changedFiles.values()), plan:currentPlan }));
       } else {
+        flushStreamUi(true);
+        streamFinished = true;
         const errorText = error?.message || (en ? 'AI request failed.' : 'AI 请求失败'); setStatus(en ? 'Request failed' : '请求失败', 'is-error');
-        if (!streamMessage.answer.textContent) streamMessage.answer.setText('⚠ ' + errorText); streamMessage.row.addClass('error');
+        streamMessage.statusMeta.setText(elapsedLabel());
+        const partial = streamMessage.answer.textContent || '';
+        if (!partial) streamMessage.answer.setText('⚠ ' + errorText);
+        else streamMessage.answer.append(document.createTextNode('\n\n⚠ ' + errorText));
+        streamMessage.row.addClass('error');
+        renderChanges();
+        await this._safeHistory(this.plugin.aiHistory.appendMessage(this._activeSessionId, { role:'assistant', content:(partial ? partial + '\n\n' : '') + (en ? 'Request failed: ' : '请求失败：') + errorText, language:this._language, activity:Array.from(completedTools.values()), changedFiles:Array.from(changedFiles.values()), plan:currentPlan }));
       }
     } finally {
       if (clock) window.clearInterval(clock); this._abortController = null; this._uploadedContexts = []; this._pendingImages = []; this._setBusy(false);
-      await this._refreshHistoryUi(); this._renderContextPicker(); this._composerEls?.input?.focus(); this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
+      await this._refreshHistoryUi(); this._renderContextPicker(); this._composerEls?.input?.focus(); if (this._messagesEl) this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
+      if (runSucceeded && this._queuedMessages.length && this._messagesEl) window.setTimeout(() => this._runQueuedNext(), 0);
     }
   }
   async onClose() {
@@ -1076,6 +1300,7 @@ class CockpitAIView extends obs.ItemView {
     this._lightboxEl?.remove(); this._lightboxEl = null;
     this._aiConfigUnsubscribe?.(); this._aiConfigUnsubscribe = null; this.contentEl.removeClass(PLUGIN_ID + '-ai-view');
     this._messagesEl = null; this._contextPickerEls = null; this._sessionDrawerEls = null; this._uploadedContexts = []; this._pendingImages = []; this._composerEls = null; this._sessionStatsEl = null;
+    this._queuedMessages = [];
     window.setTimeout(() => this.plugin._syncAiLauncher?.(), 0);
   }
 }

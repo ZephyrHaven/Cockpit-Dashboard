@@ -3,6 +3,8 @@
 const AI_HISTORY_LIMITS = Object.freeze({
   maxSessions:30,
   maxMessagesPerSession:60,
+  maxActivityPerMessage:24,
+  maxChangedFilesPerMessage:20,
   maxMessageChars:8000,
   maxSessionChars:120000,
   maxSerializedChars:700000,
@@ -80,12 +82,48 @@ function buildAiSessionTitle(value, language = 'zh-CN') {
   return text.length > 36 ? text.slice(0, 36).trimEnd() + '…' : text;
 }
 
+function cleanAiHistoryActivity(value) {
+  return (Array.isArray(value) ? value : []).flatMap((item) => {
+    const name = String(item?.name || '').trim();
+    const stage = String(item?.stage || '').trim();
+    if (!/^[a-z][a-z0-9_]{0,79}$/.test(name) || !['completed','denied','cancelled','error'].includes(stage)) return [];
+    return [{ name, stage }];
+  }).slice(0, AI_HISTORY_LIMITS.maxActivityPerMessage);
+}
+
+function cleanAiHistoryChangedFiles(value) {
+  return (Array.isArray(value) ? value : []).flatMap((item) => {
+    const path = String(item?.path || '').replace(/[\0\r\n]/g, '').replace(/\\/g, '/').trim();
+    const operation = String(item?.operation || '');
+    if (!path || path.length > 400 || path.startsWith('/') || /^[a-z]:/i.test(path) || path.split('/').some((part) => part === '..' || part === '.git')
+      || !['created','overwritten','edited'].includes(operation) || item?.verified !== true) return [];
+    return [{ path, operation, verified:true }];
+  }).slice(0, AI_HISTORY_LIMITS.maxChangedFilesPerMessage);
+}
+
+function cleanAiHistoryPlan(value) {
+  return (Array.isArray(value) ? value : []).slice(0, 8).flatMap((item) => {
+    const text = String(item?.text || '').replace(/[\0\r\n]+/g, ' ').trim();
+    const status = String(item?.status || '');
+    return text && text.length <= 160 && ['pending','in_progress','completed'].includes(status) ? [{ text, status }] : [];
+  });
+}
+
 function normalizeAiHistoryMessage(value) {
   const role = value?.role === 'user' || value?.role === 'assistant' ? value.role : '';
   const content = cleanAiHistoryText(value?.content, AI_HISTORY_LIMITS.maxMessageChars);
   if (!role || !content) return null;
   const createdAt = Math.max(0, Number(value?.createdAt) || Date.now());
-  return { role, content, createdAt };
+  const message = { role, content, createdAt };
+  if (role === 'assistant') {
+    const activity = cleanAiHistoryActivity(value?.activity);
+    if (activity.length) message.activity = activity;
+    const changedFiles = cleanAiHistoryChangedFiles(value?.changedFiles);
+    if (changedFiles.length) message.changedFiles = changedFiles;
+    const plan = cleanAiHistoryPlan(value?.plan);
+    if (plan.length) message.plan = plan;
+  }
+  return message;
 }
 
 function normalizeAiHistorySession(value, index = 0) {

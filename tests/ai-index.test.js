@@ -97,7 +97,7 @@ async function buildIndex(state = CORPUS, options = {}) {
     await writer.ensure();
     assert.equal(await writer.flushSave(), true, 'Flushed snapshot is written through the adapter.');
     assert.ok(savedText && savedText.length < AI_INDEX_LIMITS.maxSerializedChars, 'Snapshot respects the size budget.');
-    assert.match(savedText, /"v":1/, 'Snapshot carries a format version.');
+    assert.match(savedText, /"v":2/, 'Snapshot carries a format version.');
 
     const readerPlugin = { app:{ vault:{ ...createVault(CORPUS, { onRead:() => assert.fail('loaded index must not re-read the vault') }), adapter } } };
     const reader = new CockpitAiSearchIndex(readerPlugin);
@@ -125,6 +125,30 @@ async function buildIndex(state = CORPUS, options = {}) {
   {
     const empty = new CockpitAiSearchIndex({ app:{ vault:createVault(CORPUS) } });
     assert.equal(empty.serialize(), null, 'Un-built indexes refuse to serialize partial data.');
+  }
+
+  // ── 词元预算：库越大单篇保留的词元越少，倒排总量有上限 ──────────────────────
+  {
+    const state = {};
+    for (let file = 0; file < 40; file++) {
+      const words = [];
+      for (let word = 0; word < 400; word++) words.push('term' + file + 'x' + word);
+      state['Bulk/' + file + '.md'] = { content:words.join(' '), mtime:file };
+    }
+    const index = await buildIndex(state);
+    assert.ok(index.termBudget <= AI_INDEX_LIMITS.maxTermsPerFile, 'Per-file term budget never exceeds the configured ceiling.');
+    const ids = Array.from(index.docTerms.keys());
+    assert.ok(ids.length > 0, 'Bulk corpus is indexed.');
+    assert.ok(ids.every((id) => index.docTerms.get(id).size <= index.termBudget), 'Every document respects the per-file term budget.');
+    assert.ok(index.postings.size <= AI_INDEX_LIMITS.maxPostings, 'Total postings stay inside the memory budget.');
+  }
+
+  // ── 最近修改候选：索引就绪后发送路径不再回退到全库扫描 ──────────────────────
+  {
+    const index = await buildIndex();
+    const recent = index.recentPaths(2);
+    assert.deepEqual(recent, ['Projects/Budget.md','Health/Run.md'], 'Recent candidates follow note mtime.');
+    assert.ok(index.query('完全不存在的词组').length > 0, 'Zero-hit queries still answer with recent candidates.');
   }
 
   // ── 构建序列与框架事件接线 ──────────────────────────────────────────────────

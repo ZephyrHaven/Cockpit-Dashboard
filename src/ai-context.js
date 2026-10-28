@@ -14,6 +14,14 @@ const AI_IMAGE_LIMITS = Object.freeze({
   jpegQuality:0.85
 });
 
+// 检索缓存的体积上界：按字符数而不是条数限制，避免少数超长笔记把堆撑到数百 MB。
+const AI_CONTEXT_LIMITS = Object.freeze({
+  pathCacheChars:6000000,
+  chunkCacheChars:3000000,
+  maxChunksPerDocument:60,
+  maxScanFiles:1500
+});
+
 // 计算贴图缩放目标：最长边不超过 maxDimension，且不放大原图。
 function computeAiImageTargetSize(width, height, maxDimension = AI_IMAGE_LIMITS.maxDimension) {
   const w = Math.max(1, Math.floor(Number(width) || 1));
@@ -214,6 +222,8 @@ class CockpitRagService {
     this.plugin = plugin;
     this.pathCache = new Map();
     this.chunkCache = new Map();
+    this.pathCacheChars = 0;
+    this.chunkCacheChars = 0;
     // 倒排索引与 RAG 同生命周期；单独加载本模块（单测）时自动退化为全库扫描路径。
     this.index = typeof CockpitAiSearchIndex === 'function' ? new CockpitAiSearchIndex(plugin) : null;
   }
@@ -225,6 +235,18 @@ class CockpitRagService {
   }
   renameInIndex(oldPath, newPath) { this.index?.renamePath(oldPath, newPath); }
   warmUp() { this.index?.warmUp(); }
+  _cacheEvictOldest() {
+    const oldestKey = this.pathCache.keys().next().value;
+    const entry = this.pathCache.get(oldestKey);
+    this.pathCache.delete(oldestKey);
+    this.pathCacheChars -= Number(entry?.chars) || 0;
+  }
+  _chunkCacheEvictOldest() {
+    const oldestKey = this.chunkCache.keys().next().value;
+    const entry = this.chunkCache.get(oldestKey);
+    this.chunkCache.delete(oldestKey);
+    this.chunkCacheChars -= Number(entry?.chars) || 0;
+  }
   async _readVaultDocument(file) {
     const path = safeAiContextPath(file?.path);
     if (!path || file?.extension !== 'md' || isProtectedAiContextPath(path)) return null;
@@ -240,25 +262,27 @@ class CockpitRagService {
     const vault = this.plugin.app.vault;
     const content = String(await (typeof vault.cachedRead === 'function' ? vault.cachedRead(file) : vault.read(file)) || '');
     const hash = await computeAiContentHash(content);
-    let templates = this.chunkCache.get(hash);
-    if (!templates) {
-      templates = chunkAiDocument({ path:'', content, source:'vault' }).map((chunk) => ({
-        content:chunk.content,
-        // 预存小写副本：排序阶段不再对全库内容反复 toLocaleLowerCase。
-        lower:chunk.content.toLocaleLowerCase(),
-        chunkIndex:chunk.chunkIndex
-      }));
-      this.chunkCache.set(hash, templates);
-      while (this.chunkCache.size > 1600) this.chunkCache.delete(this.chunkCache.keys().next().value);
+    let entry = this.chunkCache.get(hash);
+    if (!entry) {
+      const templates = chunkAiDocument({ path:'', content, source:'vault' })
+        .slice(0, AI_CONTEXT_LIMITS.maxChunksPerDocument)
+        .map((chunk) => ({
+          content:chunk.content,
+          // 预存小写副本：排序阶段不再对全库内容反复 toLocaleLowerCase。
+          lower:chunk.content.toLocaleLowerCase(),
+          chunkIndex:chunk.chunkIndex
+        }));
+      const chars = templates.reduce((sum, chunk) => sum + chunk.content.length + chunk.lower.length, 0);
+      entry = { templates, chars };
+      this.chunkCache.set(hash, entry);
+      this.chunkCacheChars += chars;
+      while (this.chunkCache.size > 1 && this.chunkCacheChars > AI_CONTEXT_LIMITS.chunkCacheChars) this._chunkCacheEvictOldest();
     }
-    const document = { path, content, source:'vault', hash, chunks:templates.map((chunk) => ({ ...chunk, path, source:'vault' })) };
-    // pathCache 上限：缓存持有整篇正文与小写副本，不设上限的大库会吃掉数百 MB
-    // 并引发长时间 GC 停顿（表现为整个界面周期性假死）。LRU 淘汰最旧的条目。
-    this.pathCache.set(path, { mtime, size, hash, document });
-    while (this.pathCache.size > 150) {
-      const oldestKey = this.pathCache.keys().next().value;
-      this.pathCache.delete(oldestKey);
-    }
+    const document = { path, content, source:'vault', hash, chunks:entry.templates.map((chunk) => ({ ...chunk, path, source:'vault' })) };
+    // 缓存持有整篇正文与小写副本：按字符数限额淘汰，避免长笔记引发长时间 GC 停顿。
+    this.pathCache.set(path, { mtime, size, hash, document, chars:content.length + entry.chars });
+    this.pathCacheChars += content.length + entry.chars;
+    while (this.pathCache.size > 1 && this.pathCacheChars > AI_CONTEXT_LIMITS.pathCacheChars) this._cacheEvictOldest();
     return document;
   }
   async _readSelected(paths, signal) {
@@ -277,7 +301,9 @@ class CockpitRagService {
     return result;
   }
   async _readAll(onProgress, signal) {
-    const files = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter((file) => file?.extension === 'md' && !isProtectedAiContextPath(file.path));
+    const files = (this.plugin.app.vault.getMarkdownFiles?.() || [])
+      .filter((file) => file?.extension === 'md' && !isProtectedAiContextPath(file.path))
+      .slice(0, AI_CONTEXT_LIMITS.maxScanFiles);
     const result = [];
     for (let offset = 0; offset < files.length; offset += 12) {
       assertAiContextNotAborted(signal);
@@ -312,6 +338,11 @@ class CockpitRagService {
         const candidateLimit = typeof AI_INDEX_LIMITS !== 'undefined' ? AI_INDEX_LIMITS.candidateLimit : 12;
         const candidates = this.index.query(keywordsSource, { limit:candidateLimit }).map((item) => item.path);
         documents = candidates.length ? (await this._readSelected(candidates, options.signal)) : [];
+        // 候选全部读不到时退回索引里的最近笔记；发送路径上绝不做全库扫描。
+        if (!documents.length && typeof this.index.recentPaths === 'function') {
+          const recent = this.index.recentPaths(candidateLimit);
+          if (recent.length) documents = await this._readSelected(recent, options.signal);
+        }
       } else {
         // 索引还在后台首次构建：本轮直接跳过注入、立刻回答，
         // 绝不在发送路径上做任何全库扫描或等待。索引就绪后自动恢复完整 RAG。
@@ -324,7 +355,6 @@ class CockpitRagService {
           warming:true
         };
       }
-      if (!documents.length) documents = await this._readAll(options.onProgress, options.signal);
     } else {
       documents = global ? await this._readAll(options.onProgress, options.signal) : selected;
     }
@@ -345,17 +375,23 @@ class CockpitRagService {
   }
   invalidatePath(value) {
     const path = safeAiContextPath(value);
-    if (path) this.pathCache.delete(path);
+    if (!path) return;
+    const entry = this.pathCache.get(path);
+    if (!entry) return;
+    this.pathCacheChars -= Number(entry.chars) || 0;
+    this.pathCache.delete(path);
   }
   clear() {
     this.pathCache.clear();
     this.chunkCache.clear();
+    this.pathCacheChars = 0;
+    this.chunkCacheChars = 0;
   }
 }
 
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
   module.exports = {
-    AI_UPLOAD_LIMITS, AI_IMAGE_LIMITS, isProtectedAiContextPath, extractAiKeywords, computeAiContentHash,
+    AI_UPLOAD_LIMITS, AI_IMAGE_LIMITS, AI_CONTEXT_LIMITS, isProtectedAiContextPath, extractAiKeywords, computeAiContentHash,
     chunkAiDocument, rankAiContextChunks, readAiUploadFiles, CockpitRagService,
     computeAiImageTargetSize, prepareAiImageFile
   };

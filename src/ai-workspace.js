@@ -81,6 +81,27 @@ function workspaceByteLength(text) {
   try { return new TextEncoder().encode(value).length; } catch (error) { return value.length; }
 }
 
+function throwIfWorkspaceAgentAborted(signal) {
+  if (!signal?.aborted) return;
+  const error = new Error('Agent stopped.');
+  error.name = 'AbortError';
+  throw error;
+}
+
+function applyExactWorkspaceEdit(content, args, path) {
+  const oldString = String(args.old_string ?? '');
+  const newString = String(args.new_string ?? '');
+  if (!oldString) throw new Error('old_string must not be empty.');
+  if (oldString === newString) throw new Error('old_string and new_string are identical; nothing would change.');
+  const parts = content.split(oldString);
+  const occurrences = parts.length - 1;
+  if (!occurrences) throw new Error('old_string was not found in ' + path + '; read the file again and copy the text exactly.');
+  if (occurrences > 1 && args.replace_all !== true) {
+    throw new Error('old_string matches ' + occurrences + ' locations; extend it to be unique or set replace_all=true.');
+  }
+  return { next:args.replace_all === true ? parts.join(newString) : parts[0] + newString + parts.slice(1).join(oldString), replacements:args.replace_all === true ? occurrences : 1 };
+}
+
 // 极简 glob（*、**、?），锚定整个相对路径；非法输入返回 null 由调用方报错。
 function workspaceGlobToRegExp(pattern) {
   const raw = String(pattern ?? '').trim();
@@ -384,6 +405,34 @@ class CockpitWorkspaceToolsRegistry {
     return { ok:true, root:resolved };
   }
 
+  async createIsolatedWorktree() {
+    const deps = this._resolveDeps();
+    const root = this.root;
+    if (!root || !deps.path || !deps.fsp || !deps.execFile) throw new Error('Creating a Git worktree requires a desktop coding workspace.');
+    const runGit = (args) => new Promise((resolve, reject) => {
+      deps.execFile('git', ['-C', root, ...args], { timeout:120000, windowsHide:true, maxBuffer:1024 * 1024 }, (error, stdout, stderr) => {
+        if (error) { reject(new Error(String(stderr || error.message || 'Git command failed.').trim().slice(0, 600))); return; }
+        resolve(String(stdout || '').trim());
+      });
+    });
+    const topLevel = await runGit(['rev-parse', '--show-toplevel']);
+    const realRoot = await deps.fsp.realpath(root);
+    const realTop = await deps.fsp.realpath(topLevel);
+    if (realRoot !== realTop) throw new Error('Select the Git repository root before creating an isolated worktree.');
+    await runGit(['rev-parse', '--verify', 'HEAD']);
+    const sourceParent = deps.path.dirname(root);
+    const parent = deps.path.basename(sourceParent) === '.cockpit-agent-worktrees'
+      ? sourceParent : deps.path.join(sourceParent, '.cockpit-agent-worktrees');
+    await deps.fsp.mkdir(parent, { recursive:true });
+    const name = deps.path.basename(root).replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 45) || 'project';
+    const suffix = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+    const destination = deps.path.join(parent, name + '-' + suffix);
+    await runGit(['worktree', 'add', '--detach', destination, 'HEAD']);
+    const checked = await this.checkPath(destination);
+    if (!checked.ok) throw new Error('Git created the worktree, but the new folder could not be opened: ' + destination);
+    return { ok:true, root:checked.root, sourceRoot:root };
+  }
+
   _safeElectron() {
     try { return typeof require === 'function' ? require('electron') : null; }
     catch (error) { return null; }
@@ -453,23 +502,28 @@ class CockpitWorkspaceToolsRegistry {
   }
 
   async execute(name, rawArguments, options = {}) {
+    throwIfWorkspaceAgentAborted(options.signal);
     const tool = this.byName.get(String(name || ''));
     if (!tool) return null; // 让上层 hub 继续查找其他注册表
     if (!this.available()) throw new Error('No coding workspace is configured. Set one in the Cockpit AI settings first.');
     const args = validateWorkspaceToolInput(tool, rawArguments == null ? {} : rawArguments);
     if (tool.name === 'ws_run_command') this._assertAllowedProgram(args.command);
+    const mutationPlan = tool.name === 'ws_write_file' || tool.name === 'ws_edit_file'
+      ? await this._prepareMutationReview(tool.name, args) : null;
     if (tool.mutates && options.autoApprove !== true) {
       const confirmed = typeof options.confirm === 'function' && await options.confirm({
-        name:tool.name, label:tool.label, description:tool.description, args, mutates:true
+        name:tool.name, label:tool.label, description:tool.description, args, mutates:true,
+        review:mutationPlan ? { path:mutationPlan.rel, before:mutationPlan.before, after:mutationPlan.after, created:!mutationPlan.existed } : null
       });
       if (!confirmed) return { ok:false, denied:true, error:'User confirmation was not granted.' };
     }
+    throwIfWorkspaceAgentAborted(options.signal);
     if (tool.name === 'ws_list_dir') return this._listDir(args);
     if (tool.name === 'ws_read_file') return this._readFile(args);
     if (tool.name === 'ws_search_text') return this._searchText(args);
-    if (tool.name === 'ws_write_file') return this._writeFile(args);
-    if (tool.name === 'ws_edit_file') return this._editFile(args);
-    if (tool.name === 'ws_run_command') return this._runCommand(args);
+    if (tool.name === 'ws_write_file') return this._writeFile(args, options.signal, mutationPlan);
+    if (tool.name === 'ws_edit_file') return this._editFile(args, options.signal, mutationPlan);
+    if (tool.name === 'ws_run_command') return this._runCommand(args, options.signal);
     return null;
   }
 
@@ -647,7 +701,46 @@ class CockpitWorkspaceToolsRegistry {
     return { ok:true, data:{ query, items:matches, total:matches.length, scannedFiles, truncated:matches.length >= maxResults } };
   }
 
-  async _writeFile(args) {
+  async _prepareMutationReview(name, args) {
+    const deps = this._resolveDeps();
+    const target = await this._resolveSafe(args.path, { forWrite:true });
+    if (!target.rel) throw new Error('Refusing to change the workspace root itself.');
+    let stat = null;
+    try { stat = await deps.fsp.stat(target.abs); }
+    catch (error) { if (error?.code !== 'ENOENT') throw error; }
+    if (name === 'ws_edit_file' && !stat) throw new Error('The file disappeared before it could be edited: ' + target.rel);
+    if (stat && !stat.isFile()) throw new Error('Not a regular file: ' + target.rel);
+    if (stat?.size > AI_WORKSPACE_LIMITS.maxReadSourceBytes) throw new Error('The existing file is too large to review safely.');
+    if (name === 'ws_edit_file') {
+      const snapshot = this._readSnapshots.get(target.abs);
+      if (!snapshot) throw new Error('Call ws_read_file on this file before editing it.');
+      if (stat.mtimeMs !== snapshot.mtimeMs || stat.size !== snapshot.size) throw new Error('The file changed since it was last read; read it again before editing.');
+    }
+    const buffer = stat ? await deps.fsp.readFile(target.abs) : null;
+    if (buffer && looksLikeWorkspaceBinary(buffer)) throw new Error('The existing file looks binary and cannot be reviewed as text.');
+    const before = buffer ? buffer.toString('utf8') : '';
+    if (buffer && !Buffer.from(before, 'utf8').equals(buffer)) throw new Error('The existing file is not valid UTF-8 and cannot be reviewed safely.');
+    const edit = name === 'ws_edit_file' ? applyExactWorkspaceEdit(before, args, target.rel) : null;
+    const after = edit ? edit.next : String(args.content ?? '');
+    if (workspaceByteLength(after) > AI_WORKSPACE_LIMITS.maxWriteBytes) throw new Error('The planned content exceeds the 1 MB write limit.');
+    return { abs:target.abs, rel:target.rel, before, after, existed:Boolean(stat), replacements:edit?.replacements || 0 };
+  }
+
+  async _assertMutationReviewCurrent(target, plan) {
+    if (!plan || target.abs !== plan.abs) throw new Error('The reviewed file target changed; review this action again.');
+    const deps = this._resolveDeps();
+    let current;
+    try { current = await deps.fsp.readFile(target.abs, 'utf8'); }
+    catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+      current = null;
+    }
+    if ((current !== null) !== plan.existed || (current ?? '') !== plan.before) {
+      throw new Error('The file changed after approval; review the action again before writing.');
+    }
+  }
+
+  async _writeFile(args, signal, plan) {
     const deps = this._resolveDeps();
     const target = await this._resolveSafe(args.path, { forWrite:true });
     if (!target.rel) throw new Error('Refusing to overwrite the workspace root itself.');
@@ -655,24 +748,22 @@ class CockpitWorkspaceToolsRegistry {
     const bytes = workspaceByteLength(content);
     if (bytes > AI_WORKSPACE_LIMITS.maxWriteBytes) throw new Error('The content exceeds the 1 MB write limit.');
     await deps.fsp.mkdir(deps.path.dirname(target.abs), { recursive:true });
-    let created = true;
-    try { const existing = await deps.fsp.lstat(target.abs); created = false; void existing; } catch (error) { /* 不存在即创建 */ }
-    await deps.fsp.writeFile(target.abs, content, 'utf8');
+    await this._assertMutationReviewCurrent(target, plan);
+    throwIfWorkspaceAgentAborted(signal);
+    await deps.fsp.writeFile(target.abs, content, plan.existed ? 'utf8' : { encoding:'utf8', flag:'wx' });
+    if (await deps.fsp.readFile(target.abs, 'utf8') !== content) throw new Error('The file was written but its contents could not be verified.');
     const stat = await deps.fsp.stat(target.abs);
     this._readSnapshots.set(target.abs, { mtimeMs:stat.mtimeMs, size:stat.size });
-    return { ok:true, data:{ path:target.rel, created, bytes } };
+    return { ok:true, data:{ path:target.rel, created:!plan.existed, bytes, verified:true } };
   }
 
-  async _editFile(args) {
+  async _editFile(args, signal, plan) {
     const deps = this._resolveDeps();
     const target = await this._resolveSafe(args.path, { forWrite:true });
     if (!target.rel) throw new Error('Refusing to edit the workspace root itself.');
     const snapshot = this._readSnapshots.get(target.abs);
     if (!snapshot) throw new Error('Call ws_read_file on this file before editing it.');
-    const oldString = String(args.old_string ?? '');
     const newString = String(args.new_string ?? '');
-    if (!oldString) throw new Error('old_string must not be empty.');
-    if (oldString === newString) throw new Error('old_string and new_string are identical; nothing would change.');
     const stat = await deps.fsp.stat(target.abs).catch(() => null);
     if (!stat) throw new Error('The file disappeared before it could be edited: ' + target.rel);
     if (stat.mtimeMs !== snapshot.mtimeMs || stat.size !== snapshot.size) {
@@ -680,16 +771,14 @@ class CockpitWorkspaceToolsRegistry {
     }
     if (stat.size > AI_WORKSPACE_LIMITS.maxEditTargetBytes) throw new Error('The file is too large to edit with exact-match replacement.');
     const content = (await deps.fsp.readFile(target.abs, 'utf8')).toString();
-    const parts = content.split(oldString);
-    const occurrences = parts.length - 1;
-    if (!occurrences) throw new Error('old_string was not found in ' + target.rel + '; read the file again and copy the text exactly.');
-    if (occurrences > 1 && args.replace_all !== true) {
-      throw new Error('old_string matches ' + occurrences + ' locations; extend it to be unique or set replace_all=true.');
-    }
-    const next = args.replace_all === true ? parts.join(newString) : parts[0] + newString + parts.slice(1).join(oldString);
+    await this._assertMutationReviewCurrent(target, plan);
+    const { next, replacements } = applyExactWorkspaceEdit(content, args, target.rel);
+    if (next !== plan.after) throw new Error('The planned edit changed after approval; review it again.');
     const bytes = workspaceByteLength(next);
     if (bytes > AI_WORKSPACE_LIMITS.maxWriteBytes) throw new Error('The edited file would exceed the 1 MB write limit.');
+    throwIfWorkspaceAgentAborted(signal);
     await deps.fsp.writeFile(target.abs, next, 'utf8');
+    if (await deps.fsp.readFile(target.abs, 'utf8') !== next) throw new Error('The file was edited but its contents could not be verified.');
     const updatedStat = await deps.fsp.stat(target.abs);
     this._readSnapshots.set(target.abs, { mtimeMs:updatedStat.mtimeMs, size:updatedStat.size });
     const previewAt = Math.max(0, next.indexOf(newString));
@@ -698,14 +787,16 @@ class CockpitWorkspaceToolsRegistry {
       ok:true,
       data:{
         path:target.rel,
-        replacements:args.replace_all === true ? occurrences : 1,
+        replacements,
         bytes,
+        verified:true,
         preview:clipWorkspaceLine(next.slice(previewStart, previewAt + newString.length + 80).replace(/\s+/g, ' ').trim(), 240)
       }
     };
   }
 
-  _runCommand(args) {
+  _runCommand(args, signal) {
+    throwIfWorkspaceAgentAborted(signal);
     const deps = this._resolveDeps();
     if (!deps.execFile) throw new Error('Running commands requires the desktop app.');
     const rawCommand = String(args.command ?? '').replace(/[\r\n\0]+/g, ' ').trim();
@@ -719,8 +810,19 @@ class CockpitWorkspaceToolsRegistry {
     const finalArgs = tokens.slice(1);
     const cwd = deps.cwd();
     if (!cwd) throw new Error('No coding workspace is configured.');
-    return new Promise((resolve) => {
-      deps.execFile(program, finalArgs, {
+    return new Promise((resolve, reject) => {
+      let child;
+      let finished = false;
+      const onAbort = () => {
+        if (finished) return;
+        try { child?.kill?.('SIGKILL'); } catch (error) { /* 进程可能已经结束 */ }
+        finish();
+        reject(Object.assign(new Error('Agent stopped.'), { name:'AbortError' }));
+      };
+      const finish = () => { finished = true; signal?.removeEventListener?.('abort', onAbort); };
+      signal?.addEventListener?.('abort', onAbort, { once:true });
+      if (signal?.aborted) { onAbort(); return; }
+      child = deps.execFile(program, finalArgs, {
         timeout:AI_WORKSPACE_LIMITS.commandTimeoutMs,
         killSignal:'SIGKILL',
         windowsHide:true,
@@ -728,6 +830,8 @@ class CockpitWorkspaceToolsRegistry {
         cwd,
         env:deps.env()
       }, (error, stdout, stderr) => {
+        if (finished) return;
+        finish();
         const timedOut = Boolean(error && error.killed);
         const exitCode = Number.isFinite(error?.code) ? error.code : error ? -1 : 0;
         resolve({
@@ -743,6 +847,7 @@ class CockpitWorkspaceToolsRegistry {
           }
         });
       });
+      if (signal?.aborted) onAbort();
     });
   }
 }

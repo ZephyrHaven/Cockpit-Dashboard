@@ -362,7 +362,7 @@ function buildAgentAuditRecord(value = {}) {
     at:new Date().toISOString(),
     sessionId:String(value.sessionId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100),
     name:String(value.name || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80),
-    stage:['completed','denied','error'].includes(value.stage) ? value.stage : 'error',
+    stage:['completed','denied','cancelled','error'].includes(value.stage) ? value.stage : 'error',
     entityType:String(receipt.entityType || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40),
     entityId:String(receipt.entityId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100),
     verified:receipt.verified === true
@@ -433,6 +433,33 @@ function parseAiToolArguments(value) {
   catch (error) { throw new Error('模型返回了无效的工具参数'); }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('模型返回了无效的工具参数');
   return parsed;
+}
+
+function serializeAiToolResult(result, maxChars = 20000) {
+  const serialized = JSON.stringify(result ?? null);
+  if (serialized.length <= maxChars) return serialized;
+  const receipt = result?.receipt;
+  const summary = {
+    ok:result?.ok === true,
+    denied:result?.denied === true,
+    truncated:true,
+    error:String(result?.error || '').slice(0, 500),
+    receipt:receipt && typeof receipt === 'object' ? {
+      action:String(receipt.action || '').slice(0, 80),
+      entityType:String(receipt.entityType || '').slice(0, 80),
+      entityId:String(receipt.entityId || '').slice(0, 120),
+      verified:receipt.verified === true
+    } : undefined,
+    preview:''
+  };
+  let length = Math.min(serialized.length, Math.max(0, maxChars - 1000));
+  while (length > 0) {
+    summary.preview = serialized.slice(0, length);
+    const candidate = JSON.stringify(summary);
+    if (candidate.length <= maxChars) return candidate;
+    length = Math.floor(length / 2);
+  }
+  return JSON.stringify(summary);
 }
 
 function createAiSseParser(onEvent) {
@@ -866,6 +893,7 @@ class CockpitAIService {
         emit({ type:'done' });
         return { reasoning:'', content:guardedFallback, streamed:false, usage:null };
       }
+      if (signal?.aborted) throw createAiAbortError();
       reasoning += round.reasoning;
       content += round.content;
       usedStreaming = usedStreaming && round.streamed;
@@ -877,6 +905,7 @@ class CockpitAIService {
       }
       messages.push({ role:'assistant', content:round.content || null, tool_calls:round.toolCalls });
       for (const call of round.toolCalls) {
+        if (signal?.aborted) throw createAiAbortError();
         callsUsed += 1;
         if (callsUsed > callLimit) throw new Error('Agent 本轮调用的工具过多，已停止');
         const name = call.function.name;
@@ -891,10 +920,13 @@ class CockpitAIService {
           const fullAutoApprove = mode === 'full' && meta.maxGrant === 'always';
           if (!meta.mutates || fullAutoApprove) emit({ type:'tool', stage:'executing', callId:call.id, name, label:meta.label || name, args });
           result = await registry.execute(name, args, {
+            signal,
             autoApprove:fullAutoApprove,
             confirm:async (detail) => {
+              if (signal?.aborted) throw createAiAbortError();
               emit({ type:'tool', stage:'awaiting_confirmation', callId:call.id, name, label:detail.label || meta.label || name, args });
               const decision = typeof agentOptions.confirmTool === 'function' && await agentOptions.confirmTool({ ...detail, callId:call.id, maxGrant:meta.maxGrant, risk:meta.risk });
+              if (signal?.aborted) throw createAiAbortError();
               const confirmed = decision === true || ['once','session','always'].includes(decision);
               emit({ type:'tool', stage:confirmed ? 'executing' : 'denied', callId:call.id, name, label:detail.label || meta.label || name, args });
               return confirmed;
@@ -907,12 +939,18 @@ class CockpitAIService {
           emit({ type:'tool', stage:resultStage, callId:call.id, name, label:meta.label || name, result, error:resultStage === 'error' ? mutationState.lastError : '' });
           void this._appendAgentAudit({ sessionId:options.sessionId, name, stage:resultStage, result, error:resultStage === 'error' ? mutationState.lastError : '' }).catch(() => {});
         } catch (error) {
+          if (signal?.aborted || error?.name === 'AbortError') {
+            emit({ type:'tool', stage:'cancelled', callId:call.id, name, label:meta.label || name });
+            void this._appendAgentAudit({ sessionId:options.sessionId, name, stage:'cancelled' }).catch(() => {});
+            throw createAiAbortError();
+          }
           result = { ok:false, error:error?.message || 'Tool execution failed.' };
           if (meta.mutates) mutationState.lastError = result.error;
           emit({ type:'tool', stage:'error', callId:call.id, name, label:meta.label || name, error:result.error });
           void this._appendAgentAudit({ sessionId:options.sessionId, name, stage:'error', result, error:result.error }).catch(() => {});
         }
-        messages.push({ role:'tool', tool_call_id:call.id, content:JSON.stringify(result).slice(0, 20000) });
+        messages.push({ role:'tool', tool_call_id:call.id, content:serializeAiToolResult(result) });
+        if (signal?.aborted) throw createAiAbortError();
       }
     }
     throw new Error('Agent 工具调用轮次过多，已停止');
@@ -1025,7 +1063,7 @@ class CockpitAIService {
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
   module.exports = {
     AI_PROVIDER_PRESETS, AI_DEFAULTS, getAiProviderPreset, normalizeAiConfig, normalizeAiProfile,
-    agentToolPermissionPolicy, buildAgentAuditRecord,
+    agentToolPermissionPolicy, buildAgentAuditRecord, serializeAiToolResult,
     getActiveAiProfile, collectRecentMarkdownPaths, normalizeAiBaseUrl, buildAiEndpoint,
     truncateAiContext, buildAiMessages, parseAiResponseText, createAiRequest, createAiSseParser,
     parseAiStreamPayload, mergeAiToolCallDelta, normalizeAiToolCalls, parseAiToolArguments,

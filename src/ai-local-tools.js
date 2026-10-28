@@ -162,19 +162,23 @@ class CockpitLocalToolsRegistry {
     return tool ? { name:tool.name, label:tool.label, description:tool.description, mutates:tool.mutates } : null;
   }
   async execute(name, rawArguments, options = {}) {
+    if (options.signal?.aborted) throw Object.assign(new Error('Agent stopped.'), { name:'AbortError' });
     const tool = this.byName.get(String(name || ''));
     if (!tool) return null; // 让上层 hub 继续找其他注册表
     const args = validateLocalToolInput(tool, validateLocalToolArguments(rawArguments));
     if (tool.mutates && options.autoApprove !== true) {
+      const commandEntry = tool.name === 'sys_run_command' ? this._commands.find((item) => item.id === args.id) : null;
       const confirmed = typeof options.confirm === 'function' && await options.confirm({
-        name:tool.name, label:tool.label, description:tool.description, args, mutates:true
+        name:tool.name, label:tool.label, description:tool.description, args, mutates:true,
+        review:commandEntry ? { command:commandEntry.command, args:[...commandEntry.args, ...(args.args || [])], cwd:this._resolveDeps().workingDir() || '' } : null
       });
       if (!confirmed) return { ok:false, denied:true, error:'User confirmation was not granted.' };
     }
+    if (options.signal?.aborted) throw Object.assign(new Error('Agent stopped.'), { name:'AbortError' });
     if (tool.name === 'sys_notify') return this._notify(args);
     if (tool.name === 'sys_clipboard_write') return this._writeClipboard(args);
     if (tool.name === 'sys_open_target') return this._openTarget(args);
-    if (tool.name === 'sys_run_command') return this._runCommand(args);
+    if (tool.name === 'sys_run_command') return this._runCommand(args, options.signal);
     return null;
   }
   _notify(args) {
@@ -208,20 +212,34 @@ class CockpitLocalToolsRegistry {
     }
     throw new Error('Target must be an http(s) URL or an absolute local path.');
   }
-  _runCommand(args) {
+  _runCommand(args, signal) {
     const deps = this._resolveDeps();
     if (!deps.execFile) throw new Error('Running local commands requires the desktop app.');
     const entry = this._commands.find((item) => item.id === args.id);
     if (!entry) throw new Error('The requested command is not on the user allowlist.');
     const extraArgs = Array.isArray(args.args) ? args.args.map((item) => String(item)) : [];
     const finalArgs = [...entry.args, ...extraArgs];
-    return new Promise((resolve) => {
-      deps.execFile(entry.command, finalArgs, {
+    return new Promise((resolve, reject) => {
+      let child;
+      let finished = false;
+      const onAbort = () => {
+        if (finished) return;
+        try { child?.kill?.('SIGKILL'); } catch (error) { /* 进程可能已经结束 */ }
+        finished = true;
+        signal?.removeEventListener?.('abort', onAbort);
+        reject(Object.assign(new Error('Agent stopped.'), { name:'AbortError' }));
+      };
+      signal?.addEventListener?.('abort', onAbort, { once:true });
+      if (signal?.aborted) { onAbort(); return; }
+      child = deps.execFile(entry.command, finalArgs, {
         timeout:AI_LOCAL_TOOL_LIMITS.commandTimeoutMs,
         windowsHide:true,
         maxBuffer:1024 * 1024,
         cwd:deps.workingDir() || undefined
       }, (error, stdout, stderr) => {
+        if (finished) return;
+        finished = true;
+        signal?.removeEventListener?.('abort', onAbort);
         if (error && error.killed) { resolve({ ok:false, error:'The command timed out.' }); return; }
         resolve({
           ok:!error || Boolean(String(stdout || '').length),
@@ -233,6 +251,7 @@ class CockpitLocalToolsRegistry {
           }
         });
       });
+      if (signal?.aborted) onAbort();
     });
   }
 }

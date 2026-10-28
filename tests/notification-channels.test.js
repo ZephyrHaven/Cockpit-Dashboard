@@ -14,6 +14,7 @@ const context = vm.createContext({
   console,
   PLUGIN_ID: 'cockpit-dashboard',
   VIEW_TYPE: 'cockpit-view',
+  AI_VIEW_TYPE: 'cockpit-dashboard-ai',
   navigator: { language: 'en-US' },
   obs: {
     PluginSettingTab: class {},

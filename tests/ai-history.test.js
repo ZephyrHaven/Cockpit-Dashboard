@@ -34,6 +34,28 @@ assert.deepEqual(normalized.sessions[0].contextPaths, ['Projects/A.md'], 'Protec
 assert.ok(!JSON.stringify(normalized).includes('secret.txt'));
 assert.ok(!JSON.stringify(normalized).includes('hidden chain'));
 
+const activitySession = normalizeAiHistory({ sessions:[{ messages:[{
+  role:'assistant', content:'处理完成', activity:[
+    { name:'ws_edit_file', stage:'completed', args:{ content:'private source' }, result:{ stdout:'private output' } },
+    { name:'sys_run_command', stage:'cancelled' },
+    { name:'bad tool name', stage:'completed' },
+    { name:'ws_write_file', stage:'executing' }
+  ], plan:[
+    { text:'检查源码', status:'completed', secret:'private source' },
+    { text:'运行验证', status:'in_progress' }
+  ], changedFiles:[
+    { path:'src/a.js', operation:'edited', verified:true, content:'private source' },
+    { path:'../secret.txt', operation:'edited', verified:true },
+    { path:'src/unverified.js', operation:'created', verified:false }
+  ]
+}] }] });
+assert.deepEqual(activitySession.sessions[0].messages[0].activity, [
+  { name:'ws_edit_file', stage:'completed' }, { name:'sys_run_command', stage:'cancelled' }
+], 'History keeps bounded tool status while dropping arguments, outputs, and unfinished entries.');
+assert.ok(!JSON.stringify(activitySession).includes('private source'));
+assert.deepEqual(activitySession.sessions[0].messages[0].changedFiles, [{ path:'src/a.js', operation:'edited', verified:true }], 'History stores only verified relative file paths and change kinds.');
+assert.deepEqual(activitySession.sessions[0].messages[0].plan, [{ text:'检查源码', status:'completed' }, { text:'运行验证', status:'in_progress' }], 'History stores only bounded plan text and state.');
+
 assert.equal(normalized.sessions[0].contextMode, 'auto', 'Sessions default to automatic local RAG.');
 const noneModeSession = normalizeAiHistory({
   sessions:[{ id:'session-2', contextMode:'none', messages:[{ role:'user', content:'纯聊天' }] }]

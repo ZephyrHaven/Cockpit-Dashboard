@@ -2553,6 +2553,7 @@ class CockpitPlugin extends obs.Plugin {
     // 防御性初始化：即使工具层出错也绝不能阻断整个插件加载。
     try {
       this.agentTools = createCockpitAgentToolHub(this, [
+        createCockpitAgentPlanRegistry(),
         createCockpitLocalToolsRegistry(this),
         createCockpitWorkspaceToolsRegistry(this),
         createCockpitVaultToolsRegistry(this),

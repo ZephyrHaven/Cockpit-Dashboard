@@ -203,6 +203,9 @@ assert.match(aiView, /confirmTool/, 'Mutating Agent tools request user confirmat
 assert.match(aiView, /ai-activity-track/, 'Agent tool progress is visible on a segmented activity track instead of being hidden behind a spinner.');
 assert.match(aiView, /ai-shell/, 'The sidebar uses a bounded responsive shell instead of stretching controls across the pane.');
 assert.match(styles, /cockpit-dashboard-ai-composer-tools/, 'Context and model controls live in the bottom composer.');
+assert.match(aiView, /data\.glassCardsEnabled/, 'The AI sidebar follows the shared glass appearance setting.');
+assert.match(styles, /cockpit-dashboard-ai-view\[data-glass="on"\]/, 'Glass mode replaces the opaque sidebar background with translucent surfaces.');
+assert.match(styles, /cockpit-dashboard-ai-composer-meta/, 'Workspace and usage status sit outside the composer card.');
 assert.match(styles, /cockpit-dashboard-ai-launcher/, 'The global launcher has scoped visual styles.');
 assert.match(styles, /prefers-reduced-motion/, 'The launcher respects reduced-motion preferences.');
 assert.match(aiLauncher, /plugin\.toggleAI\(\)/, 'The persistent global launcher toggles the AI sidebar in both directions.');

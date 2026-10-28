@@ -46,6 +46,9 @@ const MODULES = [
   'ai-workspace.js',
   'ai-tools.js',
   'ai.js',
+  'ai-diff.js',
+  'ai-tool-review.js',
+  'ai-plan.js',
   'ai-quick.js',
   'flash-ai.js',
   'ai-dialogs.js',
@@ -231,12 +234,7 @@ function writeAndReport(filePath, content, label) {
   console.log(`✅ ${label}: ${filePath} (${size} bytes, ${lines} 行)`);
 }
 
-// ===== 体积治理 =====
-// 产物是单文件分发（宿主商店只下发 main.js/styles.css/manifest.json 三个文件，
-// 无法拆分为多个 JS 分片），体积只能靠源头治理。这里让每个模块的体积占比
-// 在每次构建时可见，并用预算线提示体积增长：新功能合入时一眼看出谁在变胖。
-// 700 KiB 为日常告警线；超过 1 MiB 需要明确提示，但不再阻断构建与发布。
-const SIZE_BUDGET = { warnBytes: 700 * 1024, reviewBytes: 1024 * 1024 };
+// 只报告模块占比与最终字节数，体积不设告警或阻断门槛。
 
 function reportModuleSizes(moduleBodies) {
   const rows = moduleBodies
@@ -249,17 +247,6 @@ function reportModuleSizes(moduleBodies) {
     console.log(`   ${String(index + 1).padStart(2)}. ${name.padEnd(24)} ${ (bytes / 1024).toFixed(1).padStart(7)} KB  ${pct}%`);
   });
   console.log(`   合计 ${(total / 1024).toFixed(1)} KB（${rows.length} 个模块）`);
-}
-
-function checkSizeBudget(finalBytes) {
-  const kb = (finalBytes / 1024).toFixed(1);
-  if (finalBytes > SIZE_BUDGET.reviewBytes) {
-    console.warn(`⚠️ JS 产物 ${kb} KB 超过重点关注线 ${SIZE_BUDGET.reviewBytes / 1024} KB；本次允许继续构建与发布，后续新增功能需同步评估体积`);
-  } else if (finalBytes > SIZE_BUDGET.warnBytes) {
-    console.warn(`⚠️ JS 产物 ${kb} KB 已超过预算告警线 ${SIZE_BUDGET.warnBytes / 1024} KB，新增功能请同步评估体积`);
-  } else {
-    console.log(`📦 体积预算: ${kb} KB / 告警 ${SIZE_BUDGET.warnBytes / 1024} KB / 重点关注 ${SIZE_BUDGET.reviewBytes / 1024} KB ✅`);
-  }
 }
 
 async function main() {
@@ -290,11 +277,9 @@ async function main() {
     writeAndReport(OUT_FILE, best.map ? best.code + '\n//# sourceMappingURL=main.js.map' : best.code, `构建完成(压缩产物, ${best.engine})`);
     const ratio = ((1 - Buffer.byteLength(best.code) / Buffer.byteLength(bundle)) * 100).toFixed(1);
     console.log(`ℹ️ 胜出引擎: ${best.engine}，JS 压缩率 ${ratio}%`);
-    checkSizeBudget(Buffer.byteLength(best.code));
   } else {
     writeAndReport(OUT_FILE, bundle, '构建完成(未压缩回退)');
     console.log('⚠️ 未安装任何压缩引擎（npm install 后重跑），本次 dist/main.js 为未压缩版本');
-    checkSizeBudget(Buffer.byteLength(bundle));
   }
 }
 

@@ -28,6 +28,8 @@ assert.match(styles, /@container \(max-width: 760px\)[\s\S]*\.cockpit-dashboard-
 assert.doesNotMatch(styles, /\.cockpit-dashboard-settings-tabs\s*\{[^}]*overflow-x:\s*auto/s, 'Settings categories must not require horizontal scrolling.');
 assert.match(styles, /\.cockpit-dashboard-settings-panel \.setting-item\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) fit-content\(42%\)/s, 'Every settings row reserves separate space for text and controls.');
 assert.match(styles, /\.cockpit-dashboard-settings-panel \.setting-item-info\s*\{[^}]*min-width:\s*0;[^}]*overflow-wrap:\s*anywhere/s, 'Long setting descriptions must wrap inside their column.');
+assert.match(styles, /\.cockpit-dashboard-settings-panel \.setting-item\s*\{[^}]*padding:\s*15px 16px/s, 'Settings rows keep inner padding instead of hugging their card edge.');
+assert.match(styles, /\.cockpit-dashboard-settings-channel-card \.setting-item,\s*\.cockpit-dashboard-ai-profile-card \.setting-item\s*\{[^}]*background:\s*transparent/s, 'Rows nested inside dashboard-owned cards stay flat instead of stacking cards.');
 assert.match(styles, /\.view-content:has\(> \.cockpit-dashboard-root\[data-glass="on"\]\)[\s\S]*background:[^}]*transparent/s, 'Glass mode leaves the dashboard canvas translucent.');
 assert.match(serverchan, /\['ArrowRight', 'ArrowDown'\][\s\S]*\['ArrowLeft', 'ArrowUp'\]/, 'All arrow directions can reach settings categories.');
 assert.match(motion, /function cockpitPlayFlip\(/, 'Motion V2 must centralize FLIP layout transitions.');
@@ -46,6 +48,10 @@ assert.match(styles, /\.cockpit-dashboard-content-resize-handle\s*\{[^}]*positio
 assert.match(styles, /@keyframes ck-dialog-in\s*\{\s*from\s*\{[^}]*translateY\(6px\) scale\(\.985\)/s, 'Dialogs and overlays share one restrained entrance frame.');
 assert.doesNotMatch(styles, /@keyframes ck-dialog-in\s*\{[^}]*blur\(/s, 'Dialog entrances do not blur transparent window surfaces.');
 assert.match(styles, /\.modal-container\.cockpit-dashboard-modal-motion \.modal\s*\{[^}]*ck-dialog-in 240ms[^}]*--ck-ease-out/s, 'Secondary modals use the shared 240ms entrance and easing.');
+assert.match(modalMotion, /function cockpitApplyOverlayTheme\([\s\S]*overlay-theme[\s\S]*dataset\.glass/, 'Body-level overlays opt into the dashboard theme scope and glass state.');
+assert.match(styles, /\.cockpit-dashboard-todo-editor-backdrop\s*\{[^}]*var\(--ck-overlay-scrim/s, 'Global dialog backdrops use the themed scrim instead of a hard-coded navy wash.');
+assert.match(styles, /\.cockpit-dashboard-todo-editor-sheet\s*\{[^}]*var\(--ck-overlay-surface/s, 'Global dialog panels use the shared frosted surface token.');
+assert.match(styles, /\.cockpit-dashboard-todo-editor-sheet\s*\{[^}]*var\(--ck-border/s, 'Global dialog panels resolve borders from the dashboard theme tokens.');
 assert.match(modalMotion, /function cockpitAnimateSurfaceExit\([\s\S]*getComputedStyle\(panel\)[\s\S]*duration:COCKPIT_MODAL_LEAVE_MS[\s\S]*translateY\(6px\) scale\(\.985\)/, 'Overlay exits continue from the current rendered frame through the shared 180ms surface target.');
 assert.doesNotMatch(modalMotion, /filter:'blur\(/, 'Dialog exits do not add blur layers.');
 assert.doesNotMatch(styles, /cockpit-dashboard-modal-motion \.modal > \*\s*\{[^}]*animation|cockpit-dashboard-motion-overlay > :first-child > \*\s*\{[^}]*animation/s, 'Secondary surface children must not replay a second entrance animation.');

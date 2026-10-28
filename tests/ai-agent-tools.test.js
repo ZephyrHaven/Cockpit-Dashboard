@@ -10,6 +10,7 @@ const {
   AI_DEFAULTS,
   agentToolPermissionPolicy,
   buildAgentAuditRecord,
+  serializeAiToolResult,
   createAiRequest,
   createAiSseParser,
   normalizeAiConfig,
@@ -28,6 +29,11 @@ assert.deepEqual(
 );
 const auditRecord = buildAgentAuditRecord({ sessionId:'chat-1', name:'cockpit_create_todo', stage:'completed', result:{ ok:true, data:{ secret:'must-not-log' }, receipt:{ entityType:'todo', entityId:'todo-1', verified:true } }, args:{ text:'private task' } });
 assert.deepEqual(Object.keys(auditRecord).sort(), ['at','entityId','entityType','name','sessionId','stage','verified'], 'Agent audit records contain receipts, never tool arguments or content.');
+assert.deepEqual(JSON.parse(serializeAiToolResult({ ok:true, data:{ count:1 } })), { ok:true, data:{ count:1 } }, 'Short tool outputs are unchanged.');
+const longToolResult = serializeAiToolResult({ ok:true, data:{ text:'x'.repeat(30000) }, receipt:{ action:'create', entityId:'todo-1', verified:true } });
+assert.ok(longToolResult.length <= 20000, 'Long tool outputs stay within the model context limit.');
+assert.equal(JSON.parse(longToolResult).truncated, true, 'Long tool outputs remain valid JSON.');
+assert.equal(JSON.parse(longToolResult).receipt.verified, true, 'Truncation preserves the mutation receipt.');
 
 const now = (value) => {
   const day = /^\d{4}-\d{2}-\d{2}/.test(String(value || '')) ? String(value).slice(0, 10) : '2026-08-20';
@@ -321,6 +327,67 @@ definitions.forEach((tool) => {
       { mode:'full', confirmTool:async (detail) => { highRiskConfirmed += 1; assert.equal(detail.maxGrant, 'once'); return 'once'; } }
     );
     assert.equal(highRiskConfirmed, 1, 'High-risk tools still require per-action confirmation in safe-action auto mode.');
+  }
+
+  // 停止后不得继续执行模型同轮返回的其余工具，也不得把关闭确认框当作授权。
+  {
+    const controller = new AbortController();
+    const executed = [];
+    const stopPlugin = {
+      ...plugin,
+      agentTools:{
+        definitions:() => definitions,
+        describe:(name) => ({ name, label:name, mutates:false }),
+        execute:async (name) => { executed.push(name); controller.abort(); return { ok:true }; }
+      }
+    };
+    const stopService = new CockpitAIService(stopPlugin);
+    const stopEvents = [];
+    stopService._requestAgentRound = async () => ({
+      reasoning:'', content:'', streamed:true,
+      toolCalls:[
+        { id:'first', type:'function', function:{ name:'cockpit_list_todos', arguments:'{}' } },
+        { id:'second', type:'function', function:{ name:'cockpit_search_notes', arguments:'{"query":"x"}' } }
+      ]
+    });
+    await assert.rejects(
+      () => stopService.completeAgentStream({ action:'custom', question:'查任务' }, (event) => stopEvents.push(event), controller.signal),
+      { name:'AbortError' },
+      'Stopping during a tool batch cancels the remaining calls.'
+    );
+    assert.deepEqual(executed, ['cockpit_list_todos']);
+    assert.equal(stopEvents.some((event) => event.type === 'tool' && event.callId === 'second'), false, 'Unstarted tools are not shown as executing.');
+
+    const approvalController = new AbortController();
+    let wrote = false;
+    const approvalPlugin = {
+      ...plugin,
+      agentTools:{
+        definitions:() => definitions,
+        describe:() => ({ name:'cockpit_create_todo', label:'Create todo', mutates:true }),
+        execute:async (_name, _args, options) => {
+          await options.confirm({ name:'cockpit_create_todo', label:'Create todo' });
+          wrote = true;
+          return { ok:true };
+        }
+      }
+    };
+    const approvalService = new CockpitAIService(approvalPlugin);
+    const approvalEvents = [];
+    approvalService._requestAgentRound = async () => ({
+      reasoning:'', content:'', streamed:true,
+      toolCalls:[{ id:'approval', type:'function', function:{ name:'cockpit_create_todo', arguments:'{"text":"stopped"}' } }]
+    });
+    await assert.rejects(
+      () => approvalService.completeAgentStream(
+        { action:'custom', question:'创建待办' }, (event) => approvalEvents.push(event), approvalController.signal,
+        { confirmTool:async () => { approvalController.abort(); return 'once'; } }
+      ),
+      { name:'AbortError' },
+      'An approval resolved after Stop must not execute the write.'
+    );
+    assert.equal(wrote, false);
+    assert.ok(approvalEvents.some((event) => event.type === 'tool' && event.stage === 'cancelled'), 'The tool row shows a stopped state.');
   }
 
   console.log('AI Agent tool checks passed');

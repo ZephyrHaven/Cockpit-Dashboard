@@ -115,6 +115,17 @@ function makeRegistry(dependencies = {}, commands = []) {
     }, [{ id:'slow', command:'sleep' }]);
     const timedOut = await timeoutRegistry.execute('sys_run_command', { id:'slow' }, { autoApprove:true });
     assert.equal(timedOut.ok, false, 'Timed-out commands report a clean failure.');
+
+    const abortController = new AbortController();
+    let killed = false;
+    const runningRegistry = makeRegistry({
+      execFile:() => ({ kill:() => { killed = true; } })
+    }, [{ id:'slow', command:'sleep' }]);
+    const running = runningRegistry.execute('sys_run_command', { id:'slow' }, { autoApprove:true, signal:abortController.signal });
+    await Promise.resolve();
+    abortController.abort();
+    await assert.rejects(() => running, { name:'AbortError' }, 'Stop rejects a running local command.');
+    assert.equal(killed, true, 'Stop kills the local command process.');
   }
 
   // ── 组合 Hub：核心工具与本地工具统一暴露、按名路由 ───────────────────────────

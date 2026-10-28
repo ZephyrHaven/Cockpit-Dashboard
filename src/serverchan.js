@@ -264,6 +264,13 @@ function cockpitRefreshGlassRoots(plugin, enabled) {
     leaf.view._glassCardsEnabled = enabled;
     root.dataset.glass = enabled ? 'on' : 'off';
   });
+  // AI 侧栏与仪表盘共用同一个玻璃开关，切换后已打开的侧栏立即同步。
+  plugin.app.workspace.getLeavesOfType(AI_VIEW_TYPE).forEach((leaf) => {
+    const view = leaf.view;
+    if (!view) return;
+    view._glassCardsEnabled = enabled;
+    view._applyGlassState?.();
+  });
 }
 
 class ServerChanService {

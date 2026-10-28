@@ -14,8 +14,30 @@ class CockpitAgentConfirmationModal extends CockpitModal {
     const icon = summary.createSpan({ cls:PLUGIN_ID + '-ai-tool-confirm-icon' }); obs.setIcon(icon, 'shield-check');
     const copy = summary.createDiv();
     copy.createEl('strong', { text:this.tool?.label || this.tool?.name || (en ? 'Agent action' : 'Agent 操作') });
-    copy.createEl('p', { text:en ? 'This action changes data. Review the arguments and choose how long this capability may be used.' : '此操作会修改数据。请检查参数，并选择这项能力的授权时长。' });
-    body.createEl('pre', { cls:PLUGIN_ID + '-ai-tool-confirm-args', text:JSON.stringify(this.tool?.args || {}, null, 2).slice(0, 2000) });
+    const review = buildAgentToolReview(this.tool, this.language);
+    copy.createEl('p', { text:review.description });
+    if (review.target) {
+      const target = body.createDiv({ cls:PLUGIN_ID + '-ai-tool-confirm-target' });
+      target.createSpan({ text:en ? 'Target' : '目标' });
+      target.createEl('code', { text:review.target });
+    }
+    review.sections.forEach((section) => {
+      const block = body.createDiv({ cls:PLUGIN_ID + '-ai-tool-review-section' + (section.tone ? ' is-' + section.tone : '') });
+      block.createEl('strong', { text:section.title });
+      const preview = block.createEl('pre');
+      if (section.tone === 'diff') section.text.split('\n').forEach((line, index, lines) => {
+        const tone = line.startsWith('+++') || line.startsWith('---') ? 'header'
+          : line.startsWith('+') ? 'add' : line.startsWith('-') ? 'remove' : 'context';
+        preview.createSpan({ cls:PLUGIN_ID + '-ai-tool-review-line is-' + tone, text:line + (index < lines.length - 1 ? '\n' : '') });
+      });
+      else preview.setText(section.text);
+      if (section.truncated) {
+        const expand = block.createEl('button', { cls:PLUGIN_ID + '-ai-tool-review-expand', attr:{ type:'button' }, text:en
+          ? `Showing ${section.text.length} of ${section.length} characters · Show all`
+          : `显示 ${section.text.length} / ${section.length} 个字符 · 查看完整内容` });
+        expand.onclick = () => { preview.setText(section.fullText); expand.remove(); };
+      }
+    });
     body.createEl('p', { cls:PLUGIN_ID + '-ai-tool-confirm-boundary', text:en
       ? 'Persistent approval is limited to fixed-purpose, low-risk actions. Commands and arbitrary file writes always require a fresh confirmation.'
       : '永久授权仅适用于固定用途的低风险操作；命令与任意文件写入始终需要重新确认。' });

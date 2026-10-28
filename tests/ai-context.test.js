@@ -108,12 +108,14 @@ assert.equal(ranked[0].path, 'Projects/Budget.md', 'Local lexical RAG ranks the 
     let ensured = 0;
     let warmed = 0;
     let indexReady = false;
+    let candidateHit = true;
     globalThis.CockpitAiSearchIndex = function () {
       return {
         get ready() { return indexReady; },
         ensure:async () => { ensured += 1; indexReady = true; return true; },
         warmUp() { warmed += 1; },
-        query:() => [{ path:'Projects/Budget.md', score:9 }]
+        query:() => (candidateHit ? [{ path:'Projects/Budget.md', score:9 }] : []),
+        recentPaths:() => ['Health/Run.md']
       };
     };
     try {
@@ -136,6 +138,11 @@ assert.equal(ranked[0].path, 'Projects/Budget.md', 'Local lexical RAG ranks the 
       assert.equal(indexed.mode, 'rag-global', 'A ready index reports the auto-RAG mode again.');
       assert.equal(indexed.contexts[0].path, 'Projects/Budget.md', 'Only the candidate note enters the context.');
       assert.equal(indexed.searchedFiles, 1, 'The retrieval report reflects the reduced candidate set.');
+      // 候选为空时只用索引记录的最近笔记，绝不回退到全库扫描。
+      candidateHit = false;
+      const fallback = await indexedRag.prepare({ query:'五公里训练', selectedPaths:[], attachments:[], maxChars:500 });
+      assert.equal(fallback.contexts[0].path, 'Health/Run.md', 'Zero-hit queries fall back to recently indexed notes.');
+      assert.equal(fallback.searchedFiles, 1, 'The fallback reads only the recent candidate, not the whole vault.');
     } finally {
       if (previousCtor === undefined) delete globalThis.CockpitAiSearchIndex;
       else globalThis.CockpitAiSearchIndex = previousCtor;

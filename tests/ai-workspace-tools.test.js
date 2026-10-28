@@ -107,7 +107,21 @@ registry.definitions('full').forEach((tool) => {
   assert.ok(!fs.existsSync(path.join(tmp, 'notes')), 'A denied write creates nothing.');
   const created = await registry.execute('ws_write_file', { path:'notes/deep/new.md', content:'# new' }, confirmYes);
   assert.equal(created.data.created, true);
+  assert.equal(created.data.verified, true);
   assert.equal(fs.readFileSync(path.join(tmp, 'notes/deep/new.md'), 'utf8'), '# new', 'Parent folders are created automatically.');
+  let reviewedOverwrite = null;
+  const overwrite = await registry.execute('ws_write_file', { path:'notes/deep/new.md', content:'# updated' }, {
+    confirm:async (detail) => { reviewedOverwrite = detail.review; return true; }
+  });
+  assert.equal(overwrite.data.created, false);
+  assert.deepEqual({ before:reviewedOverwrite.before, after:reviewedOverwrite.after }, { before:'# new', after:'# updated' }, 'Approval receives real on-disk before and planned after content.');
+  await assert.rejects(() => registry.execute('ws_write_file', { path:'notes/deep/new.md', content:'# agent' }, {
+    confirm:async () => { fs.writeFileSync(path.join(tmp, 'notes/deep/new.md'), '# external'); return true; }
+  }), /changed after approval/i, 'External changes during approval are never overwritten.');
+  assert.equal(fs.readFileSync(path.join(tmp, 'notes/deep/new.md'), 'utf8'), '# external');
+  await assert.rejects(() => registry.execute('ws_write_file', { path:'notes/raced.md', content:'# agent' }, {
+    confirm:async () => { fs.writeFileSync(path.join(tmp, 'notes/raced.md'), '# external'); return true; }
+  }), /changed after approval/i, 'A file created during approval is never overwritten.');
   await assert.rejects(() => registry.execute('ws_write_file', { path:'.git/hooks/x', content:'x' }, confirmYes), /\.git/i);
   await assert.rejects(() => registry.execute('ws_write_file', { path:'', content:'' }, confirmYes));
 
@@ -116,6 +130,7 @@ registry.definitions('full').forEach((tool) => {
   await registry.execute('ws_read_file', { path:'README.md' });
   const edited = await registry.execute('ws_edit_file', { path:'README.md', old_string:'hello workspace', new_string:'hello edited workspace' }, confirmYes);
   assert.equal(edited.data.replacements, 1);
+  assert.equal(edited.data.verified, true);
   assert.match(fs.readFileSync(path.join(tmp, 'README.md'), 'utf8'), /hello edited workspace/);
   fs.writeFileSync(path.join(tmp, 'dup.txt'), 'same same\n');
   await registry.execute('ws_read_file', { path:'dup.txt' });
@@ -148,6 +163,20 @@ registry.definitions('full').forEach((tool) => {
   await assert.rejects(() => registry.execute('ws_run_command', { command:'sudo -l' }), /privilege/i, 'Privilege elevation is always refused.');
   const deniedRun = await registry.execute('ws_run_command', { command:'node -v' }, { confirm:async () => false });
   assert.equal(deniedRun.denied, true, 'Command execution requires confirmation outside full mode.');
+  const commandAbort = new AbortController();
+  const stoppedRun = registry.execute('ws_run_command', { command:'node -e "setTimeout(() => {}, 10000)"' }, { ...confirmYes, signal:commandAbort.signal });
+  setTimeout(() => commandAbort.abort(), 100);
+  await assert.rejects(() => stoppedRun, { name:'AbortError' }, 'Stop terminates a running workspace command.');
+  const writeAbort = new AbortController();
+  await assert.rejects(
+    () => registry.execute('ws_write_file', { path:'notes/stopped.md', content:'do not write' }, {
+      signal:writeAbort.signal,
+      confirm:async () => { writeAbort.abort(); return true; }
+    }),
+    { name:'AbortError' },
+    'Stopping during approval prevents a workspace write.'
+  );
+  assert.equal(fs.existsSync(path.join(tmp, 'notes/stopped.md')), false);
 
   // Hub 聚合：工作区简报进入 environment，工具名进入 definitions
   const hub = new CockpitAgentToolHub([

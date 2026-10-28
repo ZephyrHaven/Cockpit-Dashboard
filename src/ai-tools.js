@@ -375,6 +375,12 @@ class CockpitAgentToolHub {
     }
     return { ok:false, reason:'unsupported' };
   }
+  async createIsolatedWorktree() {
+    for (const provider of this.providers) {
+      if (typeof provider.createIsolatedWorktree === 'function') return provider.createIsolatedWorktree();
+    }
+    return { ok:false, reason:'unsupported' };
+  }
   describe(name) {
     for (const provider of this.providers) {
       const meta = provider.describe?.(name);
