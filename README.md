@@ -1,134 +1,50 @@
 # Cockpit Dashboard
 
-[![Release](https://img.shields.io/github/v/release/ZephyrHaven/Cockpit-Dashboard?style=for-the-badge)](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases)
-[![Support on Afdian](https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-Support%20Zephyr%20Haven-8b5cf6?style=for-the-badge)](https://afdian.com/a/zephyrhaven)
-
 **English** | [中文](README.zh-CN.md)
 
-Cockpit Dashboard is a local-first Obsidian home-page plugin that brings todos, calendar, RSS, search, an AI assistant, statistics, focus tracking, and local automation together in one freely arrangeable cockpit. This document covers the project positioning and how it works under the hood.
+Cockpit Dashboard is a local-first home dashboard for Obsidian. Todos, calendar, RSS, AI assistant, focus stats and local automation live in one workbench you can rearrange freely — no account, no cloud, no telemetry.
 
+## Highlights
 
-
-## Core Features
-
-- **Repeating personal tasks**: choose an interval in days, weeks, months, or years in the task editor, using a fixed schedule or an interval after completion. Each completed occurrence stays in history and creates only one successor; fixed schedules skip missed cycles and preserve month-end dates. Edit the next open occurrence to change the rule or select Never to stop the series
-- **Dashboard workbench**: today todo queue, a refined calendar board (month/week views, drag-to-schedule, lunar calendar with statutory holidays & make-up workdays, toggleable), and a per-day operations view that brings todos, scheduled/event automations, their concrete actions and status, plus a compact RSS digest into one timeline; the independent today agenda remains available alongside stat cards, edit heatmap, project progress bars, category cards, recent updates, starred files, quick-capture capsules, and resurfacing old notes; event-driven refresh keeps panel data in sync seconds after a file is saved
-- **Apple Calendar sync (Mac only)**: select “Sync to iPhone calendar” per todo while creating or editing it; the first selection requests system access and automatically reuses or creates a dedicated Cockpit calendar in the default calendar account, with no settings prerequisite. Selected open todos with due dates are mirrored into it, date-only todos become all-day events, timed todos become 30-minute events, and iCloud handles delivery to iPhone
-- **Quick capture & calendar shortcuts**: the “Quick capture” command (bind any hotkey) turns one sentence into a task — dates (today, fri, next mon, 10/20), times (3pm, 14:30), `!high` priority and `#tags` are recognized as you type. In the calendar, double-click a day to add a task there and drag tasks between days (timed tasks keep their time). With read-only system events enabled, clicking an event creates or opens its meeting note in a folder you choose and links it from that day’s existing daily note.
-- **AI assistant**: multi-model chat sidebar with local multi-session history, multi-select note context, temporary text attachments, image chat, local keyword RAG, streaming output, and allowlisted Agent tools. The Agent can read bounded task, project, habit, alarm, countdown, and note summaries; fixed-purpose todo changes support one-time, conversation, or revocable persistent approval, while note changes, workspace writes, and commands remain more restricted. Every todo mutation is read back before success is reported, and read-only mode never exposes write tools. Includes one-click AI breakdown of a todo into subtasks and Agent clustering of the flash-capture inbox. Optional **coding workspace**: point it at a local folder and the Agent can read/write code inside it, search files, and run commands to verify its changes
-- **Automation**: pomodoro timer (linkable to todos), global alarms (fullscreen reminders + catch-up on missed alerts), compact countdown cards designed for larger lists, configurable percentage/fixed-time thresholds, local notifications, ServerChan³/Bark/MEOW/Resend delivery, and per-trigger SMTP rules using QQ personal mail or NetEase enterprise mail; countdowns can directly trigger a selected workflow or other scheduled-task action at a threshold or completion. Scheduled tasks support time schedules plus event triggers — a note saved in a folder, a completed todo, a finished pomodoro, or a countdown event can append to the daily note, create a todo, push a notification, or run toolbar actions / app commands / desktop shell / workflows. Workflows provide multi-step ops pipelines with condition skipping, failure retries, output passing (`{{last_output}}`), failure pushes, and run logs written to a note you choose, plus one-click inspection templates for disk space, website reachability, and backup freshness
-- **Morning brief**: schedule a digest of due and overdue tasks, visible team tasks, habits, and focus time; paired computers can designate one sender to prevent duplicates or explicitly keep delivery from every computer
-- **Weekly report studio**: keep multiple report configurations in reliable full-row accordions, generate drafts manually, compare the untouched script output with a streaming AI-polished version, continue the same optimization in Agent, and explicitly choose which version to save. A saved report can trigger the existing scheduled-task event pipeline
-- **Focus analytics**: focus trend charts (line/bar), this week vs last week, golden focus hours, top-3 task investment insights, one-click weekly-report share card PNG
-- **Layout system**: a searchable component store with previews for adding, hiding, and reordering modules without covering the live dashboard in edit controls; dedicated Toolbar, statistics-card, and tip-library managers; preservation of existing user order/visibility/collapse state; and multi-scene layouts that switch automatically by weekday/time range/folder
-- **Appearance & settings**: responsive settings categories and wrapping controls avoid sideways scrolling. The optional unified glass switch makes dashboard surfaces translucent, and the companion Cockpit Glass theme extends the same look across the window in light and dark mode while following the host accent color
-- **Also included**: unified Spotlight search (todos / note content / file names in one query), two-pane RSS reader, bilingual UI, first-run onboarding
-
-## Architecture
-
-### Build System
-
-The plugin bundles its QR generation/decoding dependencies locally with esbuild; for its own source, `build.js` concatenates the modules under `src/` in a fixed order, then races esbuild against terser and keeps the smaller minified output in `dist/` — `dist/main.js` plus a standalone `dist/styles.css` (loaded by the host, never embedded in the JS); a sourcemap is written locally for debugging only:
-
-```text
-constants → data-store → lan-sync (core / transport / store / service / UI) → ai-index → ai-context → ai … → ai-launcher
-→ daily-tips → utils → todos → apple-calendar → todo-focus → focus-insights → share-card
-→ habits → weekly-review → projects → resurface → morning-brief
-→ serverchan → bookmarks → rss → lunar → calendar → search → toolbar
-→ scenes → scheduled-tasks → alarm → pomodoro → …
-→ toolbar-defs → layout-edit → silent-refresh → commands → _framework (views & plugin main class)
-```
-
-Modules share scope through top-level function declarations, so each module can be `require`d directly by Node for unit testing. Tests are framework-free assertion scripts (pure-function assertions plus source-pattern assertions) run file by file.
-
-### Nearby devices (preview)
-
-Open **Settings → Cockpit → Nearby devices**. On the first computer choose **Show pairing QR**; on the other choose **Scan / import QR**. You can use its camera, import a saved QR image, or paste the pairing information. Confirm on the first computer to begin two-way synchronization. No address entry, account, cloud service, or command execution is required.
-
-This preview supports desktop IPv4 private networks. Both applications must be running and the private-network firewall must permit incoming connections. Each paired computer polls every 30 seconds; **Sync now** performs a manual round. **Pause sync** closes the listener and persists the disabled state. **Unpair** revokes the local pairing key. Changing IP addresses may require pairing again; automatic discovery and mobile devices are not yet supported.
-
-Each encrypted sync handshake also exchanges the plugin version, sync protocol version, and a capability list. Different plugin versions continue syncing only the capabilities both sides support; the settings page lists unsupported items per device. A protocol mismatch blocks synchronization until the older side is updated. Existing peers that do not yet report version metadata use the legacy compatibility profile.
-
-Tasks are matched by stable IDs. Bookmarks sync membership, preserving each device's order; their target notes must already exist on the receiving device. Display name, language, and the non-secret morning-brief sender choice are included; profile preference changes take effect on reopening the dashboard. Concurrent edits keep both versions under **Review conflicts**; choose one to propagate the resolution. Deletions retain tombstones so an older device cannot restore them silently. Sync writes do not emit task-completion automation events.
-
-Backups are named `lan-sync-<machine>.json.backup-0.json` through `backup-4.json` in the plugin folder. Each contains the previous task file text, bookmarks, preferences and sync versions. If recovery is needed, pause sync on **all** devices first, keep a copy of the current files, and restore the required content from a backup. Do not delete version metadata as a routine cleanup step. Avoid running another synchronization tool against these same data files. This first version caps the sync document at 1,500 records (including deletion markers), 16 version-vector devices and eight paired peers; exceeding a limit stops the operation instead of dropping records.
-
-### Team space (preview)
-
-Use the **Team tasks** dashboard module, **Nearby devices → Manage team**, or the **Open team space** command. Create a team on the computer that will act as host; other computers scan/import its invitation or paste its pairing information. The host approves each device as an editor or viewer, selects its visibility (all team tasks or assigned tasks only), decides whether team tasks may be synchronized, and grants create, edit-content, complete/restore, reassign, and delete permissions independently. Editing, completing and deleting remain limited to tasks assigned to that member; reassignment can be granted explicitly and only targets current team members. Viewers cannot write. The host checks current permissions on every operation, including queued offline edits.
-
-Personal tasks remain separate. **Share personal task** copies one selected task into a new team task after review; future changes are independent. Team cards show the original device, latest editing device, assignee, priority, due date and synchronization state. Forwarding through the host does not change the original source. The module supports layout ordering, visibility, persistent collapse, edit mode and scenes through the standard module registry. Team tasks do not enter personal statistics, calendar export, AI context or completion automations.
-
-The host must be running for changes to reach other members. Members retain a local snapshot and a durable pending queue while offline; enabled clients poll every 30 seconds and submit immediately after saving. Concurrent modifications are retained as member drafts and host conflicts; the host explicitly chooses a version. Offline changes rejected by newly restricted permissions remain local drafts. Full authorized snapshots replace only the team cache: reducing visibility removes cached rows on the next connection without deleting the host's tasks. Unpairing prevents future access but cannot recall previously downloaded copies. No automatic host failover is provided. Re-pair with a fresh host invitation after an address change. One team per device, up to eight member devices, 400 task records including deletion markers, and 100 pending operations/drafts/conflicts per collection are supported; limits stop writes rather than silently discard data.
-
-Team storage is separate from personal sync and personal preferences. The machine-specific `team-sync-<machine>.json` file holds the team identity, device label, pairing secrets, policies, tasks, source metadata, acknowledged operation sequence and offline queues. `_data/team-todos.md` is maintained as a readable in-vault mirror for search, inspection and backup; authorization metadata remains private and is still authoritative, so editing the mirror cannot bypass permissions. A `.next` recovery journal and five rotating `.backup-N.json` copies protect writes. Existing personal-sync data requires no migration and is never imported automatically. To restore, pause team sync on all computers and preserve both the main file and journal before choosing a coherent backup; restoring an older host can trigger a revision mismatch on members. Exiting clears the local active team state after backing it up; keep a separate copy of a backup before it rotates out.
-
-### Data & Storage Principles
-
-| Storage | Contents |
-|---|---|
-| `_data/todos.md` | Todos (inline `id:`/`due:`/`p:` metadata plus `repeat:` rules and series/successor identifiers maintained by the plugin; existing tasks need no conversion) |
-| `_data/team-todos.md` | Human-readable team-task mirror; AI indexing and vault tools exclude it. AI can receive currently visible tasks only when you select the dedicated team context option |
-| `_data/focus.md` | Focus history accumulated per day |
-| Plugin `lan-sync-<machine>.json` and backup files | Opt-in LAN sync: device identity, pairing secrets (plain text locally), record versions, deletion markers, unresolved conflicts, and the last five pre-merge backups |
-| Plugin `team-sync-<machine>.json`, `.next` and backups | Opt-in team sync: team tasks, device names and source IDs, member permissions, local plaintext pairing secrets, offline edits and conflicts; sent only to the approved LAN host/members using the existing AES-256-GCM transport |
-| Plugin `data.json` | Storage V2 settings, layout scenes, toolbar, RSS config, morning-brief routing, Apple Calendar target/event-UID mappings, last sync result, read-only event display switch, hidden calendar names and the latest read-only event cache, AI model config and the names of persistently approved low-risk Agent actions (**API keys are stored here in plain text**; tool arguments are not stored) |
-| Plugin `.cockpit-update-backup/` | Previous `main.js`, `styles.css`, and `manifest.json` retained locally for update rollback; user settings are never included or replaced |
-| Plugin-private `ai-history.json` | Up to 30 AI sessions (no attachment bodies / RAG excerpts / reasoning) |
-| Plugin-private `ai-index.json` | Inverted-index snapshot |
-| Plugin-private `logs/agent-tools.jsonl` | Last 500 Agent tool receipts (time, session ID, tool name, status, entity ID and verification flag; no prompts, arguments, or tool content) |
-| IndexedDB | Device-local RSS article cache and read state |
-
-Automatic update checks send a standard HTTPS request to the project’s public GitHub Releases API at most once every 24 hours. Update installation downloads only `main.js`, `styles.css`, and `manifest.json` from that repository; it does not upload user data.
-
-No telemetry or uploads to the plugin developer. Optional LAN sync sends only tasks, bookmark paths, display name, language and the non-secret morning-brief routing choice to computers you explicitly pair; once enabled it checks every 30 seconds while both apps run. Payloads are authenticated and encrypted with AES-256-GCM over a local HTTP connection; QR generation and decoding happen locally. The pairing secret expires after five minutes and is replaced on acceptance. API keys, executable commands, workspace paths, AI history and note contents are excluded. Pairing keys are stored in plain text in the machine-specific plugin file; do not share this file or QR images. Conflicting versions and deletion markers are retained, and the last five pre-merge backups stay in the plugin folder. Apple Calendar sync is Mac-only and sends no calendar data to the plugin developer: only after you explicitly select synchronization does the fixed local automation request access, reuse or create the dedicated calendar, and write selected open todos with due dates into it; `data.json` keeps the target calendar name and managed event UIDs for safe updates/deletions. The optional “Show system calendar events” setting (off by default) runs a fixed, read-only local script that reads event titles, times, locations and calendar names for the visible month or week from the Mac Calendar app; the latest result is cached locally in `data.json` for up to 24 hours: it is reused directly for five minutes, then shown immediately while a background refresh runs. The cache is never uploaded, skips the managed Cockpit calendar plus any calendars you hide, and is cleared when event display is disabled or the hidden-calendar list changes. Meeting notes are written only when you click an event: a new Markdown file in your chosen folder (never overwritten if it exists) plus one link line appended to that day’s daily note if the note already exists. Team overview shows only tasks visible under the current device permissions, and exports their open due tasks to a local ICS calendar. Team completion automations run only on the host after an authorized change is committed. Selecting team context in AI explicitly sends a bounded excerpt of currently visible team tasks to the configured model endpoint; this option resets when switching chats. Only when you actively send an AI request are selected note excerpts, attachments, truncated RAG matches, or the weekly-report draft you explicitly choose to optimize sent to the model service you configured; free-form Q&A performs retrieval locally and never uploads your whole vault. Weekly-report AI optimization keeps the script output unchanged, streams a separate editable version, and saves only the version you select; a bounded original/optimized excerpt is retained in the private local AI history so you can continue the same request in Agent. The Agent can read bounded plugin summaries only when you send a request. Fixed-purpose todo changes can be allowed once, for the current conversation, or persistently; persistent grants contain only tool names and can be revoked in settings. Note moves and similar scoped changes are limited to the current conversation, while workspace writes and commands always require fresh confirmation. Todo writes are read back before success is reported, and an unexecuted write request is shown as not executed instead of accepting the model's claim. Scheduled-task and countdown messages are sent only to the notification channels you enable. The optional Resend channel sends the notification title, body, sender, and recipient addresses to Resend; its API key and addresses are stored in plain text in the plugin configuration. Optional QQ and NetEase SMTP accounts send countdown subjects, bodies, sender addresses, and recipients directly to the configured mail provider over TLS; their client authorization codes and addresses are also stored in plain text in the plugin configuration. Workflow run history stays in the local config file (last 20 runs per workflow); if you fill in a run-log note, the run summary is appended to that note only; failure pushes likewise go only to the push channels you have enabled.
-
-### AI Assistant Implementation
-
-#### Multi-Model Access & Streaming Output
-
-- Everything goes through the OpenAI-compatible `/chat/completions`; built-in presets cover OpenAI, DeepSeek, Kimi, GLM, Qwen, MiniMax, SiliconFlow, OpenRouter, Ollama, and any compatible endpoint can be added manually
-- SSE streaming is parsed token by token; `stream_options:{include_usage:true}` fetches real billed tokens; high-frequency scrolling and status refreshes are coalesced so long answers never drop frames
-- Layered timeouts: connect 15s, stream idle 60s, whole request 60s, non-streaming fallback 120s; if `fetch` fails it degrades to a non-streaming `obsidian.requestUrl` call; when a provider rejects `stream_options` with 400/422 the parameter is dropped and retried once
-- Reasoning content gets its own track, and retrieval or generation can be aborted at any time
-
-#### Local Inverted-Index RAG (Lexical, Not Vector)
-
-- Maintains a `term → Set(docId)` inverted table, incrementally updated from vault modify/delete/rename events, with the snapshot persisted to `ai-index.json`
-- The full-vault index warms up in the background when the AI sidebar opens; queries narrow to a candidate document set first, then read cached lowercased slices of matching notes in parallel for scoring, injecting only length-limited relevant excerpts
-- The same sliced retrieval runs when multi-select context exceeds the limit; free-form Q&A without manually chosen context searches all Markdown globally
-- It is deliberately lightweight keyword retrieval: no vector store, no embeddings — data never leaves the device
-
-#### Image Multimodal
-
-- Paste screenshots with Ctrl/Cmd+V or add via file picker (`files` and `items` dual extraction), up to 4 images, ≤8MB raw each
-- Compression pipeline: FileReader → dataURL → Image decode → canvas proportional scaling (long edge ≤1568px) → JPEG re-encode at quality 0.85
-- Sent as a `{type:'text'} + {type:'image_url'}` array inside the user message; sent bubbles show thumbnails with lightbox zoom (Esc/backdrop closes). Vision models required for image understanding
-
-#### Agent Tool System & Three-Tier Permissions
-
-- **Allowlist registry**: the agent can only call registered tools (read todos, search notes, etc.), arguments validated against JSON Schema, protected paths (`.obsidian` config, plugin source) hard-filtered; with no coding workspace configured, no file writes or command execution are exposed at all
-- **Three-tier permission modes**: `Read-only` (mutating tools never reach the model) / `Read-write` (default; every mutation requires confirmation) / `Full` (no confirmations, at your own risk)
-- **Local tool adapter layer**: system capabilities exposed through composed registries — desktop notifications, clipboard write, opening links/files, and a **user-managed command allowlist** (run with `execFile`, vault root as working directory, 20s timeout, capped output). The model can only invoke allowlisted commands by id, never invent new ones
-- **Coding workspace (sandbox)**: once you designate a local folder, the agent additionally gains file tools inside that directory — list directory, line-based read, full-text search (skipping `.git`/`node_modules`), create/overwrite files, exact string-replacement editing (read-before-edit, ambiguous-match refusal, external-modification detection) — plus single-command execution inside the workspace (no shell chaining, bounded output/timeouts). Safety constraints: paths pass both lexical and realpath checks to block symlink escapes, `.git` cannot be modified, and sudo/su/doas are refused before any confirmation prompt; folders can be picked via the native folder chooser or pasted as paths, with one-click switching among recent workspaces
-- Tool calls stream live along the activity track with name, arguments, and result summaries
-
-#### Conversation History & Usage Stats
-
-- Sessions persist locally; each remembers its model, context selection, permission mode, and bound coding workspace; the session list groups by workspace, and switching sessions restores the bound workspace
-- Provider usage fields are normalized (DeepSeek's `prompt_cache_hit_tokens`, OpenAI's `cached_tokens`, etc.) with session-level input/output token totals, cache-hit rate, and generation speed
+- **Today at a glance** — a today queue, a refined calendar (month/week views, drag to reschedule, lunar calendar and statutory holidays), and a per-day timeline that merges todos, scheduled/event automations and an RSS digest. Around it: stats cards, edit heatmap, project progress, recent updates, starred notes, quick-capture capsules and resurfaced notes.
+- **Tasks that behave** — repeating todos with fixed schedules or completion-based intervals, batch edits, archive with undo, a focus queue, and one-click AI breakdown into subtasks.
+- **AI assistant** — multi-model sidebar with local sessions, multi-select note context, image input, local lexical RAG (keyword search, no embeddings), streaming output and allowlisted Agent tools. Choose read-only, read-write (confirm each change) or full mode; every todo write is read back before success is reported. An optional coding workspace lets the Agent read, edit and run commands inside a folder you pick.
+- **Automation** — pomodoro, global alarms, countdown cards, time- and event-driven tasks, multi-step workflows, and delivery through local notifications, ServerChan³, Bark, MEOW, Resend or SMTP.
+- **Reviews** — morning brief, weekly report studio with a side-by-side AI-polished draft, focus analytics and shareable PNG cards.
+- **Layout** — a searchable component store, scene layouts that switch by weekday, time range or folder, and an optional unified glass look.
+- **Also included** — natural-language quick capture, Spotlight search across todos, notes and filenames, a two-pane RSS reader, Apple Calendar sync on Mac, encrypted sync between your own computers and a shared team space (both in preview), bilingual UI and first-run onboarding.
 
 ## Installation
 
-**Community plugins (recommended)**: Settings → Community plugins → Browse → search **Cockpit Dashboard** → install & enable.
+**Community plugins (recommended)**: Settings → Community plugins → Browse → search **Cockpit Dashboard** → install and enable.
 
-**Manual install**: download `cockpit-dashboard-<version>.zip` from [Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases) and extract it into your vault's `.obsidian/plugins/` folder. The resulting path is `.obsidian/plugins/cockpit-dashboard/`, containing `main.js`, `manifest.json`, and `styles.css`. Enable the plugin in Settings. For a manual upgrade, copy these three files into the existing folder; do not replace the whole folder, which contains your `data.json` settings. The three files are also available as separate Release downloads.
+**Manual install**: download the latest release from [GitHub Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases), copy `main.js`, `manifest.json` and `styles.css` into `.obsidian/plugins/cockpit-dashboard/`, then enable the plugin. To upgrade, replace only those three files so your `data.json` settings stay intact.
 
 ### Optional glass appearance
 
-For a unified frosted window on macOS, use host version 1.14 or newer and enable **Settings → Appearance → Translucent window**. Copy the companion theme's [`manifest.json`](theme/cockpit-glass/manifest.json) and [`theme.css`](theme/cockpit-glass/theme.css) into your vault's `.obsidian/themes/Cockpit Glass/` folder, then select **Cockpit Glass** under Appearance → Themes. Finally, open **Settings → Cockpit → Appearance & motion** and enable **Unified glass appearance**. This plugin switch is off by default and updates an open dashboard immediately.
+For a frosted, unified window on macOS, use host version 1.14 or newer and enable **Settings → Appearance → Translucent window**. Copy [`manifest.json`](theme/cockpit-glass/manifest.json) and [`theme.css`](theme/cockpit-glass/theme.css) into `.obsidian/themes/Cockpit Glass/`, select that theme, then turn on **Settings → Cockpit → Appearance & motion → Unified glass appearance**.
 
-The theme makes the title bar, tabs, sidebars, and workspace share the window's native translucency; the plugin switch makes dashboard cards translucent. Both light and dark modes retain the host accent color. The operating system provides the window blur, so the dashboard does not add per-card blur or swap its background while scrolling. Without the host's translucent-window setting, the desktop will not show through. The companion theme is included in the source tree, separate from the plugin zip and Release runtime files.
+## Data & privacy
+
+Everything is stored in your vault or the plugin folder. There is no telemetry, and nothing is uploaded to the developer.
+
+| Where | What |
+|---|---|
+| `_data/todos.md`, `_data/team-todos.md` | Todos (inline metadata and repeat rules) and a readable mirror of team tasks |
+| `_data/focus.md` | Focus history per day |
+| `data.json` | Settings, layout scenes, toolbar, RSS config, Apple Calendar mappings, AI model config and persistently approved low-risk Agent actions (**API keys are stored here in plain text**) |
+| `lan-sync-<machine>.json`, `team-sync-<machine>.json` + backups | Opt-in LAN/team sync state, including plaintext pairing secrets local to this machine |
+| `ai-history.json`, `ai-index.json`, `logs/agent-tools.jsonl` | Up to 30 AI sessions, the local search index snapshot, and the last 500 Agent tool receipts |
+| IndexedDB | Local RSS article cache and read state |
+
+**Network access happens only when you use the related feature:**
+
+- **AI** — selected note excerpts, attachments, local RAG matches or the report draft you choose are sent to the model endpoint you configure. Free-form Q&A retrieves locally and never uploads the whole vault.
+- **LAN and team sync** — tasks, bookmark paths, display name, language and the morning-brief routing choice are sent only to devices you explicitly pair, encrypted with AES-256-GCM and kept inside your local network. API keys, commands, workspace paths, AI history and note contents are excluded.
+- **Notifications and mail** — messages go only to the channels you enable (local, ServerChan³, Bark, MEOW, Resend, SMTP).
+- **Apple Calendar (Mac only)** — a fixed local script reads or writes the Calendar app after you opt in; no calendar data reaches the developer. "Show system calendar events" is off by default and caches event titles, times, locations and calendar names locally for up to 24 hours. Meeting notes are created only when you click an event.
+- **RSS** — subscribed feeds are fetched directly into a local IndexedDB cache.
+- **Updates** — a standard HTTPS request to the public GitHub Releases API at most once every 24 hours.
 
 ## Development
 
@@ -136,32 +52,23 @@ The theme makes the title bar, tabs, sidebars, and workspace share the window's 
 git clone https://github.com/ZephyrHaven/Cockpit-Dashboard.git
 cd Cockpit-Dashboard
 
-# Run tests (framework-free assertion scripts, executed per file)
-for t in tests/*.test.js; do node "$t"; done
-
-# Build minified artifacts into dist/
-node build.js
-
-# Build and deploy to your local host plugin directory (never overwrites user data.json)
-bash deploy.sh
+node tests/run-all.js   # framework-free assertion tests
+node build.js           # minified artifacts into dist/
+bash deploy.sh          # build and copy into your local plugin folder
 ```
 
-Release convention: bump the version in `manifest.json` → build and test → tag without a `v` prefix → upload `dist/main.js`, `dist/styles.css`, and `manifest.json` as three separate Release assets (the plugin store relies on them for update detection), plus a `cockpit-dashboard-<version>.zip` containing those files under `cockpit-dashboard/` for manual installation. Build artifacts are never committed to the source repository.
+Source modules are plain scripts concatenated in a fixed order by `build.js`, then minified with esbuild/terser; `dist/styles.css` is built separately.
+
+Releases are tagged without a `v` prefix and include `main.js`, `styles.css`, `manifest.json` plus a manual-install zip.
 
 ## Sponsor
 
-If this plugin genuinely saves you time, buying the author a coffee is appreciated:
+If this plugin saves you time, you can buy the author a coffee:
 
-[![Afdian](https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-%E8%AF%B7%E4%BD%9C%E8%80%85%E5%96%9D%E4%B8%80%E6%9D%AF-8b5cf6?style=for-the-badge)](https://afdian.com/a/zephyrhaven)
+[![Support on Afdian](assets/afdian-badge.svg)](https://afdian.com/a/zephyrhaven)
 
-Or visit directly: <https://afdian.com/a/zephyrhaven>
+<https://afdian.com/a/zephyrhaven>
 
 ## Author
 
 - GitHub: [ZephyrHaven](https://github.com/ZephyrHaven)
-
-### Task and operations workflows
-
-- Open a tagged project to review tasks, overdue items, focus time and related notes; revisit completed projects, edit tasks or start a linked Pomodoro.
-- Select tasks in the current filter to change dates, priorities or tags, complete, delete or archive completed tasks; use the Archived filter to restore them. Undo retains up to 20 recent committed changes in memory, capped at 1 MiB, and refuses to overwrite a task edited afterwards. Archiving adds the `_archived` tag and keeps tasks in the same Markdown file.
-- Enable Team overview, Run history and Sync diagnostics in the layout editor; all support ordering, hiding, collapse and scenes. Run history combines local scheduler logs, workflow runs, delivery receipts and the latest calendar sync. Retry targets only the selected item using current configuration; rerunning a workflow repeats the whole workflow, and delivery retries rebuild content from current tasks. Sync diagnostics shows paired-device versions, last successful syncs, pending edits, drafts and conflicts with management links.
