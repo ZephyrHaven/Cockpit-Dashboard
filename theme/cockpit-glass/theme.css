@@ -80,6 +80,39 @@ body {
   --cg-glass-edge: inset 0 1px 0 var(--cg-edge), inset 0 0 0 1px var(--cg-edge-low);
 }
 
+/* Shared controls stay visible even without native window translucency. */
+body.theme-light:not(.is-translucent) {
+  --cg-control: rgba(255, 255, 255, .58);
+  --cg-control-hover: rgba(255, 255, 255, .85);
+  --cg-control-active: rgba(255, 255, 255, .92);
+  --cg-sidebar-sheet: #e9edef;
+  --cg-sidebar-tray: rgba(255, 255, 255, .55);
+  --cg-sidebar-row: rgba(255, 255, 255, .45);
+  --cg-sidebar-row-hover: rgba(255, 255, 255, .7);
+  --cg-reflection: rgba(255, 255, 255, .4);
+  --cg-line: rgba(38, 43, 48, .14);
+}
+body.theme-dark:not(.is-translucent) {
+  --cg-control: rgba(255, 255, 255, .045);
+  --cg-control-hover: rgba(255, 255, 255, .09);
+  --cg-control-active: rgba(255, 255, 255, .12);
+  --cg-sidebar-sheet: #25292f;
+  --cg-sidebar-tray: rgba(255, 255, 255, .045);
+  --cg-sidebar-row: rgba(255, 255, 255, .035);
+  --cg-sidebar-row-hover: rgba(255, 255, 255, .08);
+}
+body:not(.is-translucent) {
+  --tab-background-active: transparent;
+  --tab-container-background: var(--background-secondary);
+}
+body:not(.is-translucent) .app-container {
+  background: var(--background-primary);
+}
+body:not(.is-translucent) .workspace-split.mod-left-split {
+  background: linear-gradient(155deg, color-mix(in srgb, var(--interactive-accent) 6%, transparent), transparent 45%), var(--cg-sidebar-sheet);
+  box-shadow: inset -1px 0 0 var(--cg-hairline);
+}
+
 /* The operating system supplies the window blur; the theme supplies tint and edges. */
 body.is-translucent {
   --titlebar-background: transparent;
@@ -148,7 +181,7 @@ body.is-translucent .workspace-tab-header.is-active::after {
 }
 
 /* Thin glass controls on one continuous window. No pane-level blur or tint. */
-body.is-translucent {
+body:is(.theme-light, .theme-dark) {
   --tab-text-color: var(--text-muted);
   --tab-text-color-focused: var(--text-muted);
   --tab-text-color-active: var(--text-normal);
@@ -170,28 +203,28 @@ body.is-translucent {
 }
 
 /* Keep the native traffic-light spacing, drag region and stacked-tab layout. */
-body.is-translucent .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header {
+body:is(.theme-light, .theme-dark) .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header {
   padding: 2px 3px 5px;
   background: transparent;
   border-radius: 0;
   box-shadow: none;
 }
-body.is-translucent .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header::before,
-body.is-translucent .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header::after {
+body:is(.theme-light, .theme-dark) .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header::before,
+body:is(.theme-light, .theme-dark) .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header::after {
   display: none;
 }
-body.is-translucent .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header-inner {
+body:is(.theme-light, .theme-dark) .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header-inner {
   border-radius: 10px;
   transition: background-color var(--cg-motion) var(--cg-ease), box-shadow var(--cg-motion) var(--cg-ease), color var(--cg-motion) ease;
 }
-body.is-translucent .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header.is-active .workspace-tab-header-inner {
+body:is(.theme-light, .theme-dark) .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header.is-active .workspace-tab-header-inner {
   background-image: var(--cg-glass-face);
   box-shadow: var(--cg-glass-edge), 0 3px 9px -5px var(--cg-shadow);
 }
-body.is-translucent .workspace-tab-header.is-active .workspace-tab-header-inner-title {
+body:is(.theme-light, .theme-dark) .workspace-tab-header.is-active .workspace-tab-header-inner-title {
   font-weight: 600;
 }
-body.is-translucent .workspace-tab-header-inner-icon {
+body:is(.theme-light, .theme-dark) .workspace-tab-header-inner-icon {
   display: grid;
   place-items: center;
   flex: 0 0 18px;
@@ -200,52 +233,52 @@ body.is-translucent .workspace-tab-header-inner-icon {
   align-self: center;
   transition: color var(--cg-motion) var(--cg-ease);
 }
-body.is-translucent .workspace-tab-header-inner-icon svg {
+body:is(.theme-light, .theme-dark) .workspace-tab-header-inner-icon svg {
   width: 15px;
   height: 15px;
 }
-body.is-translucent .workspace-tab-header-inner-title {
+body:is(.theme-light, .theme-dark) .workspace-tab-header-inner-title {
   line-height: 1.3;
 }
-body.is-translucent .workspace-tab-header.is-active .workspace-tab-header-inner-icon {
+body:is(.theme-light, .theme-dark) .workspace-tab-header.is-active .workspace-tab-header-inner-icon {
   color: var(--interactive-accent);
 }
 
 /* Center the tab group in the full bar, with equal room for edge controls.
    Grid keeps native tab sizing and drag handling; stacked tabs stay native. */
-body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container {
+body:is(.theme-light, .theme-dark) .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container {
   --cg-tab-gutter: max(80px, var(--frame-left-space, 0px), calc(var(--frame-right-space, 0px) + 38px));
   display: grid;
   grid-template-columns: minmax(var(--cg-tab-gutter), 1fr) minmax(0, max-content) minmax(var(--cg-tab-gutter), 1fr);
   /* Equal gutters include the native frame controls, even when either dock closes. */
   padding-inline: 0 !important;
 }
-body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-container-inner {
+body:is(.theme-light, .theme-dark) .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-container-inner {
   grid-area: 1 / 2;
   margin-inline: 0;
   padding-inline: 0;
   min-width: 0;
 }
-body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-new-tab {
+body:is(.theme-light, .theme-dark) .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-new-tab {
   grid-area: 1 / 3;
   justify-self: start;
 }
-body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-spacer {
+body:is(.theme-light, .theme-dark) .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-spacer {
   grid-area: 1 / 1;
 }
-body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-tab-list {
+body:is(.theme-light, .theme-dark) .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-tab-list {
   grid-area: 1 / 3;
   justify-self: end;
 }
-body.is-translucent .mod-root .workspace-tabs.mod-top-right-space:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-tab-list {
+body:is(.theme-light, .theme-dark) .mod-root .workspace-tabs.mod-top-right-space:not(.mod-stacked) > .workspace-tab-header-container > .workspace-tab-header-tab-list {
   margin-inline-end: calc(38px + var(--frame-right-space, 0px));
 }
-body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .sidebar-toggle-button.mod-left {
+body:is(.theme-light, .theme-dark) .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .sidebar-toggle-button.mod-left {
   grid-area: 1 / 1;
   justify-self: start;
   z-index: 1;
 }
-body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .sidebar-toggle-button.mod-right {
+body:is(.theme-light, .theme-dark) .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container > .sidebar-toggle-button.mod-right {
   grid-area: 1 / 3;
   justify-self: end;
   z-index: 1;
@@ -272,19 +305,19 @@ body.mod-macos.is-translucent .workspace-split.mod-left-split.is-sidedock-collap
   -webkit-app-region: no-drag;
 }
 /* A faint accent tint and lower stroke identify the selected tab without closing the glass canvas. */
-body.is-translucent .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header.is-active .workspace-tab-header-inner {
+body:is(.theme-light, .theme-dark) .mod-root .workspace-tabs:not(.mod-stacked) > .workspace-tab-header-container .workspace-tab-header.is-active .workspace-tab-header-inner {
   background: var(--cg-tab-active);
   box-shadow: inset 0 0 0 1px var(--cg-edge-low), inset 0 -2px 0 color-mix(in srgb, var(--interactive-accent) 65%, transparent);
 }
 
 /* The file tree is a navigation rail: top-level folders are quiet lanes,
    while nested files keep their native indentation and drag targets. */
-body.is-translucent .mod-left-split .nav-files-container {
+body:is(.theme-light, .theme-dark) .mod-left-split .nav-files-container {
   position: relative;
   padding-inline: 10px 12px;
   padding-bottom: 16px;
 }
-body.is-translucent .mod-left-split .nav-files-container::before {
+body:is(.theme-light, .theme-dark) .mod-left-split .nav-files-container::before {
   content: '';
   position: absolute;
   inset-block: 9px 18px;
@@ -293,48 +326,48 @@ body.is-translucent .mod-left-split .nav-files-container::before {
   background: linear-gradient(180deg, color-mix(in srgb, var(--interactive-accent) 34%, transparent), var(--cg-hairline) 72%, transparent);
   pointer-events: none;
 }
-body.is-translucent :is(.mod-left-split, .mod-right-split) .tree-item-self {
+body:is(.theme-light, .theme-dark) :is(.mod-left-split, .mod-right-split) .tree-item-self {
   margin-block: 2px;
   padding-block: 6px;
   transition: background-color var(--cg-motion) var(--cg-ease), box-shadow var(--cg-motion) var(--cg-ease), color var(--cg-motion) ease;
 }
-body.is-translucent :is(.mod-left-split, .mod-right-split) .tree-item-self.is-active .tree-item-icon {
+body:is(.theme-light, .theme-dark) :is(.mod-left-split, .mod-right-split) .tree-item-self.is-active .tree-item-icon {
   color: var(--interactive-accent);
 }
-body.is-translucent :is(.mod-left-split, .mod-right-split) .nav-folder-title {
+body:is(.theme-light, .theme-dark) :is(.mod-left-split, .mod-right-split) .nav-folder-title {
   font-weight: 550;
   color: var(--text-normal);
 }
-body.is-translucent .mod-left-split .nav-folder-title {
+body:is(.theme-light, .theme-dark) .mod-left-split .nav-folder-title {
   margin-block: 4px;
 }
-body.is-translucent .mod-left-split .nav-folder.mod-root > .nav-folder-children > .nav-folder > .nav-folder-title {
+body:is(.theme-light, .theme-dark) .mod-left-split .nav-folder.mod-root > .nav-folder-children > .nav-folder > .nav-folder-title {
   border-radius: 9px;
   font-weight: 620;
   letter-spacing: .005em;
 }
-body.is-translucent .mod-left-split .nav-folder.mod-root > .nav-folder-children > .nav-folder > .nav-folder-title:not(.is-active, .is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus) {
+body:is(.theme-light, .theme-dark) .mod-left-split .nav-folder.mod-root > .nav-folder-children > .nav-folder > .nav-folder-title:not(.is-active, .is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus) {
   background: linear-gradient(color-mix(in srgb, var(--interactive-accent) 46%, transparent), color-mix(in srgb, var(--interactive-accent) 46%, transparent)) left center / 2px 14px no-repeat;
   box-shadow: none;
 }
-body.is-translucent .mod-left-split .nav-file-title {
+body:is(.theme-light, .theme-dark) .mod-left-split .nav-file-title {
   border-radius: 9px;
   font-weight: 500;
 }
-body.is-translucent :is(.mod-left-split, .mod-right-split) .tree-item-self.is-active:not(.is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus) {
+body:is(.theme-light, .theme-dark) :is(.mod-left-split, .mod-right-split) .tree-item-self.is-active:not(.is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus) {
   background-color: var(--cg-selection);
   background-image: var(--cg-glass-face);
   box-shadow: var(--cg-glass-edge), inset 2px 0 0 var(--interactive-accent), 0 3px 8px -6px var(--cg-shadow);
 }
-body.is-translucent :is(.mod-left-split, .mod-right-split) .tree-item-children {
+body:is(.theme-light, .theme-dark) :is(.mod-left-split, .mod-right-split) .tree-item-children {
   border-inline-start-color: var(--cg-edge-low);
 }
-body.is-translucent .nav-buttons-container {
+body:is(.theme-light, .theme-dark) .nav-buttons-container {
   gap: 6px;
   padding-block: 8px 10px;
   border-block-end: 1px solid var(--cg-hairline);
 }
-body.is-translucent .mod-left-split .nav-buttons-container {
+body:is(.theme-light, .theme-dark) .mod-left-split .nav-buttons-container {
   justify-content: space-between;
   gap: 4px;
   margin: 9px 12px 12px;
@@ -344,16 +377,16 @@ body.is-translucent .mod-left-split .nav-buttons-container {
   background: var(--cg-sidebar-tray);
   box-shadow: var(--cg-glass-edge), 0 8px 20px -18px var(--cg-shadow);
 }
-body.is-translucent .mod-left-split .nav-buttons-container .nav-action-button {
+body:is(.theme-light, .theme-dark) .mod-left-split .nav-buttons-container .nav-action-button {
   flex: 0 0 32px;
   width: 32px;
   height: 32px;
   padding: 0;
 }
-body.is-translucent .workspace-sidedock-vault-profile {
+body:is(.theme-light, .theme-dark) .workspace-sidedock-vault-profile {
   box-shadow: inset 0 1px 0 var(--cg-edge-low);
 }
-body.is-translucent .mod-left-split .workspace-sidedock-vault-profile {
+body:is(.theme-light, .theme-dark) .mod-left-split .workspace-sidedock-vault-profile {
   box-sizing: border-box;
   width: calc(100% - 24px);
   margin: 8px 12px 10px;
@@ -365,85 +398,85 @@ body.is-translucent .mod-left-split .workspace-sidedock-vault-profile {
 }
 
 /* Small controls gain light on hover and settle on press; content never moves. */
-body.is-translucent :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon) {
+body:is(.theme-light, .theme-dark) :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon) {
   border-radius: 8px;
   transition: background-color var(--cg-motion) var(--cg-ease), box-shadow var(--cg-motion) var(--cg-ease), color var(--cg-motion) ease, scale var(--cg-motion-fast) var(--cg-ease);
 }
-body.is-translucent :is(.nav-action-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon) {
+body:is(.theme-light, .theme-dark) :is(.nav-action-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon) {
   display: grid;
   place-items: center;
   min-width: 28px;
   min-height: 28px;
 }
-body.is-translucent :is(.nav-action-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon) svg {
+body:is(.theme-light, .theme-dark) :is(.nav-action-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon) svg {
   width: 16px;
   height: 16px;
 }
 @media (hover: hover) {
-  body.is-translucent :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):hover {
+  body:is(.theme-light, .theme-dark) :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):hover {
     background-color: var(--cg-control-hover);
     box-shadow: var(--cg-glass-edge), 0 3px 8px -5px var(--cg-shadow);
     color: var(--text-normal);
   }
-  body.is-translucent :is(.mod-left-split, .mod-right-split) .tree-item-self:not(.is-active, .is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus):hover {
+  body:is(.theme-light, .theme-dark) :is(.mod-left-split, .mod-right-split) .tree-item-self:not(.is-active, .is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus):hover {
     box-shadow: inset 0 1px 0 var(--cg-glint);
   }
-  body.is-translucent .mod-left-split .nav-folder.mod-root > .nav-folder-children > .nav-folder > .nav-folder-title:not(.is-active, .is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus):hover {
+  body:is(.theme-light, .theme-dark) .mod-left-split .nav-folder.mod-root > .nav-folder-children > .nav-folder > .nav-folder-title:not(.is-active, .is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus):hover {
     background: linear-gradient(var(--interactive-accent), var(--interactive-accent)) left center / 2px 14px no-repeat, linear-gradient(90deg, var(--cg-sidebar-row-hover), transparent 90%);
     box-shadow: none;
   }
-  body.is-translucent .mod-left-split .nav-file-title:not(.is-active, .is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus):hover {
+  body:is(.theme-light, .theme-dark) .mod-left-split .nav-file-title:not(.is-active, .is-selected, .is-being-dragged, .is-being-dragged-over, .is-being-renamed, .has-active-menu, .has-focus):hover {
     background: var(--cg-sidebar-row-hover);
   }
 }
-body.is-translucent :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):active {
+body:is(.theme-light, .theme-dark) :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):active {
   scale: .97;
   background-color: var(--cg-control-active);
 }
-body.is-translucent :is(.workspace-tab-header, .tree-item-self, .nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):focus-visible {
+body:is(.theme-light, .theme-dark) :is(.workspace-tab-header, .tree-item-self, .nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: -2px;
 }
 
 /* Search has its own shallow surface; the surrounding sidebar stays clear. */
-body.is-translucent :is(.mod-left-split, .mod-right-split) .search-input-container input {
+body:is(.theme-light, .theme-dark) :is(.mod-left-split, .mod-right-split) .search-input-container input {
   background: var(--cg-control);
   border-color: var(--cg-edge-low);
   border-radius: 10px;
   box-shadow: inset 0 1px 0 var(--cg-glint);
   transition: background-color var(--cg-motion) ease, box-shadow var(--cg-motion) ease;
 }
-body.is-translucent :is(.mod-left-split, .mod-right-split) .search-input-container input:focus {
+body:is(.theme-light, .theme-dark) :is(.mod-left-split, .mod-right-split) .search-input-container input:focus {
   background: var(--cg-control-hover);
   border-color: var(--interactive-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 20%, transparent);
 }
-body.is-translucent .status-bar {
+body:is(.theme-light, .theme-dark) .status-bar {
   background: transparent;
   border-color: transparent;
   color: var(--text-muted);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body { --cg-motion: 0ms; --cg-motion-fast: 0ms; }
-  body.is-translucent :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):is(:hover, :active) {
+  body:is(.theme-light, .theme-dark) { --cg-motion: 0ms; --cg-motion-fast: 0ms; }
+  body:is(.theme-light, .theme-dark) :is(.nav-action-button, .workspace-tab-header-inner-close-button, .workspace-tab-header-new-tab .clickable-icon, .workspace-tab-header-tab-list .clickable-icon, .sidebar-toggle-button .clickable-icon, .workspace-ribbon .clickable-icon, .workspace-drawer-vault-actions .clickable-icon, .view-header .clickable-icon):is(:hover, :active) {
     scale: none;
   }
 }
 
-body.is-translucent .modal {
+body:is(.theme-light, .theme-dark) .modal {
   background: var(--cg-solid);
   border: 1px solid var(--cg-line);
   box-shadow: inset 0 1px 0 var(--cg-glint), 0 22px 60px rgba(0, 0, 0, .18);
 }
 
 /* Settings paint one surface only. Nested headers/panes must not add opaque fills. */
-body:is(.is-translucent, .is-popout-modal) .modal:is(.mod-settings, .mod-community-modal) {
+body:is(.theme-light, .theme-dark) .modal:is(.mod-settings, .mod-community-modal) {
   --settings-background: var(--cg-window-surface);
   --modal-sidebar-background: transparent;
   background: var(--cg-window-surface);
 }
-body:is(.is-translucent, .is-popout-modal) .modal:is(.mod-settings, .mod-community-modal) :is(.modal-content, .vertical-tabs-container, .vertical-tab-header, .vertical-tab-content, .modal-sidebar, .setting-page-content) {
+body:is(.theme-light, .theme-dark) .modal:is(.mod-settings, .mod-community-modal) :is(.modal-content, .vertical-tabs-container, .vertical-tab-header, .vertical-tab-content, .modal-sidebar, .setting-page-content) {
   background: transparent;
   box-shadow: none;
 }
@@ -473,7 +506,8 @@ body.theme-dark.is-translucent .modal-container.mod-dim .modal-bg {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  body.is-translucent {
+  body.is-translucent,
+  body:is(.theme-light, .theme-dark):not(.is-translucent) {
     --cg-sidebar-sheet: var(--background-secondary);
     --cg-sidebar-tray: var(--background-primary);
     --cg-sidebar-row: var(--background-primary);
@@ -493,6 +527,7 @@ body.theme-dark.is-translucent .modal-container.mod-dim .modal-bg {
   body.is-translucent .workspace-split.mod-left-split {
     background: var(--background-secondary);
   }
+  body .modal { background: var(--background-primary); }
   body.is-translucent .markdown-source-view,
   body.is-translucent .markdown-preview-view,
   body.is-translucent .modal:is(.mod-settings, .mod-community-modal) {

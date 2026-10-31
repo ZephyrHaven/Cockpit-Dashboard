@@ -22,7 +22,11 @@ Cockpit Dashboard is a local-first home dashboard for Obsidian. Todos, calendar,
 
 ### Optional glass appearance
 
-For a frosted, unified window on macOS, use host version 1.14 or newer and enable **Settings → Appearance → Translucent window**. Copy [`manifest.json`](theme/cockpit-glass/manifest.json) and [`theme.css`](theme/cockpit-glass/theme.css) into `.obsidian/themes/Cockpit Glass/`, select that theme, then turn on **Settings → Cockpit → Appearance & motion → Unified glass appearance**.
+With host version 1.14 or newer, click **Install theme** in **Settings → Cockpit → Appearance & motion**, select **Cockpit Glass** in **Settings → Appearance → Themes**, then enable **Unified glass appearance** in the plugin. The theme is bundled with the plugin: installation works offline and automatically follows this vault’s actual configuration directory, including custom directories. Selecting the theme and enabling the host’s translucent window option remain manual steps.
+
+On macOS, enable **Appearance → Translucent window** for native frost. Windows and Macs without translucency use a complete soft background, sidebar, tabs and layered cards, without desktop wallpaper transparency. Light/dark modes and Reduce Motion are supported on both platforms.
+
+Use the same entry to update the theme. Existing files, including local modifications, are backed up under the theme’s `.cockpit-backups/<timestamp>/` folder before replacement. To restore them, copy the saved `theme.css` and `manifest.json` back into the theme directory. Failed installs attempt to restore previous files and show a message if recovery fails. Installation leaves host appearance preferences untouched and does not downgrade a newer theme. [Manual installation](theme/cockpit-glass/README.md) remains available.
 
 ## Data & privacy
 
@@ -36,6 +40,7 @@ Everything is stored in your vault or the plugin folder. There is no telemetry, 
 | `lan-sync-<machine>.json`, `team-sync-<machine>.json` + backups | Opt-in LAN/team sync state, including plaintext pairing secrets local to this machine |
 | `ai-history.json`, `ai-index.json`, `logs/agent-tools.jsonl` | Up to 30 AI sessions, the local search index snapshot, and the last 500 Agent tool receipts |
 | IndexedDB | Local RSS article cache and read state |
+| `themes/Cockpit Glass/` inside the current configuration directory | Opt-in companion theme installation and local backups before updates (`.cockpit-backups/`); no network access or changes to other themes |
 
 **Network access happens only when you use the related feature:**
 

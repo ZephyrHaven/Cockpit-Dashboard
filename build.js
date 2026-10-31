@@ -81,6 +81,7 @@ const MODULES = [
   'resurface.js',
   'morning-brief.js',
   'smtp-mail.js',
+  'theme-installer.js',
   'serverchan.js',
   'bookmarks.js',
   'storage.js',
@@ -134,6 +135,11 @@ function loadModuleCode(mod) {
     process.exit(1);
   }
   let code = readFileOrExit(filePath, mod).trim().replace(/^'use strict';\s*/gm, '');
+  if (mod === 'theme-installer.js') {
+    const manifest = JSON.parse(readFileOrExit(path.join(ROOT, 'theme/cockpit-glass/manifest.json'), 'theme manifest'));
+    const css = readFileOrExit(path.join(ROOT, 'theme/cockpit-glass/theme.css'), 'theme CSS');
+    code = code.replace("'__COCKPIT_GLASS_BUNDLE__'", () => JSON.stringify({ manifest, css }));
+  }
   if (mod === 'daily-tips.js') {
     const defaults = readFileOrExit(path.join(SRC_DIR, 'data', 'daily-tips.default.json'), 'daily tips defaults');
     try {

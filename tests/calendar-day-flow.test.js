@@ -108,7 +108,7 @@ assert.match(styles, /cal-timeline-summary > button\.cockpit-dashboard-cal-timel
 assert.match(styles, /cal-timeline-tag\.cockpit-dashboard-todo-tag-pill/, 'Calendar tags preserve the shared personal-task pill vocabulary.');
 assert.match(styles, /--ck-cal-split-week-height:clamp\(640px, 68vh, 760px\)/, 'Split week view and daily overview share a bounded height.');
 assert.match(styles, /cal-surface\.is-week\)[^{]*\{[^}]*--ck-cal-split-left:47\.5%/s, 'Split week view gives the actionable daily overview a slight visual priority.');
-assert.match(styles, /cal-timeline:has\(> \.cockpit-dashboard-cal-timeline-row:nth-child\(4\)\)[^{]*> \.cockpit-dashboard-cal-timeline-row\s*\{[^}]*flex:1 1 0[^}]*min-height:88px/s, 'Busy split-week timelines distribute rows across the available body height.');
+assert.match(styles, /cal-timeline:has\(> \.cockpit-dashboard-cal-timeline-row:nth-child\(4\)\)[^{]*> \.cockpit-dashboard-cal-timeline-row\s*\{[^}]*flex:1 0 auto[^}]*min-height:88px/s, 'Busy split-week timelines distribute spare height while preserving each row content height.');
 assert.match(styles, /cal-surface\.is-week \.cockpit-dashboard-cal-week\s*\{[^}]*grid-template-columns:repeat\(6,[^}]*grid-template-rows:repeat\(3,/s, 'Split week view keeps the requested 3 + 2 + 2 three-row rhythm.');
 assert.match(styles, /cal-week-day:nth-child\(4\)[\s\S]*cal-week-day:nth-child\(7\)[^{]*\{[^}]*grid-column:span 3/s, 'The final four days form two balanced two-card rows.');
 assert.match(calendar, /cal-split-resize[\s\S]*setPointerCapture[\s\S]*pointermove[\s\S]*ArrowLeft[\s\S]*dblclick/, 'Split calendar exposes a pointer, keyboard, and reset-capable resize handle.');

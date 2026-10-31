@@ -6661,7 +6661,7 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--c
   padding-top:6px;
 }
 .cockpit-dashboard-root.cockpit-dashboard-calendar-split .cockpit-dashboard-module[data-module-id="calendar"]:has(> .cockpit-dashboard-cal-wrap .cockpit-dashboard-cal-surface.is-week) > .cockpit-dashboard-cal-detail.has-items > .cockpit-dashboard-cal-timeline:has(> .cockpit-dashboard-cal-timeline-row:nth-child(4)) > .cockpit-dashboard-cal-timeline-row {
-  flex:1 1 0;
+  flex:1 0 auto;
   min-height:88px;
 }
 
@@ -6688,7 +6688,7 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--c
   grid-column:span 3;
 }
 
-/* 分栏时间线：事项正文优先占满整行（最多两行），标签胶囊另起一行，宽度不足时再由 @container 分级收起。 */
+/* 分栏时间线：事项正文按内容自动增高，标签胶囊另起一行，宽度不足时再由 @container 分级收起。 */
 .cockpit-dashboard-root.cockpit-dashboard-calendar-split .cockpit-dashboard-module[data-module-id="calendar"] .cockpit-dashboard-cal-timeline-summary {
   display:grid;
   grid-template-columns:minmax(0,max-content) auto minmax(0,1fr);
@@ -6698,11 +6698,14 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--c
 .cockpit-dashboard-root.cockpit-dashboard-calendar-split .cockpit-dashboard-module[data-module-id="calendar"] .cockpit-dashboard-cal-timeline-summary > button.cockpit-dashboard-cal-timeline-title {
   grid-column:1;
   grid-row:1;
-  display:-webkit-box;
-  -webkit-box-orient:vertical;
-  -webkit-line-clamp:2;
+  display:block;
+  min-width:0;
+  height:auto;
+  max-height:none;
   white-space:normal;
   overflow-wrap:anywhere;
+  overflow:visible;
+  text-overflow:clip;
 }
 .cockpit-dashboard-root.cockpit-dashboard-calendar-split .cockpit-dashboard-module[data-module-id="calendar"] .cockpit-dashboard-cal-timeline-now {
   grid-column:2;
@@ -6828,6 +6831,19 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--c
   outline-offset: 2px;
 }
 
+.cockpit-dashboard-theme-installer {
+  margin: 12px 0 18px;
+  padding: 0 16px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m, 12px);
+  background: var(--background-secondary);
+}
+.cockpit-dashboard-theme-installer .setting-item { flex-wrap: wrap; gap: 12px; }
+.cockpit-dashboard-theme-installer .setting-item-info { min-width: 180px; }
+.cockpit-dashboard-theme-install-status { color: var(--text-normal); font-size: var(--font-ui-small); line-height: 1.6; }
+.cockpit-dashboard-theme-install-help { color: var(--text-muted); font-size: var(--font-ui-small); line-height: 1.6; }
+.cockpit-dashboard-theme-install-help p { margin: 8px 0 0; }
+
 /* 一体式玻璃外观：宿主窗口负责桌面透视，驾驶舱负责统一的磨砂层次。 */
 .workspace-tabs:has(> .workspace-tab-container > .workspace-leaf.mod-active .cockpit-dashboard-root[data-glass="on"]),
 .workspace-tab-container:has(> .workspace-leaf.mod-active .cockpit-dashboard-root[data-glass="on"]),
@@ -6884,6 +6900,25 @@ body.is-translucent .modal.cockpit-dashboard-spotlight-modal {
   --ck-border: rgba(255, 255, 255, .075);
   --ck-border-strong: rgba(255, 255, 255, .13);
   --ck-highlight: inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+/* 没有原生窗口半透明时，用稳定底色承托分层卡片。 */
+body:not(.is-translucent) :is(.cockpit-dashboard-root, .cockpit-dashboard-ai-view, .cockpit-dashboard-overlay-theme)[data-glass="on"] {
+  --ck-surface: rgba(255, 255, 255, .74);
+  --ck-surface-hover: rgba(255, 255, 255, .94);
+  --ck-surface-sunken: rgba(235, 239, 244, .72);
+  --ck-cal-tile-rest: rgba(255, 255, 255, .72);
+  --ck-border: rgba(83, 101, 126, .16);
+  --ck-border-strong: rgba(83, 101, 126, .27);
+  --ck-highlight: inset 0 1px 0 rgba(255, 255, 255, .65);
+}
+body.theme-dark:not(.is-translucent) :is(.cockpit-dashboard-root, .cockpit-dashboard-ai-view, .cockpit-dashboard-overlay-theme)[data-glass="on"] {
+  --ck-surface: rgba(44, 49, 59, .82);
+  --ck-surface-hover: rgba(55, 61, 73, .94);
+  --ck-surface-sunken: rgba(22, 26, 33, .72);
+  --ck-cal-tile-rest: rgba(255, 255, 255, .045);
+  --ck-border: rgba(210, 221, 238, .12);
+  --ck-border-strong: rgba(210, 221, 238, .22);
+  --ck-highlight: inset 0 1px 0 rgba(255, 255, 255, .07);
 }
 /* 全局二级浮层同步玻璃模式：遮罩更轻、面板半透明，避免整屏深蓝。 */
 .cockpit-dashboard-overlay-theme[data-glass="on"] {

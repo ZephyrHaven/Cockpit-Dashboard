@@ -432,9 +432,11 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     addPanelIntro(panels.appearance, en ? 'Appearance & motion' : '外观与动效', en
       ? 'Adjust the dashboard surfaces and motion.'
       : '调整驾驶舱的卡片表面与动效。');
+    await renderCockpitThemeInstaller(panels.appearance, this.plugin, language);
+    if (renderVersion !== this._displayVersion) return;
     new obs.Setting(panels.appearance)
       .setName(en ? 'Unified glass appearance' : '一体式玻璃外观')
-      .setDesc(en ? 'A translucent dashboard that uses the host window frost.' : '驾驶舱与宿主窗口连成一层轻透玻璃。')
+      .setDesc(en ? 'Layered dashboard cards on all platforms; native window frost when supported and enabled.' : '各平台均使用轻透分层卡片；宿主支持并开启半透明窗口时，呈现一体式毛玻璃。')
       .addToggle((toggle) => toggle.setValue(motionData.glassCardsEnabled === true).onChange(async (value) => {
         await this.plugin.mutateData((data) => { data.glassCardsEnabled = value === true; });
         cockpitRefreshGlassRoots(this.plugin, value === true);
