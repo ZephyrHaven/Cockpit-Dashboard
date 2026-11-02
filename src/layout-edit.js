@@ -107,6 +107,7 @@ function cockpitApplyModuleEditState(view, root) {
     }
   });
   cockpitApplyToolbarButtonEditState(view, root);
+  if (typeof cockpitSyncCustomComponents === 'function') cockpitSyncCustomComponents(view);
 }
 function cockpitWireModuleDnD(view, root) {
   root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {
@@ -256,6 +257,7 @@ function cockpitApplyModuleLayout(view, root) {
     wrapper.style.setProperty('--ck-i', String(fragment.childNodes.length));
     nodes.forEach((node) => wrapper.appendChild(node));
     view._applyCustomModuleTitle(wrapper, moduleId);
+    cockpitApplyModuleTitleIcon(wrapper, moduleId);
     fragment.appendChild(wrapper);
   });
   unclassified.forEach((node) => fragment.appendChild(node));
@@ -289,6 +291,7 @@ function cockpitMakeCollapsible(view, titleEl, contentEl, key, defaultCollapsed)
     collapsed = !collapsed;
     apply(true);
     view._collapsed[key] = collapsed;
+    if (typeof cockpitSyncCustomComponents === 'function') cockpitSyncCustomComponents(view);
     view._mutatePluginData((data) => { data.collapsed = { ...view._collapsed }; })
       .catch((ex) => console.warn('save collapsed', ex));
   };

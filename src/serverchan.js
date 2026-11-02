@@ -441,6 +441,13 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
         await this.plugin.mutateData((data) => { data.glassCardsEnabled = value === true; });
         cockpitRefreshGlassRoots(this.plugin, value === true);
       }));
+    new obs.Setting(panels.appearance)
+      .setName(en ? 'Show component title icons' : '显示组件标题图标')
+      .setDesc(en ? 'Show simple line icons before dashboard titles. Applies to every layout immediately.' : '在组件标题前显示简洁线条图标，立即应用于所有情景布局。')
+      .addToggle(toggle => toggle.setValue(motionData.moduleTitleIconsEnabled !== false).onChange(async value => {
+        await this.plugin.mutateData(data => { data.moduleTitleIconsEnabled = value === true; });
+        cockpitRefreshModuleTitleIcons(this.plugin, value === true);
+      }));
     const motionStatus = panels.appearance.createDiv({ cls:PLUGIN_ID + '-motion-settings-preview' });
     const previewOrb = motionStatus.createDiv({ cls:PLUGIN_ID + '-motion-settings-orb' });
     obs.setIcon(previewOrb, 'sparkles');
@@ -453,7 +460,7 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     for (let i = 0; i < 3; i++) previewTrack.createSpan({ cls:PLUGIN_ID + '-motion-settings-node' });
     const replayMotion = motionStatus.createEl('button', { cls:PLUGIN_ID + '-motion-settings-replay', text:en ? 'Replay motion' : '播放动效演示', attr:{ type:'button' } });
     replayMotion.onclick = () => cockpitReplayMotion(this.plugin, motionStatus);
-    const motionSetting = new obs.Setting(panels.appearance)
+    new obs.Setting(panels.appearance)
       .setName(en ? 'Enhanced motion' : '增强动效')
       .setDesc(en ? 'Master switch for Motion V2. Turning it off keeps all functions and removes decorative movement.' : 'Motion V2 总开关。关闭后保留全部功能，仅移除增强位移与装饰动画。')
       .addToggle((toggle) => toggle.setValue(motionData.motionV2Enabled !== false).onChange(async (value) => {
@@ -461,12 +468,10 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
         cockpitRefreshMotionRoots(this.plugin, value === true);
         motionStatus.classList.toggle('is-off', value !== true);
       }));
-    motionSetting.settingEl.addClass(PLUGIN_ID + '-settings-master-toggle');
     motionStatus.classList.toggle('is-off', motionData.motionV2Enabled === false);
 
     addPanelIntro(panels.channels, copy.channels, en ? 'Choose one or more delivery services and test each connection independently.' : '选择一个或多个推送服务，并可分别测试连接。');
-    const masterSetting = new obs.Setting(panels.channels).setName(copy.enabled).setDesc(copy.enabledDesc).addToggle((toggle) => toggle.setValue(config.enabled).onChange(async (value) => { config.enabled = value; await save(); }));
-    masterSetting.settingEl.addClass(PLUGIN_ID + '-settings-master-toggle');
+    new obs.Setting(panels.channels).setName(copy.enabled).setDesc(copy.enabledDesc).addToggle((toggle) => toggle.setValue(config.enabled).onChange(async (value) => { config.enabled = value; await save(); }));
     const channelGrid = panels.channels.createDiv({ cls:PLUGIN_ID + '-settings-channel-grid' });
     const addChannel = (id, fields) => {
       const channel = config.channels[id];

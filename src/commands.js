@@ -3,6 +3,10 @@
 // shell 类能力未配置时必须只提示、不执行（见 toolbar-custom 的配置编辑器）。
 
 function registerCockpitCommands(plugin) {
+  plugin.addCommand({id:'disable-custom-components',name:'停止并禁用所有自定义组件',callback:async()=>{
+    try { await plugin.customComponents.disableAll(); new obs.Notice('自定义组件已全部禁用 / All custom components disabled.'); }
+    catch(error) { new obs.Notice(String(error.message)); }
+  }});
   plugin.addCommand({id:'open-team-space',name:'打开团队空间',callback:() => plugin.teamSync?.open()});
   plugin.addCommand({id:'open-cockpit',name:'打开 Cockpit 驾驶舱',callback:() => plugin._open()});
   plugin.addCommand({

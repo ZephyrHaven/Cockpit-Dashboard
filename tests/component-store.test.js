@@ -88,13 +88,15 @@ const root = path.resolve(__dirname, '..');
 const store = fs.readFileSync(path.join(root, 'src/component-store.js'), 'utf8');
 const scenes = fs.readFileSync(path.join(root, 'src/scenes.js'), 'utf8');
 const framework = fs.readFileSync(path.join(root, 'src/_framework.js'), 'utf8');
+const dashboardMenu = fs.readFileSync(path.join(root, 'src/dashboard-menu.js'), 'utf8');
 const build = fs.readFileSync(path.join(root, 'build.js'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 
 assert.match(build, /'component-store-core\.js'[\s\S]*'component-store\.js'/, 'The component store is included in the production bundle.');
 assert.match(scenes, /openComponentStore\(view\)/, 'Scene management opens the component store.');
 assert.doesNotMatch(scenes, /view\._toggleLayoutEdit\(\)/, 'The scene menu no longer exposes the noisy live editor.');
-assert.match(framework, /openComponentStore\(this\)/, 'The dashboard context menu opens the same component store.');
+assert.match(framework, /cockpitDashboardMenuItems\(this\)/, 'The dashboard delegates its global menu to the menu module.');
+assert.match(dashboardMenu, /openComponentStore\(view\)/, 'The dashboard context menu opens the same component store.');
 assert.match(store, /renderToolbarManager/, 'Toolbar has a dedicated component manager.');
 assert.match(store, /openBuiltinToolbarConfigEditor/, 'Toolbar retains built-in button configuration.');
 assert.match(store, /openCustomToolbarButtonEditor/, 'Toolbar retains custom-button creation and editing.');

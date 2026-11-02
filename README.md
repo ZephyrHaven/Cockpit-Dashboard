@@ -28,6 +28,12 @@ On macOS, enable **Appearance → Translucent window** for native frost. Windows
 
 Use the same entry to update the theme. Existing files, including local modifications, are backed up under the theme’s `.cockpit-backups/<timestamp>/` folder before replacement. To restore them, copy the saved `theme.css` and `manifest.json` back into the theme directory. Failed installs attempt to restore previous files and show a message if recovery fails. Installation leaves host appearance preferences untouched and does not downgrade a newer theme. [Manual installation](theme/cockpit-glass/README.md) remains available.
 
+## Custom components
+
+Choose **Import component** in the component store, select a local JSON package or component folder, review its identity and permissions, then apply the layout. Component details support updates, disabling, export and uninstall. New components remain hidden in other layout scenes.
+
+Download the reading-progress example from the store, or see the [SDK v1 guide](docs/component-authoring-spec.md) and [examples](examples/custom-components/README.md). Component code runs in a restricted Worker with no file, command or network API.
+
 ## Data & privacy
 
 Everything is stored in your vault or the plugin folder. There is no telemetry, and nothing is uploaded to the developer.
@@ -39,6 +45,7 @@ Everything is stored in your vault or the plugin folder. There is no telemetry, 
 | `data.json` | Settings, layout scenes, toolbar, RSS config, Apple Calendar mappings, AI model config and persistently approved low-risk Agent actions (**API keys are stored here in plain text**) |
 | `lan-sync-<machine>.json`, `team-sync-<machine>.json` + backups | Opt-in LAN/team sync state, including plaintext pairing secrets local to this machine |
 | `ai-history.json`, `ai-index.json`, `logs/agent-tools.jsonl` | Up to 30 AI sessions, the local search index snapshot, and the last 500 Agent tool receipts |
+| `custom-components.json`, `.backup` | Locally imported component code, enable state, runtime errors and private JSON data; uninstall can retain data for reinstall. No automatic network access or sync |
 | IndexedDB | Local RSS article cache and read state |
 | `themes/Cockpit Glass/` inside the current configuration directory | Opt-in companion theme installation and local backups before updates (`.cockpit-backups/`); no network access or changes to other themes |
 

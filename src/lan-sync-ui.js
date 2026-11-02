@@ -120,10 +120,13 @@ class CockpitLanConflictsModal extends CockpitModal {
 }
 async function renderLanSyncSettings(container, plugin, language, options = {}) {
   const en = language === 'en'; const service = plugin.lanSync;
-  container.createEl('h2', { text:en ? 'Team space' : '团队空间' });
-  container.createEl('p', { text:en ? 'A host approves devices and controls team task permissions. Personal tasks stay separate.' : '主设备审批成员并控制团队待办的同步范围和权限，个人待办独立保留。' });
-  teamSyncButton(container, en ? 'Manage team' : '创建 / 加入 / 管理团队', () => plugin.teamSync?.open());
-  container.createEl('h2', { text:en ? 'Nearby devices · Preview' : '附近设备 · 预览版' });
+  const team = container.createEl('section', { cls:'cockpit-sync-settings-section' });
+  team.createEl('h2', { text:en ? 'Team space' : '团队空间' });
+  team.createEl('p', { cls:'cockpit-lan-muted', text:en ? 'A host approves devices and controls team task permissions. Personal tasks stay separate.' : '主设备审批成员并控制团队待办的同步范围和权限，个人待办独立保留。' });
+  const teamActions = team.createDiv({ cls:'cockpit-lan-actions' });
+  teamSyncButton(teamActions, en ? 'Manage team' : '创建 / 加入 / 管理团队', () => plugin.teamSync?.open());
+  container = container.createEl('section', { cls:'cockpit-sync-settings-section' });
+  container.createEl('h2', { text:en ? 'Personal device sync' : '个人设备同步' });
   container.createEl('p', { cls:'cockpit-lan-muted', text:en ? 'Pair your computers on the same network. Sync tasks, bookmarks, display name, language and the morning-brief sender choice.' : '把你的电脑连接起来。在同一网络下，共享待办、收藏、昵称、语言和晨报发送设备选择。' });
   if (!service) { container.createEl('p', { text:'同步服务不可用，请重新加载插件。' }); return; }
   try { await service.store.load(); } catch (error) { container.createEl('p', { text:error.message }); return; }

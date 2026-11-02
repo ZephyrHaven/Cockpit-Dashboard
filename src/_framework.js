@@ -110,6 +110,7 @@ class CockpitView extends obs.ItemView {
       { id:'workflows', label:this._t('sections.workflows'), collapsible:true, matches:(el) => el.dataset.section === 'workflows-title' || el.dataset.section === 'workflows-body' },
       { id:'reportStudio', label:this._t('sections.reportStudio'), collapsible:true, matches:(el) => el.dataset.section === 'report-studio-title' || el.dataset.section === 'report-studio-body' },
       ...['teamStats', 'runHistory', 'syncHealth'].map((id,index) => ({id, label:(this._lang() === 'en' ? ['Team overview','Run history','Sync diagnostics'] : ['团队概览','运行记录','同步诊断'])[index], collapsible:true, matches:el=>el.dataset.section === id+'-title'||el.dataset.section === id+'-body'})),
+      ...(typeof customComponentRegistry === 'function' ? customComponentRegistry(this) : []),
       { id:'footer', label:this._t('layout.modules.footer'), matches:(el) => el.classList.contains(PLUGIN_ID + '-footer') },
       { id:'recent', label:this._t('sections.recent'), collapsible:true, matches:(el) => el.dataset.section === 'recent-title' || el.classList.contains(PLUGIN_ID + '-recent-tabs') || el.classList.contains(PLUGIN_ID + '-recent') }
     ];
@@ -150,7 +151,8 @@ class CockpitView extends obs.ItemView {
   _applyCustomModuleTitle(wrapper, moduleId) {
     const title = this._moduleTitleElement(wrapper);
     if (!title) return;
-    const textNode = Array.from(title.childNodes).find((node) => node.nodeType === 3 && node.textContent.trim());
+    const label = Array.from(title.children).find((node) => node.tagName === 'SPAN' && !node.className && node.textContent.trim());
+    const textNode = Array.from((label || title).childNodes).find((node) => node.nodeType === 3 && node.textContent.trim());
     if (!textNode) return;
     if (!title.dataset.defaultModuleTitle) title.dataset.defaultModuleTitle = textNode.textContent.trim();
     textNode.textContent = this._customModuleLabels?.[moduleId] || title.dataset.defaultModuleTitle;
@@ -209,6 +211,7 @@ class CockpitView extends obs.ItemView {
     }
     this._moduleOrder = this._normalizeModuleOrder(layout.moduleOrder);
     this._hiddenModules = new Set(this._normalizeModuleSubset(layout.hiddenModules));
+    if (typeof customComponentSceneDefaults === 'function') customComponentSceneDefaults(this, layout);
     this._toolbarOrder = normalizeToolbarOrder(this, layout.toolbarOrder);
     this._hiddenToolbarActions = new Set(this._normalizeToolbarActionSubset(layout.hiddenToolbarActions));
     this._statsCardOrder = this._normalizeStatsCardOrder(layout.statsCardOrder);
@@ -384,6 +387,7 @@ class CockpitView extends obs.ItemView {
     this._focusHistory.set(entry.day, actualMinutes);
     if (entry.day === window.moment().format('YYYY-MM-DD')) this._focusMinutes = actualMinutes;
     await this._markPomodoroCompletionsApplied([entry.id]);
+    if (typeof cockpitNotifyCustomComponents === 'function') cockpitNotifyCustomComponents(this, ['focus']);
     return actualMinutes;
   }
   async _recoverPendingPomodoroCompletions() {
@@ -436,6 +440,7 @@ class CockpitView extends obs.ItemView {
       this._refreshCalendarRef?.();
       this._refreshHeroReminder?.();
     }
+    if (typeof cockpitNotifyCustomComponents === 'function') cockpitNotifyCustomComponents(this, ['todos']);
     return true;
   }
   async _deletePresetToolbarAction(action) {
@@ -500,7 +505,7 @@ class CockpitView extends obs.ItemView {
     const dueText = this._getHeroDueText(now);
     if (dueText) heroSubText += ' · ' + dueText;
     if (this._heroRefs.greetingPrefixEl) {
-      this._heroRefs.greetingPrefixEl.textContent = E.wave + ' ' + this._getGreetingByHour(now.hour()) + '，';
+      this._heroRefs.greetingPrefixEl.textContent = this._getGreetingByHour(now.hour()) + '，';
     }
     if (this._heroRefs.summaryEl) this._heroRefs.summaryEl.textContent = heroSubText;
     if (this._heroRefs.daysEl) {
@@ -627,6 +632,7 @@ class CockpitView extends obs.ItemView {
 
     // 加载用户自定义名称 + 初始化首次使用日期
     this._glassCardsEnabled = false;
+    this._moduleTitleIconsEnabled = true;
     try {
       const pluginData = await this._plugin.loadData() || {};
       const originalMentionedModules = cockpitMentionedModules(pluginData);
@@ -652,6 +658,7 @@ class CockpitView extends obs.ItemView {
       this._calendarLunarEnabled = pluginData?.calendarLunarEnabled !== false;
       this._motionV2Enabled = pluginData?.motionV2Enabled !== false;
       this._glassCardsEnabled = pluginData?.glassCardsEnabled === true;
+      this._moduleTitleIconsEnabled = pluginData?.moduleTitleIconsEnabled !== false;
       this._username = pluginData?.username || this._t('hero.defaultName');
       const savedContentWidth = Number(pluginData?.dashboardContentWidth);
       this._contentWidth = Number.isFinite(savedContentWidth) && savedContentWidth >= 480 ? Math.round(savedContentWidth) : null;
@@ -812,60 +819,13 @@ class CockpitView extends obs.ItemView {
       '.' + PLUGIN_ID + '-todo',
       '.' + PLUGIN_ID + '-recent-item',
       '.' + PLUGIN_ID + '-flash-row',
+      '.' + PLUGIN_ID + '-custom-component-body',
       '.' + PLUGIN_ID + '-heatmap',
       '.' + PLUGIN_ID + '-footer'
     ];
     return !target.closest(blockedSelectors.join(','));
   }
-  _getDashboardMenuItems() {
-    return [
-      ...this._blankContextMenuItems,
-      {
-        title: this._lang() === 'en' ? 'Manage RSS subscriptions' : '管理 RSS 订阅源',
-        icon: 'settings-2',
-        onClick: () => new CockpitRssSettingsModal(this.app, this).open()
-      },
-      {
-        title: this._lang() === 'en' ? 'Refresh RSS subscriptions' : '刷新 RSS 订阅',
-        icon: 'rss',
-        onClick: async () => { await this._refreshRssSubscriptions(true); }
-      },
-      {
-        title: this._lang() === 'en' ? 'Clear local RSS cache' : '清除本机 RSS 缓存',
-        icon: 'trash-2',
-        onClick: async () => { await this._rss.clearCache(); this._refreshCalendarRef?.(); new obs.Notice(this._lang() === 'en' ? 'Local RSS cache cleared.' : '本机 RSS 缓存已清除。'); }
-      },
-      {
-        title: this._t('contextMenu.releaseNotes'),
-        icon: 'history',
-        onClick: () => {
-          new CockpitReleaseNotesModal(this.app, this._plugin, this._language).open();
-        }
-      },
-      {
-        title: this._t('contextMenu.checkUpdate'),
-        icon: 'download',
-        onClick: () => this._checkForUpdates()
-      },
-      {
-        title: this._lang() === 'en' ? 'Component store' : '组件商店',
-        icon: 'blocks',
-        onClick: () => {
-          openComponentStore(this);
-        }
-      },
-      {
-        title: this._lang() === 'en' ? 'Data migration' : '数据迁移',
-        icon: 'database',
-        onClick: () => openStorageMigration(this)
-      },
-      {
-        title: this._t('contextMenu.refreshPage'),
-        icon: 'refresh-cw',
-        onClick: async () => { await this._renderDashboard(true); }
-      }
-    ];
-  }
+  _getDashboardMenuItems() { return cockpitDashboardMenuItems(this); }
   async _refreshRssSubscriptions(force) {
     const result = await this._rss.refresh(force);
     const en = this._lang() === 'en';
@@ -880,7 +840,8 @@ class CockpitView extends obs.ItemView {
   }
   _openDashboardMenu(anchorEl, sourceEvent) {
     const menu = new obs.Menu();
-    this._getDashboardMenuItems().forEach(({ title, icon, onClick }) => {
+    this._getDashboardMenuItems().forEach(({ title, icon, onClick, separator }) => {
+      if (separator) { menu.addSeparator(); return; }
       menu.addItem((item) => {
         item.setTitle(title).setIcon(icon).onClick(onClick);
       });
@@ -912,6 +873,7 @@ class CockpitView extends obs.ItemView {
   }
 
   async _renderDashboard(reloadState, crossfadeScene) {
+    cockpitDestroyCustomComponents(this);
     this._teamUnsubscribe?.(); this._teamUnsubscribe = null; this._teamBuildToken = null;
     this._insightsCleanup?.(); this._insightsCleanup=null;
     if (reloadState) await this._reloadDashboardState();
@@ -938,6 +900,7 @@ class CockpitView extends obs.ItemView {
     if (this._calendarLayout === 'split') initialClasses.push(PLUGIN_ID+'-calendar-split');
     const root = container.createDiv({ cls:initialClasses.join(' ') });
     root.dataset.glass = this._glassCardsEnabled ? 'on' : 'off';
+    root.dataset.moduleTitleIcons = this._moduleTitleIconsEnabled !== false ? 'on' : 'off';
     cockpitApplyMotionState(root, this);
     if (previousRoot) root.classList.add(PLUGIN_ID + '-scene-preparing');
     this._ensureStylesheetLoaded();
@@ -1064,7 +1027,7 @@ class CockpitView extends obs.ItemView {
       });
       buildSceneSwitcher(this, heroControls);
       const greetLine = el.createDiv({ cls: PLUGIN_ID+'-greeting' });
-      const greetingPrefixEl = greetLine.createSpan({ text: E.wave+' '+gr+'，' });
+      const greetingPrefixEl = greetLine.createSpan({ text: gr+'，' });
       let currNameSpan = greetLine.createSpan({ cls: PLUGIN_ID+'-name', text: this._username });
       const startEdit = (span) => {
         const inp = document.createElement('input');
@@ -1123,6 +1086,7 @@ class CockpitView extends obs.ItemView {
       // 项目进度条与待办同源，待办变化后局部刷新（模块未开启时为空操作）。
       this._refreshProjectsRef?.();
       this._refreshAgendaRef?.();
+      cockpitNotifyCustomComponents(this, ['todos']);
       return true;
     };
 
@@ -1237,12 +1201,10 @@ class CockpitView extends obs.ItemView {
     // ===== 2. Toolbar（渲染与编辑交互由独立模块负责） =====
     const { toggleSearch } = buildToolbar(this, root, allFiles, t);
     this._blankContextMenuItems = [
-      { title: t('contextMenu.newNote'), icon: 'plus', onClick: () => this._doAction('new') },
-      { title: t('contextMenu.searchNotes'), icon: 'search', onClick: toggleSearch },
-      { title: t('contextMenu.commandPalette'), icon: 'terminal', onClick: () => this._doAction('command') },
-      { title: t('contextMenu.openGraph'), icon: 'git-fork', onClick: () => this._doAction('graph') },
-      { title: t('contextMenu.startPomodoro'), icon: 'timer', onClick: () => this._doAction('pomodoro') },
-      { title: t('contextMenu.exportBackup'), icon: 'archive', onClick: async () => {
+      { id:'newNote', title: t('contextMenu.newNote'), icon: 'plus', onClick: () => this._doAction('new') },
+      { id:'searchNotes', title: t('contextMenu.searchNotes'), icon: 'search', onClick: toggleSearch },
+      { id:'startPomodoro', title: t('contextMenu.startPomodoro'), icon: 'timer', onClick: () => this._doAction('pomodoro') },
+      { id:'exportBackup', title: t('contextMenu.exportBackup'), icon: 'archive', onClick: async () => {
         try {
           const path = await exportCockpitBackup(this._plugin);
           new obs.Notice(path ? ('✅ ' + path) : (lang === 'en' ? 'Nothing to back up.' : '没有可备份的数据文件。'), 8000);
@@ -1905,6 +1867,7 @@ class CockpitView extends obs.ItemView {
       console.warn('Cockpit weekly review module failed; dashboard basics remain available', e);
     }
 
+    cockpitBuildCustomComponents(this, root);
     root.createDiv({ cls: PLUGIN_ID+'-footer', text: t('footer.text') });
 
     this._applyModuleLayout(root);
@@ -2258,6 +2221,7 @@ class CockpitView extends obs.ItemView {
     } catch (e) { console.warn('Cockpit: stylesheet probe failed', e); }
   }
   async onClose() {
+    cockpitDestroyCustomComponents(this, true);
     cancelAnimationFrame(this._contentWidthFrame); this._contentWidthFrame = null;
     clearTimeout(this._contentWidthTimer); this._contentWidthTimer = null;
     this._teamUnsubscribe?.(); this._teamUnsubscribe = null; this._teamBuildToken = null;
@@ -2524,6 +2488,8 @@ class CockpitPlugin extends obs.Plugin {
   }
   async onload() {
     const initialData = await this.loadData() || {};
+    this.customComponents = new CockpitCustomComponentService(this);
+    await this.customComponents.load();
     this._motionV2Enabled = initialData.motionV2Enabled !== false;
     globalThis.__cockpitMotionV2Enabled = this._motionV2Enabled;
     this.updater = new CockpitUpdater(this);
@@ -2630,6 +2596,7 @@ class CockpitPlugin extends obs.Plugin {
     return this.openAI();
   }
   async onunload() {
+    this.customComponents?.stop();
     for (const modal of this._cockpitSearchModals || []) modal.close();
     this._cockpitSearchModals?.clear();
     for (const modal of this._cockpitDetailModals || []) modal.close();

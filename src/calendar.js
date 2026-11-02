@@ -425,6 +425,7 @@ function buildCalendar(root, todos, opts) {
     const header = surface.createDiv({ cls: PLUGIN_ID + '-cal-header' });
     const title = header.createDiv({ cls: PLUGIN_ID + '-cal-title-wrap', attr:{ 'aria-label':formatMonthTitle(calYear, calMonth, language) } });
     const titleLine = title.createDiv({ cls: PLUGIN_ID + '-cal-title' });
+    cockpitSetModuleTitleIcon(titleLine, 'calendar');
     titleMonthEl = titleLine.createSpan({ cls:PLUGIN_ID + '-cal-title-month', text:en ? getMonthLabels(language, 'long')[calMonth] : (calMonth + 1) + '月' });
     const titleMeta = title.createDiv({ cls:PLUGIN_ID + '-cal-title-meta' });
     titleYearEl = titleMeta.createSpan({ cls:PLUGIN_ID + '-cal-title-year', text:String(calYear) });

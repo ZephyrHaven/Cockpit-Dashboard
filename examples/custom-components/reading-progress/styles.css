@@ -1,0 +1,1 @@
+.reading { display:flex; flex-direction:column; gap:12px; padding:8px; } .reading-number { font-size:28px; font-weight:700; color:var(--ck-accent); } .reading-actions { display:flex; flex-wrap:wrap; gap:8px; }

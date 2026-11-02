@@ -60,6 +60,7 @@ function cockpitIsSilentRefreshBlocked(view, ignoreRecentActivity) {
   const activeEl = document.activeElement;
   if (!(activeEl instanceof HTMLElement)) return false;
   if (!activeEl.closest('.' + PLUGIN_ID + '-root')) return false;
+  if (activeEl.shadowRoot?.activeElement?.matches('input, textarea, select, [contenteditable="true"]')) return true;
   return activeEl.matches('input, textarea, select, [contenteditable="true"]');
 }
 function cockpitStartSilentRefreshLoops(view) {
@@ -167,6 +168,7 @@ async function cockpitRunSilentRefreshCycle(view, options = {}) {
         if (!current()) return;
         if(full) { await cockpitRefreshOptionalModule(view,'_refreshRunHistoryRef'); await cockpitRefreshOptionalModule(view,'_refreshSyncHealthRef'); }
         view._refreshHeroSection();
+        if (typeof cockpitNotifyCustomComponents === 'function') cockpitNotifyCustomComponents(view, scopes);
       } catch (error) {
         if (!view._vaultRefreshClosed) scopes.forEach((scope) => view._vaultRefreshScopes.add(scope));
         throw error;

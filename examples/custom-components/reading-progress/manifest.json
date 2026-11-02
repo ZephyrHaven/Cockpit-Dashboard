@@ -1,0 +1,12 @@
+{
+  "id": "example.reading-progress",
+  "name": "阅读进度",
+  "description": "记录本周阅读进度；数据保存在本机，可用于学习组件接口。",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "icon": "book-open",
+  "category": "knowledge",
+  "entry": "main.js",
+  "styles": "styles.css",
+  "permissions": []
+}

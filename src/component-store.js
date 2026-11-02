@@ -3,10 +3,11 @@
 const COMPONENT_STORE_META = {
   hero:{icon:'sparkles',category:'basic'}, tip:{icon:'lightbulb',category:'basic',manager:'tip'}, toolbar:{icon:'panels-top-left',category:'basic',manager:'toolbar'},
   alarms:{icon:'alarm-clock',category:'focus'}, countdowns:{icon:'timer-reset',category:'focus'}, agenda:{icon:'clock-3',category:'planning'}, calendar:{icon:'calendar-days',category:'planning'},
-  cats:{icon:'folders',category:'knowledge'}, stats:{icon:'chart-no-axes-column-increasing',category:'insights',manager:'stats'}, todos:{icon:'list-checks',category:'planning'}, teamTodos:{icon:'users',category:'planning'},
+  cats:{icon:'folders',category:'knowledge'}, stats:{icon:'chart-no-axes-column-increasing',category:'insights',manager:'stats'}, todos:{icon:'list-checks',category:'planning'}, teamTodos:{icon:'users',category:'team'},
   habits:{icon:'flame',category:'focus'}, projects:{icon:'target',category:'planning'}, focusChart:{icon:'chart-line',category:'insights'}, bookmarks:{icon:'star',category:'knowledge'},
   flash:{icon:'zap',category:'knowledge'}, resurface:{icon:'history',category:'knowledge'}, heatmap:{icon:'grid-3x3',category:'insights'}, weeklyReview:{icon:'calendar-check',category:'insights'},
   scheduledTasks:{icon:'calendar-clock',category:'automation'}, workflows:{icon:'workflow',category:'automation'}, reportStudio:{icon:'file-chart-column',category:'automation'},
+  teamStats:{icon:'users-round',category:'team'}, runHistory:{icon:'activity',category:'automation'}, syncHealth:{icon:'network',category:'team'},
   footer:{icon:'panel-bottom',category:'basic'}, recent:{icon:'history',category:'knowledge'}
 };
 
@@ -15,12 +16,12 @@ const COMPONENT_STORE_COPY = {
     cancel:'取消', apply:'应用布局', back:'返回组件商店', rename:'当前布局名称', restore:'恢复默认', componentSettings:'组件设置', layoutScope:'仅影响当前情景布局',
     globalScope:'全局设置，保存后会影响所有情景布局', toolbarItems:'Toolbar 按钮', statsItems:'统计卡片', show:'显示', hide:'隐藏', edit:'编辑', delete:'删除',
     addCustom:'添加自定义按钮', logs:'运行日志', tips:'管理提示库', empty:'当前布局还没有组件', noResults:'没有找到组件', sceneChanged:'情景布局已经切换，请重新打开组件商店。',
-    categories:{all:'全部',basic:'基础',planning:'计划',focus:'效率',automation:'自动化',knowledge:'知识',insights:'洞察'} },
+    categories:{all:'全部',basic:'基础与快捷操作',planning:'任务与日历',focus:'专注与习惯',knowledge:'笔记与知识',insights:'统计与回顾',automation:'自动化',team:'团队与同步'} },
   en:{ title:'Component Store', current:'Current layout', catalog:'All components', search:'Search components', add:'Add to layout', remove:'Remove from layout', undo:'Undo', configure:'Settings', added:'Added', pendingAdd:'Pending add', pendingRemove:'Pending removal',
     cancel:'Cancel', apply:'Apply layout', back:'Back to store', rename:'Name in this layout', restore:'Restore default', componentSettings:'Component settings', layoutScope:'Only affects the current layout scene',
     globalScope:'Global setting; saves immediately for every layout scene', toolbarItems:'Toolbar buttons', statsItems:'Statistic cards', show:'Show', hide:'Hide', edit:'Edit', delete:'Delete',
     addCustom:'Add custom button', logs:'Run logs', tips:'Manage tip library', empty:'No components in this layout', noResults:'No components found', sceneChanged:'The layout scene changed. Reopen the component store.',
-    categories:{all:'All',basic:'Basic',planning:'Planning',focus:'Focus',automation:'Automation',knowledge:'Knowledge',insights:'Insights'} }
+    categories:{all:'All',basic:'Basics & shortcuts',planning:'Tasks & calendar',focus:'Focus & habits',knowledge:'Notes & knowledge',insights:'Stats & reviews',automation:'Automation',team:'Team & sync'} }
 };
 
 function componentStoreCopy(view) { return view._lang() === 'en' ? COMPONENT_STORE_COPY.en : COMPONENT_STORE_COPY.zh; }
@@ -28,15 +29,15 @@ function componentStoreCopy(view) { return view._lang() === 'en' ? COMPONENT_STO
 function componentStoreDescriptions(view) {
   const en = view._lang() === 'en';
   return en ? {
-    hero:'Greeting and today overview',tip:'Daily prompt and personal tip library',toolbar:'Built-in and custom quick actions',alarms:'Recurring and one-time alarms',countdowns:'Deadline countdowns and notifications',agenda:'Today timeline',calendar:'Month and week planning',cats:'Knowledge-area shortcuts',stats:'Progress and activity cards',todos:'Task management',teamTodos:'Team tasks with device permissions',habits:'Habit check-ins',projects:'Project progress',focusChart:'Focus trends',bookmarks:'Starred notes',flash:'Quick capture inbox',resurface:'Bring old notes back',heatmap:'Recent editing activity',weeklyReview:'Weekly reflection',scheduledTasks:'Time and event automations',workflows:'Multi-step operations',reportStudio:'Weekly report generation',footer:'Dashboard footer',recent:'Recently opened and edited notes'
+    hero:'Greeting and today overview',tip:'Daily prompt and personal tip library',toolbar:'Built-in and custom quick actions',alarms:'Recurring and one-time alarms',countdowns:'Deadline countdowns and notifications',agenda:'Today timeline',calendar:'Month and week planning',cats:'Knowledge-area shortcuts',stats:'Progress and activity cards',todos:'Task management',teamTodos:'Team tasks with device permissions',habits:'Habit check-ins',projects:'Project progress',focusChart:'Focus trends',bookmarks:'Starred notes',flash:'Quick capture inbox',resurface:'Bring old notes back',heatmap:'Recent editing activity',weeklyReview:'Weekly reflection',scheduledTasks:'Time and event automations',workflows:'Multi-step operations',reportStudio:'Weekly report generation',teamStats:'Team progress and workload',runHistory:'Automation runs and delivery results',syncHealth:'Device connections and sync status',footer:'Dashboard footer',recent:'Recently opened and edited notes'
   } : {
-    hero:'问候与今日概览',tip:'每日提示与个人提示库',toolbar:'内置和自定义快捷操作',alarms:'重复及单次闹钟',countdowns:'截止倒计时与多渠道提醒',agenda:'今日时间线',calendar:'月视图和周视图计划',cats:'知识分类入口',stats:'进度与活动统计卡片',todos:'待办事项管理',teamTodos:'局域网团队待办与设备权限',habits:'习惯打卡',projects:'项目进度',focusChart:'专注趋势',bookmarks:'收藏文件',flash:'快速记录入口',resurface:'重新发现旧笔记',heatmap:'近期编辑活跃度',weeklyReview:'每周回顾',scheduledTasks:'时间与事件自动化',workflows:'多步骤运维流程',reportStudio:'周报生成与优化',footer:'驾驶舱页脚',recent:'最近打开和修改的内容'
+    hero:'问候与今日概览',tip:'每日提示与个人提示库',toolbar:'内置和自定义快捷操作',alarms:'重复及单次闹钟',countdowns:'截止倒计时与多渠道提醒',agenda:'今日时间线',calendar:'月视图和周视图计划',cats:'知识分类入口',stats:'进度与活动统计卡片',todos:'待办事项管理',teamTodos:'局域网团队待办与设备权限',habits:'习惯打卡',projects:'项目进度',focusChart:'专注趋势',bookmarks:'收藏文件',flash:'快速记录入口',resurface:'重新发现旧笔记',heatmap:'近期编辑活跃度',weeklyReview:'每周回顾',scheduledTasks:'时间与事件自动化',workflows:'多步骤运维流程',reportStudio:'周报生成与优化',teamStats:'团队进度与成员工作量',runHistory:'自动化执行与通知投递记录',syncHealth:'设备连接与同步状态',footer:'驾驶舱页脚',recent:'最近打开和修改的内容'
   };
 }
 
 function componentStoreEntries(view) {
   const descriptions = componentStoreDescriptions(view);
-  return view._moduleRegistry().map((module) => ({ ...module, ...(COMPONENT_STORE_META[module.id] || {icon:'layout-grid',category:'basic'}), description:descriptions[module.id] || '' }));
+  return view._moduleRegistry().map((module) => ({ ...module, ...(module.custom ? {icon:module.custom.manifest.icon,category:module.custom.manifest.category,manager:'custom'} : COMPONENT_STORE_META[module.id] || {icon:'layout-grid',category:'basic'}), description:module.custom ? module.custom.manifest.description + (module.custom.enabled ? '' : (view._lang()==='en'?' · Disabled':' · 已禁用')) : descriptions[module.id] || '' }));
 }
 
 function scheduleComponentStoreScrollRestore(modal, body, scrollTop) {
@@ -97,6 +98,17 @@ class CockpitComponentStoreModal extends CockpitModal {
     if (this.view._componentStoreModal === this) this.view._componentStoreModal = null;
     if (this.applied || this.globalChanged) this.view._renderDashboard(false, true).catch((e)=>console.warn('Cockpit component store refresh failed',e));
   }
+  _syncCustomCatalog() {
+    const scrollTop=this.contentEl.querySelector('.'+PLUGIN_ID+'-component-store-body')?.scrollTop||0;
+    const ids=this.view._defaultModuleOrder(), allowed=new Set(ids);
+    for(const snapshot of [this.initialSnapshot,this.draft]) {
+      snapshot.moduleOrder=snapshot.moduleOrder.filter(id=>allowed.has(id));
+      snapshot.hiddenModules=snapshot.hiddenModules.filter(id=>allowed.has(id));
+      for(const id of ids)if(!snapshot.moduleOrder.includes(id)){snapshot.moduleOrder.push(id);snapshot.hiddenModules.push(id);}
+    }
+    if(this.detailId&&!allowed.has(this.detailId))this.detailId='';
+    this.render({bodyScrollTop:scrollTop});
+  }
   _visible(id) { return !this.draft.hiddenModules.includes(id); }
   _initialVisible(id) { return !this.initialSnapshot.hiddenModules.includes(id); }
   _rerenderInPlace() { const body=this.contentEl.querySelector('.'+PLUGIN_ID+'-component-store-body'); const first=cockpitCaptureLayout(body?.querySelectorAll?.('[data-motion-key]')); this.render({bodyScrollTop:body?.scrollTop??0}); cockpitPlayFlip(this.contentEl,first,this.view); }
@@ -133,6 +145,14 @@ class CockpitComponentStoreModal extends CockpitModal {
     const head=this.contentEl.createDiv({cls:PLUGIN_ID+'-component-store-head'});
     const heading=head.createDiv({cls:PLUGIN_ID+'-component-store-heading'}); const icon=heading.createSpan();obs.setIcon(icon,'blocks');
     const headingText=heading.createDiv();headingText.createEl('h2',{text:this.detailId?c.componentSettings:c.title});headingText.createDiv({text:this.view._sceneLabel(this.view._sceneLayouts[this.sceneId])});
+    if(!this.detailId) {
+      const tools=head.createDiv({cls:PLUGIN_ID+'-component-store-header-tools'}),en=this.view._lang()==='en';
+      const guide=tools.createEl('button',{text:en?'Developer guide':'开发规范',attr:{type:'button'}});guide.onclick=()=>new CockpitComponentGuideModal(this.view.app,this.view._plugin.customComponents).open();
+      const install=tools.createEl('button',{text:en?'Import component':'导入组件',cls:'mod-cta',attr:{type:'button'}});
+      install.disabled=!this.view._plugin.customComponents?.available;
+      if(install.disabled)install.title=this.view._plugin.customComponents?.loadError||(en?'Component storage unavailable. Reload the plugin.':'组件存储不可用，请重新加载插件。');
+      install.onclick=()=>new CockpitComponentImportModal(this.view,this).open();
+    }
     if(this.detailId){const back=head.createEl('button',{cls:PLUGIN_ID+'-component-store-back',text:'← '+c.back,attr:{type:'button'}});back.onclick=()=>{this.detailId='';this.render();};}
     if(!this.detailId)this.renderNavigation(c);
     const body=this.contentEl.createDiv({cls:PLUGIN_ID+'-component-store-body'});
@@ -146,11 +166,11 @@ class CockpitComponentStoreModal extends CockpitModal {
   renderNavigation(c) {
     const nav=this.contentEl.createDiv({cls:PLUGIN_ID+'-component-store-nav'});
     const tabs=nav.createDiv({cls:PLUGIN_ID+'-component-store-tabs'});
-    [['current',c.current],['catalog',c.catalog]].forEach(([id,label])=>{const btn=tabs.createEl('button',{cls:this.tab===id?'active':'',text:label,attr:{type:'button'}});btn.onclick=()=>{this.tab=id;this.render();};});
+    [['current',c.current],['catalog',c.catalog]].forEach(([id,label])=>{const btn=tabs.createEl('button',{cls:this.tab===id?'active':'',text:label,attr:{type:'button'}});btn.onclick=()=>{this.tab=id;this.category='all';this.render();};});
     const search=nav.createEl('input',{attr:{type:'search',placeholder:c.search,'aria-label':c.search}});search.value=this.query;search.oninput=()=>{this.query=search.value;this.render();setTimeout(()=>this.contentEl.querySelector('input[type="search"]')?.focus(),0);};
     if(this.tab==='catalog'){
       const cats=nav.createDiv({cls:PLUGIN_ID+'-component-store-categories'});
-      Object.entries(c.categories).forEach(([id,label])=>{const btn=cats.createEl('button',{cls:this.category===id?'active':'',text:label,attr:{type:'button'}});btn.onclick=()=>{this.category=id;this.render();};});
+      Object.entries(c.categories).forEach(([id,label])=>{const btn=cats.createEl('button',{cls:this.category===id?'active':'',text:label,attr:{type:'button','aria-pressed':String(this.category===id)}});btn.onclick=()=>{this.category=id;this.render();};});
     }
   }
   _filteredEntries(visibleOnly=false) {
@@ -182,9 +202,15 @@ class CockpitComponentStoreModal extends CockpitModal {
     });
   }
   renderCatalog(body,c) {
-    const grid=body.createDiv({cls:PLUGIN_ID+'-component-catalog-grid'});const entries=this._filteredEntries(false);
-    if(!entries.length){grid.createDiv({cls:PLUGIN_ID+'-component-store-empty',text:c.noResults});return;}
-    entries.forEach((entry)=>{
+    const entries=this._filteredEntries(false);
+    if(!entries.length){body.createDiv({cls:PLUGIN_ID+'-component-store-empty',text:c.noResults});return;}
+    Object.entries(c.categories).filter(([id])=>id!=='all').forEach(([category,label])=>{
+      const items=entries.filter(entry=>entry.category===category);if(!items.length)return;
+      const group=body.createEl('section',{cls:PLUGIN_ID+'-component-catalog-group'});
+      const heading=group.createDiv({cls:PLUGIN_ID+'-component-catalog-heading'});
+      heading.createEl('h3',{text:label});heading.createSpan({text:String(items.length)});
+      const grid=group.createDiv({cls:PLUGIN_ID+'-component-catalog-grid'});
+      items.forEach((entry)=>{
       const card=grid.createDiv({cls:PLUGIN_ID+'-component-card'+(this._visible(entry.id)?' added':'') ,attr:{'data-module-id':entry.id}});
       card.dataset.motionKey='component:'+entry.id;
       const icon=card.createSpan({cls:PLUGIN_ID+'-component-card-icon'});obs.setIcon(icon,entry.icon);
@@ -194,6 +220,7 @@ class CockpitComponentStoreModal extends CockpitModal {
       const settings=actions.createEl('button',{text:c.configure,attr:{type:'button'}});settings.onclick=()=>{this.detailId=entry.id;this.render();};
       const visible=this._visible(entry.id);const toggle=actions.createEl('button',{cls:visible?'danger':'mod-cta',text:visible?c.remove:c.add,attr:{type:'button','data-component-visibility-action':'','aria-pressed':String(visible)}});toggle.onclick=()=>this._setVisible(entry.id,!this._visible(entry.id));
       const marker=card.createSpan({cls:PLUGIN_ID+'-component-card-added',text:'✓ '+c.added,attr:{'data-component-added-marker':''}});marker.hidden=!visible;this._syncVisibilityItem(entry.id);
+      });
     });
   }
   renderDetail(body,c) {
@@ -205,7 +232,7 @@ class CockpitComponentStoreModal extends CockpitModal {
     input.oninput=()=>{const value=input.value.trim().slice(0,40);if(value)this.draft.moduleLabels[entry.id]=value;else delete this.draft.moduleLabels[entry.id];};
     const restore=rename.createEl('button',{text:c.restore,attr:{type:'button'}});restore.onclick=()=>{delete this.draft.moduleLabels[entry.id];this.render();};
     generic.dataset.moduleId=entry.id;const visibility=generic.createEl('button',{cls:this._visible(entry.id)?'danger':'mod-cta',text:this._visible(entry.id)?c.remove:c.add,attr:{type:'button','data-component-visibility-action':'','aria-pressed':String(this._visible(entry.id))}});visibility.onclick=()=>this._setVisible(entry.id,!this._visible(entry.id));this._syncVisibilityItem(entry.id);
-    if(entry.manager==='toolbar')this.renderToolbarManager(body,c);else if(entry.manager==='stats')this.renderStatsManager(body,c);else if(entry.manager==='tip')this.renderTipManager(body,c);
+    if(entry.manager==='custom')cockpitRenderCustomComponentManager(this,body,entry);else if(entry.manager==='toolbar')this.renderToolbarManager(body,c);else if(entry.manager==='stats')this.renderStatsManager(body,c);else if(entry.manager==='tip')this.renderTipManager(body,c);
   }
   _toolbarButtons() {
     const raw=[...this.view._toolbarButtons().map((button)=>({...button,builtin:true})),...this.view._customToolbarButtons.map((button)=>({...button,action:'custom:'+button.id,builtin:false,icon:button.type==='url'?'🌐':'⌘'}))];

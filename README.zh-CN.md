@@ -28,6 +28,12 @@ Mac 在「设置 → 外观」开启「半透明窗口」后可获得原生毛�
 
 已有主题可在同一入口更新；重新安装本地修改过的主题时，原文件会备份到主题目录内的 `.cockpit-backups/<时间戳>/`。需要恢复时，把对应备份中的 `theme.css` 和 `manifest.json` 复制回主题目录。安装失败会尝试恢复原文件，无法恢复时会显示提示。安装器不会修改宿主外观配置，也不会覆盖更新版本的主题。仍可[手动安装](theme/cockpit-glass/README.md)。
 
+## 自定义组件
+
+在组件商店点击「导入组件」，选择本地 JSON 包或组件文件夹，确认名称与权限后安装，再点击「应用布局」。详情页支持更新、禁用、导出和卸载；新组件在其他情景默认隐藏。
+
+可先下载商店内的阅读进度示例。开发方式与界面、存储、权限规范见 [组件 SDK v1](docs/component-authoring-spec.md) 和 [示例](examples/custom-components/README.md)。组件代码在受限 Worker 中执行，不提供文件、命令或网络接口。
+
 ## 数据与隐私
 
 所有数据都保存在库内或插件目录，没有遥测，也不会上传给插件作者。
@@ -39,6 +45,7 @@ Mac 在「设置 → 外观」开启「半透明窗口」后可获得原生毛�
 | `data.json` | 设置、布局情景、Toolbar、RSS 配置、Apple 日历映射、AI 模型配置与永久允许的低风险 Agent 操作（**API Key 以明文保存在此处**） |
 | `lan-sync-<machine>.json`、`team-sync-<machine>.json` 及备份 | 可选的局域网/团队同步状态，含仅保存在本机的明文配对密钥 |
 | `ai-history.json`、`ai-index.json`、`logs/agent-tools.jsonl` | 最多 30 个 AI 会话、本地索引快照、最近 500 条 Agent 工具回执 |
+| `custom-components.json`、`.backup` | 本地导入的组件代码、启用状态、运行错误及组件私有 JSON 数据；卸载可保留数据以便重装，不自动联网或参与同步 |
 | IndexedDB | 本地 RSS 正文缓存与已读状态 |
 | 当前配置目录下的 `themes/Cockpit Glass/` | 主动安装的配套主题及更新前的本地备份（`.cockpit-backups/`）；不联网、不修改其他主题 |
 
