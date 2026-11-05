@@ -2487,6 +2487,7 @@ class CockpitPlugin extends obs.Plugin {
     return mutatePluginData(this, mutator);
   }
   async onload() {
+    cockpitInstallSelectPopover(this);
     const initialData = await this.loadData() || {};
     this.customComponents = new CockpitCustomComponentService(this);
     await this.customComponents.load();

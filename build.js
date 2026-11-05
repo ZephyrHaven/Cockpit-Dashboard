@@ -61,6 +61,7 @@ const MODULES = [
   'shell-runner.js',
   'jsonl-log.js',
   'motion.js',
+  'select-popover.js',
   'cockpit-events.js',
   'todo-repeat.js',
   'todo-repeat-editor.js',

@@ -7454,3 +7454,18 @@ body.is-translucent .cockpit-dashboard-ai-view[data-glass="on"] .cockpit-dashboa
   .cockpit-dashboard-component-store-head { flex-wrap:wrap; }
   .cockpit-dashboard-component-store-header-tools { margin-left:auto; }
 }
+
+/* 插件自绘下拉菜单：替代原生 select 弹出层，避免在毛玻璃/嵌套弹窗中闪烁 */
+.cockpit-dashboard-select-menu {
+  position:fixed; z-index:2147483000; box-sizing:border-box; overflow-y:auto; overscroll-behavior:contain;
+  padding:5px; border:1px solid var(--background-modifier-border); border-radius:10px;
+  background:var(--background-primary); color:var(--text-normal);
+  box-shadow:0 14px 38px rgba(0,0,0,.28); outline:none;
+}
+.cockpit-dashboard-select-menu-group { padding:6px 10px 3px; color:var(--text-faint); font-size:.82em; font-weight:700; }
+.cockpit-dashboard-select-menu-item {
+  padding:7px 10px; border-radius:7px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.35;
+}
+.cockpit-dashboard-select-menu-item.is-active { background:var(--background-modifier-hover); }
+.cockpit-dashboard-select-menu-item.is-selected { color:var(--text-accent); font-weight:650; }
+.cockpit-dashboard-select-menu-item.is-disabled { opacity:.45; cursor:default; }
