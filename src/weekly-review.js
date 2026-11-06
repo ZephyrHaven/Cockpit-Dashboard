@@ -132,12 +132,12 @@ function formatWeeklyReviewMarkdown(stats, { lang, range, weekKey, generatedAt }
   return lines.join('\n');
 }
 
-async function buildWeeklyReviewModule(view, root) {
+async function buildWeeklyReviewModule(view, root, options = {}) {
   const en = view._lang() === 'en';
 
   // 用裸文本节点承载标题，保证「编辑模式里重命名模块标题」对本周卡同样生效。
-  const title = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: view._t('sections.weeklyReview') });
-  title.dataset.section = 'weekly-review-title';
+  const title = options.embedded ? null : root.createDiv({ cls: PLUGIN_ID + '-section-title', text: view._t('sections.weeklyReview') });
+  if (title) title.dataset.section = 'weekly-review-title';
 
   const body = root.createDiv({ cls: PLUGIN_ID + '-weekly-review' });
   body.dataset.section = 'weekly-review-body';
@@ -187,6 +187,7 @@ async function buildWeeklyReviewModule(view, root) {
   const render = async () => {
     const mode = select.value === 'thisWeek' ? 'thisWeek' : 'lastWeek';
     const data = await collect(mode);
+    if (!body.isConnected || select.value !== mode) return;
     cachedStats = data; cachedRange = mode; cachedWeekKey = data.weekKey;
     const stats = data.stats;
     summary.empty();
@@ -218,6 +219,6 @@ async function buildWeeklyReviewModule(view, root) {
 
   view._refreshWeeklyReviewRef = render;
   try { await render(); } catch (e) { console.warn('Cockpit weekly review failed; dashboard basics remain available', e); }
-  view._makeModuleCollapsible('weeklyReview', title, body);
+  if (title) view._makeModuleCollapsible('weeklyReview', title, body);
   return render;
 }

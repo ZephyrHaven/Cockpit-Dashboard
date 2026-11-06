@@ -31,8 +31,20 @@ function calendarCountdownItemsForDate(items, dateValue) {
   }).filter((item) => item?.id && item.name).sort((a,b) => a.sortTime - b.sortTime || a.name.localeCompare(b.name));
 }
 
+function calendarBuildDayFlowItems({ dayStart, events, todos, rssSummary, countdowns, automations }) {
+  // 定时事项先按时刻排列，全天事项随后，无固定时刻的摘要与监听放在末尾。
+  const allDayTime = Number.MAX_SAFE_INTEGER - 1;
+  return [
+    ...events.map((event) => ({ kind:'event', event, sortTime:event.allDay ? allDayTime : Math.max(dayStart, event.start) })),
+    ...todos.map((todo) => ({ kind:todo.teamTodo ? 'teamTodo' : 'todo', todo, sortTime:todo.dueHasTime ? todo.dueDate.valueOf() : allDayTime })),
+    ...(rssSummary.count ? [{ kind:'rss', rssSummary, sortTime:Number.MAX_SAFE_INTEGER }] : []),
+    ...countdowns.map((countdown) => ({ kind:'countdown', countdown, sortTime:countdown.sortTime })),
+    ...automations.map((automation) => ({ kind:'automation', automation, sortTime:Number(automation.sortTime) || Number.MAX_SAFE_INTEGER }))
+  ].sort((a, b) => a.sortTime - b.sortTime || a.kind.localeCompare(b.kind));
+}
+
 function renderCalendarDayFlow(options) {
-  const { anchor, date, language, t, todosForDate, rssItems, calendarEvents, automationItems, countdownItems, filter, onFilterChange, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm, openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen, rerender, rss } = options;
+  const { anchor, date, language, t, todosForDate, rssItems, calendarEvents, automationItems, countdownItems, filter, onFilterChange, bindTodoDrag, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm, openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen, rerender, rss } = options;
   const parent = anchor?.parentNode;
   if (!parent) return null;
   parent.querySelector('.' + PLUGIN_ID + '-cal-detail')?.remove();
@@ -44,16 +56,13 @@ function renderCalendarDayFlow(options) {
   const automations = Array.isArray(automationItems) ? automationItems : [];
   const countdowns = calendarCountdownItemsForDate(countdownItems, date);
   const events = Array.isArray(calendarEvents) ? calendarEvents : [];
-  const flowItems = [
-    ...events.map((event) => ({ kind:'event', event, sortTime:event.allDay || event.start < dayStart ? dayStart - 2 : event.start })),
-    ...todos.map((todo) => ({ kind:todo.teamTodo ? 'teamTodo' : 'todo', todo, sortTime:todo.dueHasTime ? todo.dueDate.valueOf() : dayStart - 1 })),
-    ...(rssSummary.count ? [{ kind:'rss', rssSummary, sortTime:dayStart }] : []),
-    ...countdowns.map((countdown) => ({ kind:'countdown', countdown, sortTime:countdown.sortTime })),
-    ...automations.map((automation) => ({ kind:'automation', automation, sortTime:Number(automation.sortTime) || Number.MAX_SAFE_INTEGER }))
-  ].sort((a, b) => a.sortTime - b.sortTime || a.kind.localeCompare(b.kind));
+  const flowItems = calendarBuildDayFlowItems({ dayStart, events, todos, rssSummary, countdowns, automations });
 
   const detail = document.createElement('div');
   detail.className = PLUGIN_ID + '-cal-detail' + (flowItems.length ? ' has-items' : ' is-empty');
+  detail.setAttribute('tabindex', '0');
+  detail.setAttribute('role', 'region');
+  detail.setAttribute('aria-label', en ? 'Day plan' : '日期事项总览');
   parent.insertBefore(detail, anchor.nextSibling);
   const head = detail.createDiv({ cls:PLUGIN_ID + '-cal-detail-head' });
   const title = head.createDiv({ cls:PLUGIN_ID + '-cal-detail-title-wrap' });
@@ -76,6 +85,7 @@ function renderCalendarDayFlow(options) {
   });
 
   const visibleItems = filter === 'all' ? flowItems : flowItems.filter((item) => item.kind === filter);
+  if (visibleItems.length >= 6) detail.classList.add('is-dense');
   if (!visibleItems.length) {
     const empty = detail.createDiv({ cls:PLUGIN_ID + '-cal-detail-empty' });
     empty.createDiv({ cls:PLUGIN_ID + '-cal-detail-empty-icon', text:'✦' });
@@ -118,6 +128,7 @@ function renderCalendarDayFlow(options) {
     }
 
     const content = row.createDiv({ cls:PLUGIN_ID + '-cal-timeline-content' });
+    if (todo) bindTodoDrag?.(content, todo);
     const summary = content.createDiv({ cls:PLUGIN_ID + '-cal-timeline-summary' });
     let text = null;
     if (todo) text = summary.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-title', text:todo.text, attr:{ type:'button', title:todo.text } });
@@ -192,4 +203,4 @@ function renderCalendarDayFlow(options) {
   return detail;
 }
 
-if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports={summarizeCalendarRss,calendarCountdownItemsForDate};
+if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports={summarizeCalendarRss,calendarCountdownItemsForDate,calendarBuildDayFlowItems};

@@ -638,18 +638,21 @@ function openWeeklyReportPreview(view, draft) {
   setTimeout(() => originalVersion.editor.focus(), 20);
 }
 
-function buildWeeklyReportModule(view, root) {
+function buildWeeklyReportModule(view, root, options = {}) {
   const en = view._lang() === 'en';
-  const title = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: en ? 'Weekly report studio' : '周报工坊' });
-  title.dataset.section = 'report-studio-title';
+  const title = options.embedded ? null : root.createDiv({ cls: PLUGIN_ID + '-section-title', text: en ? 'Weekly report studio' : '周报工坊' });
+  if (title) title.dataset.section = 'report-studio-title';
   const body = root.createDiv({ cls: PLUGIN_ID + '-report-studio' });
   body.dataset.section = 'report-studio-body';
 
   const state = { selectedId: null, preset: 'this', start: '', end: '', systems: new Set(), plans: '', busy: false, status: '', error: false };
 
+  let renderRevision = 0;
   const render = async () => {
-    body.empty();
+    const revision = ++renderRevision;
     const cfg = await readWeeklyReportConfig(view._plugin);
+    if (!body.isConnected || revision !== renderRevision) return;
+    body.empty();
     const records = cfg.records;
 
     // ── 每条配置都是一张独立的折叠卡片；默认只显示摘要。 ──
@@ -826,8 +829,8 @@ function buildWeeklyReportModule(view, root) {
     };
   };
 
-  render();
-  view._makeModuleCollapsible('reportStudio', title, body);
+  render().catch((error) => console.warn('Cockpit report studio render failed', error));
+  if (title) view._makeModuleCollapsible('reportStudio', title, body);
   return render;
 }
 

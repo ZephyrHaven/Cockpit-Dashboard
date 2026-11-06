@@ -3,6 +3,11 @@
 // shell 类能力未配置时必须只提示、不执行（见 toolbar-custom 的配置编辑器）。
 
 function registerCockpitCommands(plugin) {
+  plugin.addCommand({id:'open-cockpit-logs',name:'查看日志与诊断',callback:async()=>{
+    await plugin._open();
+    const view = plugin.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view;
+    if (view) openCockpitLogs(view);
+  }});
   plugin.addCommand({id:'disable-custom-components',name:'停止并禁用所有自定义组件',callback:async()=>{
     try { await plugin.customComponents.disableAll(); new obs.Notice('自定义组件已全部禁用 / All custom components disabled.'); }
     catch(error) { new obs.Notice(String(error.message)); }

@@ -64,6 +64,31 @@ const countdownItems = dayFlowApi.calendarCountdownItemsForDate([
 assert.deepEqual(countdownItems.map((item)=>item.id), ['today-deadline'], 'The daily overview includes countdowns on their completion date only.');
 assert.equal(countdownItems[0].time, '15:30', 'Countdown rows expose the completion time.');
 
+const planStart = Date.parse('2026-08-12T00:00:00Z');
+const planTime = (time) => Date.parse('2026-08-12T' + time + ':00Z');
+const planTodos = [
+  { id:'all-day-personal', dueHasTime:false, dueDate:window.moment(planStart) },
+  { id:'late-task', dueHasTime:true, dueDate:window.moment(planTime('23:59')) },
+  { id:'all-day-team', teamTodo:true, dueHasTime:false, dueDate:window.moment(planStart) },
+  { id:'midnight-task', dueHasTime:true, dueDate:window.moment(planStart) }
+];
+const planEvents = [
+  { id:'all-day-event', allDay:true, start:planStart },
+  { id:'meeting', start:planTime('09:00') },
+  { id:'overnight', start:planStart - 3600000 }
+];
+const plan = dayFlowApi.calendarBuildDayFlowItems({
+  dayStart:planStart, todos:planTodos, events:planEvents, rssSummary,
+  countdowns:[{ id:'deadline', sortTime:planTime('15:30') }],
+  automations:[{ id:'listener' }, { id:'automation', sortTime:planTime('21:30') }]
+});
+const planId = (item) => (item.todo || item.event || item.countdown || item.automation)?.id || item.kind;
+assert.deepEqual(plan.slice(0, 6).map(planId), ['overnight','midnight-task','meeting','deadline','automation','late-task'], 'Timed items run chronologically, including midnight and events continuing from yesterday.');
+assert.deepEqual(new Set(plan.slice(6, 9).map(planId)), new Set(['all-day-personal','all-day-team','all-day-event']), 'All-day personal tasks, team tasks, and calendar events follow every timed item.');
+assert.deepEqual(new Set(plan.slice(9).map(planId)), new Set(['rss','listener']), 'Untimed digests and listeners follow the day plan.');
+assert.deepEqual(planTodos.map((todo) => todo.id), ['all-day-personal','late-task','all-day-team','midnight-task'], 'Building the day plan preserves the source task order.');
+assert.deepEqual(dayFlowApi.calendarBuildDayFlowItems({ dayStart:planStart, todos:[], events:[], rssSummary:{count:0}, countdowns:[], automations:[] }), [], 'An empty date has no placeholder timeline rows.');
+
 const tasks = api.normalizeScheduledTasks([
   {id:'daily',name:'日报归档',kind:'workflow',command:'daily-flow',enabled:true,schedule:{type:'daily',time:'09:30'},createdAt:'2026-08-01T00:00:00Z',lastRunAt:'2026-08-12T09:31:00Z',lastStatus:'success'},
   {id:'weekly',name:'周中备份',kind:'shell',command:'backup',trusted:true,enabled:true,schedule:{type:'weekly',time:'11:00',weekdays:[3]},createdAt:'2026-08-01T00:00:00Z'},
@@ -90,12 +115,12 @@ const dayFlow = fs.readFileSync(path.join(root, 'src/calendar-day-flow.js'), 'ut
 const framework = fs.readFileSync(path.join(root, 'src/_framework.js'), 'utf8');
 const build = fs.readFileSync(path.join(root, 'build.js'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
-assert.match(framework, /id:'agenda'[\s\S]*buildAgendaModule/, 'The independent agenda component remains available and unchanged.');
+assert.doesNotMatch(framework, /id:'agenda'|buildAgendaModule/, 'The retired standalone timeline no longer mounts beside the calendar.');
 assert.match(calendar, /loadAutomationItems/, 'The calendar day flow loads automation plans for the selected date.');
 assert.match(dayFlow, /summarizeCalendarRss/, 'RSS entries are condensed into one daily summary row.');
 assert.doesNotMatch(dayFlow, /\.\.\.articles\.map\(\(rssItem\)/, 'The calendar no longer expands every RSS article into the timeline.');
 assert.match(dayFlow, /cal-flow-filter[\s\S]*automation[\s\S]*rss/, 'The combined day flow can be filtered by source.');
-assert.match(dayFlow, /countdownItems[\s\S]*kind:'countdown'/, 'Countdown completions participate in the shared daily timeline.');
+assert.match(dayFlow, /countdowns\.map\([\s\S]*kind:'countdown'/, 'Countdown completions participate in the shared daily timeline.');
 assert.match(dayFlow, /if \(todo && todo === nextTimed\)/, 'Only the actual next todo receives the NOW badge.');
 assert.match(dayFlow, /cal-timeline-summary/, 'Timeline titles and metadata share a bounded summary region before the action rail.');
 assert.doesNotMatch(dayFlow, /format\(todo\.teamTodo \? 'HH:mm:ss'/, 'Team tasks use the same minute-level time style as personal tasks.');
@@ -108,7 +133,7 @@ assert.match(styles, /cal-timeline-summary > button\.cockpit-dashboard-cal-timel
 assert.match(styles, /cal-timeline-tag\.cockpit-dashboard-todo-tag-pill/, 'Calendar tags preserve the shared personal-task pill vocabulary.');
 assert.match(styles, /--ck-cal-split-week-height:clamp\(640px, 68vh, 760px\)/, 'Split week view and daily overview share a bounded height.');
 assert.match(styles, /cal-surface\.is-week\)[^{]*\{[^}]*--ck-cal-split-left:47\.5%/s, 'Split week view gives the actionable daily overview a slight visual priority.');
-assert.match(styles, /cal-timeline:has\(> \.cockpit-dashboard-cal-timeline-row:nth-child\(4\)\)[^{]*> \.cockpit-dashboard-cal-timeline-row\s*\{[^}]*flex:1 0 auto[^}]*min-height:88px/s, 'Busy split-week timelines distribute spare height while preserving each row content height.');
+assert.match(styles, /cal-detail\.has-items > \.cockpit-dashboard-cal-timeline\s*\{[^}]*flex:0 0 auto/s, 'Split-week timelines keep their natural content height instead of stretching rows to fill the panel.');
 assert.match(styles, /cal-surface\.is-week \.cockpit-dashboard-cal-week\s*\{[^}]*grid-template-columns:repeat\(6,[^}]*grid-template-rows:repeat\(3,/s, 'Split week view keeps the requested 3 + 2 + 2 three-row rhythm.');
 assert.match(styles, /cal-week-day:nth-child\(4\)[\s\S]*cal-week-day:nth-child\(7\)[^{]*\{[^}]*grid-column:span 3/s, 'The final four days form two balanced two-card rows.');
 assert.match(calendar, /cal-split-resize[\s\S]*setPointerCapture[\s\S]*pointermove[\s\S]*ArrowLeft[\s\S]*dblclick/, 'Split calendar exposes a pointer, keyboard, and reset-capable resize handle.');

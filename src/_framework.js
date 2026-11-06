@@ -1,5 +1,5 @@
 class CockpitView extends obs.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._calendarLayout = 'stacked'; this._calendarSplitRatio = null; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio', 'teamStats', 'runHistory', 'syncHealth']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._calendarAutomationUnsubscribe = null; this._calendarCountdownUnsubscribe = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._countdownUnsubscribe = null; this._countdownDisplayTimer = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; this._contentWidth = null; this._contentResizeCleanup = null; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._storage = null; this._rss = new CockpitRssService(plugin); this._todos = []; this._refreshTimer = null; this._minuteRefreshTimer = null; this._bookmarks = new Set(); this._bookmarkOrder = []; this._customToolbarButtons = []; this._toolbarOrder = []; this._deletedToolbarActions = new Set(); this._recentEl = null; this._recentOpened = []; this._recentPositions = {}; this._trackedWorkspaceLeaf = null; this._flashInbox = []; this._allFiles = []; this._focusMinutes = 0; this._focusHistory = new Map(); this._focusChartSettings = { range:'week', type:'line' }; this._calendarViewMode = 'month'; this._calendarLayout = 'stacked'; this._calendarSplitRatio = null; this._pomodoroTimer = null; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = getText(DEFAULT_LANG, 'hero.defaultName'); this._language = DEFAULT_LANG; this._collapsed = {}; this._toolbarCmds = {}; this._onboardingDone = false; this._blankContextMenuItems = []; this._customModuleLabels = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'projects', 'resurface', 'workflows', 'reportStudio']); this._hiddenToolbarActions = new Set(); this._statsCardOrder = this._defaultStatsCardOrder(); this._hiddenStatsCards = new Set(); this._dragStatId = null; this._sceneLayouts = {}; this._activeSceneId = 'default'; this._sceneSwitcherRefresh = null; this._editMode = false; this._dragModuleId = null; this._todoEditorEl = null; this._pendingOnboarding = false; this._welcomeCoverEl = null; this._heroRefs = null; this._refreshTodosRef = null; this._calendarAutomationUnsubscribe = null; this._calendarCountdownUnsubscribe = null; this._refreshHeroReminder = null; this._alarmUnsubscribe = null; this._countdownUnsubscribe = null; this._countdownDisplayTimer = null; this._visibilityRefreshHandler = null; this._interactionHandler = null; this._interactionSensorEl = null; this._lastInteractionAt = 0; this._contentWidth = null; this._contentResizeCleanup = null; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -92,7 +92,6 @@ class CockpitView extends obs.ItemView {
       { id:'toolbar', label:this._t('layout.modules.toolbar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-toolbar') || el.classList.contains(PLUGIN_ID + '-search-row') || el.classList.contains(PLUGIN_ID + '-search-results') },
       { id:'alarms', label:this._t('layout.modules.alarms'), collapsible:true, matches:(el) => el.dataset.section === 'alarms-title' || el.dataset.section === 'alarms-body' || el.classList.contains(PLUGIN_ID + '-alarms') },
       { id:'countdowns', label:this._t('layout.modules.countdowns'), collapsible:true, matches:(el) => el.dataset.section === 'countdowns-title' || el.dataset.section === 'countdowns-body' || el.classList.contains(PLUGIN_ID + '-countdowns') },
-      { id:'agenda', label:this._t('layout.modules.agenda'), collapsible:true, matches:(el) => el.dataset.section === 'agenda-title' || el.dataset.section === 'agenda-body' || el.classList.contains(PLUGIN_ID + '-agenda') },
       { id:'calendar', label:this._t('layout.modules.calendar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-cal-wrap') || el.classList.contains(PLUGIN_ID + '-cal-detail') || el.classList.contains(PLUGIN_ID + '-cal-split-resize') },
       { id:'cats', label:this._t('sections.cats'), collapsible:true, matches:(el) => el.dataset.section === 'cats-title' || el.classList.contains(PLUGIN_ID + '-cats') },
       { id:'stats', label:this._t('sections.stats'), collapsible:true, matches:(el) => el.dataset.section === 'stats-title' || el.classList.contains(PLUGIN_ID + '-stats') },
@@ -105,13 +104,10 @@ class CockpitView extends obs.ItemView {
       { id:'flash', label:this._t('sections.flash'), collapsible:true, matches:(el) => el.dataset.section === 'flash-title' || el.dataset.section === 'flash-content' },
       { id:'resurface', label:this._t('layout.modules.resurface'), collapsible:true, matches:(el) => el.dataset.section === 'resurface-title' || el.dataset.section === 'resurface-body' || el.classList.contains(PLUGIN_ID + '-resurface') },
       { id:'heatmap', label:this._t('sections.heatmap'), collapsible:true, matches:(el) => el.dataset.section === 'heatmap-title' || el.classList.contains(PLUGIN_ID + '-heatmap') },
-      { id:'weeklyReview', label:this._t('layout.modules.weeklyReview'), collapsible:true, matches:(el) => el.dataset.section === 'weekly-review-title' || el.dataset.section === 'weekly-review-body' || el.classList.contains(PLUGIN_ID + '-weekly-review') },
       { id:'scheduledTasks', label:this._t('sections.scheduledTasks'), collapsible:true, matches:(el) => el.dataset.section === 'scheduled-tasks-title' || el.dataset.section === 'scheduled-tasks-body' },
       { id:'workflows', label:this._t('sections.workflows'), collapsible:true, matches:(el) => el.dataset.section === 'workflows-title' || el.dataset.section === 'workflows-body' },
       { id:'reportStudio', label:this._t('sections.reportStudio'), collapsible:true, matches:(el) => el.dataset.section === 'report-studio-title' || el.dataset.section === 'report-studio-body' },
-      ...['teamStats', 'runHistory', 'syncHealth'].map((id,index) => ({id, label:(this._lang() === 'en' ? ['Team overview','Run history','Sync diagnostics'] : ['团队概览','运行记录','同步诊断'])[index], collapsible:true, matches:el=>el.dataset.section === id+'-title'||el.dataset.section === id+'-body'})),
       ...(typeof customComponentRegistry === 'function' ? customComponentRegistry(this) : []),
-      { id:'footer', label:this._t('layout.modules.footer'), matches:(el) => el.classList.contains(PLUGIN_ID + '-footer') },
       { id:'recent', label:this._t('sections.recent'), collapsible:true, matches:(el) => el.dataset.section === 'recent-title' || el.classList.contains(PLUGIN_ID + '-recent-tabs') || el.classList.contains(PLUGIN_ID + '-recent') }
     ];
   }
@@ -122,30 +118,21 @@ class CockpitView extends obs.ItemView {
     const defaults = this._defaultModuleOrder();
     const seen = new Set();
     const next = Array.isArray(order)
-      ? order.filter((id) => defaults.includes(id) && !seen.has(id) && (seen.add(id), true))
+      ? order.map((id) => id === 'weeklyReview' ? 'reportStudio' : id).filter((id) => defaults.includes(id) && !seen.has(id) && (seen.add(id), true))
       : [];
     if (!next.length) return defaults;
-    // 页脚是默认锚点：后续新增模块首次进入旧布局时放在它上方，
-    // 但绝不强行移动用户已经保存过的任何现有模块。
+    // 新模块加入最近更新之前，保留用户已保存的其余相对顺序。
     const missing = defaults.filter((id) => !seen.has(id));
-    const missingContent = missing.filter((id) => id !== 'footer' && id !== 'recent');
-    let footerIndex = next.indexOf('footer');
-    if (footerIndex < 0) {
-      next.push('footer');
-      footerIndex = next.length - 1;
-    }
-    next.splice(footerIndex, 0, ...missingContent);
-    if (missing.includes('recent')) {
-      const footerPosition = next.indexOf('footer');
-      next.splice(footerPosition + 1, 0, 'recent');
-    }
+    const missingContent = missing.filter((id) => id !== 'recent');
+    const recentIndex = next.indexOf('recent');
+    next.splice(recentIndex < 0 ? next.length : recentIndex, 0, ...missingContent);
+    if (missing.includes('recent')) next.push('recent');
     return next;
   }
   _moduleLabel(id) {
     return this._customModuleLabels?.[id] || this._moduleRegistry().find((module) => module.id === id)?.label || id;
   }
   _moduleTitleElement(wrapper) {
-    if (wrapper?.dataset.moduleId === 'footer') return wrapper.querySelector('.' + PLUGIN_ID + '-footer');
     return wrapper?.querySelector('[data-section$="-title"], .' + PLUGIN_ID + '-todo-header .' + PLUGIN_ID + '-section-title') || null;
   }
   _applyCustomModuleTitle(wrapper, moduleId) {
@@ -204,7 +191,7 @@ class CockpitView extends obs.ItemView {
   _sceneList() { return Object.values(this._sceneLayouts); }
   _getActiveScene() { return this._sceneLayouts[this._activeSceneId] || this._sceneLayouts.default; }
   _applySceneSnapshot(scene) {
-    const layout = scene?.layout || {};
+    const layout = migrateCockpitModuleLayout(scene?.layout || {});
     const sceneWidth = Number(layout.contentWidth);
     if (Object.prototype.hasOwnProperty.call(layout, 'contentWidth')) {
       this._contentWidth = Number.isFinite(sceneWidth) && sceneWidth >= 480 ? Math.round(sceneWidth) : null;
@@ -635,6 +622,11 @@ class CockpitView extends obs.ItemView {
     this._moduleTitleIconsEnabled = true;
     try {
       const pluginData = await this._plugin.loadData() || {};
+      if (pluginData.dashboardComponentsRevision !== 1) {
+        const migrated = migrateCockpitDashboardComponents(pluginData);
+        await this._mutatePluginData((data) => Object.assign(data, migrateCockpitDashboardComponents(data)));
+        Object.assign(pluginData, migrated);
+      }
       const originalMentionedModules = cockpitMentionedModules(pluginData);
       // 这必须在首次升级的布局兜底之前计算。兜底会在内存中创建
       // sceneLayouts，不能把一个从未编辑过布局的新用户误判为“已有布局”。
@@ -737,7 +729,7 @@ class CockpitView extends obs.ItemView {
       if (Array.isArray(OPTIONAL_DASH_MODULES) && OPTIONAL_DASH_MODULES.length) {
         const seen = new Set(Array.isArray(pluginData.optionalModulesSeen) ? pluginData.optionalModulesSeen : []);
         // 兼容旧版标记：这两个模块此前已通过 habitsReviewIntroduced 处理过。
-        if (pluginData.habitsReviewIntroduced) { seen.add('habits'); seen.add('weeklyReview'); }
+        if (pluginData.habitsReviewIntroduced) { seen.add('habits'); seen.add('reportStudio'); }
         let changed = false;
         OPTIONAL_DASH_MODULES.forEach((moduleId) => {
           if (seen.has(moduleId)) return;
@@ -769,7 +761,7 @@ class CockpitView extends obs.ItemView {
       }
       this._startDate = pluginData.startDate;
       this._onboardingDone = pluginData?.onboardingDone || false;
-    } catch(e) { this._language = DEFAULT_LANG; this._calendarViewMode = 'month'; this._calendarLayout = 'stacked'; this._calendarSplitRatio = null; this._calendarLunarEnabled = true; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'weeklyReview', 'projects', 'resurface', 'agenda', 'workflows', 'reportStudio', 'teamStats', 'runHistory', 'syncHealth']); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:this._sceneSnapshot() } }; this._activeSceneId = 'default'; }
+    } catch(e) { this._language = DEFAULT_LANG; this._calendarViewMode = 'month'; this._calendarLayout = 'stacked'; this._calendarSplitRatio = null; this._calendarLunarEnabled = true; this._pomodoroAutoShow = true; this._pomodoroFullscreen = false; this._pomodoroBreakReminder = true; this._pomodoroSession = null; this._pomodoroTaskStats = {}; this._pomodoroCompletions = []; this._username = this._t('hero.defaultName'); this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; this._moduleOrder = this._defaultModuleOrder(); this._hiddenModules = new Set(['focusChart', 'scheduledTasks', 'habits', 'projects', 'resurface', 'workflows', 'reportStudio']); this._deletedToolbarActions = new Set(); this._hiddenToolbarActions = new Set(); this._bookmarkOrder = Array.from(this._bookmarks); this._customToolbarButtons = []; this._toolbarOrder = normalizeToolbarOrder(this, []); this._sceneLayouts = { default:{ id:'default', icon:'◈', layout:this._sceneSnapshot() } }; this._activeSceneId = 'default'; }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -875,7 +867,6 @@ class CockpitView extends obs.ItemView {
   async _renderDashboard(reloadState, crossfadeScene) {
     cockpitDestroyCustomComponents(this);
     this._teamUnsubscribe?.(); this._teamUnsubscribe = null; this._teamBuildToken = null;
-    this._insightsCleanup?.(); this._insightsCleanup=null;
     if (reloadState) await this._reloadDashboardState();
     this._blankContextMenuItems = [];
     this._heroRefs = null;
@@ -1083,9 +1074,8 @@ class CockpitView extends obs.ItemView {
         refreshCalendarRef?.();
         this._refreshHeroReminder?.();
       }
-      // 项目进度条与待办同源，待办变化后局部刷新（模块未开启时为空操作）。
+      // 项目卡片与待办同源，待办变化后局部刷新（模块未开启时为空操作）。
       this._refreshProjectsRef?.();
-      this._refreshAgendaRef?.();
       cockpitNotifyCustomComponents(this, ['todos']);
       return true;
     };
@@ -1226,18 +1216,6 @@ class CockpitView extends obs.ItemView {
       console.warn('Cockpit countdown module failed; dashboard basics remain available', e);
     }
 
-    // ===== 2.7 今日时间流（待办 + 闹钟 + RSS 合并时间线；默认隐藏） =====
-    try {
-      this._refreshAgendaRef = await buildAgendaModule(this, root, {
-        openTodoEditor,
-        rss:this._rss,
-        openRss:(date) => new CockpitRssModal(this.app, this, date).open()
-      });
-    } catch (e) {
-      this._refreshAgendaRef = null;
-      console.warn('Cockpit agenda module failed; dashboard basics remain available', e);
-    }
-
     // ===== 3.5 日历看板（模块化实现） =====
     await refreshLinkedAlarmTodoIds();
     const refreshCalendar = buildCalendar(root, () => this._todos, {
@@ -1264,7 +1242,7 @@ class CockpitView extends obs.ItemView {
       }),
       onTodoSchedule: async (todoId, dueDate, options = {}) => commitTodoMutation((todos) => {
         const target = todos.find((todo) => todo.id === todoId);
-        if (!target || target.done) return false;
+        if (!target || target.done || (options.keepTime && target.dueDate?.isSame(dueDate, 'day'))) return false;
         // 日历内拖拽改期保留原时刻；从待办列表拖入仍按全天处理。
         if (options.keepTime && target.dueHasTime && target.dueDate) {
           target.dueDate = dueDate.clone().hour(target.dueDate.hour()).minute(target.dueDate.minute()).second(0);
@@ -1803,13 +1781,6 @@ class CockpitView extends obs.ItemView {
       console.warn('Cockpit projects module failed; dashboard basics remain available', e);
     }
 
-    this._insightsCleanup?.();
-    for (const build of [buildTeamInsights, buildRunHistory, buildSyncHealth]) {
-      try { build(this, root); } catch(error) { console.warn('Cockpit optional insights module failed', error); }
-    }
-
-    this._insightsCleanup = subscribeCockpitInsights(this);
-
     // ===== 5.5 专注趋势 =====
     // 图表是可选模块，绝不能阻断后面的模块布局、编辑模式或情景布局初始化。
     try {
@@ -1835,9 +1806,9 @@ class CockpitView extends obs.ItemView {
       console.warn('Cockpit workflows failed; dashboard layout remains available', e);
     }
 
-    // ===== 5.8 周报工坊（调用用户配置的本地脚本；出错绝不阻断其余模块布局） =====
+    // ===== 5.8 周报与回顾（本地回顾与脚本周报共用模块） =====
     try {
-      this._refreshWeeklyReportRef = buildWeeklyReportModule(this, root);
+      await buildWeeklyWorkspaceModule(this, root);
     } catch (e) {
       this._refreshWeeklyReportRef = null;
       console.warn('Cockpit weekly report failed; dashboard layout remains available', e);
@@ -1859,16 +1830,7 @@ class CockpitView extends obs.ItemView {
     // ===== 底部：编辑热力图 =====
     cockpitBuildHeatmapSection(this, root, sectionCtx);
 
-    // ===== 周回顾（本地聚合生成，模块失败不影响布局基础能力） =====
-    try {
-      this._refreshWeeklyReviewRef = await buildWeeklyReviewModule(this, root);
-    } catch (e) {
-      this._refreshWeeklyReviewRef = null;
-      console.warn('Cockpit weekly review module failed; dashboard basics remain available', e);
-    }
-
     cockpitBuildCustomComponents(this, root);
-    root.createDiv({ cls: PLUGIN_ID+'-footer', text: t('footer.text') });
 
     this._applyModuleLayout(root);
 
@@ -2225,7 +2187,6 @@ class CockpitView extends obs.ItemView {
     cancelAnimationFrame(this._contentWidthFrame); this._contentWidthFrame = null;
     clearTimeout(this._contentWidthTimer); this._contentWidthTimer = null;
     this._teamUnsubscribe?.(); this._teamUnsubscribe = null; this._teamBuildToken = null;
-    this._insightsCleanup?.(); this._insightsCleanup=null;
     this._contentResizeCleanup?.();
     if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; }
     if (this._minuteRefreshTimer) { clearInterval(this._minuteRefreshTimer); this._minuteRefreshTimer = null; }

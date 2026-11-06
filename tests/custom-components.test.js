@@ -63,7 +63,7 @@ global.obs={Notice:class{}};
   const layoutView={_plugin:{customComponents:service},_t:key=>key,_lang:()=> 'zh-CN',_hiddenModules:new Set()};
   layoutView._moduleRegistry=()=>context.proto._moduleRegistry.call(layoutView);layoutView._defaultModuleOrder=()=>layoutView._moduleRegistry().map(e=>e.id);
   const moduleId=core.customComponentModuleId(id),registry=layoutView._moduleRegistry().find(e=>e.id===moduleId);assert.equal(registry.collapsible,true);assert.ok(registry.matches({dataset:{customComponent:id}}));
-  const order=context.proto._normalizeModuleOrder.call(layoutView,['hero','footer']);assert.ok(order.includes(moduleId));assert.ok(order.indexOf(moduleId)<order.indexOf('footer'));
+  const order=context.proto._normalizeModuleOrder.call(layoutView,['hero','footer']);assert.ok(order.includes(moduleId));assert.ok(order.indexOf(moduleId)<order.indexOf('recent'));assert.ok(!order.includes('footer'));
   core.customComponentSceneDefaults(layoutView,{moduleOrder:['hero','footer']});assert.ok(layoutView._hiddenModules.has(moduleId),'New components stay hidden in other saved scenes.');
   layoutView._hiddenModules.clear();core.customComponentSceneDefaults(layoutView,{moduleOrder:[moduleId,'footer']});assert.ok(!layoutView._hiddenModules.has(moduleId),'Existing scene visibility is preserved.');
   const workerSource=fs.readFileSync(path.join(__dirname,'../src/custom-components-runtime.js'),'utf8');

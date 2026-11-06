@@ -1,4 +1,4 @@
-// dashboard-insights.js — 共用详情窗口与可选运维模块；只展示安全的摘要字段。
+// dashboard-insights.js — 共用详情窗口与按需日志面板；只展示安全的摘要字段。
 class CockpitDetailModal extends CockpitModal {
   constructor(view, title, render) { super(view.app); this.view=view; this.title=title; this.renderBody=render;this.cleanups=[]; }
   onOpen() {
@@ -38,31 +38,6 @@ function cockpitTeamCalendar(records) {
   const folded=lines.flatMap(line=>{ const result=[];let part='',bytes=0;for(const char of line){const size=new TextEncoder().encode(char).length;if(bytes+size>73){result.push(part);part=' '+char;bytes=1+size;}else{part+=char;bytes+=size;}}result.push(part);return result; });
   return [...folded,'END:VCALENDAR',''].join('\r\n');
 }
-function buildTeamInsights(view,root) {
-  const en=view._lang()==='en',service=view._plugin.teamSync;
-  const title=root.createDiv({cls:PLUGIN_ID+'-section-title',text:en?'Team overview':'团队概览'});title.dataset.section='teamStats-title';
-  const body=root.createDiv({cls:'cockpit-insights'});body.dataset.section='teamStats-body';view._makeModuleCollapsible('teamStats',title,body);
-  let signature='';
-  const render=()=>{
-    if(!body.isConnected)return;const records=cockpitTeamVisible(service);
-    const nextSignature=JSON.stringify([records.map(record=>[record.id,record.revision]),service?.members?.(),window.moment().format('YYYY-MM-DD')]);
-    if(signature===nextSignature)return;signature=nextSignature;body.empty();const stats=cockpitTeamStats(records);
-    body.createEl('p',{text:(en?'Visible team tasks':'当前可见团队任务')+' · '+stats.total+' / '+(en?'Completed ':'已办 ')+stats.done+' / '+(en?'Overdue ':'逾期 ')+stats.overdue});
-    stats.owners.forEach(owner=>{
-      const name=service.members().find(member=>member.device===owner.id)?.name||(en?'Unassigned':'未分配');
-      cockpitDetailButton(body,name+' · '+(en?'Open ':'待办 ')+owner.open+' · '+(en?'Overdue ':'逾期 ')+owner.overdue,()=>new CockpitDetailModal(view,name,parent=>{
-        cockpitTeamVisible(service).filter(record=>record.value.assignee===owner.id).forEach(record=>{
-          const row=parent.createDiv({cls:'cockpit-detail-row'});row.createSpan({text:(record.value.done?'✓ ':'○ ')+record.value.text+(record.value.due?' · '+record.value.due:'')});
-          if(teamSyncCanEdit(record,service.policy(),service.state.device)||teamSyncCanReassign(record,service.policy(),service.state.device)) cockpitDetailButton(row,en?'Edit':'编辑',()=>service.openModal(new CockpitTeamEditorModal(view.app,service,record)));
-        });
-      }).open());
-    });
-    cockpitDetailButton(body,en?'Export current team calendar':'导出当前团队日历',()=>{
-      const url=URL.createObjectURL(new Blob([cockpitTeamCalendar(cockpitTeamVisible(service))],{type:'text/calendar;charset=utf-8'}));
-      const link=body.createEl('a',{attr:{href:url,download:'cockpit-team.ics'}});try{link.click();}finally{link.remove();URL.revokeObjectURL(url);}
-    });
-  };view._refreshTeamStatsRef=render;render();return render;
-}
 function cockpitSafeRunError(value) {
   return String(value||'').replace(/https?:\/\/[^\s]+/gi,'[URL]').replace(/(token|api[-_]?key|secret|password|authorization)\s*[:=]\s*[^\s,;]+/gi,'$1=[redacted]').slice(0,400);
 }
@@ -93,8 +68,8 @@ async function cockpitRetryRun(view,record) {
 }
 function buildRunHistory(view,root) {
   const en=view._lang()==='en';
-  const title=root.createDiv({cls:PLUGIN_ID+'-section-title',text:en?'Run history':'运行记录'});title.dataset.section='runHistory-title';
-  const body=root.createDiv({cls:'cockpit-insights'});body.dataset.section='runHistory-body';view._makeModuleCollapsible('runHistory',title,body);
+  const body = root;
+  body.classList.add('cockpit-insights');
   let token=0,failedOnly=false;
   const render=async()=>{const current=++token;const records=await cockpitRunRecords(view._plugin);if(current!==token||!body.isConnected)return;body.empty();
     cockpitDetailButton(body,en?'Refresh':'刷新',render);cockpitDetailButton(body,failedOnly?(en?'Show all':'显示全部'):(en?'Failures only':'只看失败'),()=>{failedOnly=!failedOnly;return render();});
@@ -104,7 +79,7 @@ function buildRunHistory(view,root) {
     rows.slice(0,12).forEach(record=>{const row=body.createDiv({cls:'cockpit-detail-row'});row.createEl('strong',{text:record.name});row.createSpan({text:new Date(record.at).toLocaleString()+' · '+record.status});if(record.error)row.createEl('p',{text:record.error});
       if(['failed','aborted'].includes(record.status))cockpitDetailButton(row,record.type==='workflow'?(en?'Rerun entire workflow':'重新运行整个流程'):(en?'Retry using current configuration':'按当前配置重试'),async()=>{const ok=await cockpitRetryRun(view,record);new obs.Notice(ok?(en?'Completed':'运行完成'):(en?'Not completed; check configuration or the latest result.':'未完成，请检查配置或最新结果。'));await render();});
     });
-  };view._refreshRunHistoryRef=()=>render().catch(error=>console.warn('Cockpit run history refresh failed',error));view._refreshRunHistoryRef();return view._refreshRunHistoryRef;
+  };const refresh=()=>render().catch(error=>console.warn('Cockpit run history refresh failed',error));refresh();return refresh;
 }
 function cockpitSyncDiagnostics(plugin) {
   const personal=plugin.lanSync,state=personal?.store?.state,team=plugin.teamSync,teamState=team?.state;
@@ -113,23 +88,50 @@ function cockpitSyncDiagnostics(plugin) {
     {name:'团队同步',status:team?.status||'尚未初始化',pending:teamState?.pending?.length||0,conflicts:teamState?.conflicts?.length||0,drafts:teamState?.drafts?.length||0,lastSync:teamState?.lastSync,peers:(teamState?.peers||[]).map(peer=>({name:peer.name,lastSync:peer.lastSync,error:'',version:peer.metadata?.pluginVersion||'未知'}))}];
 }
 function buildSyncHealth(view,root) {
-  const en=view._lang()==='en';const title=root.createDiv({cls:PLUGIN_ID+'-section-title',text:en?'Sync diagnostics':'同步诊断'});title.dataset.section='syncHealth-title';
-  const body=root.createDiv({cls:'cockpit-insights'});body.dataset.section='syncHealth-body';view._makeModuleCollapsible('syncHealth',title,body);
+  const en=view._lang()==='en';const body=root;body.classList.add('cockpit-insights');
   const render=()=>{if(!body.isConnected)return;body.empty();cockpitSyncDiagnostics(view._plugin).forEach((diagnostic,index)=>{const row=body.createDiv({cls:'cockpit-detail-row'});
     row.createEl('strong',{text:diagnostic.name+' · '+diagnostic.status});row.createSpan({text:'待提交 '+diagnostic.pending+' · 草稿 '+diagnostic.drafts+' · 冲突 '+diagnostic.conflicts});
     if(diagnostic.lastSync)row.createSpan({text:'最后成功：'+new Date(diagnostic.lastSync).toLocaleString()});
     diagnostic.peers.forEach(peer=>row.createEl('p',{text:peer.name+' · '+peer.version+' · '+(peer.lastSync?new Date(peer.lastSync).toLocaleString():'尚未同步')+(peer.error?' · '+peer.error:'')}));
     cockpitDetailButton(row,en?'Manage / resolve':'管理 / 处理冲突',()=>index?view._plugin.teamSync.open():new CockpitDetailModal(view,en?'Nearby devices':'附近设备',(parent,modal)=>renderLanSyncSettings(parent,view._plugin,view._lang(),{registerCleanup:cleanup=>modal.registerCleanup(cleanup)})).open());
     cockpitDetailButton(row,en?'Sync now':'立即同步',async()=>{const service=index?view._plugin.teamSync:view._plugin.lanSync;if(!service?.transport)throw new Error('请先在管理页开启同步。');await service.sync();render();});
-  });};view._refreshSyncHealthRef=render;render();return render;
+  });};render();return render;
 }
 
-function subscribeCockpitInsights(view) {
-  const refreshTeam=()=>{view._refreshTeamStatsRef?.();view._refreshSyncHealthRef?.();};
-  const refreshRuns=()=>view._refreshRunHistoryRef?.();
-  const off=[view._plugin.teamSync?.subscribe(refreshTeam),view._plugin.scheduledTasks?.subscribe(refreshRuns),view._plugin.workflows?.subscribe(refreshRuns)].filter(Boolean);
-  view._plugin.lanSync?.listeners.add(refreshTeam);
-  return ()=>{off.forEach(unsubscribe=>unsubscribe());view._plugin.lanSync?.listeners.delete(refreshTeam);};
+function openCockpitLogs(view) {
+  const en = view._lang() === 'en';
+  new CockpitDetailModal(view, en ? 'Logs & diagnostics' : '日志与诊断', (root, modal) => {
+    root.createEl('p', { cls:'cockpit-detail-muted', text:en ? 'Run results and connection status are available here when needed.' : '在这里按需查看运行结果与设备连接状态。' });
+    const tabs = root.createDiv({ cls:PLUGIN_ID + '-workspace-tabs', attr:{ role:'tablist', 'aria-label':en ? 'Log category' : '日志分类' } });
+    const panel = root.createDiv();
+    let refresh = null;
+    let closed = false;
+    const buttons = [];
+    const select = (id) => {
+      panel.empty();
+      panel.className = '';
+      buttons.forEach((button) => { const active = button.dataset.logTab === id; button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1; });
+      const host = panel.createDiv();
+      refresh = id === 'runs' ? buildRunHistory(view, host) : buildSyncHealth(view, host);
+    };
+    [['runs',en ? 'Run history' : '运行记录'],['sync',en ? 'Sync diagnostics' : '同步诊断']].forEach(([id,label]) => {
+      const button = tabs.createEl('button', { text:label, attr:{ type:'button', role:'tab', 'aria-selected':'false' } });
+      button.dataset.logTab = id; button.onclick = () => select(id); buttons.push(button);
+      button.onkeydown = (event) => {
+        if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? 1 : 1 - buttons.indexOf(button);
+        select(buttons[next].dataset.logTab); buttons[next].focus();
+      };
+    });
+    cockpitDetailButton(root, en ? 'Toolbar command logs' : '查看工具栏命令日志', () => openCustomToolbarLogs(view));
+    select('runs');
+    const update = () => { if (!closed) refresh?.(); };
+    const off = [];
+    modal.registerCleanup(() => { closed = true; refresh = null; off.forEach((dispose) => dispose()); view._plugin.lanSync?.listeners?.delete(update); });
+    [view._plugin.teamSync, view._plugin.scheduledTasks, view._plugin.workflows].forEach((service) => { const dispose = service?.subscribe?.(update); if (typeof dispose === 'function') off.push(dispose); });
+    view._plugin.lanSync?.listeners?.add(update);
+  }).open();
 }
 
 function cockpitMentionedModules(data = {}) {

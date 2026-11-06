@@ -1,56 +1,58 @@
-// projects.js — 目标/项目进度条模块：按标签把待办聚合成“项目”，展示完成度。
+// projects.js — 目标/项目进度卡片模块：按标签把待办聚合成“项目”，展示完成度。
 // 详情使用内存待办和宿主元数据缓存，避免重复读取笔记正文。
 
 function buildProjectsModule(view, root, options = {}) {
   const en = view._lang() === 'en';
-  const onOpenProject = typeof options.onOpenProject === 'function' ? options.onOpenProject : null;
-
-  const title = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: view._t('sections.projects') });
+  const title = root.createDiv({ cls:PLUGIN_ID + '-section-title', text:view._t('sections.projects') });
   title.dataset.section = 'projects-title';
-  const body = root.createDiv({ cls: PLUGIN_ID + '-projects' });
+  const body = root.createDiv({ cls:PLUGIN_ID + '-projects' });
   body.dataset.section = 'projects-body';
-
+  const controls = body.createDiv({ cls:PLUGIN_ID + '-project-controls' });
+  const tabs = controls.createDiv({ cls:PLUGIN_ID + '-workspace-tabs', attr:{ role:'tablist', 'aria-label':en ? 'Project status' : '项目状态' } });
+  const activeTab = tabs.createEl('button', { attr:{ type:'button', role:'tab' } });
+  const completedTab = tabs.createEl('button', { attr:{ type:'button', role:'tab' } });
+  const search = controls.createEl('input', { attr:{ type:'search', placeholder:en ? 'Find a project…' : '查找项目…', 'aria-label':en ? 'Find a project' : '查找项目' } });
+  const grid = body.createDiv({ cls:PLUGIN_ID + '-projects-grid' });
+  const more = body.createEl('button', { cls:PLUGIN_ID + '-projects-more', attr:{ type:'button' } });
   let showCompleted = false;
-  const collectProjects = () => {
-    const map = new Map();
-    (view._todos || []).forEach((todo) => {
-      const tags = Array.isArray(todo.tags) ? todo.tags : [];
-      tags.forEach((rawTag) => {
-        const tag = String(rawTag || '').replace(/^#/, '').trim();
-        if (!tag || tag === '_archived') return;
-        const entry = map.get(tag) || { tag, total:0, done:0 };
-        entry.total += 1;
-        if (todo.done) entry.done += 1;
-        map.set(tag, entry);
-      });
-    });
-    // 已完成项目可切换回顾，默认仍优先展示积压任务。
-    return Array.from(map.values())
-      .filter((entry) => showCompleted ? entry.done === entry.total : entry.done < entry.total)
-      .sort((a, b) => (b.total - b.done) - (a.total - a.done) || b.total - a.total)
-      .slice(0, 8);
-  };
-
+  let limit = 8;
+  let projectIndex = [];
   const render = () => {
     if (!body.isConnected) return;
-    body.empty();
-    cockpitDetailButton(body, showCompleted ? (en ? 'Active projects' : '进行中项目') : (en ? 'Completed projects' : '已完成项目'), () => { showCompleted = !showCompleted; render(); });
-    const projects = collectProjects();
+    grid.empty();
+    const all = projectIndex;
+    activeTab.setText((en ? 'Active' : '进行中') + ' ' + all.filter((entry) => entry.open > 0).length);
+    completedTab.setText((en ? 'Completed' : '已完成') + ' ' + all.filter((entry) => entry.open === 0).length);
+    activeTab.setAttribute('aria-selected', String(!showCompleted)); completedTab.setAttribute('aria-selected', String(showCompleted));
+    activeTab.tabIndex = showCompleted ? -1 : 0; completedTab.tabIndex = showCompleted ? 0 : -1;
+    const query = search.value.trim().toLocaleLowerCase();
+    const matches = all.filter((entry) => (showCompleted ? entry.open === 0 : entry.open > 0) && entry.tag.toLocaleLowerCase().includes(query));
+    const projects = matches.slice(0,limit);
+    more.hidden = matches.length <= limit;
+    more.setText(en ? 'Show more projects' : '显示更多项目');
     if (!projects.length) {
-      body.createDiv({ cls: PLUGIN_ID + '-projects-empty', text: en
-        ? 'No active projects yet. Tag your tasks with #tags and progress shows up here.'
-        : '还没有进行中的项目。给待办加上 #标签，这里就会显示每个项目的完成度。' });
+      grid.createDiv({ cls:PLUGIN_ID + '-projects-empty', text:query ? (en ? 'No matching projects.' : '没有符合条件的项目。') : showCompleted ? (en ? 'No completed projects yet.' : '暂时没有已完成的项目。') : (en ? 'Tag tasks with #tags to track project progress here.' : '给待办添加 #标签，即可在这里跟踪项目进度。') });
       return;
     }
     projects.forEach((project) => {
       const pct = project.total > 0 ? Math.round(project.done / project.total * 100) : 0;
-      const row = body.createDiv({ cls: PLUGIN_ID + '-project-row', attr:{ role:'button', tabindex:'0' } });
+      const row = grid.createDiv({ cls:PLUGIN_ID + '-project-row', attr:{ role:'button', tabindex:'0', 'aria-label':'#' + project.tag + ' · ' + pct + '%' } });
       row.style.setProperty('--project-clr', COLORS[Math.abs(hashCockpitString(project.tag)) % COLORS.length]);
-      const head = row.createDiv({ cls: PLUGIN_ID + '-project-head' });
-      head.createDiv({ cls: PLUGIN_ID + '-project-name', text: '#' + project.tag });
-      head.createDiv({ cls: PLUGIN_ID + '-project-count', text: project.done + '/' + project.total + ' · ' + pct + '%' });
-      const bar = row.createDiv({ cls: PLUGIN_ID + '-project-bar' });
-      bar.createDiv({ cls: PLUGIN_ID + '-project-fill', attr:{ style:'width:' + pct + '%' } });
+      const head = row.createDiv({ cls:PLUGIN_ID + '-project-head' });
+      const icon = head.createSpan({ cls:PLUGIN_ID + '-project-icon' }); obs.setIcon(icon, 'folder-kanban');
+      head.createDiv({ cls:PLUGIN_ID + '-project-name', text:'#' + project.tag });
+      const arrow = head.createSpan({ cls:PLUGIN_ID + '-project-arrow' }); obs.setIcon(arrow, 'arrow-up-right');
+      const metrics = row.createDiv({ cls:PLUGIN_ID + '-project-metrics' });
+      metrics.createSpan({ cls:PLUGIN_ID + '-project-percent', text:pct + '%' });
+      metrics.createSpan({ cls:PLUGIN_ID + '-project-count', text:en ? project.done + ' / ' + project.total + ' completed' : '已完成 ' + project.done + ' / ' + project.total });
+      const bar = row.createDiv({ cls:PLUGIN_ID + '-project-bar', attr:{ role:'progressbar', 'aria-label':en ? 'Completion' : '完成进度', 'aria-valuemin':'0', 'aria-valuemax':'100', 'aria-valuenow':String(pct) } });
+      bar.createDiv({ cls:PLUGIN_ID + '-project-fill', attr:{ style:'width:' + pct + '%' } });
+      const status = row.createDiv({ cls:PLUGIN_ID + '-project-status' });
+      status.createSpan({ text:en ? project.open + ' remaining' : '剩余 ' + project.open + ' 项' });
+      if (project.overdue) status.createSpan({ cls:'is-overdue', text:en ? project.overdue + ' overdue' : project.overdue + ' 项逾期' });
+      const next = row.createDiv({ cls:PLUGIN_ID + '-project-next' });
+      next.createSpan({ cls:PLUGIN_ID + '-project-next-label', text:en ? 'Next' : '下一项' });
+      next.createSpan({ cls:PLUGIN_ID + '-project-next-title', text:project.nextTodo?.text || (en ? 'All tasks completed' : '所有待办均已完成'), attr:{ title:project.nextTodo?.text || '' } });
       const open = () => {
         if (view._editMode) return;
         openCockpitProject(view, project.tag, options);
@@ -60,10 +62,21 @@ function buildProjectsModule(view, root, options = {}) {
     });
   };
 
-  view._refreshProjectsRef = render;
-  render();
+  const selectStatus = (completed) => { showCompleted = completed; limit = 8; render(); };
+  activeTab.onclick = () => selectStatus(false); completedTab.onclick = () => selectStatus(true);
+  [activeTab,completedTab].forEach((tab) => { tab.onkeydown = (event) => {
+    if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+    event.preventDefault();
+    selectStatus(event.key === 'Home' ? false : event.key === 'End' ? true : !showCompleted);
+    (showCompleted ? completedTab : activeTab).focus();
+  }; });
+  search.oninput = () => { limit = 8; render(); };
+  more.onclick = () => { limit += 8; render(); };
+  const refresh = () => { projectIndex = collectCockpitProjects(view._todos || []); render(); };
+  view._refreshProjectsRef = refresh;
+  refresh();
   view._makeModuleCollapsible('projects', title, body);
-  return render;
+  return refresh;
 }
 
 // 稳定的小字符串哈希：为项目条分配固定颜色，避免每次渲染换色。
@@ -97,3 +110,28 @@ function openCockpitProject(view, tag, options = {}) {
     files.slice(0,30).forEach(file=>cockpitDetailButton(body,file.basename||file.path,async()=>{await view.app.workspace.getLeaf('tab').openFile(file);modal.close();}));
   }).open();
 }
+
+function collectCockpitProjects(todos, now = Date.now()) {
+  const groups = new Map();
+  const today = new Date(now); today.setHours(0,0,0,0);
+  (todos || []).forEach((todo) => {
+    const tags = new Set((Array.isArray(todo.tags) ? todo.tags : []).map((tag) => String(tag || '').replace(/^#/, '').trim()).filter(Boolean));
+    if (tags.has('_archived')) return;
+    tags.forEach((tag) => {
+      const entry = groups.get(tag) || { tag, total:0, done:0, open:0, overdue:0, nextTodo:null };
+      entry.total++;
+      if (todo.done) entry.done++;
+      else {
+        entry.open++;
+        const due = todo.dueDate ? Number(todo.dueDate.valueOf()) : Infinity;
+        if (due < (todo.dueHasTime ? now : today.valueOf())) entry.overdue++;
+        const nextDue = entry.nextTodo?.dueDate ? Number(entry.nextTodo.dueDate.valueOf()) : Infinity;
+        if (!entry.nextTodo || due < nextDue) entry.nextTodo = todo;
+      }
+      groups.set(tag, entry);
+    });
+  });
+  return Array.from(groups.values()).sort((a,b) => b.open - a.open || b.total - a.total || a.tag.localeCompare(b.tag));
+}
+
+if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports={collectCockpitProjects};

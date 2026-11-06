@@ -2,13 +2,12 @@
 
 const COMPONENT_STORE_META = {
   hero:{icon:'sparkles',category:'basic'}, tip:{icon:'lightbulb',category:'basic',manager:'tip'}, toolbar:{icon:'panels-top-left',category:'basic',manager:'toolbar'},
-  alarms:{icon:'alarm-clock',category:'focus'}, countdowns:{icon:'timer-reset',category:'focus'}, agenda:{icon:'clock-3',category:'planning'}, calendar:{icon:'calendar-days',category:'planning'},
+  alarms:{icon:'alarm-clock',category:'focus'}, countdowns:{icon:'timer-reset',category:'focus'}, calendar:{icon:'calendar-days',category:'planning'},
   cats:{icon:'folders',category:'knowledge'}, stats:{icon:'chart-no-axes-column-increasing',category:'insights',manager:'stats'}, todos:{icon:'list-checks',category:'planning'}, teamTodos:{icon:'users',category:'team'},
   habits:{icon:'flame',category:'focus'}, projects:{icon:'target',category:'planning'}, focusChart:{icon:'chart-line',category:'insights'}, bookmarks:{icon:'star',category:'knowledge'},
-  flash:{icon:'zap',category:'knowledge'}, resurface:{icon:'history',category:'knowledge'}, heatmap:{icon:'grid-3x3',category:'insights'}, weeklyReview:{icon:'calendar-check',category:'insights'},
-  scheduledTasks:{icon:'calendar-clock',category:'automation'}, workflows:{icon:'workflow',category:'automation'}, reportStudio:{icon:'file-chart-column',category:'automation'},
-  teamStats:{icon:'users-round',category:'team'}, runHistory:{icon:'activity',category:'automation'}, syncHealth:{icon:'network',category:'team'},
-  footer:{icon:'panel-bottom',category:'basic'}, recent:{icon:'history',category:'knowledge'}
+  flash:{icon:'zap',category:'knowledge'}, resurface:{icon:'history',category:'knowledge'}, heatmap:{icon:'grid-3x3',category:'insights'},
+  scheduledTasks:{icon:'calendar-clock',category:'automation'}, workflows:{icon:'workflow',category:'automation'}, reportStudio:{icon:'notebook-pen',category:'insights'},
+  recent:{icon:'history',category:'knowledge'}
 };
 
 const COMPONENT_STORE_COPY = {
@@ -29,9 +28,9 @@ function componentStoreCopy(view) { return view._lang() === 'en' ? COMPONENT_STO
 function componentStoreDescriptions(view) {
   const en = view._lang() === 'en';
   return en ? {
-    hero:'Greeting and today overview',tip:'Daily prompt and personal tip library',toolbar:'Built-in and custom quick actions',alarms:'Recurring and one-time alarms',countdowns:'Deadline countdowns and notifications',agenda:'Today timeline',calendar:'Month and week planning',cats:'Knowledge-area shortcuts',stats:'Progress and activity cards',todos:'Task management',teamTodos:'Team tasks with device permissions',habits:'Habit check-ins',projects:'Project progress',focusChart:'Focus trends',bookmarks:'Starred notes',flash:'Quick capture inbox',resurface:'Bring old notes back',heatmap:'Recent editing activity',weeklyReview:'Weekly reflection',scheduledTasks:'Time and event automations',workflows:'Multi-step operations',reportStudio:'Weekly report generation',teamStats:'Team progress and workload',runHistory:'Automation runs and delivery results',syncHealth:'Device connections and sync status',footer:'Dashboard footer',recent:'Recently opened and edited notes'
+    hero:'Greeting and today overview',tip:'Daily prompt and personal tip library',toolbar:'Built-in and custom quick actions',alarms:'Recurring and one-time alarms',countdowns:'Deadline countdowns and notifications',calendar:'Month and week planning',cats:'Knowledge-area shortcuts',stats:'Progress and activity cards',todos:'Task management',teamTodos:'Team tasks with device permissions',habits:'Habit check-ins',projects:'Project progress',focusChart:'Focus trends',bookmarks:'Starred notes',flash:'Quick capture inbox',resurface:'Bring old notes back',heatmap:'Recent editing activity',scheduledTasks:'Time and event automations',workflows:'Multi-step operations',reportStudio:'Weekly reflection and report generation',recent:'Recently opened and edited notes'
   } : {
-    hero:'问候与今日概览',tip:'每日提示与个人提示库',toolbar:'内置和自定义快捷操作',alarms:'重复及单次闹钟',countdowns:'截止倒计时与多渠道提醒',agenda:'今日时间线',calendar:'月视图和周视图计划',cats:'知识分类入口',stats:'进度与活动统计卡片',todos:'待办事项管理',teamTodos:'局域网团队待办与设备权限',habits:'习惯打卡',projects:'项目进度',focusChart:'专注趋势',bookmarks:'收藏文件',flash:'快速记录入口',resurface:'重新发现旧笔记',heatmap:'近期编辑活跃度',weeklyReview:'每周回顾',scheduledTasks:'时间与事件自动化',workflows:'多步骤运维流程',reportStudio:'周报生成与优化',teamStats:'团队进度与成员工作量',runHistory:'自动化执行与通知投递记录',syncHealth:'设备连接与同步状态',footer:'驾驶舱页脚',recent:'最近打开和修改的内容'
+    hero:'问候与今日概览',tip:'每日提示与个人提示库',toolbar:'内置和自定义快捷操作',alarms:'重复及单次闹钟',countdowns:'截止倒计时与多渠道提醒',calendar:'月视图和周视图计划',cats:'知识分类入口',stats:'进度与活动统计卡片',todos:'待办事项管理',teamTodos:'局域网团队待办与设备权限',habits:'习惯打卡',projects:'项目进度',focusChart:'专注趋势',bookmarks:'收藏文件',flash:'快速记录入口',resurface:'重新发现旧笔记',heatmap:'近期编辑活跃度',scheduledTasks:'时间与事件自动化',workflows:'多步骤运维流程',reportStudio:'每周回顾、周报生成与优化',recent:'最近打开和修改的内容'
   };
 }
 

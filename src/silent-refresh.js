@@ -144,6 +144,7 @@ async function cockpitRunSilentRefreshCycle(view, options = {}) {
         if (!current()) return;
         if (full || scopes.has('notes')) {
           view._allFiles = view.app.vault.getMarkdownFiles();
+          await cockpitRefreshOptionalModule(view, '_refreshCategoriesRef');
           view._updateStatsRef?.();
           view._refreshRecentSection(root, view._allFiles);
           await view._refreshBookmarkSection(root, view._allFiles);
@@ -161,12 +162,9 @@ async function cockpitRunSilentRefreshCycle(view, options = {}) {
         if (full || scopes.has('habits')) await cockpitRefreshOptionalModule(view, '_refreshHabitsRef');
         if (!current()) return;
         if (full || scopes.has('todos') || scopes.has('focus') || scopes.has('habits')) {
-          await cockpitRefreshOptionalModule(view, '_refreshAgendaRef');
-          if (!current()) return;
           await cockpitRefreshOptionalModule(view, '_refreshWeeklyReviewRef');
         }
         if (!current()) return;
-        if(full) { await cockpitRefreshOptionalModule(view,'_refreshRunHistoryRef'); await cockpitRefreshOptionalModule(view,'_refreshSyncHealthRef'); }
         view._refreshHeroSection();
         if (typeof cockpitNotifyCustomComponents === 'function') cockpitNotifyCustomComponents(view, scopes);
       } catch (error) {
@@ -202,7 +200,7 @@ function cockpitRegisterVaultRefreshEvents(view) {
   };
   const onVaultChange = async (file, oldPath, checkManaged = true) => {
     if (view._vaultRefreshClosed) return;
-    if (file && file.extension !== 'md' && !/\.md$/i.test(oldPath || '')) return;
+    if (file && !Array.isArray(file.children) && file.extension !== 'md' && !/\.md$/i.test(oldPath || '')) return;
     const path = file?.path;
     if (!path || path === '_data/team-todos.md') return;
     // 只跳过内容完全一致的插件写入。手工编辑同一文件仍会触发局部刷新。

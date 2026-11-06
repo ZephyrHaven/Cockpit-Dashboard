@@ -14,6 +14,13 @@ Cockpit Dashboard is a local-first home dashboard for Obsidian. Todos, calendar,
 - **Layout** — a searchable component store, scene layouts that switch by weekday, time range or folder, and an optional unified glass look.
 - **Also included** — natural-language quick capture, Spotlight search across todos, notes and filenames, a two-pane RSS reader, Apple Calendar sync on Mac, encrypted sync between your own computers and a shared team space (both in preview), bilingual UI and first-run onboarding.
 
+### Component changes
+
+- Drag an unfinished personal task from the calendar's day overview onto a month/week date to reschedule it while keeping its time. Clicking still opens task details; dragging suppresses the following click. All-day items follow timed items, busy lists use tighter spacing, and internal scrollbars stay hidden while scrolling remains available.
+- Standalone Run history, Sync diagnostics, Footer, Today timeline and Team overview components have been removed. Open **Logs & diagnostics** from the dashboard menu or command palette for run records, sync status and toolbar command logs. Team tasks and the team space remain available.
+- Weekly review and Weekly report studio now share a **Reports & review** component with two tabs. Existing report configuration, scripts and review notes are retained, and saved scene layouts migrate automatically.
+- Knowledge categories support filtering, sorting and searchable note lists with a direct overview shortcut. Project cards show completion, remaining tasks, overdue tasks and the next task, with active/completed filters.
+
 ## Installation
 
 **Community plugins (recommended)**: Settings → Community plugins → Browse → search **Cockpit Dashboard** → install and enable.

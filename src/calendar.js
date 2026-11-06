@@ -232,6 +232,7 @@ function buildCalendar(root, todos, opts) {
         automationItems:Array.isArray(automationItems) ? automationItems : [],
         countdownItems:Array.isArray(countdownItems) ? countdownItems : [],
         filter:flowFilter,
+        bindTodoDrag:(el, todo) => makeTodoDraggable(el, todo),
         onFilterChange:(nextFilter) => { flowFilter=nextFilter; renderDetail(todoMap); },
         openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm,
         openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen,
@@ -287,17 +288,7 @@ function buildCalendar(root, todos, opts) {
   };
   // 日历内拖拽：月格关键事项 / 周卡事项都可拖到其他日期；带时间的待办保留原时刻。
   const makeTodoDraggable = (el, todo) => {
-    if (todo.teamTodo || todo.done || !todo.raw?.id) return;
-    el.setAttribute('draggable', 'true');
-    el.addEventListener('dragstart', (event) => {
-      event.stopPropagation();
-      event.dataTransfer.setData('application/x-cockpit-todo', todo.raw.id);
-      event.dataTransfer.setData('application/x-cockpit-calendar', '1');
-      event.dataTransfer.effectAllowed = 'move';
-      el.classList.add('is-dragging');
-      calRoot?.classList.add('is-dragging-todo');
-    });
-    el.addEventListener('dragend', () => { el.classList.remove('is-dragging'); calRoot?.classList.remove('is-dragging-todo'); });
+    bindCalendarTodoDrag(el, todo, () => calRoot?.closest('[data-module-id="calendar"]') || calRoot?.parentElement);
   };
   const createEventRow = (parent, event, date, cls) => {
     const row = parent.createDiv({ cls:PLUGIN_ID + '-cal-ev' + (cls ? ' ' + cls : '') + (event.allDay ? ' all-day' : ''), attr:{ title:eventTitle(event) } });
@@ -351,8 +342,8 @@ function buildCalendar(root, todos, opts) {
     return line;
   };
   const bindTodoDrop = (target, date) => {
-    target.addEventListener('dragover', (event) => { if (!event.dataTransfer?.types?.includes('application/x-cockpit-todo')) return; event.preventDefault(); target.classList.add('todo-drop-target'); });
-    target.addEventListener('dragleave', () => target.classList.remove('todo-drop-target'));
+    target.addEventListener('dragover', (event) => { if (!event.dataTransfer?.types?.includes('application/x-cockpit-todo')) return; event.preventDefault(); event.dataTransfer.dropEffect = 'move'; target.classList.add('todo-drop-target'); });
+    target.addEventListener('dragleave', (event) => { if (!target.contains(event.relatedTarget)) target.classList.remove('todo-drop-target'); });
     target.addEventListener('drop', async (event) => {
       const todoId = event.dataTransfer?.getData('application/x-cockpit-todo');
       if (!todoId) return;

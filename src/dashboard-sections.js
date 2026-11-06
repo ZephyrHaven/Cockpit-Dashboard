@@ -1,42 +1,6 @@
 // dashboard-sections.js — 从 _framework.js 的 _buildAll() 拆出的独立仪表盘区块。
 // 每个函数只负责自身 DOM 与交互；共享状态仍挂在 view 上，跨区块协作通过 ctx 传入。
 
-function cockpitBuildCategoriesSection(view, root, ctx) {
-  const { t, lang, allFiles, makeCollapsible } = ctx;
-  // ===== 3. Categories =====
-  const catsTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: t('sections.cats') });
-  catsTitle.dataset.section = 'cats-title';
-  const catsEl = root.createDiv({ cls: PLUGIN_ID+'-cats' });
-  const allFolders = view.app.vault.getAllLoadedFiles()
-    .filter(f=>f.children && f.path!=='' && f.path!=='/' && !f.path.includes('/') && !f.path.startsWith('.') && !f.path.startsWith('_') && f.path!=='Templates');
-  const folderCounts = {};
-  allFiles.forEach(f=>{
-    const p=f.path.split('/');
-    if (p.length>=2) folderCounts[p[0]]=(folderCounts[p[0]]||0)+1;
-  });
-  allFolders.sort((a,b)=>a.path.localeCompare(b.path));
-  allFolders.forEach((folder,idx)=>{
-    const count = folderCounts[folder.path]||0;
-    const name = folder.path.replace(/^\d+[-_]/,'')||folder.path;
-    const card = catsEl.createEl('button', { cls: PLUGIN_ID+'-cat', attr:{ type:'button', title:t('categories.openFolder', { folder:name }) } });
-    card.style.setProperty('--cat-clr', COLORS[idx%COLORS.length]);
-    card.createDiv({ cls: PLUGIN_ID+'-cat-icon', text: ICONS[idx%ICONS.length] });
-    card.createDiv({ cls: PLUGIN_ID+'-cat-name', text: name });
-    card.createDiv({ cls: PLUGIN_ID+'-cat-count', text: t('categories.noteCount', { count }) });
-    card.onclick=async ()=>{
-      const files = allFiles.filter(f=>f.path.startsWith(folder.path+'/')).sort((a,b)=>a.path.localeCompare(b.path));
-      const overview = files.find(f=>f.basename.includes('概览')||f.basename.includes('MOC')||f.basename.includes('概述'));
-      const target = overview || files[0];
-      if (target) await view.app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:target.path}});
-      else new obs.Notice(t('categories.emptyFolder', { folder:name }));
-    };
-  });
-
-
-
-  makeCollapsible(catsTitle, catsEl, 'cats');
-}
-
 function cockpitBuildStatsSection(view, root, ctx) {
   const { t, lang, allFiles, makeCollapsible } = ctx;
   // ===== 4. Stats（可动态更新）=====

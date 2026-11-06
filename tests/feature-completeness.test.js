@@ -29,7 +29,7 @@ assert.match(framework, /field:'focusGap'/, 'Statistics exposes consecutive no-f
 assert.match(framework, /field:'tagBacklog'/, 'Statistics exposes the largest tag backlog as an action.');
 assert.match(framework, /statsCardOrder:[\s\S]*hiddenStatsCards/, 'Statistics card order and visibility are stored with the active scene.');
 assert.match(framework, /application\/x-cockpit-stat/, 'Statistics cards support edit-mode drag ordering.');
-assert.match(framework, /const missingContent[\s\S]*next\.indexOf\('footer'\)/, 'New modules are inserted before the footer anchor without pinning existing modules.');
+assert.match(framework, /const missingContent[\s\S]*next\.indexOf\('recent'\)/, 'New modules are inserted before recent notes without restoring the retired footer.');
 assert.match(framework, /moduleLabels:[\s\S]*_customModuleLabels/, 'Layout scenes persist editable module titles.');
 assert.match(framework, /recent-tabs'[\s\S]*classList\.contains\(PLUGIN_ID \+ '-recent'\)/, 'Recent tabs and content belong to the same layout module.');
 assert.match(calendar, /cal-indicators[\s\S]*cal-indicator-counts/, 'Calendar task and RSS counts share a non-overlapping indicator rail.');

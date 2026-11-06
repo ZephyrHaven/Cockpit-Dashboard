@@ -24,6 +24,7 @@ function cockpitDashboardMenuItems(view) {
     { separator:true },
     { title:en ? 'Component store' : '组件商店', icon:'blocks', onClick:() => openComponentStore(view) },
     { title:en ? 'Plugin settings' : '插件设置', icon:'settings', onClick:() => openCockpitPluginSettings(view) },
+    { title:en ? 'Logs & diagnostics' : '日志与诊断', icon:'scroll-text', onClick:() => openCockpitLogs(view) },
     { title:en ? 'Manage RSS subscriptions' : '管理 RSS 订阅源', icon:'rss', onClick:() => new CockpitRssSettingsModal(view.app, view).open() },
     { separator:true },
     ...actions.filter(item => item.id === 'exportBackup'),

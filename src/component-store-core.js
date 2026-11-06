@@ -2,6 +2,31 @@
 
 const COMPONENT_LAYOUT_ARRAY_FIELDS = ['moduleOrder','hiddenModules','toolbarOrder','hiddenToolbarActions','statsCardOrder','hiddenStatsCards'];
 
+function migrateCockpitModuleLayout(layout = {}) {
+  const retired = new Set(['agenda','footer','teamStats','runHistory','syncHealth']);
+  const order = Array.isArray(layout.moduleOrder) ? layout.moduleOrder : [];
+  const hidden = new Set(Array.isArray(layout.hiddenModules) ? layout.hiddenModules : []);
+  const reviewVisible = order.includes('weeklyReview') && !hidden.has('weeklyReview');
+  const studioVisible = order.includes('reportStudio') && !hidden.has('reportStudio');
+  const convert = (list) => uniqueComponentIds(list.map((id) => id === 'weeklyReview' ? 'reportStudio' : id).filter((id) => !retired.has(id)));
+  const next = { ...layout, moduleOrder:convert(order), hiddenModules:convert(Array.from(hidden)), moduleLabels:{ ...(layout.moduleLabels || {}) } };
+  if (reviewVisible || studioVisible) next.hiddenModules = next.hiddenModules.filter((id) => id !== 'reportStudio');
+  [...retired, 'weeklyReview'].forEach((id) => { delete next.moduleLabels[id]; });
+  return next;
+}
+
+function migrateCockpitDashboardComponents(data) {
+  const next = { ...data, ...migrateCockpitModuleLayout(data), dashboardComponentsRevision:1 };
+  if (!Array.isArray(data.moduleOrder)) delete next.moduleOrder;
+  if (!Array.isArray(data.hiddenModules)) delete next.hiddenModules;
+  if (data.sceneLayouts && typeof data.sceneLayouts === 'object' && !Array.isArray(data.sceneLayouts)) next.sceneLayouts = Object.fromEntries(Object.entries(data.sceneLayouts).map(([id, scene]) => [id, { ...scene, layout:migrateCockpitModuleLayout(scene?.layout) }]));
+  next.collapsed = { ...(data.collapsed || {}) };
+  if (next.collapsed.reportStudio == null && next.collapsed.weeklyReview != null) next.collapsed.reportStudio = next.collapsed.weeklyReview;
+  ['weeklyReview','agenda','footer','teamStats','runHistory','syncHealth'].forEach((id) => { delete next.collapsed[id]; });
+  if (Array.isArray(data.optionalModulesSeen)) next.optionalModulesSeen = uniqueComponentIds(data.optionalModulesSeen.map((id) => id === 'weeklyReview' ? 'reportStudio' : id).filter((id) => !['agenda','footer','teamStats','runHistory','syncHealth'].includes(id)));
+  return next;
+}
+
 function cloneComponentLayoutSnapshot(snapshot) {
   const source = snapshot && typeof snapshot === 'object' ? snapshot : {};
   const clone = { ...source };
@@ -69,5 +94,5 @@ function moveNestedItemBefore(snapshot, orderField, itemId, beforeId) {
 }
 
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
-  module.exports = { cloneComponentLayoutSnapshot, setComponentVisibility, moveComponentBefore, moveComponentAtDrop, setNestedItemVisibility, moveNestedItemBefore };
+  module.exports = { migrateCockpitModuleLayout, migrateCockpitDashboardComponents, cloneComponentLayoutSnapshot, setComponentVisibility, moveComponentBefore, moveComponentAtDrop, setNestedItemVisibility, moveNestedItemBefore };
 }

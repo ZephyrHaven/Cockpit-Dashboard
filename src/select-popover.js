@@ -1,5 +1,5 @@
 // 插件内下拉框统一使用自绘选项菜单。
-// 原生 <select> 的弹出层在 Obsidian（Electron/macOS）里，叠在毛玻璃遮罩、嵌套弹窗之上时
+// 原生 <select> 的弹出层在宿主应用（Electron/macOS）里，叠在毛玻璃遮罩、嵌套弹窗之上时
 // 会一打开就被关闭，表现为“点击下拉一直闪烁、选不了”。这里在 mousedown 捕获阶段拦截
 // 插件范围内的单选下拉框，改为渲染到 body 顶层的 DOM 菜单；选中后写回 select.value 并派发
 // input/change，调用方原有的 onchange 逻辑无需改动。键盘操作仍走原生行为。

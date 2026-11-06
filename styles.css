@@ -638,7 +638,7 @@ body {
   border-radius: 14px;
   padding: 14px;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s ease, box-shadow 0.25s ease;
   border-left: 4px solid var(--cat-clr, var(--ck-accent));
   position: relative;
   overflow: hidden;
@@ -2043,7 +2043,7 @@ body {
 .cockpit-dashboard-cal-flow-filter.active { background:color-mix(in srgb,var(--ck-accent) 13%,var(--background-secondary))!important; color:var(--text-accent); box-shadow:0 2px 8px rgba(15,23,42,.07)!important; }
 .cockpit-dashboard-cal-flow-filter-count { min-width:17px; height:17px; padding:0 4px; display:inline-flex; align-items:center; justify-content:center; border-radius:999px; background:color-mix(in srgb,var(--text-muted) 11%,transparent); color:inherit; font-size:.84em; font-variant-numeric:tabular-nums; }
 .cockpit-dashboard-cal-timeline { display:flex; flex-direction:column; padding:1px 0 0; overflow:visible; border:0; border-radius:0; background:transparent; }
-.cockpit-dashboard-cal-timeline-row { display:grid; grid-template-columns:62px 26px minmax(0,1fr); min-height:54px; align-items:stretch; position:relative; background:transparent!important; border:0!important; box-shadow:none!important; }
+.cockpit-dashboard-cal-timeline-row { display:grid; grid-template-columns:62px 26px minmax(0,1fr); min-height:72px; flex:0 0 auto; align-items:stretch; position:relative; background:transparent!important; border:0!important; box-shadow:none!important; }
 .cockpit-dashboard-cal-timeline-row + .cockpit-dashboard-cal-timeline-row { border-top:0; }
 .cockpit-dashboard-cal-timeline-time { display:flex; align-items:center; justify-content:flex-end; padding:0 9px 0 0; color:var(--text-muted); font-size:.69em; font-weight:740; font-variant-numeric:tabular-nums; text-align:right; }
 .cockpit-dashboard-cal-timeline-rail { position:relative; display:flex; justify-content:center; align-items:center; }
@@ -6671,8 +6671,22 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--c
   height:100%;
   max-height:min(68vh, 760px);
   overflow:auto;
-  scrollbar-gutter:stable;
+  scrollbar-gutter:auto;
 }
+
+/* 保留滚轮、触控板与键盘滚动，只隐藏日历内部的滚动条。 */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-module[data-module-id="calendar"] :is(.cockpit-dashboard-cal-detail, .cockpit-dashboard-cal-week, .cockpit-dashboard-cal-flow-filters) {
+  scrollbar-width:none;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-module[data-module-id="calendar"] :is(.cockpit-dashboard-cal-detail, .cockpit-dashboard-cal-week, .cockpit-dashboard-cal-flow-filters)::-webkit-scrollbar {
+  display:none;
+  width:0;
+  height:0;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-detail:focus-visible { outline:2px solid var(--ck-accent); outline-offset:2px; }
+/* 六条起适度收紧；正文仍可换行，字号与操作按钮尺寸保持一致。 */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-detail.is-dense .cockpit-dashboard-cal-timeline-row { min-height:64px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-detail.is-dense .cockpit-dashboard-cal-timeline-content { margin-top:1px; margin-bottom:1px; padding-top:3px; padding-bottom:3px; }
 
 /* 周视图与右侧总览共用一个高度；右侧内容超出时独立滚动。 */
 .cockpit-dashboard-root.cockpit-dashboard-calendar-split .cockpit-dashboard-module[data-module-id="calendar"]:has(> .cockpit-dashboard-cal-wrap .cockpit-dashboard-cal-surface.is-week) > .cockpit-dashboard-cal-wrap,
@@ -6694,7 +6708,7 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--c
   min-height:0;
 }
 
-/* 周视图右栏同步占满主体高度：4 条以上均匀铺开，少量事项仍保持紧凑。 */
+/* 周视图右栏按内容自然排列，超出面板高度时由详情栏统一滚动。 */
 .cockpit-dashboard-root.cockpit-dashboard-calendar-split .cockpit-dashboard-module[data-module-id="calendar"]:has(> .cockpit-dashboard-cal-wrap .cockpit-dashboard-cal-surface.is-week) > .cockpit-dashboard-cal-detail.has-items {
   display:flex;
   flex-direction:column;
@@ -6703,13 +6717,9 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--c
   flex:0 0 auto;
 }
 .cockpit-dashboard-root.cockpit-dashboard-calendar-split .cockpit-dashboard-module[data-module-id="calendar"]:has(> .cockpit-dashboard-cal-wrap .cockpit-dashboard-cal-surface.is-week) > .cockpit-dashboard-cal-detail.has-items > .cockpit-dashboard-cal-timeline {
-  flex:1 0 auto;
+  flex:0 0 auto;
   min-height:0;
   padding-top:6px;
-}
-.cockpit-dashboard-root.cockpit-dashboard-calendar-split .cockpit-dashboard-module[data-module-id="calendar"]:has(> .cockpit-dashboard-cal-wrap .cockpit-dashboard-cal-surface.is-week) > .cockpit-dashboard-cal-detail.has-items > .cockpit-dashboard-cal-timeline:has(> .cockpit-dashboard-cal-timeline-row:nth-child(4)) > .cockpit-dashboard-cal-timeline-row {
-  flex:1 0 auto;
-  min-height:88px;
 }
 
 /* 左右分栏时保留 3 + 2 + 2 的三行节奏，但让三行在共享高度内等分。 */
@@ -7469,3 +7479,71 @@ body.is-translucent .cockpit-dashboard-ai-view[data-glass="on"] .cockpit-dashboa
 .cockpit-dashboard-select-menu-item.is-active { background:var(--background-modifier-hover); }
 .cockpit-dashboard-select-menu-item.is-selected { color:var(--text-accent); font-weight:650; }
 .cockpit-dashboard-select-menu-item.is-disabled { opacity:.45; cursor:default; }
+
+/* 分类导航、项目卡片与每周工作区 */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cats { display:block; container-type:inline-size; }
+.cockpit-dashboard-category-controls,
+.cockpit-dashboard-project-controls { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+.cockpit-dashboard-category-controls input,
+.cockpit-dashboard-project-controls input { flex:1 1 180px; min-width:0; max-width:320px; height:36px; font-size:13px; }
+.cockpit-dashboard-category-controls select { height:36px; max-width:100%; font-size:13px; }
+.cockpit-dashboard-category-result-count { margin-right:auto; color:var(--text-muted); font-size:12px; font-variant-numeric:tabular-nums; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cats-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.cockpit-dashboard-root.cockpit-dashboard-root button.cockpit-dashboard-cat {
+  box-sizing:border-box; display:grid; grid-template-columns:36px minmax(0,1fr) 16px; align-items:center; justify-content:stretch; gap:12px;
+  width:100%; height:auto!important; min-height:96px; margin:0; padding:16px!important; text-align:left; white-space:normal;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cat::before { display:none; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cat-icon { width:34px; height:34px; margin:0; color:var(--ck-accent); background:var(--ck-surface-sunken); }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cat-icon svg { width:19px; height:19px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cat-copy { display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:0; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cat-name { max-width:100%; font-size:14px; font-weight:650; line-height:1.4; overflow-wrap:anywhere; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cat-count { margin:0; color:var(--text-muted); font-size:12px; line-height:1.3; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cat-arrow { display:flex; color:var(--text-faint); }
+.cockpit-dashboard-cat-arrow svg { width:15px; height:15px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-categories-empty { grid-column:1/-1; padding:24px; color:var(--text-muted); font-size:14px; }
+.cockpit-dashboard-category-notes { display:grid; gap:7px; margin-top:12px; }
+button.cockpit-dashboard-category-note { display:flex; flex-direction:column; align-items:stretch; gap:5px; width:100%; height:auto; min-height:64px; margin:0; padding:12px 14px; text-align:left; white-space:normal; border:1px solid var(--background-modifier-border); border-radius:10px; background:var(--background-secondary); }
+.cockpit-dashboard-category-note-name { font-size:14px; line-height:1.4; overflow-wrap:anywhere; }
+.cockpit-dashboard-category-note-path { color:var(--text-muted); font-size:12px; line-height:1.4; overflow-wrap:anywhere; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-projects { display:block; container-type:inline-size; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-projects-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-project-row {
+  display:flex; flex-direction:column; gap:12px; min-width:0; padding:18px; border:1px solid var(--ck-border); border-radius:var(--ck-radius-md,16px); background:var(--ck-surface); box-shadow:var(--ck-highlight),var(--ck-shadow-sm); text-align:left;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-project-row:focus-visible { outline:2px solid var(--ck-accent); outline-offset:3px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-project-head { display:flex; align-items:center; gap:9px; }
+.cockpit-dashboard-project-icon { display:grid; place-items:center; width:30px; height:30px; flex:0 0 30px; border-radius:8px; color:var(--project-clr); background:color-mix(in srgb,var(--project-clr) 10%,transparent); }
+.cockpit-dashboard-project-icon svg { width:17px; height:17px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-project-name { flex:1; min-width:0; font-size:14px; white-space:normal; overflow-wrap:anywhere; line-height:1.4; }
+.cockpit-dashboard-project-arrow { margin-left:auto; display:flex; color:var(--text-faint); }
+.cockpit-dashboard-project-arrow svg { width:15px; height:15px; }
+.cockpit-dashboard-project-metrics { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; margin-top:4px; font-variant-numeric:tabular-nums; }
+.cockpit-dashboard-project-percent { font-size:30px; font-weight:700; letter-spacing:-.04em; line-height:1.1; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-project-count { font-size:12px; white-space:normal; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-project-bar { height:5px; flex:none; }
+.cockpit-dashboard-project-status { display:flex; justify-content:space-between; flex-wrap:wrap; gap:5px; color:var(--text-muted); font-size:12px; font-variant-numeric:tabular-nums; }
+.cockpit-dashboard-project-status .is-overdue { color:var(--text-warning,#d99a48); }
+.cockpit-dashboard-project-next { display:grid; gap:6px; margin-top:auto; padding-top:12px; border-top:1px solid var(--ck-border); }
+.cockpit-dashboard-project-next-label { color:var(--text-faint); font-size:11px; }
+.cockpit-dashboard-project-next-title { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:13px; line-height:1.5; min-height:39px; }
+.cockpit-dashboard-projects-more { margin-top:14px; }
+.cockpit-dashboard-workspace-tabs { display:flex; align-items:center; flex-wrap:wrap; gap:4px; padding:4px; border-radius:11px; background:var(--background-secondary); width:fit-content; max-width:100%; }
+.cockpit-dashboard-workspace-tabs > button { height:auto; min-height:34px; margin:0; padding:6px 12px; border:0; border-radius:8px; box-shadow:none; background:transparent; color:var(--text-muted); font-size:13px; font-weight:600; white-space:normal; }
+.cockpit-dashboard-workspace-tabs > button[aria-selected="true"] { background:var(--background-primary); color:var(--text-normal); box-shadow:0 1px 4px rgba(0,0,0,.08); }
+.cockpit-dashboard-workspace-tabs > button:focus-visible { outline:2px solid var(--interactive-accent); outline-offset:2px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-weekly-workspace { min-width:0; }
+.cockpit-dashboard-workspace-panel { min-width:0; margin-top:16px; }
+.cockpit-dashboard-workspace-panel[hidden], .cockpit-dashboard-projects-more[hidden] { display:none!important; }
+.cockpit-dashboard-root.cockpit-dashboard-root .is-calendar-draggable,
+.cockpit-dashboard-root.cockpit-dashboard-root .is-calendar-draggable .cockpit-dashboard-cal-timeline-title { cursor:grab; }
+.cockpit-dashboard-root.cockpit-dashboard-root .is-calendar-draggable.is-dragging { opacity:.42; cursor:grabbing; }
+.cockpit-dashboard-root.cockpit-dashboard-root .is-dragging-todo :is(.cockpit-dashboard-cal-cell,.cockpit-dashboard-cal-week-day).todo-drop-target { outline:2px solid var(--ck-accent); outline-offset:-2px; background:color-mix(in srgb,var(--ck-accent) 14%,var(--background-secondary)); box-shadow:inset 0 0 0 4px color-mix(in srgb,var(--ck-accent) 8%,transparent); transform:none; }
+@container (max-width:1000px) {
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cats-grid,
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-projects-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@container (max-width:480px) {
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cats-grid,
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-projects-grid { grid-template-columns:minmax(0,1fr); }
+}
