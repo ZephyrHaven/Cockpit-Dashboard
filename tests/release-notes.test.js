@@ -92,6 +92,11 @@ assert.deepEqual(getOnlineReleaseNotesModel(null), { releases:[], selected:null 
   const constants = fs.readFileSync(path.join(__dirname, '../src/constants.js'), 'utf8');
   const readme = fs.readFileSync(path.join(__dirname, '../README.md'), 'utf8');
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../manifest.json'), 'utf8'));
+  const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
+  const packageLock = JSON.parse(fs.readFileSync(path.join(__dirname, '../package-lock.json'), 'utf8'));
+  assert.equal(packageInfo.version, manifest.version, 'Package and plugin release versions stay aligned.');
+  assert.equal(packageLock.version, manifest.version, 'The lockfile declares the released version.');
+  assert.equal(packageLock.packages[''].version, manifest.version, 'The lockfile root package stays aligned.');
   assert.match(releaseUi, /obs\.requestUrl/, 'The modal uses requestUrl for cross-platform, CORS-free GitHub requests.');;
   assert.match(releaseUi, /_plugin\._releaseNotesCache/, 'Fetched releases are cached on the plugin instance across modal openings.');
   assert.match(releaseUi, /versionSelect\.onchange[\s\S]*selectOnlineReleaseNotes/, 'Version changes only select from the in-memory cache.');
