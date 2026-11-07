@@ -1,4 +1,4 @@
-// alarm.js — 全屏提醒运行时、插件级调度服务与驾驶舱闹钟界面。
+// alarm.js — 雾面提醒运行时、插件级调度服务与驾驶舱闹钟界面。
 
 class AlarmOverlayRuntime {
   constructor(plugin) {
@@ -10,13 +10,16 @@ class AlarmOverlayRuntime {
     this.enteredFullscreen = false;
     this.queue = [];
     this.active = null;
+    this.previousFocus = null;
+    this.timerFloat = null;
+    this.fullscreenPending = false;
   }
 
   enqueue(payload) {
     if (!payload) return;
     const id = payload.id || ('reminder-' + Date.now());
     if (this.active?.id === id || this.queue.some((item) => item.id === id)) return;
-    this.queue.push({ ...payload, id });
+    this.queue.push({ ...payload, id, displayMode:payload.displayMode === 'half' ? 'half' : 'fullscreen' });
     if (!this.active) this._showNext();
   }
 
@@ -25,63 +28,24 @@ class AlarmOverlayRuntime {
     if (!next) return;
     this.active = next;
     const en = next.language === 'en';
-    const overlay = document.createElement('div');
-    overlay.className = PLUGIN_ID + '-alarm-overlay';
-    overlay.setAttribute('role', 'alertdialog');
-    overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-label', next.title || (en ? 'Alarm' : '闹钟'));
-
-    const ambientA = overlay.createDiv({ cls:PLUGIN_ID + '-alarm-ambient ' + PLUGIN_ID + '-alarm-ambient-a' });
-    const ambientB = overlay.createDiv({ cls:PLUGIN_ID + '-alarm-ambient ' + PLUGIN_ID + '-alarm-ambient-b' });
-    ambientA.setAttribute('aria-hidden', 'true'); ambientB.setAttribute('aria-hidden', 'true');
-    const content = overlay.createDiv({ cls:PLUGIN_ID + '-alarm-ringing' });
-    const glyph = content.createDiv({ cls:PLUGIN_ID + '-alarm-glyph' });
-    obs.setIcon(glyph, next.kind === 'pomodoro' ? 'timer' : 'alarm-clock');
-    const clock = content.createDiv({ cls:PLUGIN_ID + '-alarm-clock' });
-    const date = content.createDiv({ cls:PLUGIN_ID + '-alarm-date' });
-    content.createDiv({ cls:PLUGIN_ID + '-alarm-name', text:next.title || (en ? 'Alarm' : '闹钟') });
-    if (next.subtitle) content.createDiv({ cls:PLUGIN_ID + '-alarm-subtitle', text:next.subtitle });
-    const actions = content.createDiv({ cls:PLUGIN_ID + '-alarm-actions' });
-    if (next.allowSnooze !== false) {
-      const snooze = actions.createEl('button', { cls:PLUGIN_ID + '-alarm-action secondary', attr:{type:'button'} });
-      obs.setIcon(snooze.createSpan(), 'bed-double');
-      snooze.createSpan({ text:en ? 'Remind me in 10 minutes' : '稍后提醒 10 分钟' });
-      snooze.onclick = () => this.dismiss('snooze');
-    }
-    const stop = actions.createEl('button', { cls:PLUGIN_ID + '-alarm-action primary', attr:{type:'button'} });
-    obs.setIcon(stop.createSpan(), 'square');
-    stop.createSpan({ text:next.stopLabel || (en ? 'Stop' : '停止') });
-    stop.onclick = () => this.dismiss('stop');
-    content.createDiv({ cls:PLUGIN_ID + '-alarm-shortcuts', text:next.allowSnooze === false
-      ? (en ? 'Return to close' : 'Return 关闭')
-      : (en ? 'Space to snooze · Return to stop' : '空格键稍后提醒 · Return 停止') });
-
-    const updateClock = () => {
-      const now = new Date();
-      clock.textContent = new Intl.DateTimeFormat(en ? 'en-US' : 'zh-CN', { hour:'2-digit', minute:'2-digit', hour12:false }).format(now);
-      date.textContent = new Intl.DateTimeFormat(en ? 'en-US' : 'zh-CN', { month:'long', day:'numeric', weekday:'long' }).format(now);
-    };
+    const {overlay,stop,updateClock} = createAlarmReminderOverlay(next, (reason) => { if (this.active === next) this.dismiss(reason); });
+    if (!this.previousFocus) this.previousFocus = document.activeElement;
+    this.timerFloat = document.querySelector('.' + PLUGIN_ID + '-pomodoro');
+    this.timerFloat?._cockpitSetReminderVisible?.('alarm', true);
     updateClock();
     this.clockTimer = window.setInterval(updateClock, 1000);
-    overlay.addEventListener('keydown', (event) => {
-      if (event.key === ' ' && next.allowSnooze !== false) { event.preventDefault(); this.dismiss('snooze'); }
-      if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); this.dismiss('stop'); }
-    });
     document.body.appendChild(overlay);
     this.overlay = overlay;
     this._startSound();
-    this._requestFullscreen();
-    // 后台触发时浏览器会以“缺少用户手势”拒绝全屏与聚焦；
-    // 这里补一个手势追赶：提醒存续期间的第一次点击/按键自动补进全屏。
-    this._gestureCatch = () => {
-      if (!this.active || document.fullscreenElement) return;
+    if (next.displayMode === 'fullscreen') {
       this._requestFullscreen();
-    };
-    document.addEventListener('pointerdown', this._gestureCatch, { capture:true, once:false });
-    document.addEventListener('keydown', this._gestureCatch, { capture:true, once:false });
+      this._gestureCatch = () => this._requestFullscreen();
+      document.addEventListener('pointerdown', this._gestureCatch, { capture:true });
+      document.addEventListener('keydown', this._gestureCatch, { capture:true });
+    }
     this._raiseWindow();
     window.focus?.();
-    setTimeout(() => stop.focus(), 20);
+    stop.focus();
     const unfocused = document.hidden || !document.hasFocus?.();
     if (unfocused && typeof Notification !== 'undefined') {
       if (Notification.permission === 'granted') {
@@ -104,12 +68,22 @@ class AlarmOverlayRuntime {
   }
 
   _requestFullscreen() {
-    if (document.fullscreenElement || typeof document.documentElement.requestFullscreen !== 'function') return;
+    if (this.active?.displayMode !== 'fullscreen' || this.fullscreenPending || document.fullscreenElement || typeof document.documentElement?.requestFullscreen !== 'function') return;
+    const owner = this.active;
+    this.fullscreenPending = true;
     try {
-      Promise.resolve(document.documentElement.requestFullscreen({ navigationUI:'hide' }))
-        .then(() => { this.enteredFullscreen = true; })
-        .catch(() => {});
-    } catch (e) {}
+      Promise.resolve(document.documentElement.requestFullscreen({navigationUI:'hide'})).then(() => {
+        this.fullscreenPending = false;
+        if (this.active === owner || this.active?.displayMode === 'fullscreen') this.enteredFullscreen = true;
+        else this._exitFullscreen();
+      }).catch(() => { this.fullscreenPending = false; });
+    } catch (e) { this.fullscreenPending = false; }
+  }
+
+  _exitFullscreen() {
+    if (document.fullscreenElement === document.documentElement && typeof document.exitFullscreen === 'function') {
+      try { Promise.resolve(document.exitFullscreen()).catch(() => {}); } catch (e) {}
+    }
   }
 
   _startSound() {
@@ -158,10 +132,8 @@ class AlarmOverlayRuntime {
     }
     if (this.audioContext) { this.audioContext.close?.().catch?.(() => {}); this.audioContext = null; }
     this.overlay?.remove(); this.overlay = null; this.active = null;
-    if (this.enteredFullscreen && document.fullscreenElement && typeof document.exitFullscreen === 'function') {
-      Promise.resolve(document.exitFullscreen()).catch(() => {});
-    }
-    this.enteredFullscreen = false;
+    this.timerFloat?._cockpitSetReminderVisible?.('alarm', false); this.timerFloat = null;
+    if (this.enteredFullscreen && this.queue[0]?.displayMode !== 'fullscreen') { this._exitFullscreen(); this.enteredFullscreen = false; }
     // destroy 只是插件卸载时的清理，不能走 onStop/onSnooze 回调，
     // 否则卸载瞬间会误触“开始休息”之类的动作。
     if (reason !== 'destroy') {
@@ -171,6 +143,7 @@ class AlarmOverlayRuntime {
       } catch (e) { console.warn('Cockpit alarm action failed', e); }
     }
     this._showNext();
+    if (!this.active) { this.previousFocus?.isConnected && this.previousFocus.focus?.(); this.previousFocus = null; }
   }
 
   destroy() {
@@ -193,10 +166,27 @@ class AlarmService {
     this.timer = null;
     this.visibilityHandler = null;
     this.focusHandler = null;
+    this.stopped = false;
+    this.reminderSettings = normalizeAlarmReminderSettings(null);
   }
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   notify() { this.listeners.forEach((listener) => { try { listener(); } catch (e) {} }); }
   async load() { return normalizeAlarms((await this.plugin.loadData() || {}).alarms); }
+  async loadReminderSettings() {
+    const data = await this.plugin.loadData();
+    this.reminderSettings = normalizeAlarmReminderSettings(data?.alarmReminderSettings);
+    return this.reminderSettings;
+  }
+  async saveReminderSettings(patch) {
+    let settings;
+    await this.plugin.mutateData((data) => {
+      settings = normalizeAlarmReminderSettings({...normalizeAlarmReminderSettings(data.alarmReminderSettings), ...patch});
+      data.alarmReminderSettings = settings;
+    });
+    this.reminderSettings = settings;
+    this.notify();
+    return settings;
+  }
   async findForTodo(todoId) { return (await this.load()).find((alarm) => alarm.todoId === todoId) || null; }
   async upsert(rawAlarm) {
     const alarm = normalizeAlarm(rawAlarm);
@@ -254,20 +244,25 @@ class AlarmService {
     if (changed) this.notify();
     return changed;
   }
-  ring(alarm, preview = false) {
+  async ring(alarm, preview = false) {
+    if (this.stopped) return false;
+    let settings = this.reminderSettings;
+    try { settings = await this.loadReminderSettings(); }
+    catch (error) { console.warn('Cockpit alarm reminder settings unavailable', error); }
+    if (this.stopped) return false;
     const language = this.plugin.app.workspace.getLeavesOfType?.(VIEW_TYPE)?.[0]?.view?._lang?.() || DEFAULT_LANG;
     this.overlay.enqueue({
       id:(preview ? 'preview-' : '') + alarm.id,
-      kind:'alarm', language, title:alarm.name,
+      kind:'alarm', language, title:alarm.name, displayMode:settings.displayMode,
       subtitle:preview
-        ? (language === 'en' ? 'Full-screen alarm preview' : '全屏闹钟预览')
+        ? (language === 'en' ? (settings.displayMode === 'half' ? 'Half-screen alarm preview' : 'Full-screen alarm preview') : (settings.displayMode === 'half' ? '半屏闹钟预览' : '全屏闹钟预览'))
         : [formatAlarmSchedule(alarm, language), alarm.linkedTodoText ? ((language === 'en' ? 'Task: ' : '待办：') + alarm.linkedTodoText) : ''].filter(Boolean).join(' · '),
-      allowSnooze:!preview,
+      allowSnooze:!preview, stopLabel:preview ? (language === 'en' ? 'Close preview' : '关闭预览') : undefined,
       onSnooze:() => this.snooze(alarm.id).catch((e) => console.warn('Cockpit alarm snooze failed', e))
     });
   }
   showFullscreenReminder(payload) {
-    this.overlay.enqueue({ kind:'pomodoro', allowSnooze:false, ...payload });
+    this.overlay.enqueue({ kind:'pomodoro', allowSnooze:false, displayMode:'fullscreen', ...payload });
   }
   async tick(nowValue = Date.now()) {
     if (this.ticking) return;
@@ -278,13 +273,14 @@ class AlarmService {
         const claim = claimDueAlarms(data.alarms, nowValue, ALARM_RECOVERY_WINDOW_MS);
         data.alarms = claim.alarms; due = claim.due;
       });
-      if (due.length) { due.forEach((alarm) => this.ring(alarm)); this.notify(); }
+      if (due.length) { for (const alarm of due) await this.ring(alarm); this.notify(); }
     } finally { this.ticking = false; }
   }
   async start() {
     if (this.started) return;
-    this.started = true;
+    this.started = true; this.stopped = false;
     try { await this.tick(); } catch (e) { console.warn('Cockpit alarm initial check failed', e); }
+    if (!this.started) return;
     this.timer = window.setInterval(() => this.tick().catch((e) => console.warn('Cockpit alarm tick failed', e)), 15000);
     this.plugin.registerInterval(this.timer);
     this.visibilityHandler = () => { if (!document.hidden) this.tick().catch((e) => console.warn('Cockpit alarm wake check failed', e)); };
@@ -293,7 +289,7 @@ class AlarmService {
     window.addEventListener('focus', this.focusHandler);
   }
   stop() {
-    this.started = false;
+    this.started = false; this.stopped = true;
     clearInterval(this.timer); this.timer = null;
     if (this.visibilityHandler) document.removeEventListener('visibilitychange', this.visibilityHandler);
     if (this.focusHandler) window.removeEventListener('focus', this.focusHandler);
@@ -407,15 +403,59 @@ async function buildAlarmModule(view, root) {
   const title = root.createDiv({ cls:PLUGIN_ID + '-section-title ' + PLUGIN_ID + '-alarm-title' });
   title.dataset.section = 'alarms-title';
   title.createSpan({ text:view._t('sections.alarms') });
-  const add = title.createEl('button', { cls:PLUGIN_ID + '-alarm-add', attr:{type:'button', title:en ? 'New alarm' : '新建闹钟', 'aria-label':en ? 'New alarm' : '新建闹钟'} });
+  const titleActions = title.createDiv({cls:PLUGIN_ID + '-alarm-title-actions'});
+  const settingsButton = titleActions.createEl('button', {cls:PLUGIN_ID + '-alarm-add', attr:{type:'button', title:en ? 'Alarm reminder settings' : '闹钟提醒设置', 'aria-label':en ? 'Alarm reminder settings' : '闹钟提醒设置', 'aria-expanded':'false'}});
+  obs.setIcon(settingsButton, 'sliders-horizontal');
+  const add = titleActions.createEl('button', { cls:PLUGIN_ID + '-alarm-add', attr:{type:'button', title:en ? 'New alarm' : '新建闹钟', 'aria-label':en ? 'New alarm' : '新建闹钟'} });
   obs.setIcon(add, 'plus');
+  [settingsButton,add].forEach((button) => button.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
+  }));
   const content = root.createDiv({ cls:PLUGIN_ID + '-alarms' });
   content.dataset.section = 'alarms-body';
+  const settingsPanel = content.createDiv({cls:PLUGIN_ID + '-alarm-settings'});
+  settingsPanel.hidden = true;
+  settingsPanel.id = PLUGIN_ID + '-alarm-settings-' + Math.random().toString(36).slice(2,8);
+  settingsButton.setAttribute('aria-controls', settingsPanel.id);
+  const modeField = settingsPanel.createEl('label', {cls:PLUGIN_ID + '-alarm-settings-field'});
+  modeField.createSpan({text:en ? 'Reminder display' : '提醒显示方式'});
+  const modeSelect = modeField.createEl('select', {attr:{'aria-label':en ? 'Reminder display' : '提醒显示方式'}});
+  modeSelect.createEl('option', {text:en ? 'Half screen' : '半屏',attr:{value:'half'}});
+  modeSelect.createEl('option', {text:en ? 'Full screen' : '全屏',attr:{value:'fullscreen'}});
+  const hint = settingsPanel.createDiv({cls:PLUGIN_ID + '-alarm-settings-hint', text:en
+    ? 'All alarms use the selected Glass fog surface. Half screen keeps the upper window visible; full screen also requests window full screen.'
+    : '所有闹钟使用统一的 Glass 雾面。半屏保留上半屏视野，全屏还会尝试让窗口进入全屏。'});
+  hint.id = settingsPanel.id + '-hint';
+  modeSelect.setAttribute('aria-describedby', hint.id);
+  const settingsPreview = settingsPanel.createEl('button', {text:en ? 'Preview reminder' : '预览提醒',attr:{type:'button'}});
+  const settingsError = settingsPanel.createDiv({cls:PLUGIN_ID + '-alarm-settings-error',attr:{'aria-live':'polite'}});
+  let currentSettings = normalizeAlarmReminderSettings(null), settingBusy = false, renderEpoch = 0;
+  const list = content.createDiv({cls:PLUGIN_ID + '-alarm-list'});
+  settingsButton.onclick = (event) => {
+    event.preventDefault(); event.stopPropagation();
+    settingsPanel.hidden = !settingsPanel.hidden;
+    settingsButton.setAttribute('aria-expanded', String(!settingsPanel.hidden));
+    if (!settingsPanel.hidden) {
+      if (title.getAttribute('aria-expanded') === 'false') title.click();
+      modeSelect.focus();
+    }
+  };
+  modeSelect.onchange = async () => {
+    const selectedMode = modeSelect.value;
+    settingBusy = true; modeSelect.disabled = settingsPreview.disabled = true; settingsError.textContent = '';
+    try { currentSettings = await service.saveReminderSettings({displayMode:selectedMode}); }
+    catch (error) { settingsError.textContent = en ? 'Could not save. Please try again.' : '保存失败，请重试。'; }
+    finally { settingBusy = false; modeSelect.value = currentSettings.displayMode; modeSelect.disabled = settingsPreview.disabled = false; }
+  };
+  settingsPreview.onclick = () => service.ring(normalizeAlarm({id:'reminder-settings-preview',name:en ? 'Alarm preview' : '闹钟预览',time:new Date().toTimeString().slice(0,5)}), true);
   const render = async () => {
-    const alarms = await service.load();
-    content.empty();
+    const epoch = ++renderEpoch;
+    const [alarms,settings] = await Promise.all([service.load(), service.loadReminderSettings()]);
+    if (epoch !== renderEpoch) return;
+    currentSettings = settings; if (!settingBusy) modeSelect.value = settings.displayMode;
+    list.empty();
     if (!alarms.length) {
-      const empty = content.createDiv({ cls:PLUGIN_ID + '-alarm-empty' });
+      const empty = list.createDiv({ cls:PLUGIN_ID + '-alarm-empty' });
       obs.setIcon(empty.createSpan(), 'alarm-clock');
       empty.createDiv({ text:en ? 'No alarms yet' : '还没有闹钟' });
       empty.createEl('button', { text:en ? 'Create alarm' : '创建闹钟', attr:{type:'button'} }).onclick = () => openAlarmEditor(view, null, render);
@@ -423,7 +463,7 @@ async function buildAlarmModule(view, root) {
     }
     const sorted = alarms.slice().sort((a, b) => (nextAlarmOccurrence(a)?.getTime() || Infinity) - (nextAlarmOccurrence(b)?.getTime() || Infinity));
     sorted.forEach((alarm) => {
-      const card = content.createDiv({ cls:PLUGIN_ID + '-alarm-card' + (alarm.enabled ? '' : ' disabled') });
+      const card = list.createDiv({ cls:PLUGIN_ID + '-alarm-card' + (alarm.enabled ? '' : ' disabled') });
       const main = card.createDiv({ cls:PLUGIN_ID + '-alarm-card-main' });
       main.createDiv({ cls:PLUGIN_ID + '-alarm-card-time', text:alarm.time });
       const meta = main.createDiv({ cls:PLUGIN_ID + '-alarm-card-meta' });

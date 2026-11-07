@@ -1,7 +1,7 @@
 // pomodoro.js — 番茄钟的唯一公共入口。
 // 视图只负责提供运行时依赖；浮窗复用和绑定都从这里进入，避免调用方耦合内部实现。
 
-// 番茄钟时长（分钟）：专注轮 / 休息轮。统计、倒计时、番茄数换算都以此为唯一来源。
+// 默认轮次时长（分钟）；自定义专注轮按实际分钟记账，番茄数仍按 25 分钟折算。
 const POMODORO_FOCUS_MINUTES = 25;
 const POMODORO_BREAK_MINUTES = 5;
 
@@ -27,8 +27,8 @@ function createPomodoro(view, root, initialTodo) {
         existing._cockpitBindPomodoroView(view);
       }
       // 旧版浮窗没有可安全调用的销毁钩子；保留本轮计时并要求用户主动关闭后再打开。
-      if (existing._cockpitPomodoroFeatureVersion !== 3) {
-        new obs.Notice(view._lang() === 'en' ? 'Close the existing timer, then reopen it to use the latest reminder settings.' : '请关闭当前旧番茄钟，再重新打开以使用最新提醒设置。');
+      if (existing._cockpitPomodoroFeatureVersion !== 7) {
+        new obs.Notice(view._lang() === 'en' ? 'Close the existing timer, then reopen it to use the new stretchable timer.' : '请关闭当前旧番茄钟，再重新打开以使用可拉伸番茄钟。');
         return existing;
       }
       if (typeof existing._cockpitSyncLanguage === 'function') {
@@ -41,74 +41,27 @@ function createPomodoro(view, root, initialTodo) {
       return existing;
     }
 
-    // 创建浮动容器
-    const floatEl = document.createElement('div');
-    floatEl.className = PID + '-pomodoro';
-    if (isMobile) floatEl.classList.add(PID + '-pomodoro-mobile');
-    floatEl.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:999;width:218px;max-width:calc(100vw - 24px);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;border-radius:18px;transition:box-shadow 0.25s,border-color 0.25s,transform 0.25s,background 0.25s;';
+    const shell = createPomodoroShell(PID, isMobile, () => self._lang());
+    const { floatEl, header, modeChip, titleSpan, btnGroup, toggleBtn, closeBtn, body,
+      statusEl, taskRow, taskSelect, taskMeta, timerEl, cueEl, metricsRow, todayFocus, countEl,
+      fullscreenRow, fullscreenToggle, fullscreenText, breakReminderRow, breakReminderToggle, breakReminderText,
+      taskActions, taskActionAnnouncement, completeTaskBtn, keepTaskBtn, deferTaskBtn, startBtn, resetBtn } = shell;
 
-    // 标题栏（拖拽区域）
-    const header = floatEl.createDiv({ cls: PID + '-pomo-header' });
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 10px;cursor:' + (isMobile ? 'default' : 'move') + ';user-select:none;-webkit-user-select:none;touch-action:' + (isMobile ? 'manipulation' : 'none') + ';border-bottom:1px solid transparent;';
-    const headerLeft = header.createDiv({ attr: { style: 'display:flex;flex-direction:column;gap:0;min-width:0;' } });
-    const modeChip = headerLeft.createDiv({ attr: { style: 'display:inline-flex;align-items:center;gap:6px;align-self:flex-start;padding:3px 8px;border-radius:999px;font-size:0.6em;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;' } });
-    const titleSpan = headerLeft.createSpan({ text: t('pomodoro.title'), attr: { style: 'display:none;font-size:1.05em;font-weight:800;color:var(--text-normal);line-height:1.05;' } });
-    const dragHint = headerLeft.createSpan({ text: t('pomodoro.dragHint'), attr: { style: 'display:none;font-size:0.62em;color:var(--text-muted);line-height:1;' } });
-    const btnGroup = header.createDiv({ attr: { style: 'display:flex;gap:6px;align-items:center;flex-shrink:0;' } });
-    const toggleBtn = btnGroup.createEl('button', { text: '−', attr: { type:'button', style: 'width:24px;height:24px;padding:0;border:0;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:var(--text-normal);cursor:pointer;touch-action:manipulation;font-size:1em;font-weight:700;', title: t('pomodoro.minimize'), 'aria-label':t('pomodoro.minimize') } });
-    const closeBtn = btnGroup.createEl('button', { text: '×', attr: { type:'button', style: 'width:24px;height:24px;padding:0;border:0;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:var(--text-normal);cursor:pointer;touch-action:manipulation;font-size:1.05em;font-weight:700;', title: t('pomodoro.close'), 'aria-label':t('pomodoro.close') } });
-
-    // 内容区
-    const body = floatEl.createDiv({ cls: PID + '-pomo-body' });
-    body.style.cssText = 'padding:6px 10px 10px;text-align:center;';
-
-    const statusEl = body.createDiv({ text: t('pomodoro.ready'), attr: { 'aria-live':'polite', style: 'display:none;align-items:center;justify-content:center;min-height:22px;padding:4px 9px;border-radius:999px;font-size:0.64em;font-weight:700;color:var(--text-muted);margin-bottom:0;' } });
-
-    const taskRow = body.createDiv({ cls: PID + '-pomodoro-task' });
-    obs.setIcon(taskRow.createSpan({ cls:PID + '-pomodoro-task-icon' }), 'list-checks');
-    const taskSelect = taskRow.createEl('select', { cls:PID + '-pomodoro-task-select', attr:{ 'aria-label':t('pomodoro.selectTask') } });
-    const taskMeta = taskRow.createSpan({ cls:PID + '-pomodoro-task-meta' });
-
-    const dialWrap = body.createDiv({ attr: { style: 'display:flex;justify-content:center;margin-bottom:6px;' } });
-    const dialEl = dialWrap.createDiv({ attr: { style: 'position:relative;width:112px;height:112px;border-radius:50%;padding:7px;display:flex;align-items:center;justify-content:center;' } });
-    const dialInner = dialEl.createDiv({ attr: { style: 'width:100%;height:100%;border-radius:50%;display:flex;align-items:center;justify-content:center;' } });
-    const timerStack = dialInner.createDiv({ attr: { style: 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;' } });
-    const timerEl = timerStack.createDiv({ text: '25:00', attr: { style: 'font-size:1.75em;font-weight:800;color:var(--text-normal);font-variant-numeric:tabular-nums;letter-spacing:1px;line-height:1;' } });
-    const timerSub = timerStack.createDiv({ text: t('pomodoro.backToWork'), attr: { style: 'display:none;font-size:0.62em;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;color:var(--text-muted);opacity:0.82;' } });
-
-    const cueEl = body.createDiv({ attr: { 'aria-live':'polite', style: 'display:none;min-height:16px;margin:0 auto 6px;padding:0 6px;font-size:0.62em;font-weight:700;line-height:1.25;' } });
-
-    const metricsRow = body.createDiv({ attr: { style: 'display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:8px;padding:6px 10px;border-radius:12px;font-size:0.62em;font-weight:700;color:var(--text-muted);line-height:1;white-space:nowrap;' } });
-    const todayFocus = metricsRow.createSpan({ text: t('pomodoro.focusToday', { minutes: 0 }) });
-    const metricsSep = metricsRow.createSpan({ text: '·', attr: { style: 'opacity:0.45;' } });
-    const countEl = metricsRow.createSpan({ text: '🍅 × 0' });
-
-    const fullscreenRow = body.createEl('label', { cls:PID + '-pomodoro-fullscreen' });
-    const fullscreenToggle = fullscreenRow.createEl('input', { attr:{type:'checkbox'} });
-    fullscreenToggle.checked = self._pomodoroFullscreen === true;
-    const fullscreenText = fullscreenRow.createSpan({ text:t('pomodoro.fullscreenReminder') });
-    fullscreenRow.title = t('pomodoro.fullscreenHint');
-    const breakReminderRow = body.createEl('label', { cls:PID + '-pomodoro-fullscreen ' + PID + '-pomodoro-break-reminder' });
-    const breakReminderToggle = breakReminderRow.createEl('input', { attr:{type:'checkbox'} });
-    breakReminderToggle.checked = self._pomodoroBreakReminder !== false;
-    const breakReminderText = breakReminderRow.createSpan({ text:t('pomodoro.breakReminder') });
-    breakReminderRow.title = t('pomodoro.breakReminderHint');
-
-    const taskActions = body.createDiv({ cls:PID + '-pomodoro-task-actions', attr:{ role:'group', 'aria-live':'polite', 'aria-label':t('pomodoro.taskNextAction') } });
-    const taskActionAnnouncement = taskActions.createSpan({ attr:{ style:'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;' } });
-    const completeTaskBtn = taskActions.createEl('button', { attr:{type:'button'} });
-    const keepTaskBtn = taskActions.createEl('button', { attr:{type:'button'} });
-    const deferTaskBtn = taskActions.createEl('button', { attr:{type:'button'} });
-
-    const btnRow = body.createDiv({ attr: { style: 'display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,0.85fr);gap:8px;' } });
-    const startBtn = btnRow.createEl('button', { text: t('pomodoro.start'), attr: { style: 'min-height:32px;padding:7px 10px;border-radius:11px;border:1px solid transparent;color:white;font-size:0.7em;font-weight:800;cursor:pointer;transition:transform 0.15s,box-shadow 0.2s,background 0.2s;' } });
-    const resetBtn = btnRow.createEl('button', { text: t('pomodoro.reset'), attr: { style: 'min-height:32px;padding:7px 10px;border-radius:11px;border:1px solid var(--background-modifier-border);background:transparent;color:var(--text-normal);font-size:0.68em;font-weight:700;cursor:pointer;transition:transform 0.15s,background 0.2s,border-color 0.2s;' } });
-
-    document.body.appendChild(floatEl);
+    const reminderOwners = new Set();
+    floatEl._cockpitSetReminderVisible = (owner, visible) => {
+      if (visible) reminderOwners.add(owner); else reminderOwners.delete(owner);
+      shell.setReminderVisible(reminderOwners.size > 0);
+    };
 
     // 状态变量：会话独立于“是否自动显示”保存，避免正在使用时被设置误伤。
     const restoredSession = view._pomodoroSession?.active ? view._pomodoroSession : null;
-    let totalSeconds = restoredSession?.isBreak ? POMODORO_BREAK_MINUTES * 60 : POMODORO_FOCUS_MINUTES * 60;
+    let focusMinutes = pomodoroDuration(restoredSession?.focusMinutes, POMODORO_FOCUS_MINUTES);
+    let totalSeconds = pomodoroDuration(restoredSession?.totalSeconds / 60, restoredSession?.isBreak ? POMODORO_BREAK_MINUTES : focusMinutes) * 60;
+    let layoutWidth = Number.isFinite(restoredSession?.layoutWidth) ? Math.max(POMODORO_MIN_WIDTH, Math.min(680, restoredSession.layoutWidth)) : 260;
+    let awaitingChoice = ['focus','break'].includes(restoredSession?.awaitingChoice) ? restoredSession.awaitingChoice : null;
+    let reminderModal = null;
+    let remark = typeof restoredSession?.remark === 'string' ? restoredSession.remark.slice(0, 280) : '';
+    shell.remarkInput.value = remark;
     let remaining = Number.isFinite(restoredSession?.remaining) ? Math.max(0, Math.min(totalSeconds, restoredSession.remaining)) : totalSeconds;
     if (restoredSession?.isRunning && Number.isFinite(restoredSession.endAt)) {
       remaining = Math.max(1, Math.ceil((restoredSession.endAt - Date.now()) / 1000));
@@ -118,12 +71,15 @@ function createPomodoro(view, root, initialTodo) {
     let timerInterval = null;
     // 运行期以墙钟为准（endAt），后台标签页被节流或系统休眠后仍能正确倒计时。
     let endAt = null;
-    let minimized = !!restoredSession?.minimized;
+    let pinnedMinimal = restoredSession?.displayMode === 'minimal';
+    let minimized = pinnedMinimal || (restoredSession?.displayMode ? restoredSession.displayMode === 'simple' : typeof restoredSession?.minimized === 'boolean' ? restoredSession.minimized : !!restoredSession?.isRunning);
+    let restoringSession = !!restoredSession?.isRunning;
+    let minimalHintShown = pinnedMinimal;
     let reminderResetTimer = null;
     let cueTimer = null;
     let themeObserver = null;
-    let statusKey = 'pomodoro.ready';
-    let startLabelKey = 'pomodoro.start';
+    let statusKey = restoredSession && remaining < totalSeconds ? (isBreak ? 'pomodoro.breakPaused' : 'pomodoro.focusPaused') : 'pomodoro.ready';
+    let startLabelKey = restoredSession && remaining < totalSeconds ? 'pomodoro.resume' : 'pomodoro.start';
     let cueText = '';
     let cueKey = '';
     let boundTask = restoredSession?.task ? pomodoroTaskRef({ ...restoredSession.task, done:false }) : null;
@@ -136,8 +92,15 @@ function createPomodoro(view, root, initialTodo) {
         isBreak,
         isRunning,
         remaining,
-        endAt: isRunning ? Date.now() + remaining * 1000 : null,
+        totalSeconds,
+        focusMinutes,
+        layoutWidth,
+        awaitingChoice,
+        remark,
+        endAt: isRunning ? endAt : null,
         minimized,
+        displayMode:pinnedMinimal ? 'minimal' : minimized ? 'simple' : 'normal',
+        position:shell.getPosition(),
         task:boundTask ? { id:boundTask.id, text:boundTask.text } : null,
         awaitingTaskAction:taskActionsVisible,
         pendingCompletion
@@ -204,91 +167,19 @@ function createPomodoro(view, root, initialTodo) {
     }
 
     function getThemeTokens() {
-      const isLight = document.body.classList.contains('theme-light');
-      if (isLight) {
-        return {
-          shellTop: 'rgba(255,255,255,0.94)',
-          shellBottom: 'rgba(246,248,252,0.96)',
-          border: 'rgba(148,163,184,0.24)',
-          borderSoft: 'rgba(148,163,184,0.14)',
-          headerGlow: 'rgba(255,255,255,0.36)',
-          headerAccent: 'rgba(244,247,251,0.28)',
-          textSoft: 'rgba(71,85,105,0.88)',
-          ringTrack: 'rgba(148,163,184,0.18)',
-          dialInnerTop: 'rgba(255,255,255,0.92)',
-          dialInnerBottom: 'rgba(239,244,249,0.96)',
-          metricBg: 'rgba(255,255,255,0.84)',
-          cueBg: 'rgba(255,255,255,0.88)',
-          buttonGhost: 'rgba(255,255,255,0.72)',
-          buttonGhostHover: 'rgba(255,255,255,0.96)',
-          shadow: '0 10px 26px rgba(15,23,42,0.12)',
-          accentShadow: 'rgba(15,23,42,0.12)'
-        };
-      }
-      return {
-        shellTop: 'rgba(24,31,40,0.96)',
-        shellBottom: 'rgba(18,24,33,0.98)',
-        border: 'rgba(72,180,255,0.14)',
-        borderSoft: 'rgba(72,180,255,0.08)',
-        headerGlow: 'rgba(255,255,255,0.03)',
-        headerAccent: 'rgba(72,180,255,0.035)',
-        textSoft: 'rgba(203,213,225,0.78)',
-        ringTrack: 'rgba(148,163,184,0.12)',
-        dialInnerTop: 'rgba(29,37,49,0.96)',
-        dialInnerBottom: 'rgba(24,31,42,0.98)',
-        metricBg: 'rgba(20,27,36,0.78)',
-        cueBg: 'rgba(20,27,36,0.74)',
-        buttonGhost: 'rgba(20,27,36,0.78)',
-        buttonGhostHover: 'rgba(30,41,59,0.84)',
-        shadow: '0 14px 34px rgba(2,6,23,0.28)',
-        accentShadow: 'rgba(2,6,23,0.18)'
-      };
+      return { accentShadow:'rgba(2,6,23,0.18)' };
     }
 
-    function currentAccent() {
-      return isBreak ? BREAK_ACCENT : FOCUS_ACCENT;
-    }
-
-    function updateModeTone() {
-      const accent = currentAccent();
-      modeChip.textContent = t(isBreak ? 'pomodoro.modeBreak' : 'pomodoro.modeFocus');
-      modeChip.style.color = accent;
-      timerSub.textContent = isBreak ? t('pomodoro.resting') : t('pomodoro.backToWork');
-      timerSub.style.color = isBreak ? BREAK_ACCENT : 'var(--text-muted)';
-    }
+    function currentAccent() { return isBreak ? BREAK_ACCENT : FOCUS_ACCENT; }
 
     function applyVisualState(accentOverride) {
-      const tokens = getThemeTokens();
       const accent = accentOverride || currentAccent();
-      const progress = Math.max(0, Math.min(100, ((totalSeconds - remaining) / totalSeconds) * 100));
-      floatEl.style.background = 'linear-gradient(180deg,' + tokens.shellTop + ',' + tokens.shellBottom + ')';
-      floatEl.style.border = '1px solid ' + tokens.border;
-      floatEl.style.boxShadow = tokens.shadow;
-      header.style.background = 'linear-gradient(135deg,' + tokens.headerGlow + ',' + tokens.headerAccent + ')';
-      header.style.borderBottomColor = tokens.borderSoft;
-      dragHint.style.color = tokens.textSoft;
-      modeChip.style.background = tokens.metricBg;
-      toggleBtn.style.background = tokens.buttonGhost;
-      closeBtn.style.background = tokens.buttonGhost;
-      statusEl.style.background = tokens.metricBg;
-      metricsRow.style.background = tokens.metricBg;
-      metricsRow.style.border = '1px solid ' + tokens.borderSoft;
-      taskRow.style.background = tokens.metricBg;
-      taskRow.style.border = '1px solid ' + tokens.borderSoft;
-      resetBtn.style.background = tokens.buttonGhost;
-      dialEl.style.background = 'conic-gradient(' + accent + ' ' + progress + '%, ' + tokens.ringTrack + ' ' + progress + '% 100%)';
-      dialInner.style.background = 'linear-gradient(180deg,' + tokens.dialInnerTop + ',' + tokens.dialInnerBottom + ')';
-      cueEl.style.background = tokens.cueBg;
-      cueEl.style.border = '1px solid ' + tokens.borderSoft;
-      startBtn.style.background = 'linear-gradient(135deg,' + accent + ', ' + (isBreak ? '#7dd3fc' : '#fb7185') + ')';
-      startBtn.style.boxShadow = '0 8px 18px ' + tokens.accentShadow;
-      resetBtn.onmouseenter = () => { resetBtn.style.background = tokens.buttonGhostHover; };
-      resetBtn.onmouseleave = () => { resetBtn.style.background = tokens.buttonGhost; };
-      toggleBtn.onmouseenter = () => { toggleBtn.style.transform = 'translateY(-1px)'; };
-      closeBtn.onmouseenter = () => { closeBtn.style.transform = 'translateY(-1px)'; };
-      toggleBtn.onmouseleave = () => { toggleBtn.style.transform = 'translateY(0)'; };
-      closeBtn.onmouseleave = () => { closeBtn.style.transform = 'translateY(0)'; };
-      updateModeTone();
+      const handAngle = Math.max(0, totalSeconds - remaining) * 6;
+      floatEl.style.removeProperty('border-color');
+      floatEl.style.removeProperty('box-shadow');
+      floatEl.style.setProperty('--pomo-accent', accent);
+      floatEl.style.setProperty('--pomo-hand-angle', handAngle + 'deg');
+      modeChip.textContent = t(isBreak ? 'pomodoro.modeBreak' : 'pomodoro.modeFocus');
     }
 
     function setCue(message, key) {
@@ -309,15 +200,12 @@ function createPomodoro(view, root, initialTodo) {
     }
 
     function syncPomodoroText() {
-      header.title = t('pomodoro.dragHint');
-      titleSpan.textContent = t('pomodoro.title');
-      dragHint.textContent = t('pomodoro.dragHint');
+      titleSpan.textContent = fmtTime(remaining);
       toggleBtn.title = minimized ? t('pomodoro.expand') : t('pomodoro.minimize');
       closeBtn.title = t('pomodoro.close');
       toggleBtn.setAttribute('aria-label', minimized ? t('pomodoro.expand') : t('pomodoro.minimize'));
       closeBtn.setAttribute('aria-label', t('pomodoro.close'));
       statusEl.textContent = t(statusKey);
-      startBtn.textContent = t(startLabelKey);
       resetBtn.textContent = t('pomodoro.reset');
       taskSelect.setAttribute('aria-label', t('pomodoro.selectTask'));
       if (taskSelect.options[0]) taskSelect.options[0].textContent = t('pomodoro.noTask');
@@ -337,30 +225,15 @@ function createPomodoro(view, root, initialTodo) {
       fullscreenText.textContent = t('pomodoro.fullscreenReminder');
       fullscreenRow.title = t('pomodoro.fullscreenHint');
       breakReminderToggle.checked = self._pomodoroBreakReminder !== false;
-      breakReminderToggle.disabled = self._pomodoroFullscreen !== true;
+      breakReminderToggle.disabled = false;
       breakReminderText.textContent = t('pomodoro.breakReminder');
       breakReminderRow.title = t('pomodoro.breakReminderHint');
       breakReminderRow.classList.toggle('is-disabled', breakReminderToggle.disabled);
       syncTaskMeta();
       taskSelect.disabled = isRunning || (!isBreak && remaining < totalSeconds);
-      if (minimized) {
-        modeChip.style.display = 'none';
-        titleSpan.style.display = 'block';
-        titleSpan.textContent = fmtTime(remaining);
-        metricsRow.style.display = 'none';
-        taskRow.style.display = 'none';
-        taskActions.style.display = 'none';
-        btnRow.style.display = 'none';
-        cueEl.style.display = 'none';
-      } else {
-        modeChip.style.display = 'inline-flex';
-        titleSpan.style.display = 'none';
-        metricsRow.style.display = 'flex';
-        taskRow.style.display = 'grid';
-        taskActions.style.display = taskActionsVisible ? 'grid' : 'none';
-        btnRow.style.display = 'grid';
-        if (!cueText) cueEl.style.display = 'none';
-      }
+      taskActions.style.display = !minimized && taskActionsVisible ? 'grid' : 'none';
+      shell.update({ minimized, pinnedMinimal, isRunning, hasProgress:remaining < totalSeconds, minutes:totalSeconds / 60,
+        remaining, time:fmtTime(remaining), layoutWidth, taskText:boundTask?.text, remark, startLabel:t(startLabelKey), taskActionsVisible });
       applyVisualState();
     }
 
@@ -368,10 +241,10 @@ function createPomodoro(view, root, initialTodo) {
       if (nextView) self = nextView;
       fullscreenToggle.checked = self._pomodoroFullscreen === true;
       breakReminderToggle.checked = self._pomodoroBreakReminder !== false;
-      breakReminderToggle.disabled = self._pomodoroFullscreen !== true;
+      breakReminderToggle.disabled = false;
       renderTaskPicker();
     };
-    floatEl._cockpitPomodoroFeatureVersion = 3;
+    floatEl._cockpitPomodoroFeatureVersion = 7;
     floatEl._cockpitSelectTask = (todo) => {
       const ref = pomodoroTaskRef(todo);
       if (!ref) return false;
@@ -382,13 +255,9 @@ function createPomodoro(view, root, initialTodo) {
       }
       boundTask = ref;
       setTaskActionsVisible(false);
-      if (minimized) {
-        minimized = false;
-        body.style.display = 'block';
-        floatEl.classList.remove(PID + '-pomodoro-minimized');
-        toggleBtn.textContent = '−';
-        if (!isMobile) floatEl.style.width = '218px';
-      }
+      pinnedMinimal = false;
+      minimized = false;
+      shell.showDetails();
       renderTaskPicker();
       setCue(t('pomodoro.taskBound', { task:ref.text }), '');
       syncPomodoroText();
@@ -419,7 +288,7 @@ function createPomodoro(view, root, initialTodo) {
     };
     fullscreenToggle.onchange = () => {
       self._pomodoroFullscreen = fullscreenToggle.checked;
-      breakReminderToggle.disabled = !self._pomodoroFullscreen;
+      breakReminderToggle.disabled = false;
       breakReminderRow.classList.toggle('is-disabled', breakReminderToggle.disabled);
       self._mutatePluginData((data) => { data.pomodoroFullscreen = self._pomodoroFullscreen; })
         .catch((e) => console.warn('Cockpit: save Pomodoro full-screen setting failed', e));
@@ -449,13 +318,33 @@ function createPomodoro(view, root, initialTodo) {
       } else new obs.Notice(self._lang() === 'en' ? 'This task no longer exists or could not be saved.' : '这个待办已不存在或保存失败。');
     };
 
-    // 最小化
+    // 时长与备注只保存会话；运行后先重置再调整，避免改变已记账的专注时长。
+    shell.onDuration = (minutes) => {
+      if (isRunning || remaining < totalSeconds) return;
+      totalSeconds = minutes * 60;
+      remaining = totalSeconds;
+      if (!isBreak) focusMinutes = minutes;
+      updateDisplay();
+    };
+    shell.onPinMinimal = () => {
+      pinnedMinimal = true; minimized = true;
+      syncPomodoroText();
+      if (!minimalHintShown) {
+        minimalHintShown = true;
+        new obs.Notice(self._lang() === 'en' ? 'Minimal timer pinned: drag to move; click to expand.' : '已固定极简模式：拖动移动，单击回到简洁模式。', 2600);
+      }
+    };
+    shell.onUnpinMinimal = () => {
+      pinnedMinimal = false; minimized = true;
+      syncPomodoroText(); persistSession();
+    };
+    shell.onWidth = (width) => { layoutWidth = width; syncPomodoroText(); };
+    shell.onRemark = (value) => { remark = value; };
+    shell.onCommit = () => persistSession();
     toggleBtn.onclick = () => {
+      pinnedMinimal = false;
       minimized = !minimized;
-      body.style.display = minimized ? 'none' : 'block';
-      floatEl.classList.toggle(PID + '-pomodoro-minimized', minimized);
-      toggleBtn.textContent = minimized ? '+' : '−';
-      if (!isMobile) floatEl.style.width = minimized ? '126px' : '218px';
+      if (!minimized) shell.showDetails();
       syncPomodoroText();
       persistSession();
     };
@@ -469,6 +358,8 @@ function createPomodoro(view, root, initialTodo) {
       timerInterval = null;
       clearTimeout(reminderResetTimer);
       clearTimeout(cueTimer);
+      closeReminder();
+      shell.destroy();
       if (typeof visibilityTick === 'function') document.removeEventListener('visibilitychange', visibilityTick);
       if (themeObserver) themeObserver.disconnect();
       finishDrag(dragPointerId);
@@ -484,12 +375,13 @@ function createPomodoro(view, root, initialTodo) {
     let dragOffsetX = 0, dragOffsetY = 0;
     let dragPointerId = null;
     let dragStartX = 0, dragStartY = 0;
+    let dragFeedbackX = 0, dragFeedbackY = 0;
     let dragPending = false;
     let isDragging = false;
     const dragThreshold = 6;
 
     function isHeaderControl(target) {
-      return target === toggleBtn || target === closeBtn || btnGroup.contains(target);
+      return !!target.closest('button, input, select, label') || btnGroup.contains(target);
     }
 
     function clampPosition(left, top) {
@@ -503,13 +395,16 @@ function createPomodoro(view, root, initialTodo) {
     }
 
     function finishDrag(pointerId) {
+      const moved = isDragging;
       if (pointerId != null && header.hasPointerCapture && header.hasPointerCapture(pointerId)) {
         header.releasePointerCapture(pointerId);
       }
       dragPointerId = null;
       dragPending = false;
       isDragging = false;
-      floatEl.style.transition = 'box-shadow 0.25s,border-color 0.25s,transform 0.25s,background 0.25s';
+      floatEl.style.removeProperty('transition');
+      shell.endFeedback();
+      if (moved && !destroyed) persistSession();
     }
 
     header.addEventListener('pointerdown', (e) => {
@@ -520,6 +415,8 @@ function createPomodoro(view, root, initialTodo) {
       dragPointerId = e.pointerId;
       dragStartX = e.clientX;
       dragStartY = e.clientY;
+      dragFeedbackX = e.clientX;
+      dragFeedbackY = e.clientY;
       dragOffsetX = e.clientX - rect.left;
       dragOffsetY = e.clientY - rect.top;
       dragPending = true;
@@ -538,6 +435,9 @@ function createPomodoro(view, root, initialTodo) {
         floatEl.style.transition = 'none';
       }
       if (!isDragging) return;
+      if (Math.hypot(e.clientX - dragFeedbackX, e.clientY - dragFeedbackY) >= 12) {
+        shell.feedbackTick(); dragFeedbackX = e.clientX; dragFeedbackY = e.clientY;
+      }
       const next = clampPosition(e.clientX - dragOffsetX, e.clientY - dragOffsetY);
       floatEl.style.left = next.left + 'px';
       floatEl.style.top = next.top + 'px';
@@ -555,9 +455,11 @@ function createPomodoro(view, root, initialTodo) {
     });
     // 格式化时间
     function fmtTime(s) {
-      const m = Math.floor(s / 60);
-      const sec = s % 60;
-      return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+      const seconds = Math.max(0, Math.floor(s));
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor(seconds / 60) % 60;
+      const sec = seconds % 60;
+      return (h > 0 ? [h, m, sec] : [m, sec]).map((value) => String(value).padStart(2, '0')).join(':');
     }
 
     function pulseReminder(message, accent, forceNotice) {
@@ -565,10 +467,10 @@ function createPomodoro(view, root, initialTodo) {
       clearTimeout(reminderResetTimer);
       floatEl.style.borderColor = accent;
       floatEl.style.boxShadow = '0 0 0 1px ' + accent + ', 0 16px 32px ' + tokens.accentShadow;
-      floatEl.style.transform = 'translateY(-3px)';
+      // 完成时不移动玻璃图层，避免与提醒层的背景采样叠加。
       reminderResetTimer = setTimeout(() => {
         applyVisualState();
-        floatEl.style.transform = 'translateY(0)';
+        floatEl.style.removeProperty('transform');
       }, 1800);
       if (forceNotice || minimized || document.hidden) {
         new obs.Notice(message, 2600);
@@ -581,9 +483,50 @@ function createPomodoro(view, root, initialTodo) {
       syncPomodoroText();
     }
 
+    function closeReminder() {
+      const previous = reminderModal;
+      reminderModal = null;
+      previous?.close();
+      floatEl._cockpitSetReminderVisible('pomodoro', false);
+    }
+
     function startBreakFromReminder() {
       if (!floatEl.isConnected || !isBreak || isRunning) return;
+      awaitingChoice = null;
       startBtn.click();
+    }
+
+    function startNextFocusFromReminder() {
+      if (!floatEl.isConnected || isRunning) return;
+      awaitingChoice = null;
+      isBreak = false;
+      totalSeconds = focusMinutes * 60;
+      remaining = totalSeconds;
+      startLabelKey = 'pomodoro.start';
+      setTaskActionsVisible(false);
+      setCue('', '');
+      updateDisplay();
+      startBtn.click();
+    }
+
+    function showCompletionReminder(kind, minutes) {
+      if (destroyed || awaitingChoice !== kind || !floatEl.isConnected) return;
+      closeReminder();
+      const modal = new PomodoroReminderModal(self.app, {
+        isBreak:kind === 'break', minutes, language:self._lang(), fullscreen:self._pomodoroFullscreen === true,
+        remark:remark || boundTask?.text || '',
+        onPrimary:kind === 'focus' ? startBreakFromReminder : startNextFocusFromReminder,
+        onSecondary:kind === 'focus' ? startNextFocusFromReminder : () => { awaitingChoice = null; persistSession(); },
+        onDismiss:(selected) => {
+          if (reminderModal !== modal) return;
+          reminderModal = null;
+          floatEl._cockpitSetReminderVisible('pomodoro', false);
+          if (!selected) { awaitingChoice = null; if (!destroyed) persistSession(); }
+        }
+      });
+      reminderModal = modal;
+      floatEl._cockpitSetReminderVisible('pomodoro', true);
+      modal.open();
     }
 
     // 开始/暂停
@@ -625,23 +568,16 @@ function createPomodoro(view, root, initialTodo) {
           statusEl.style.color = '#22c55e';
           startLabelKey = 'pomodoro.startBreak';
           isBreak = true;
+          const completedMinutes = totalSeconds / 60;
+          minimized = pinnedMinimal;
           totalSeconds = POMODORO_BREAK_MINUTES * 60;
           remaining = totalSeconds;
           flashCue(t('pomodoro.readyForBreak'), '#22c55e', 3600, false, 'pomodoro.readyForBreak');
-          if (self._pomodoroFullscreen === true) {
-            self._plugin.alarms?.showFullscreenReminder({
-              id:'pomodoro-focus-' + Date.now(),
-              language:self._lang(),
-              title:t('pomodoro.focusFinishedTitle'),
-              subtitle:t('pomodoro.focusFinishedSubtitle'),
-              stopLabel:self._lang() === 'en' ? 'Start break' : '开始休息',
-              onStop:startBreakFromReminder
-            });
-          }
+          awaitingChoice = 'focus';
           const completion = {
             id:'focus-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
             day:window.moment().format('YYYY-MM-DD'),
-            minutes:POMODORO_FOCUS_MINUTES,
+            minutes:completedMinutes,
             currentFocusMinutes:self._focusMinutes || 0,
             task:boundTask ? { id:boundTask.id, text:boundTask.text } : null,
             completedAt:new Date().toISOString()
@@ -661,23 +597,22 @@ function createPomodoro(view, root, initialTodo) {
             await persistSession();
           }
           if (self._updateStatsRef) self._updateStatsRef();
+          showCompletionReminder('focus', completedMinutes);
         } else {
           // 休息完成
           statusKey = 'pomodoro.breakEnd';
           statusEl.style.color = BREAK_ACCENT;
           startLabelKey = 'pomodoro.start';
           isBreak = false;
-          totalSeconds = POMODORO_FOCUS_MINUTES * 60;
+          minimized = pinnedMinimal;
+          const completedBreakMinutes = totalSeconds / 60;
+          totalSeconds = focusMinutes * 60;
           remaining = totalSeconds;
           flashCue(t('pomodoro.readyForFocus'), BREAK_ACCENT, 5200, minimized || document.hidden, 'pomodoro.readyForFocus');
-          if (self._pomodoroFullscreen === true && self._pomodoroBreakReminder !== false) {
-            self._plugin.alarms?.showFullscreenReminder({
-              id:'pomodoro-break-' + Date.now(),
-              language:self._lang(),
-              title:t('pomodoro.breakFinishedTitle'),
-              subtitle:t('pomodoro.breakFinishedSubtitle'),
-              stopLabel:self._lang() === 'en' ? 'Back to focus' : '回到专注'
-            });
+          if (self._pomodoroBreakReminder !== false) {
+            awaitingChoice = 'break';
+            await persistSession();
+            showCompletionReminder('break', completedBreakMinutes);
           }
         }
         if (isBreak === false) await persistSession();
@@ -695,6 +630,9 @@ function createPomodoro(view, root, initialTodo) {
         return;
       }
       // 开始
+      closeReminder();
+      awaitingChoice = null;
+      if (remaining === totalSeconds) shell.onDuration(pomodoroDuration(shell.durationInput.value, totalSeconds / 60));
       if (!isBreak && remaining === totalSeconds && boundTask) {
         const liveTodo = (self._todos || []).find((todo) => todo.id === boundTask.id && !todo.done);
         if (!liveTodo) {
@@ -708,6 +646,7 @@ function createPomodoro(view, root, initialTodo) {
         boundTask = pomodoroTaskRef(liveTodo);
       }
       isRunning = true;
+      if (!restoringSession) minimized = true;
       endAt = Date.now() + remaining * 1000;
       startLabelKey = 'pomodoro.pause';
       statusKey = isBreak ? 'pomodoro.resting' : 'pomodoro.focusing';
@@ -719,19 +658,23 @@ function createPomodoro(view, root, initialTodo) {
 
     // 重置
     resetBtn.onclick = () => {
+      closeReminder();
+      awaitingChoice = null;
       clearInterval(timerInterval);
       timerInterval = null;
       endAt = null;
       isRunning = false;
       isBreak = false;
-      totalSeconds = POMODORO_FOCUS_MINUTES * 60;
+      minimized = pinnedMinimal;
+      totalSeconds = focusMinutes * 60;
       remaining = totalSeconds;
       startLabelKey = 'pomodoro.start';
       statusKey = 'pomodoro.ready';
       statusEl.style.color = 'var(--text-muted)';
+      setTaskActionsVisible(false);
       setCue('', '');
       updateDisplay();
-      clearSession();
+      persistSession();
     };
 
     // 保存引用
@@ -742,15 +685,13 @@ function createPomodoro(view, root, initialTodo) {
     resetBtn.onmouseenter = () => { resetBtn.style.transform = 'translateY(-1px)'; };
     resetBtn.onmouseleave = () => { resetBtn.style.transform = 'translateY(0)'; };
 
-    if (minimized) {
-      body.style.display = 'none';
-      floatEl.classList.add(PID + '-pomodoro-minimized');
-      toggleBtn.textContent = '+';
-      if (!isMobile) floatEl.style.width = '126px';
-    }
     renderTaskPicker();
     if (initialTodo) floatEl._cockpitSelectTask(initialTodo);
     updateDisplay();
+    shell.restorePosition(restoredSession?.position);
+    if (restoredSession && !minimized) shell.showDetails();
     if (restoredSession?.isRunning) startBtn.onclick();
+    else if (awaitingChoice) showCompletionReminder(awaitingChoice, awaitingChoice === 'focus' ? focusMinutes : POMODORO_BREAK_MINUTES);
+    restoringSession = false;
     return floatEl;
 }

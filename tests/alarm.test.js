@@ -167,9 +167,9 @@ assert.match(framework, /id:'alarms'[\s\S]*collapsible:true/, 'Alarm UI particip
 assert.match(framework, /this\.alarms\s*=\s*new AlarmService/, 'Alarm scheduling starts with the plugin rather than only when the dashboard view is open.');
 assert.match(framework, /this\.alarms\?\.stop\(\)/, 'Plugin unload stops alarm timers and dismisses the overlay.');
 assert.match(pomodoro, /pomodoroFullscreen/, 'Pomodoro exposes and persists the full-screen reminder option.');
-assert.match(pomodoro, /showFullscreenReminder/, 'Pomodoro completion uses the shared full-screen reminder runtime.');
-assert.match(pomodoro, /onStop:\s*startBreakFromReminder/, 'The focus-complete full-screen action starts the five-minute break.');
-assert.match(pomodoro, /_pomodoroFullscreen\s*===\s*true\s*&&\s*self\._pomodoroBreakReminder\s*!==\s*false/, 'The break-complete full-screen reminder respects its own setting.');
+assert.match(pomodoro, /new PomodoroReminderModal/, 'Pomodoro completion opens its own session choice layer.');
+assert.match(pomodoro, /onPrimary:kind === 'focus' \? startBreakFromReminder/, 'The focus-complete full-screen action starts the five-minute break.');
+assert.match(pomodoro, /if \(self\._pomodoroBreakReminder !== false\)/, 'The break-complete full-screen reminder respects its own setting.');
 assert.match(framework, /pluginData\?\.pomodoroBreakReminder\s*!==\s*false/, 'The break-complete reminder setting is restored with a backward-compatible default.');
 assert.match(constants, /breakReminder[\s\S]*breakReminderHint/, 'Pomodoro exposes localized copy for the break-complete reminder setting.');
 assert.match(framework, /openTodoAlarm/, 'Todo rows expose a direct create/edit alarm action.');

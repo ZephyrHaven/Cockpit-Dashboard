@@ -14,26 +14,37 @@ Cockpit Dashboard is a local-first home dashboard for Obsidian. Todos, calendar,
 - **Layout** — a searchable component store, scene layouts that switch by weekday, time range or folder, and an optional unified glass look.
 - **Also included** — natural-language quick capture, Spotlight search across todos, notes and filenames, a two-pane RSS reader, Apple Calendar sync on Mac, encrypted sync between your own computers and a shared team space (both in preview), bilingual UI and first-run onboarding.
 
-### Component changes
-
-- Drag an unfinished personal task from the calendar's day overview onto a month/week date to reschedule it while keeping its time. Clicking still opens task details; dragging suppresses the following click. All-day items follow timed items, busy lists use tighter spacing, and internal scrollbars stay hidden while scrolling remains available.
-- Standalone Run history, Sync diagnostics, Footer, Today timeline and Team overview components have been removed. Open **Logs & diagnostics** from the dashboard menu or command palette for run records, sync status and toolbar command logs. Team tasks and the team space remain available.
-- Weekly review and Weekly report studio now share a **Reports & review** component with two tabs. Existing report configuration, scripts and review notes are retained, and saved scene layouts migrate automatically.
-- Knowledge categories support filtering, sorting and searchable note lists with a direct overview shortcut. Project cards show completion, remaining tasks, overdue tasks and the next task, with active/completed filters.
-
 ## Installation
 
 **Community plugins (recommended)**: Settings → Community plugins → Browse → search **Cockpit Dashboard** → install and enable.
 
 **Manual install**: download the latest release from [GitHub Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases), copy `main.js`, `manifest.json` and `styles.css` into `.obsidian/plugins/cockpit-dashboard/`, then enable the plugin. To upgrade, replace only those three files so your `data.json` settings stay intact.
 
-### Optional glass appearance
+## Recommendations
 
-With host version 1.14 or newer, click **Install theme** in **Settings → Cockpit → Appearance & motion**, select **Cockpit Glass** in **Settings → Appearance → Themes**, then enable **Unified glass appearance** in the plugin. The theme is bundled with the plugin: installation works offline and automatically follows this vault’s actual configuration directory, including custom directories. Selecting the theme and enabling the host’s translucent window option remain manual steps.
+### Cockpit Glass
 
-On macOS, enable **Appearance → Translucent window** for native frost. Windows and Macs without translucency use a complete soft background, sidebar, tabs and layered cards, without desktop wallpaper transparency. Light/dark modes and Reduce Motion are supported on both platforms.
+Pair the dashboard with [Cockpit Glass](https://github.com/ZephyrHaven/cockpit-glass), our companion theme with frosted surfaces, layered cards, and light and dark modes. It is available in the Obsidian theme store: **Settings → Appearance → Themes → Manage → search Cockpit Glass → Install and use**.
 
-Use the same entry to update the theme. Existing files, including local modifications, are backed up under the theme’s `.cockpit-backups/<timestamp>/` folder before replacement. To restore them, copy the saved `theme.css` and `manifest.json` back into the theme directory. Failed installs attempt to restore previous files and show a message if recovery fails. Installation leaves host appearance preferences untouched and does not downgrade a newer theme. [Manual installation](theme/cockpit-glass/README.md) remains available.
+For matching dashboard surfaces, enable **Settings → Cockpit → Appearance & motion → Unified glass appearance**. On macOS, the host’s **Translucent window** option enables native window frost. See the [theme’s installation guide](https://github.com/ZephyrHaven/cockpit-glass#readme) for platform requirements and appearance options.
+
+The theme is installed and updated separately through the theme store. Existing theme files remain in place when you upgrade the plugin.
+
+## Glass alarm reminders
+
+Open the sliders icon in the alarm module to choose **Half screen** or **Full screen** and preview it. The choice applies to all alarms and is saved locally; existing installations keep full screen by default. Both modes use a frosted surface that obscures the content behind the reminder.
+
+Use **Stop** to dismiss an alarm or snooze it for ten minutes. Multiple alarms are queued. Only full-screen mode requests window full screen.
+
+## Elastic Pomodoro
+
+Stretch either edge to choose 1–120 minutes before starting, or enter the duration directly. Add a remark or link a task in the settings. During a session, stretching adjusts the width: narrow layouts keep the countdown and essential controls; wider layouts reveal more details. Hours appear only when needed.
+
+Choose normal, compact or persistent minimal mode. To keep the dial visible, shrink the compact bar to its minimum, continue inward and release. Drag the dial to move it; click it to return to compact mode, then expand for settings. Its mode, position, width and remark are saved locally. An idle compact timer also shrinks automatically after 12 seconds; hover restores it, while a pinned dial stays minimal.
+
+Moving and stretching provide subtle visual feedback, with tactile feedback where supported by the device and system settings, including Force Touch trackpads on Mac. The dial uses a rotating second hand.
+
+When a session ends, the lower-half frosted reminder offers a five-minute break or another focus round. Full-screen reminders and break-end reminders are configurable separately. Reset before changing a session’s duration once progress has begun; breaks do not count toward focus totals.
 
 ## Custom components
 
@@ -49,12 +60,11 @@ Everything is stored in your vault or the plugin folder. There is no telemetry, 
 |---|---|
 | `_data/todos.md`, `_data/team-todos.md` | Todos (inline metadata and repeat rules) and a readable mirror of team tasks |
 | `_data/focus.md` | Focus history per day |
-| `data.json` | Settings, layout scenes, toolbar, RSS config, Apple Calendar mappings, AI model config and persistently approved low-risk Agent actions (**API keys are stored here in plain text**) |
+| `data.json` | Settings, layout scenes, Pomodoro session (duration, remark, presentation and position), alarm reminder appearance, toolbar, RSS config, Apple Calendar mappings, AI model config and persistently approved low-risk Agent actions (**API keys are stored here in plain text**) |
 | `lan-sync-<machine>.json`, `team-sync-<machine>.json` + backups | Opt-in LAN/team sync state, including plaintext pairing secrets local to this machine |
 | `ai-history.json`, `ai-index.json`, `logs/agent-tools.jsonl` | Up to 30 AI sessions, the local search index snapshot, and the last 500 Agent tool receipts |
 | `custom-components.json`, `.backup` | Locally imported component code, enable state, runtime errors and private JSON data; uninstall can retain data for reinstall. No automatic network access or sync |
 | IndexedDB | Local RSS article cache and read state |
-| `themes/Cockpit Glass/` inside the current configuration directory | Opt-in companion theme installation and local backups before updates (`.cockpit-backups/`); no network access or changes to other themes |
 
 **Network access happens only when you use the related feature:**
 
@@ -78,7 +88,7 @@ bash deploy.sh          # build and copy into your local plugin folder
 
 Source modules are plain scripts concatenated in a fixed order by `build.js`, then minified with esbuild/terser; `dist/styles.css` is built separately.
 
-Releases are tagged without a `v` prefix and include `main.js`, `styles.css`, `manifest.json` plus a manual-install zip.
+Releases are tagged without a `v` prefix and include `main.js`, `styles.css`, `manifest.json` as three separate assets.
 
 ## Sponsor
 

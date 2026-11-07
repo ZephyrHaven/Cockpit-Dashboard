@@ -194,4 +194,32 @@ assert.match(agentToolsSource, /cockpitQueueRefreshScopes\(view, \['todos'\]\)/,
 assert.doesNotMatch(agentToolsSource, /refreshCockpitAfterAgentMutation[\s\S]*?_renderDashboard\(true\)/, 'Agent todo changes never rebuild the entire dashboard.');
 assert.match(fs.readFileSync(path.join(__dirname, '../src/commands.js'), 'utf8'), /id:'quick-capture'(?![\s\S]{0,200}hotkeys)/, 'Quick capture is a command without a default hotkey.');
 
+// Exercise repeated background updates against the real renderer.
+class FlowElement {
+  constructor(){ this.children=[]; this.dataset={}; this.scrollTop=0; this.classList={add:()=>{}}; }
+  createEl(tag, options={}){ const el=new FlowElement(); el.className=options.cls || ''; this.children.push(el); el.parentNode=this; return el; }
+  createDiv(options){ return this.createEl('div',options); }
+  createSpan(options){ return this.createEl('span',options); }
+  setAttribute(){}
+  insertBefore(el){ this.children.push(el); el.parentNode=this; }
+  remove(){ this.parentNode.children=this.parentNode.children.filter(el=>el!==this); }
+  querySelector(selector){ return this.children.find(el=>selector === '.'+el.className.split(' ')[0]) || null; }
+}
+const vm = require('node:vm');
+const flowContext=vm.createContext({
+  PLUGIN_ID:'cockpit-dashboard', window:{moment:()=>({format:()=> '2026-11-07 12:00'})},
+  document:{createElement:()=>new FlowElement()}, formatCalendarDetailHeading:()=> 'November 7'
+});
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/calendar-day-flow.js'),'utf8')+';this.render=renderCalendarDayFlow;',flowContext);
+const flowHost=new FlowElement();
+const flowOptions={anchor:{parentNode:flowHost},date:{format:()=> '2026-11-07',clone(){return this;},startOf(){return this;},valueOf:()=>0,isSame:()=>true},language:'en',t:key=>key,filter:'all',todosForDate:[],rssItems:[],calendarEvents:[],automationItems:[],countdownItems:[]};
+const firstFlow=flowContext.render(flowOptions);
+assert.equal(flowContext.render(flowOptions),firstFlow,'Unchanged background notifications retain the existing day panel.');
+firstFlow.scrollTop=125;
+const updatedFlow=flowContext.render({...flowOptions,filter:'todo'});
+assert.notEqual(updatedFlow,firstFlow,'A changed filter updates the panel.');
+assert.ok(updatedFlow.className.includes('is-refreshing'),'Same-day updates suppress the entrance animation.');
+assert.equal(updatedFlow.scrollTop,125,'Same-day updates preserve panel scrolling.');
+const nextFlow=flowContext.render({...flowOptions,date:{...flowOptions.date,format:()=> '2026-11-08'}});
+assert.ok(!nextFlow.className.includes('is-refreshing'),'Selecting a different day retains the normal transition.');
 console.log('Calendar day flow checks passed');

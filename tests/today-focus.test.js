@@ -114,7 +114,7 @@ assert.equal(limitedBenchmark.total > limitedBenchmark.rendered, true);
 
 const buildSource = fs.readFileSync(path.join(root, 'build.js'), 'utf8');
 const frameworkSource = fs.readFileSync(path.join(root, 'src/_framework.js'), 'utf8');
-const pomodoroSource = fs.readFileSync(path.join(root, 'src/pomodoro.js'), 'utf8');
+const pomodoroSource = fs.readFileSync(path.join(root, 'src/pomodoro.js'), 'utf8') + fs.readFileSync(path.join(root, 'src/pomodoro-shell.js'), 'utf8');
 const calendarSource = fs.readFileSync(path.join(root, 'src/calendar.js'), 'utf8');
 const todoSource = fs.readFileSync(path.join(root, 'src/todos.js'), 'utf8');
 const stylesSource = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');

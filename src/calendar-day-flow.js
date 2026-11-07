@@ -47,7 +47,14 @@ function renderCalendarDayFlow(options) {
   const { anchor, date, language, t, todosForDate, rssItems, calendarEvents, automationItems, countdownItems, filter, onFilterChange, bindTodoDrag, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm, openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen, rerender, rss } = options;
   const parent = anchor?.parentNode;
   if (!parent) return null;
-  parent.querySelector('.' + PLUGIN_ID + '-cal-detail')?.remove();
+  const previous = parent.querySelector('.' + PLUGIN_ID + '-cal-detail');
+  const dateKey = date.format('YYYY-MM-DD');
+  const renderKey = JSON.stringify([dateKey, window.moment().format('YYYY-MM-DD HH:mm'), filter, todosForDate, rssItems, calendarEvents, automationItems, countdownItems]);
+  if (previous?._cockpitRenderKey === renderKey) return previous;
+  const refreshing = previous?.dataset.date === dateKey;
+  const scrollTop = previous?.scrollTop || 0;
+  const timelineScrollTop = previous?.querySelector('.' + PLUGIN_ID + '-cal-timeline')?.scrollTop || 0;
+  previous?.remove();
   const en = language === 'en';
   const dayStart = date.clone().startOf('day').valueOf();
   const todos = (Array.isArray(todosForDate) ? todosForDate : []).slice();
@@ -59,7 +66,17 @@ function renderCalendarDayFlow(options) {
   const flowItems = calendarBuildDayFlowItems({ dayStart, events, todos, rssSummary, countdowns, automations });
 
   const detail = document.createElement('div');
-  detail.className = PLUGIN_ID + '-cal-detail' + (flowItems.length ? ' has-items' : ' is-empty');
+  detail.className = PLUGIN_ID + '-cal-detail' + (flowItems.length ? ' has-items' : ' is-empty') + (refreshing ? ' is-refreshing' : '');
+  detail.dataset.date = dateKey;
+  detail._cockpitRenderKey = renderKey;
+  const finish = () => {
+    if (refreshing) {
+      detail.scrollTop = scrollTop;
+      const timeline = detail.querySelector('.' + PLUGIN_ID + '-cal-timeline');
+      if (timeline) timeline.scrollTop = timelineScrollTop;
+    }
+    return detail;
+  };
   detail.setAttribute('tabindex', '0');
   detail.setAttribute('role', 'region');
   detail.setAttribute('aria-label', en ? 'Day plan' : '日期事项总览');
@@ -90,7 +107,7 @@ function renderCalendarDayFlow(options) {
     const empty = detail.createDiv({ cls:PLUGIN_ID + '-cal-detail-empty' });
     empty.createDiv({ cls:PLUGIN_ID + '-cal-detail-empty-icon', text:'✦' });
     empty.createDiv({ cls:PLUGIN_ID + '-cal-detail-empty-text', text:flowItems.length ? (en ? 'Nothing in this category.' : '这个分类今天没有事项。') : t('calendar.emptyDay') });
-    return detail;
+    return finish();
   }
 
   const timeline = detail.createDiv({ cls:PLUGIN_ID + '-cal-timeline', attr:{ role:'list' } });
@@ -200,7 +217,7 @@ function renderCalendarDayFlow(options) {
       run.onclick = async (event) => { event.stopPropagation(); run.disabled=true; try { await onAutomationRun?.(automation.task); await rerender?.(); } finally { run.disabled=false; } };
     }
   });
-  return detail;
+  return finish();
 }
 
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports={summarizeCalendarRss,calendarCountdownItemsForDate,calendarBuildDayFlowItems};

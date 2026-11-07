@@ -51,7 +51,9 @@ function buildCalendar(root, todos, opts) {
   let viewMode = initialViewMode === 'week' ? 'week' : 'month';
   let flowFilter = 'all';
   let detailRequest = 0;
-  // 系统日程（只读）：按可见时间窗异步加载，加载完成后整体重绘一次。
+  let lastRenderKey = '';
+  let lastViewKey = '';
+  // 系统日程（只读）：按可见时间窗异步加载，仅内容变化时更新。
   let eventStore = { key:'', at:0, events:[] };
   let eventRequestKey = '';
   let titleMonthEl = null;
@@ -277,7 +279,7 @@ function buildCalendar(root, todos, opts) {
       if (eventRequestKey !== key) return;
       eventRequestKey = '';
       const list = Array.isArray(events) ? events : [];
-      const changed = eventStore.key !== key || JSON.stringify(list.map((event) => event.id)) !== JSON.stringify((eventStore.events || []).map((event) => event.id));
+      const changed = eventStore.key !== key || JSON.stringify(list) !== JSON.stringify(eventStore.events);
       eventStore = { key, at:Date.now(), events:list };
       if (changed && calRoot?.parentNode) renderAll();
     }).catch((error) => {
@@ -410,7 +412,18 @@ function buildCalendar(root, todos, opts) {
     // 只按可见时间窗读取系统日程；翻到不含今天的月份时，脉搏条的“下一项”只看待办。
     requestEvents(rangeStart, rangeEnd);
     eventMap = buildEventMap();
+    const viewKey = [viewMode, calYear, calMonth, selDay].join(':');
+    const rssItems = [];
+    if (rss?.config.enabled) {
+      for (let day = rangeStart.clone(); day.valueOf() < rangeEnd.valueOf(); day.add(1, 'day')) rssItems.push(rss.itemsForDate(day));
+    }
+    const renderKey = JSON.stringify([viewKey, now.format('YYYY-MM-DD HH:mm'), todoMap, eventStore.events, rssItems]);
+    if (calRoot?.parentNode && renderKey === lastRenderKey) { renderDetail(todoMap); return; }
+    const refreshing = !!calRoot?.parentNode && viewKey === lastViewKey;
+    lastRenderKey = renderKey;
+    lastViewKey = viewKey;
     ensureRoot();
+    calRoot.classList.toggle('is-refreshing', refreshing);
     ensureSplitHandle();
     const surface = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-surface is-' + viewMode });
     const header = surface.createDiv({ cls: PLUGIN_ID + '-cal-header' });
@@ -618,7 +631,8 @@ function buildCalendar(root, todos, opts) {
   };
   renderAll();
   // 设置变更（开关系统日程、隐藏日历）后由宿主调用，丢弃已加载的日程并重新读取。
-  renderAll.reloadEvents = () => { eventStore = { key:'', at:0, events:[] }; eventRequestKey = ''; renderAll(); };
+  renderAll.reloadEvents = () => { eventStore = { ...eventStore, key:'', at:0 }; eventRequestKey = ''; renderAll(); };
+  renderAll.refreshDetail = () => renderDetail(buildTodoMap());
   return renderAll;
 }
 

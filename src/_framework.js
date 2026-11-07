@@ -1316,9 +1316,9 @@ class CockpitView extends obs.ItemView {
     this._calendarEventsUnsubscribe?.();
     this._calendarEventsUnsubscribe = this._plugin.appleCalendar?.subscribeEvents?.(() => refreshCalendar.reloadEvents());
     this._calendarAutomationUnsubscribe?.();
-    this._calendarAutomationUnsubscribe = this._plugin.scheduledTasks.subscribe(() => refreshCalendar());
+    this._calendarAutomationUnsubscribe = this._plugin.scheduledTasks.subscribe(() => refreshCalendar.refreshDetail());
     this._calendarCountdownUnsubscribe?.();
-    this._calendarCountdownUnsubscribe = this._plugin.countdowns.subscribe(() => refreshCalendar());
+    this._calendarCountdownUnsubscribe = this._plugin.countdowns.subscribe(() => refreshCalendar.refreshDetail());
 
     // ===== 3. Categories / 4. Stats =====
     const todoHooks = {};

@@ -432,7 +432,6 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
     addPanelIntro(panels.appearance, en ? 'Appearance & motion' : '外观与动效', en
       ? 'Adjust the dashboard surfaces and motion.'
       : '调整驾驶舱的卡片表面与动效。');
-    await renderCockpitThemeInstaller(panels.appearance, this.plugin, language);
     if (renderVersion !== this._displayVersion) return;
     new obs.Setting(panels.appearance)
       .setName(en ? 'Unified glass appearance' : '一体式玻璃外观')

@@ -3,6 +3,11 @@
 const ALARM_RECOVERY_WINDOW_MS = 10 * 60 * 1000;
 const ALARM_SNOOZE_MS = 10 * 60 * 1000;
 
+// 旧版只提供全屏；缺少设置时延续原行为，首次切换即保存新设置。
+function normalizeAlarmReminderSettings(raw) {
+  return {displayMode:raw?.displayMode === 'half' ? 'half' : 'fullscreen'};
+}
+
 function alarmId() {
   return 'alarm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 }
@@ -160,5 +165,5 @@ function formatAlarmSchedule(rawAlarm, language = 'zh-CN') {
 }
 
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
-  module.exports = { normalizeAlarmTime, normalizeAlarm, normalizeAlarms, nextAlarmOccurrence, claimDueAlarms, reconcileTodoAlarms, formatAlarmSchedule };
+  module.exports = { normalizeAlarmReminderSettings, normalizeAlarmTime, normalizeAlarm, normalizeAlarms, nextAlarmOccurrence, claimDueAlarms, reconcileTodoAlarms, formatAlarmSchedule };
 }
