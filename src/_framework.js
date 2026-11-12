@@ -1176,6 +1176,7 @@ class CockpitView extends obs.ItemView {
     const openTodoEditor = (options = {}) => openCockpitTodoEditor.call(this, options, {
       lang, t, createTodoDraft, getAllTodoTags, mergeLegacyTodoInput, normalizeTodoTag, commitTodoMutation
     });
+    const incrementTodoProgress = (id) => commitTodoMutation((todos) => advanceTodoProgress(todos, id));
     this._openTodoEditorRef = openTodoEditor;
 
     // ===== 1.5 每日小贴士 =====
@@ -1223,6 +1224,7 @@ class CockpitView extends obs.ItemView {
       lunarEnabled: this._calendarLunarEnabled !== false,
       t,
       openTodoEditor,
+      onTodoIncrement:incrementTodoProgress,
       onTeamTodoOpen:(todo) => {
         const record = this._plugin.teamSync?.state?.tasks?.[todo?.id];
         if (record) this._plugin.teamSync.openModal(new CockpitTeamEditorModal(this.app, this._plugin.teamSync, record));
@@ -1411,11 +1413,11 @@ class CockpitView extends obs.ItemView {
 
     // 渲染待办列表（从内存数据渲染）
     let renderTodos = async (options = {})=>{
-      todosEl.empty();
       updateStats();
       await refreshLinkedAlarmTodoIds();
       // AI 拆解按钮的可见性：整个列表渲染只查询一次（内部带缓存）。
       const aiReady = await isCockpitAiReady(this._plugin);
+      todosEl.empty();
 
       const todayKey = window.moment().format('YYYY-MM-DD');
       const baseTodayGroups = currentStatus === 'today' ? groupTodayTodos(this._todos.filter(todo=>!todo.tags?.includes('_archived')), todayKey) : null;
@@ -1574,6 +1576,7 @@ class CockpitView extends obs.ItemView {
 
         // 时间元信息 + 截止日期 + 标签胶囊
         const meta = main.createDiv({ cls: PLUGIN_ID+'-todo-meta' });
+        renderTodoProgress(meta, todo, lang, openTodoEditor, incrementTodoProgress);
         if (todo.created) meta.createDiv({cls:PLUGIN_ID+'-todo-meta-item'}).createSpan({text:E.cal+' '+fmtDate(todo.created, lang)});
         if (done && todo.doneDate) meta.createDiv({cls:PLUGIN_ID+'-todo-meta-item'}).createSpan({text:E.check+' '+fmtDate(todo.doneDate, lang)});
         if (todo.repeat) meta.createDiv({ cls:PLUGIN_ID+'-todo-meta-item', text:lang === 'en' ? 'Repeats' : '重复待办' });

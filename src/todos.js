@@ -8,12 +8,33 @@ function queueTodoFileMutation(operation) {
   return next;
 }
 
+function parseTodoProgress(total, completed = '') {
+  if (!/^\d+$/.test(total) || (completed !== '' && !/^\d+$/.test(completed))) return null;
+  const target = Number(total);
+  const count = Number(completed);
+  if (!Number.isSafeInteger(target) || target < 1 || !Number.isSafeInteger(count) || count > target) return null;
+  return { total:target, completed:count };
+}
+
+function advanceTodoProgress(todos, id) {
+  const todo = todos.find((entry) => entry.id === id);
+  const progress = todo?.progress;
+  if (!progress || todo.done || progress.completed >= progress.total) return false;
+  todo.progress = { ...progress, completed:progress.completed + 1 };
+  return true;
+}
+
 function splitTodoMeta(meta) {
   const managed = {};
   const extra = [];
   String(meta || '').split('|').forEach((segment) => {
     const part = segment.trim();
     if (!part) return;
+    const progressMatch = part.match(/^progress\s*:\s*(\d+)\/(\d+)$/);
+    if (progressMatch) {
+      const progress = parseTodoProgress(progressMatch[2], progressMatch[1]);
+      if (progress) { managed.progress = progress; return; }
+    }
     const km = part.match(/^(id|created|done|calendar|repeat|repeatRoot|repeatIndex|repeatNext)\s*:\s*([\s\S]+)$/);
     if (!km) { extra.push(part); return; }
     managed[km[1]] = km[2].trim();
@@ -36,6 +57,7 @@ function parseTodoLine(line) {
     indent:m[1], id:managed.id || '', text:cleanText, tags, priority,
     dueDate, dueHasTime, done:m[2].toLowerCase() === 'x', created, doneDate,
     calendarSync:managed.calendar === 'true',
+    progress:managed.progress || null,
     repeat,
     repeatRoot:managed.repeatRoot || '', repeatIndex:Math.max(0, parseInt(managed.repeatIndex, 10) || 0), repeatNext:managed.repeatNext || '',
     // 行上无法识别的元数据（如 owner:xxx）原样带回，写入时回填，避免被规范化抹掉。
@@ -49,7 +71,7 @@ function parseTodosContent(content) {
     const entry = parseTodoLine(line);
     if (!entry) continue;
     todos.push({ id:entry.id, text:entry.text, tags:entry.tags, priority:entry.priority, dueDate:entry.dueDate, dueHasTime:entry.dueHasTime, done:entry.done, created:entry.created, doneDate:entry.doneDate, calendarSync:entry.calendarSync,
-      repeat:entry.repeat, repeatRoot:entry.repeatRoot, repeatIndex:entry.repeatIndex, repeatNext:entry.repeatNext, _extraMeta:entry._extraMeta });
+      progress:entry.progress, repeat:entry.repeat, repeatRoot:entry.repeatRoot, repeatIndex:entry.repeatIndex, repeatNext:entry.repeatNext, _extraMeta:entry._extraMeta });
   }
   return todos;
 }
@@ -60,6 +82,7 @@ function buildTodoLine(t, indent = '') {
   if (t.created) meta.push('created: ' + t.created.format('YYYY-MM-DD'));
   if (t.done && t.doneDate) meta.push('done: ' + t.doneDate.format('YYYY-MM-DD'));
   if (t.calendarSync === true) meta.push('calendar: true');
+  if (t.progress) meta.push('progress:' + t.progress.completed + '/' + t.progress.total);
   if (t.repeat) meta.push('repeat:' + JSON.stringify(t.repeat));
   if (t.repeatRoot) meta.push('repeatRoot:' + t.repeatRoot);
   if (t.repeatIndex) meta.push('repeatIndex:' + t.repeatIndex);

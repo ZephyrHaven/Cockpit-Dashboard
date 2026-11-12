@@ -37,7 +37,7 @@ function calendarBuildEventDayMap(events, momentFactory) {
 }
 
 function buildCalendar(root, todos, opts) {
-  const { language, t, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, initialSplitRatio, onSplitRatioChange, lunarEnabled, teamTodos, loadCalendarEvents, onQuickCreate, onEventOpen } = opts;
+  const { language, t, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoIncrement, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, initialSplitRatio, onSplitRatioChange, lunarEnabled, teamTodos, loadCalendarEvents, onQuickCreate, onEventOpen } = opts;
   // 刷新时必须读取视图的最新待办数组；不能闭包捕获初次渲染的旧快照。
   const getTodos = typeof todos === 'function' ? todos : () => todos;
   let calYear = window.moment().year();
@@ -218,7 +218,7 @@ function buildCalendar(root, todos, opts) {
     calRoot.parentNode.insertBefore(detail, handle?.nextSibling || calRoot.nextSibling);
     detail.createDiv({ cls:PLUGIN_ID + '-cal-detail-empty-text', text:language === 'en' ? 'Day overview is unavailable right now.' : '当日总览暂时无法显示。' });
   };
-  const renderDetail = (todoMap) => {
+  const renderDetail = (todoMap = buildTodoMap()) => {
     if (typeof renderCalendarDayFlow !== 'function') return renderDetailError();
     const request = ++detailRequest;
     const date = getSelectedDate();
@@ -235,10 +235,10 @@ function buildCalendar(root, todos, opts) {
         countdownItems:Array.isArray(countdownItems) ? countdownItems : [],
         filter:flowFilter,
         bindTodoDrag:(el, todo) => makeTodoDraggable(el, todo),
-        onFilterChange:(nextFilter) => { flowFilter=nextFilter; renderDetail(todoMap); },
-        openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm,
+        onFilterChange:(nextFilter) => { flowFilter=nextFilter; renderDetail(); },
+        openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoIncrement, onTodoAlarm, hasLinkedTodoAlarm,
         openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen,
-        rerender:() => renderDetail(todoMap), rss
+        rerender:() => renderDetail(), rss
       });
       ensureSplitHandle();
       return detail;
@@ -417,7 +417,9 @@ function buildCalendar(root, todos, opts) {
     if (rss?.config.enabled) {
       for (let day = rangeStart.clone(); day.valueOf() < rangeEnd.valueOf(); day.add(1, 'day')) rssItems.push(rss.itemsForDate(day));
     }
-    const renderKey = JSON.stringify([viewKey, now.format('YYYY-MM-DD HH:mm'), todoMap, eventStore.events, rssItems]);
+    // 数量进度只出现在当日总览，更新进度时复用原日期网格。
+    const renderKey = JSON.stringify([viewKey, now.format('YYYY-MM-DD HH:mm'), todoMap, eventStore.events, rssItems],
+      (key, value) => key === 'progress' ? undefined : value);
     if (calRoot?.parentNode && renderKey === lastRenderKey) { renderDetail(todoMap); return; }
     const refreshing = !!calRoot?.parentNode && viewKey === lastViewKey;
     lastRenderKey = renderKey;
@@ -476,7 +478,7 @@ function buildCalendar(root, todos, opts) {
         titleMonthEl?.setText(en ? getMonthLabels(language, 'long')[calMonth] : (calMonth + 1) + '月');
         titleYearEl?.setText(String(calYear));
         updateCalendarSubtitle();
-        renderDetail(todoMap);
+        renderDetail();
       };
       for (let offset = 0; offset < 7; offset++) {
         const date = start.clone().add(offset, 'day');
@@ -591,7 +593,7 @@ function buildCalendar(root, todos, opts) {
       }));
       const counts = indicators.createDiv({ cls:PLUGIN_ID + '-cal-indicator-counts' });
       if (dayRss.length) counts.createSpan({ cls:PLUGIN_ID + '-cal-rss-badge', text:'RSS ' + (dayRss.length > 99 ? '99+' : dayRss.length), attr:{ title:'RSS: ' + dayRss.length } });
-      cell.onclick = () => { selDay = day; followsToday = date.isSame(window.moment(), 'day'); renderDayDetailOnly(todoMap); };
+      cell.onclick = () => { selDay = day; followsToday = date.isSame(window.moment(), 'day'); renderDayDetailOnly(); };
       cell.addEventListener('dblclick', () => openQuickCreate(cell, date));
     }
     const total = offset + daysInMonth;
@@ -620,19 +622,19 @@ function buildCalendar(root, todos, opts) {
     const cell = gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell dim' });
     cell.createDiv({ cls: PLUGIN_ID + '-cal-cell-inner' }).createSpan({ cls: PLUGIN_ID + '-cal-num', text: String(day) });
   };
-  const renderDayDetailOnly = (todoMap) => {
+  const renderDayDetailOnly = () => {
     let current = 0;
     gridEl?.querySelectorAll('.' + PLUGIN_ID + '-cal-cell').forEach((cell) => {
       if (cell.classList.contains('dim')) return;
       cell.classList.toggle('selected', ++current === selDay);
     });
     updateCalendarSubtitle();
-    renderDetail(todoMap);
+    renderDetail();
   };
   renderAll();
   // 设置变更（开关系统日程、隐藏日历）后由宿主调用，丢弃已加载的日程并重新读取。
   renderAll.reloadEvents = () => { eventStore = { ...eventStore, key:'', at:0 }; eventRequestKey = ''; renderAll(); };
-  renderAll.refreshDetail = () => renderDetail(buildTodoMap());
+  renderAll.refreshDetail = () => renderDetail();
   return renderAll;
 }
 

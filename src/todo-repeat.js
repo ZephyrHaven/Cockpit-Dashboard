@@ -86,6 +86,7 @@ function expandTodoRepeats(todos, now) {
       ids.add(id);
       list.push({ ...todo, id, repeat, repeatRoot:root, repeatIndex:occurrence, repeatNext:'',
         done:false, doneDate:null, created:parseDate(todoRepeatDateText(todoRepeatDateParts(now), false)), dueDate:parseDate(date),
+        progress:todo.progress ? { ...todo.progress, completed:0 } : null,
         tags:Array.isArray(todo.tags) ? todo.tags.slice() : [], _extraMeta:Array.isArray(todo._extraMeta) ? todo._extraMeta.slice() : [] });
     }
     changed = true;

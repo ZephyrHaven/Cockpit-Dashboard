@@ -27,10 +27,10 @@ const context = vm.createContext({ require, console:{ warn:() => {} }, TODO_FILE
     return { cleanText:raw.replace(/ due:\S+/, ''), tags:[], priority:'mid', dueDate:match ? dateRef(match[1]) : null, dueHasTime:!!match?.[1].includes('T') };
   } });
 vm.runInContext(fs.readFileSync('src/todo-repeat.js', 'utf8') + '\n' + fs.readFileSync('src/todos.js', 'utf8')
-  + '\nthis.api={loadTodos,mutateTodos,saveTodos,parseTodosContent};', context);
+  + '\nthis.api={loadTodos,mutateTodos,saveTodos,parseTodosContent,parseTodoProgress,advanceTodoProgress};', context);
 
 (async () => {
-  let content = '# Tasks\n<!-- keep notes -->\n- [ ] Meeting due:2026-09-14 | id:meeting | owner:alice | repeat:{"unit":"week","interval":1,"mode":"scheduled","anchor":"2026-09-14"}\n';
+  let content = '# Tasks\n<!-- keep notes -->\n- [ ] Meeting due:2026-09-14 | id:meeting | owner:alice | progress:2/6 | repeat:{"unit":"week","interval":1,"mode":"scheduled","anchor":"2026-09-14"}\n';
   let writes = 0, fail = false;
   const file = { path:'_data/todos.md' };
   const vault = { getAbstractFileByPath:() => file, read:async () => content,
@@ -40,6 +40,9 @@ vm.runInContext(fs.readFileSync('src/todo-repeat.js', 'utf8') + '\n' + fs.readFi
   let tasks = await context.api.loadTodos(vault);
   assert.equal(tasks.length, 2, 'Concurrent completion generates only one next occurrence.');
   assert.equal(tasks[0].done, true);
+  assert.equal(tasks[0].progress.completed, 2);
+  assert.equal(tasks[1].progress.completed, 0, 'The next occurrence starts with a fresh count.');
+  assert.equal(tasks[1].progress.total, 6);
   assert.equal(tasks[1].dueDate.format('YYYY-MM-DD'), '2026-09-21');
   assert.equal(tasks[0].repeatNext, tasks[1].id);
   assert.match(content, /<!-- keep notes -->/);
@@ -80,5 +83,25 @@ vm.runInContext(fs.readFileSync('src/todo-repeat.js', 'utf8') + '\n' + fs.readFi
   content = '- [ ] Future rule | id:future | repeat:{"unit":"future","interval":1}\n';
   await context.api.mutateTodos(vault, (todos) => { todos[0].text = 'Keep future rule'; return true; });
   assert.match(content, /repeat:\{"unit":"future","interval":1\}/, 'Unknown repeat formats survive unrelated task edits.');
+
+  const { mutateTodos, loadTodos, parseTodoProgress, advanceTodoProgress } = context.api;
+  assert.equal(parseTodoProgress('6').completed, 0);
+  for (const [total, done] of [['','2'], ['0','0'], ['6','-1'], ['6','7'], ['6','2.5'], ['9007199254740992','0']]) {
+    assert.equal(parseTodoProgress(total, done), null);
+  }
+  content = '- [ ] Work due:2026-09-17 | id:work | progress:4/6\n- [ ] Plain | id:plain | progress:in-review\n';
+  const increment = () => mutateTodos(vault, (todos) => advanceTodoProgress(todos, 'work'));
+  const increments = await Promise.all([increment(), increment(), increment()]);
+  assert.equal(increments.filter((result) => result.saved).length, 2, 'Concurrent increments stop at the total.');
+  await mutateTodos(vault, (todos) => { todos[0].dueDate = dateRef('2026-09-18'); return true; });
+  tasks = await loadTodos(vault);
+  assert.equal(tasks[0].progress.completed, 6);
+  assert.equal(tasks[0].done, false, 'Reaching the total leaves the checkbox open.');
+  assert.equal(tasks[0].dueDate.format('YYYY-MM-DD'), '2026-09-18');
+  assert.equal(tasks[1].progress, null);
+  assert.match(content, /progress:in-review/);
+  await mutateTodos(vault, (todos) => { todos[0].progress = null; return true; });
+  assert.equal((await loadTodos(vault))[0].progress, null);
+  assert.doesNotMatch(content, /progress:6\/6/);
   console.log('Repeat schedule and persistence checks passed');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

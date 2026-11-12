@@ -737,6 +737,39 @@ body {
 .cockpit-dashboard-todo-text { font-size:0.84em; cursor:pointer; }
 .cockpit-dashboard-todo.done .cockpit-dashboard-todo-text { text-decoration:line-through; color:var(--text-muted); }
 .cockpit-dashboard-todo-meta { font-size:0.68em; color:var(--text-muted); margin-top:2px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.cockpit-dashboard-root .cockpit-dashboard-todo-progress {
+  display:inline-flex;
+  flex:none;
+  align-items:center;
+  gap:2px;
+  white-space:nowrap;
+}
+.cockpit-dashboard-root .cockpit-dashboard-todo-progress > button {
+  min-height:24px;
+  height:auto;
+  padding:1px 6px;
+  border:1px solid transparent;
+  border-radius:6px;
+  box-shadow:none;
+  background:var(--background-modifier-hover);
+  color:var(--text-normal);
+  font-size:var(--font-ui-smaller);
+  font-variant-numeric:tabular-nums;
+  line-height:1.3;
+  cursor:pointer;
+}
+.cockpit-dashboard-root .cockpit-dashboard-todo-progress > .cockpit-dashboard-todo-progress-increment {
+  min-width:26px;
+  color:var(--text-accent);
+}
+.cockpit-dashboard-root .cockpit-dashboard-todo-progress > button:hover {
+  border-color:var(--background-modifier-border-hover);
+}
+.cockpit-dashboard-root .cockpit-dashboard-todo-progress > button:focus-visible {
+  outline:2px solid var(--interactive-accent);
+  outline-offset:-2px;
+}
+.cockpit-dashboard-root .cockpit-dashboard-todo-progress > button:disabled { opacity:.55; cursor:default; }
 .cockpit-dashboard-todo-focus-stat { display:inline-flex; align-items:center; min-height:18px; padding:1px 7px; border-radius:999px; background:rgba(249,115,22,.11); color:#fb923c; font-weight:700; }
 .cockpit-dashboard-todo-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
 .cockpit-dashboard-todo-btn { width:26px; height:26px; padding:0; background:transparent; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-muted); transition:all 0.15s; border:1px solid transparent; }
@@ -834,6 +867,15 @@ body {
   display:flex;
   flex-direction:column;
   gap:8px;
+}
+.cockpit-dashboard-todo-editor-progress {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+.cockpit-dashboard-todo-editor-progress input:focus-visible {
+  outline:2px solid var(--interactive-accent);
+  outline-offset:-2px;
 }
 .cockpit-dashboard-todo-editor-label {
   font-size:0.72em;

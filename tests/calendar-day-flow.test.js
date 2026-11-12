@@ -197,7 +197,7 @@ assert.match(fs.readFileSync(path.join(__dirname, '../src/commands.js'), 'utf8')
 // Exercise repeated background updates against the real renderer.
 class FlowElement {
   constructor(){ this.children=[]; this.dataset={}; this.scrollTop=0; this.classList={add:()=>{}}; }
-  createEl(tag, options={}){ const el=new FlowElement(); el.className=options.cls || ''; this.children.push(el); el.parentNode=this; return el; }
+  createEl(tag, options={}){ const el=new FlowElement(); el.className=options.cls || ''; el.textContent=options.text; this.children.push(el); el.parentNode=this; return el; }
   createDiv(options){ return this.createEl('div',options); }
   createSpan(options){ return this.createEl('span',options); }
   setAttribute(){}
@@ -208,8 +208,9 @@ class FlowElement {
 const vm = require('node:vm');
 const flowContext=vm.createContext({
   PLUGIN_ID:'cockpit-dashboard', window:{moment:()=>({format:()=> '2026-11-07 12:00'})},
-  document:{createElement:()=>new FlowElement()}, formatCalendarDetailHeading:()=> 'November 7'
+  document:{createElement:()=>new FlowElement()}, formatCalendarDetailHeading:()=> 'November 7', obs:{setIcon(){}}
 });
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/todo-editor.js'),'utf8'),flowContext);
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/calendar-day-flow.js'),'utf8')+';this.render=renderCalendarDayFlow;',flowContext);
 const flowHost=new FlowElement();
 const flowOptions={anchor:{parentNode:flowHost},date:{format:()=> '2026-11-07',clone(){return this;},startOf(){return this;},valueOf:()=>0,isSame:()=>true},language:'en',t:key=>key,filter:'all',todosForDate:[],rssItems:[],calendarEvents:[],automationItems:[],countdownItems:[]};
@@ -222,4 +223,39 @@ assert.ok(updatedFlow.className.includes('is-refreshing'),'Same-day updates supp
 assert.equal(updatedFlow.scrollTop,125,'Same-day updates preserve panel scrolling.');
 const nextFlow=flowContext.render({...flowOptions,date:{...flowOptions.date,format:()=> '2026-11-08'}});
 assert.ok(!nextFlow.className.includes('is-refreshing'),'Selecting a different day retains the normal transition.');
-console.log('Calendar day flow checks passed');
+async function checkTodoProgress() {
+  let todo = { id:'processes', text:'调整流程', done:false, progress:{ completed:2, total:6 } };
+  const plain = { id:'plain', text:'发送会议纪要', done:false };
+  const team = { ...todo, id:'team', teamTodo:true };
+  const calendarTodos = () => [todo, plain, team].map((item) => ({ ...item, raw:item }));
+  const event = { stopPropagation(){} };
+  const findAll = (el, cls) => el.children.flatMap((child) => [
+    ...(child.className?.split(' ').includes('cockpit-dashboard-' + cls) ? [child] : []), ...findAll(child, cls)
+  ]);
+  let editOptions;
+  const options = {
+    ...flowOptions, todosForDate:calendarTodos(),
+    openTodoEditor:(value) => { editOptions = value; },
+    onTodoIncrement:async (id) => {
+      assert.equal(id, todo.id);
+      todo = { ...todo, progress:{ ...todo.progress, completed:todo.progress.completed + 1 } };
+    }
+  };
+  const detail = flowContext.render(options);
+  const counts = findAll(detail, 'todo-progress-count');
+  assert.deepEqual(counts.map((button) => button.textContent), ['2 / 6'], 'Only the personal task with progress shows a count.');
+  counts[0].onclick(event);
+  assert.equal(editOptions.id, 'processes');
+  assert.equal(editOptions.focusProgress, true);
+  await findAll(detail, 'todo-progress-increment')[0].onclick(event);
+  const refreshed = flowContext.render({ ...options, todosForDate:calendarTodos() });
+  assert.equal(findAll(refreshed, 'todo-progress-count')[0].textContent, '3 / 6');
+  todo = { ...todo, progress:{ completed:6, total:6 } };
+  const atTotal = flowContext.render({ ...options, todosForDate:calendarTodos() });
+  assert.equal(findAll(atTotal, 'todo-progress-count')[0].textContent, '6 / 6');
+  assert.equal(findAll(atTotal, 'todo-progress-increment').length, 0);
+  assert.equal(findAll(atTotal, 'cal-timeline-node').some((node) => node.className.includes('done')), false);
+}
+
+checkTodoProgress().then(() => console.log('Calendar day flow checks passed'))
+  .catch((error) => { console.error(error); process.exitCode = 1; });

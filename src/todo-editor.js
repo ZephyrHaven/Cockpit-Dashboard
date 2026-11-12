@@ -1,4 +1,35 @@
-// todo-editor.js — 个人任务编辑器；保存与局部刷新由调用方统一负责。
+// todo-editor.js — 个人待办编辑器与列表进度控件。
+function renderTodoProgress(parent, todo, lang, openTodoEditor, onIncrement) {
+  const progress = todo.progress;
+  if (!progress) return;
+  const en = lang === 'en';
+  const fraction = progress.completed + ' / ' + progress.total;
+  const editLabel = en ? 'Edit progress' : '修改进度';
+  const controls = parent.createSpan({ cls:PLUGIN_ID + '-todo-progress' });
+  const edit = controls.createEl('button', {
+    cls:PLUGIN_ID + '-todo-progress-count', text:fraction,
+    attr:{ type:'button', title:editLabel, 'aria-label':editLabel + ' ' + fraction }
+  });
+  edit.onclick = (event) => {
+    event.stopPropagation();
+    openTodoEditor({ id:todo.id, focusProgress:true });
+  };
+  if (todo.done || progress.completed >= progress.total) return;
+
+  const incrementLabel = en ? 'Add one completed item' : '已完成数加一';
+  const increment = controls.createEl('button', {
+    cls:PLUGIN_ID + '-todo-progress-increment', text:'+1',
+    attr:{ type:'button', title:incrementLabel, 'aria-label':incrementLabel }
+  });
+  increment.onclick = async (event) => {
+    event.stopPropagation();
+    if (increment.disabled) return;
+    increment.disabled = true;
+    try { await onIncrement(todo.id); }
+    finally { increment.disabled = false; }
+  };
+}
+
 function openCockpitTodoEditor(options = {}, helpers = {}) {
   const { lang, t, createTodoDraft, getAllTodoTags, mergeLegacyTodoInput, normalizeTodoTag, commitTodoMutation } = helpers;
   const existingTodo = options.id
@@ -47,6 +78,22 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
   fieldTask.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorTask') });
   const titleInput = fieldTask.createEl('textarea', { cls: PID + '-todo-editor-textarea', attr: { rows: '3', placeholder: t('todo.editorTaskPlaceholder') } });
   titleInput.value = draft.text;
+
+  const progressFields = body.createDiv({ cls:PID + '-todo-editor-progress' });
+  const progressInput = (label, value, placeholder) => {
+    const field = progressFields.createEl('label', { cls:PID + '-todo-editor-field' });
+    field.createSpan({ cls:PID + '-todo-editor-label', text:label });
+    const input = field.createEl('input', {
+      cls:PID + '-todo-editor-tag-input', attr:{ type:'text', inputmode:'numeric', placeholder }
+    });
+    input.value = value ?? '';
+    return input;
+  };
+  const progressTotal = progressInput(lang === 'en' ? 'Total quantity (optional)' : '总数量（选填）', existingTodo?.progress?.total, '');
+  const progressCompleted = progressInput(lang === 'en' ? 'Completed quantity' : '已完成数量', existingTodo?.progress?.completed, '0');
+  const updateProgressFields = () => { progressCompleted.disabled = !progressTotal.value.trim(); };
+  progressTotal.addEventListener('input', updateProgressFields);
+  updateProgressFields();
 
   const fieldDue = body.createDiv({ cls: PID + '-todo-editor-field' });
   fieldDue.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorDue') });
@@ -219,6 +266,16 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
       return;
     }
     const merged = mergeLegacyTodoInput(rawTitle, draft);
+    const total = progressTotal.value.trim();
+    const progress = total ? parseTodoProgress(total, progressCompleted.value.trim()) : null;
+    if (total && !progress) {
+      const validTotal = parseTodoProgress(total);
+      new obs.Notice(lang === 'en'
+        ? 'Enter a positive whole number for the total and a whole number from zero to the total for completed.'
+        : '总数量须为正整数，已完成数量须为 0 到总数量之间的整数。');
+      (validTotal ? progressCompleted : progressTotal).focus();
+      return;
+    }
     if (!repeatEditor.validate(merged.dueDate)) {
       new obs.Notice(lang === 'en' ? 'Set a valid repeat interval and a due date for a fixed schedule.' : '请填写有效的重复间隔；按固定排期时还需设置截止日期。');
       return;
@@ -235,6 +292,7 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
       dueDate: merged.dueDate,
       dueHasTime: merged.dueHasTime,
       calendarSync: draft.calendarSync,
+      progress,
       repeat: draft.repeat ? { ...draft.repeat, anchor:existingTodo?.dueDate?.format('YYYY-MM-DD') === merged.dueDate?.format('YYYY-MM-DD')
         ? (draft.repeat.anchor || merged.dueDate?.format('YYYY-MM-DD')) : merged.dueDate?.format('YYYY-MM-DD') } : null,
       priority: merged.priority,
@@ -267,5 +325,10 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
 
   this._todoEditorEl = overlay;
   document.body.appendChild(overlay);
-  setTimeout(() => titleInput.focus(), 16);
+  setTimeout(() => {
+    if (options.focusProgress && !progressCompleted.disabled) {
+      progressCompleted.focus();
+      progressCompleted.select();
+    } else titleInput.focus();
+  }, 16);
 }

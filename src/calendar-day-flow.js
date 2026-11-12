@@ -44,7 +44,7 @@ function calendarBuildDayFlowItems({ dayStart, events, todos, rssSummary, countd
 }
 
 function renderCalendarDayFlow(options) {
-  const { anchor, date, language, t, todosForDate, rssItems, calendarEvents, automationItems, countdownItems, filter, onFilterChange, bindTodoDrag, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoAlarm, hasLinkedTodoAlarm, openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen, rerender, rss } = options;
+  const { anchor, date, language, t, todosForDate, rssItems, calendarEvents, automationItems, countdownItems, filter, onFilterChange, bindTodoDrag, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoIncrement, onTodoAlarm, hasLinkedTodoAlarm, openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen, rerender, rss } = options;
   const parent = anchor?.parentNode;
   if (!parent) return null;
   const previous = parent.querySelector('.' + PLUGIN_ID + '-cal-detail');
@@ -161,6 +161,7 @@ function renderCalendarDayFlow(options) {
     const chip = (tier, cls, text, attr) => meta.createSpan({ cls:[PLUGIN_ID + '-cal-flow-chip', cls, PLUGIN_ID + '-cal-meta-' + tier].filter(Boolean).join(' '), text, attr });
     if (todo) {
       if (todo.teamTodo) chip(1, 'source-team', en ? 'Team' : '团队');
+      else renderTodoProgress(meta, todo.raw, language, openTodoEditor, onTodoIncrement);
       (todo.tags || []).slice(0,3).forEach((tag) => meta.createSpan({ cls:PLUGIN_ID + '-todo-tag-pill ' + PLUGIN_ID + '-cal-timeline-tag ' + PLUGIN_ID + '-cal-meta-2', text:'#' + tag }));
       // 左侧时间线已给出时刻，这里不再重复“日期 + 时刻”胶囊。
       const priority = meta.createSpan({ cls:PLUGIN_ID + '-cal-timeline-priority p-' + (todo.priority || 'mid') + ' ' + PLUGIN_ID + '-cal-meta-1' }); obs.setIcon(priority.createSpan(), priorityIcon[todo.priority] || 'minus'); priority.createSpan({ text:priorityText[todo.priority] || priorityText.mid });
