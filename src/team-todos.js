@@ -75,16 +75,17 @@ async function buildTeamTodosModule(view, root) {
     iconButton(actions, state.team ? '管理团队' : '创建 / 加入团队', 'settings', () => service.open(), '⚙');
     if (!state.team) { body.createEl('p', { text:'个人待办默认留在本机。加入后，仅同步主动创建或分享的团队待办。', cls:'cockpit-lan-muted' }); return; }
     const policy = service.policy();
-    if (policy.syncTodos && policy.role !== 'viewer' && (policy.canCreate || service.isHost())) {
-      iconButton(actions, '分享个人待办', 'share-2', () => service.openModal(new CockpitTeamShareModal(view.app,service)), '↗');
-      iconButton(actions, '新增团队待办', null, () => service.openModal(new CockpitTeamEditorModal(view.app,service)), '+');
-    }
     const filterWrap = actions.createDiv({ cls:PLUGIN_ID + '-status-select-wrap' });
     obs.setIcon?.(filterWrap.createSpan({ cls:PLUGIN_ID + '-status-select-icon' }), 'list-filter');
     const select = filterWrap.createEl('select', {cls:PLUGIN_ID + '-status-select', attr:{'aria-label':'团队待办状态筛选'}});
     [['open','未完成'],['all','全部'],['done','已完成'],['mine','分配给我']].forEach(([key,label]) => select.createEl('option',{text:label,attr:{value:key}}));
     select.value = filter;
     select.onchange = () => { filter = select.value; limit = 50; render(); };
+    if (policy.syncTodos && policy.role !== 'viewer' && (policy.canCreate || service.isHost())) {
+      iconButton(actions, '分享个人待办', 'share-2', () => service.openModal(new CockpitTeamShareModal(view.app,service)), '↗');
+      cockpitCreateModuleAction(actions, 'plus', view._lang() === 'en' ? 'New team task' : '新增团队待办',
+        () => service.openModal(new CockpitTeamEditorModal(view.app, service)));
+    }
     const records = new Map(Object.values(state.tasks).filter(task => task.value).map(task => [task.id,task]));
     for (const op of state.pending) {
       if (op.value) records.set(op.id, { ...(records.get(op.id) || { id:op.id, revision:0, origin:{ device:state.device,name:state.name }, createdAt:Date.now() }), value:op.value,

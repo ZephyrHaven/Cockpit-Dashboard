@@ -285,31 +285,3 @@ async function mutateTodos(vault, mutator, options = {}) {
     }
   });
 }
-
-async function syncHermesTodos(vault, existingTodos) {
-  try {
-    const today = window ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0,10);
-    const outcome = await mutateTodos(vault, (todos) => {
-      let changed = false;
-      if (!todos.length && Array.isArray(existingTodos) && existingTodos.length) {
-        todos.push(...existingTodos.map((todo) => ({ ...todo })));
-        changed = true;
-      }
-      for (const ht of HERMES_TODOS) {
-        if (todos.some((todo) => todo.text === ht.text)) continue;
-        todos.push({
-          text:ht.text, tags:ht.tags, priority:ht.priority,
-          dueDate:ht.dueDate ? window.moment(ht.dueDate, 'YYYY-MM-DD', true) : null,
-          done:ht.done,
-          created:window.moment(today, 'YYYY-MM-DD', true),
-          doneDate:ht.done ? window.moment(today, 'YYYY-MM-DD', true) : null
-        });
-        changed = true;
-      }
-      return changed ? true : false;
-    });
-    if (outcome.saved && outcome.todos) {
-      existingTodos.splice(0, existingTodos.length, ...outcome.todos);
-    }
-  } catch(e) { console.warn('syncHermesTodos', e); }
-}

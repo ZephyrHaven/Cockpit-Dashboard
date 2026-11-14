@@ -479,10 +479,8 @@ function buildWorkflowsModule(view, root) {
       attention.createSpan({ text:en ? 'Review' : '查看异常' });
       attention.onclick = () => body.querySelector('.'+PLUGIN_ID+'-workflow-card.failed, .'+PLUGIN_ID+'-workflow-card.aborted')?.scrollIntoView({ behavior:'smooth', block:'center' });
     }
-    const add = overviewActions.createEl('button', { cls:'primary '+PLUGIN_ID+'-workflow-overview-add', attr:{ type:'button' } });
-    obs.setIcon(add.createSpan(), 'plus');
-    add.createSpan({ text:en ? 'New workflow' : '新建流程' });
-    add.onclick = (event) => openEditor(null, event.currentTarget);
+    cockpitCreateModuleAction(overviewActions, 'plus', en ? 'New workflow' : '新建流程',
+      (event) => openEditor(null, event.currentTarget));
 
     const metrics = overview.createDiv({ cls:PLUGIN_ID+'-workflow-overview-metrics' });
     const metricItems = [
@@ -691,6 +689,16 @@ async function openWorkflowEditor(view, workflowIdValue = null, trigger = null) 
         const textArea = row.createEl('textarea', { attr:{ rows:step.type === 'shell' ? '3' : '2', maxlength:String(WORKFLOW_LIMITS.textChars), placeholder:step.type === 'shell' ? (en ? 'Shell command; {{last_output}} carries the previous step output' : 'Shell 命令；{{last_output}} 引用上一步输出') : (en ? 'Content / target. Supports {date} {time} {datetime} and {{last_output}}' : '内容 / 目标，支持 {date} {time} {datetime} 与 {{last_output}}') } });
         textArea.value = step.text;
         textArea.oninput = () => { step.text = textArea.value; };
+        if (step.type === 'toolbar-action') {
+          const warning = row.createDiv({ cls:PLUGIN_ID+'-scheduler-error', attr:{ role:'status' } });
+          const updateWarning = () => {
+            const message = cockpitRetiredToolbarActionMessage(step.text.trim(), en);
+            warning.setText(message);
+            warning.hidden = !message;
+          };
+          textArea.addEventListener('input', updateWarning);
+          updateWarning();
+        }
       }
       if (step.type === 'shell') {
         const shellRow = row.createDiv({ cls:PLUGIN_ID+'-workflow-step-opts' });
@@ -787,6 +795,11 @@ async function openWorkflowEditor(view, workflowIdValue = null, trigger = null) 
     const name = nameInput.value.trim();
     if (!name) { error.setText(en ? 'Please enter a name.' : '请输入流程名称。'); return; }
     if (!draft.steps.length) { error.setText(en ? 'Add at least one step.' : '请至少添加一个步骤。'); return; }
+    for (const step of draft.steps) {
+      if (step.type !== 'toolbar-action') continue;
+      const retired = cockpitRetiredToolbarActionMessage(step.text.trim(), en);
+      if (retired) { error.setText(retired); return; }
+    }
     if (hasShell() && !trustCheck.checked) { error.setText(en ? 'Confirm shell trust before saving shell steps.' : '包含 Shell 步骤时请先勾选信任确认。'); return; }
     draft.name = name;
     draft.enabled = enableCheck.checked && (!hasShell() || trustCheck.checked);

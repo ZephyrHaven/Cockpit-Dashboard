@@ -107,14 +107,14 @@ class CockpitUpdateModal extends CockpitModal {
       body.createEl('button', { text:en ? 'Close' : '关闭' }).onclick = () => this.close(); return;
     }
     body.createDiv({ cls:PLUGIN_ID + '-update-status available', text:(en ? 'New version available · v' : '发现新版本 · v') + result.release.version });
-    body.createEl('p', { text:(en ? 'Installed: v' : '当前版本：v') + result.currentVersion + (en ? ' · The update will keep all local settings and data.' : '；更新不会覆盖本地设置和数据。') });
+    body.createEl('p', { text:(en ? 'Installed: v' : '当前版本：v') + result.currentVersion });
     const actions = body.createDiv({ cls:PLUGIN_ID + '-update-actions' });
     actions.createEl('button', { text:en ? 'Later' : '稍后' }).onclick = () => this.close();
     const notes = actions.createEl('button', { text:en ? 'Release notes' : '更新说明' });
     notes.onclick = () => new CockpitReleaseNotesModal(this.app, this.updater.plugin, this.language).open();
     const install = actions.createEl('button', { cls:'mod-cta', text:en ? 'Download and install' : '下载并安装' });
     install.onclick = async () => {
-      if (!window.confirm(en ? 'Download and replace the current plugin files? A local backup will be kept.' : '下载并替换当前插件文件？安装前会在本地保留备份。')) return;
+      if (!window.confirm(en ? 'Download and install the update? Your settings and data will be kept. The current plugin files will be backed up locally.' : '下载并安装更新？本地设置和数据会保留，当前插件文件会在本机备份。')) return;
       install.disabled = true; notes.disabled = true;
       const progress = body.createEl('p', { cls:PLUGIN_ID + '-update-progress' });
       try {
@@ -126,7 +126,7 @@ class CockpitUpdateModal extends CockpitModal {
   renderInstalled(version) {
     const en = this.language === 'en'; const body = this.renderShell(en ? 'Update installed' : '更新已安装');
     body.createDiv({ cls:PLUGIN_ID + '-update-status success', text:(en ? 'Cockpit v' : 'Cockpit v') + version + (en ? ' is ready.' : ' 已准备就绪。') });
-    body.createEl('p', { text:en ? 'Reload the app to activate the new version. Your settings were preserved.' : '重载应用后启用新版本；所有设置均已保留。' });
+    body.createEl('p', { text:en ? 'Reload the app to activate the new version.' : '重载应用后启用新版本。' });
     const actions = body.createDiv({ cls:PLUGIN_ID + '-update-actions' });
     actions.createEl('button', { text:en ? 'Later' : '稍后' }).onclick = () => this.close();
     actions.createEl('button', { cls:'mod-cta', text:en ? 'Reload now' : '立即重载' }).onclick = () => window.location.reload();
@@ -138,7 +138,7 @@ class CockpitUpdateModal extends CockpitModal {
 async function renderUpdaterSettings(container, plugin, language) {
   const en = language === 'en'; const updater = plugin.updater;
   container.createEl('h2', { text:en ? 'Software update' : '软件更新' });
-  container.createEl('p', { text:en ? 'Updates come from this project’s GitHub Releases. Local settings and data are not replaced.' : '更新包来自当前项目的 GitHub Releases，本地设置与数据不会被覆盖。' });
+  container.createEl('p', { text:en ? 'Updates come from this project’s GitHub Releases.' : '更新包来自本项目的 GitHub Releases。' });
   if (!updater) { container.createEl('p', { text:en ? 'The update service is unavailable.' : '更新服务不可用。' }); return; }
   const config = await updater.loadConfig();
   new obs.Setting(container).setName(en ? 'Check automatically' : '自动检查更新').setDesc(en ? 'Check once every 24 hours while the app is running.' : '应用运行期间每 24 小时检查一次。').addToggle((toggle) => toggle.setValue(config.autoCheck).onChange((value) => updater.saveConfig({ autoCheck:value })));

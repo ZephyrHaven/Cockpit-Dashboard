@@ -434,7 +434,7 @@ function openWeeklyReportPreview(view, draft) {
 
   const status = panel.createDiv({ cls: PLUGIN_ID + '-report-ai-status', attr: { role: 'status', 'aria-live': 'polite' } });
   status.createSpan({ cls: PLUGIN_ID + '-report-ai-status-dot' });
-  const statusText = status.createSpan({ text: en ? 'Original report is ready. AI optimization is optional.' : '原稿已生成；AI 优化为可选操作。' });
+  const statusText = status.createSpan({ text: en ? 'Original report is ready.' : '原稿已生成。' });
 
   const tabs = panel.createDiv({ cls: PLUGIN_ID + '-report-version-tabs' });
   const originalTab = tabs.createEl('button', { cls: 'active', text: en ? 'Original' : '原稿', attr: { type: 'button', 'aria-pressed': 'true' } });
@@ -455,7 +455,7 @@ function openWeeklyReportPreview(view, draft) {
   const originalVersion = makeVersion('original', en ? 'Original report' : '原始版本', en ? 'Script output' : '脚本生成');
   const aiVersion = makeVersion('ai', en ? 'AI optimized report' : 'AI 优化版本', en ? 'Not generated' : '尚未生成');
   originalVersion.editor.value = draft.body;
-  aiVersion.editor.placeholder = en ? 'Click AI Optimize to generate a second version. Your original stays unchanged.' : '点击「AI 优化」生成第二个版本；原稿始终保持不变。';
+  aiVersion.editor.placeholder = en ? 'Click AI Optimize to generate a separate draft.' : '点击「AI 优化」生成独立草稿。';
 
   const switchPane = (pane) => {
     activePane = pane === 'ai' ? 'ai' : 'original';
@@ -599,7 +599,7 @@ function openWeeklyReportPreview(view, draft) {
           aiVersion.editor.value += event.text;
           aiVersion.editor.scrollTop = aiVersion.editor.scrollHeight;
           saveAi.disabled = true;
-          setStatus(en ? 'AI version is being generated. The original is unchanged.' : 'AI 优化稿正在生成，原稿不会被改动。', 'working');
+          setStatus(en ? 'Generating the optimized draft…' : '正在生成优化稿…', 'working');
         }
       }, abortController.signal);
       if (!aiVersion.editor.value.trim() && result?.content) aiVersion.editor.value = result.content;
@@ -614,7 +614,7 @@ function openWeeklyReportPreview(view, draft) {
       const stopped = abortController?.signal?.aborted || error?.name === 'AbortError' || error?.code === 'AI_ABORTED';
       aiVersion.card.querySelector('.' + PLUGIN_ID + '-report-version-badge')?.setText(aiVersion.editor.value.trim() ? (en ? 'Partial draft' : '未完成草稿') : (en ? 'Not generated' : '尚未生成'));
       setStatus(stopped
-        ? (en ? 'AI optimization stopped. The original is safe; you can retry.' : '已停止 AI 优化；原稿未受影响，可以重新尝试。')
+        ? (en ? 'Optimization stopped. You can run it again.' : '已停止，可重新优化。')
         : ((en ? 'AI optimization failed: ' : 'AI 优化失败：') + (error?.message || error)), stopped ? '' : 'error');
     } finally {
       abortController = null;
@@ -661,8 +661,8 @@ function buildWeeklyReportModule(view, root, options = {}) {
     headerCopy.createDiv({ cls: PLUGIN_ID + '-report-studio-label', text: en
       ? records.length + ' report config' + (records.length === 1 ? '' : 's')
       : records.length + ' 条周报配置' });
-    const add = header.createEl('button', { cls: 'primary', text: '+ ' + (en ? 'New record' : '新增配置'), attr: { type: 'button' } });
-    add.onclick = () => openWeeklyReportRecordEditor(view, null, () => render());
+    cockpitCreateModuleAction(header, 'plus', en ? 'New record' : '新增配置',
+      () => openWeeklyReportRecordEditor(view, null, render));
 
     if (!records.length) {
       body.createDiv({ cls: PLUGIN_ID + '-scheduler-empty', text: en

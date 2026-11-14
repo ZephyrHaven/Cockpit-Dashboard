@@ -235,19 +235,11 @@ function openStorageMigration(view) {
   makeCockpitDialogDraggable(panel, head, { label:en ? 'Drag data migration window' : '拖动数据迁移窗口' });
   const hero = panel.createDiv({ cls:PID + '-storage-guide' });
   const badge = hero.createDiv({ cls:PID + '-storage-badge', text:en?'Checking…':'正在检查…' });
-  hero.createDiv({ cls:PID + '-storage-guide-title', text:en?'Move internal settings out of visible _data files':'把内部设置从可见的 _data 文件迁移出去' });
-  hero.createDiv({ cls:PID + '-storage-guide-copy', text:en?'Migration copies bookmarks and Toolbar configuration into the plugin’s private data.json. Todos and focus history remain readable Markdown. Nothing is deleted automatically.':'迁移会把收藏和 Toolbar 配置复制到插件私有的 data.json。待办和专注历史仍保留为可读 Markdown，任何旧文件都不会被自动删除。' });
-  const steps = panel.createDiv({ cls:PID + '-storage-steps' });
-  [
-    en?'1. Check the existing bookmark and Toolbar files.':'1. 检查现有收藏和 Toolbar 配置文件。',
-    en?'2. Copy their current contents into Storage V2.':'2. 把当前内容安全复制到 Storage V2。',
-    en?'3. Set storageMigrationCompleted = true only after the copy succeeds.':'3. 只有复制成功后才写入 storageMigrationCompleted = true。',
-    en?'4. Future writes use the new storage; old files remain as a backup until you choose cleanup.':'4. 后续只写新存储；旧文件继续作为备份，直到你主动清理。'
-  ].forEach((text) => steps.createDiv({ cls:PID + '-storage-step', text }));
+  hero.createDiv({ cls:PID + '-storage-guide-copy', text:en?'Move bookmarks and toolbar settings to data.json. The original configuration files are kept as a backup.':'将收藏和工具栏配置迁移到 data.json，旧配置文件保留为备份。' });
   const statusEl = panel.createDiv({ cls: PID + '-storage-status', text: en ? 'Loading migration status…' : '正在读取迁移状态…' });
-  const warning = panel.createDiv({ cls: PID + '-storage-warning', text: en ? 'Safe by default: migration copies data and never removes todos, focus history, or old files.' : '默认安全：迁移只复制数据，不会删除待办、专注历史或任何旧文件。' });
   const actions = panel.createDiv({ cls: PID + '-storage-actions' });
-  const migrateBtn = actions.createEl('button', { cls:PID + '-storage-migrate-btn', text: en ? 'Start safe migration' : '开始安全迁移', attr:{type:'button'} });
+  const startLabel = en ? 'Start migration' : '开始迁移';
+  const migrateBtn = actions.createEl('button', { cls:PID + '-storage-migrate-btn', text:startLabel, attr:{type:'button'} });
   const exportBtn = actions.createEl('button', { text: en ? 'Copy export JSON' : '复制导出 JSON', attr:{type:'button'} });
   const cleanupBtn = actions.createEl('button', { text: en ? 'Clean migrated legacy files' : '清理已迁移旧文件', attr:{type:'button'} });
   const advanced = panel.createEl('details', { cls:PID + '-storage-advanced' });
@@ -264,11 +256,11 @@ function openStorageMigration(view) {
       ? (en?'Storage V2 is active. New bookmark and Toolbar writes now go only to data.json.':'Storage V2 已启用，新的收藏和 Toolbar 配置只会写入 data.json。')
       : (en?'Legacy mode is active. Bookmarks and Toolbar configuration still read and write the old _data files.':'当前仍是旧版存储模式，收藏和 Toolbar 配置继续读写原来的 _data 文件。');
     migrateBtn.disabled = status.migrated;
-    migrateBtn.textContent = status.migrated ? (en?'Migration completed':'迁移已完成') : (en?'Start safe migration':'开始安全迁移');
+    migrateBtn.textContent = status.migrated ? (en?'Migration completed':'迁移已完成') : startLabel;
     cleanupBtn.disabled = !status.migrated;
   };
   migrateBtn.onclick = async () => {
-    if (!window.confirm(en?'Start migration now? Existing files will be copied and kept unchanged.':'现在开始迁移？现有文件只会被复制，并保持原样。')) return;
+    if (!window.confirm(en?'Move bookmarks and toolbar settings to data.json?':'将收藏和工具栏配置迁移到 data.json？')) return;
     migrateBtn.disabled = true;
     message.textContent = en?'Copying current data…':'正在复制当前数据…';
     try {
@@ -277,7 +269,7 @@ function openStorageMigration(view) {
       await refreshStatus();
       setTimeout(async () => { overlay.remove(); await view._renderDashboard(true); }, 500);
     } catch (e) {
-      message.textContent = en?'Migration failed. Legacy mode remains active and no old files were deleted.':'迁移失败，仍保持旧版存储模式，旧文件没有被删除。';
+      message.textContent = en?'Migration could not finish. Reopen this window to check its status.':'迁移未能完成，请重新打开此窗口查看状态。';
       migrateBtn.disabled = false;
     }
   };

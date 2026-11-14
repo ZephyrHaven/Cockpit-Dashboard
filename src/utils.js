@@ -1,5 +1,13 @@
 // utils.js — 工具函数
 
+function cockpitCreateModuleAction(parent, icon, label, onClick) {
+  const button = parent.createEl('button', { cls:PLUGIN_ID + '-module-action', attr:{ type:'button' } });
+  obs.setIcon(button.createSpan({ attr:{ 'aria-hidden':'true' } }), icon);
+  button.createSpan({ text:label });
+  button.onclick = onClick;
+  return button;
+}
+
 function fmtDate(d, lang = DEFAULT_LANG) {
   if (!d) return '';
   const locale = normalizeLang(lang);

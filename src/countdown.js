@@ -339,11 +339,12 @@ async function openCountdownEditor(view, raw, onSaved, options = {}) {
 
 async function buildCountdownModule(view, root) {
   const en = view._lang() === 'en'; const service = view._plugin.countdowns;
-  const title = root.createDiv({ cls:PLUGIN_ID + '-section-title ' + PLUGIN_ID + '-countdown-title' }); title.dataset.section = 'countdowns-title';
-  title.createSpan({ text:view._t('sections.countdowns') });
-  const add = title.createEl('button',{cls:PLUGIN_ID+'-countdown-add',attr:{type:'button','aria-label':en?'New countdown':'新建倒计时'}}); obs.setIcon(add,'plus');
+  const title = root.createDiv({ cls:PLUGIN_ID + '-section-title', text:view._t('sections.countdowns') });
+  title.dataset.section = 'countdowns-title';
   const content = root.createDiv({ cls:PLUGIN_ID + '-countdowns' }); content.dataset.section = 'countdowns-body';
-  const updateClocks = () => content.querySelectorAll('[data-countdown-id]').forEach((card) => {
+  const controls = content.createDiv({ cls:PLUGIN_ID + '-module-actions' });
+  const list = content.createDiv({ cls:PLUGIN_ID + '-countdown-list' });
+  const updateClocks = () => list.querySelectorAll('[data-countdown-id]').forEach((card) => {
     const item = card._countdown; const state = countdownState(item); if (!state) return;
     const remaining = card.querySelector('[data-role="remaining"]'); const progress = card.querySelector('[data-role="progress"]');
     const progressValue = card.querySelector('[data-role="progress-value"]'); const progressNow = card.querySelector('[data-role="progress-now"]');
@@ -362,17 +363,17 @@ async function buildCountdownModule(view, root) {
     card.classList.toggle('is-urgent', !state.finished && state.remainingMs <= 86400000);
   });
   const render = async () => {
-    const items = await service.load(); content.empty();
+    const items = await service.load(); list.empty();
     if (!items.length) {
-      const empty = content.createDiv({cls:PLUGIN_ID+'-countdown-empty'}); obs.setIcon(empty.createSpan(),'timer-reset');
+      const empty = list.createDiv({cls:PLUGIN_ID+'-countdown-empty'}); obs.setIcon(empty.createSpan(),'timer-reset');
       empty.createDiv({text:en?'No countdowns yet':'还没有倒计时'});
-      empty.createEl('button',{text:en?'Create countdown':'创建倒计时',attr:{type:'button'}}).onclick=()=>openCountdownEditor(view,null,render); return;
+      return;
     }
     items.slice().sort((a,b)=>{
       const aState=countdownState(a), bState=countdownState(b); const aRank=(a.enabled?0:2)+(aState?.finished?1:0), bRank=(b.enabled?0:2)+(bState?.finished?1:0);
       return aRank-bRank || new Date(a.targetAt)-new Date(b.targetAt);
     }).forEach((item) => {
-      const state = countdownState(item); const card = content.createDiv({cls:PLUGIN_ID+'-countdown-card'+(item.enabled?'':' disabled')+(state?.finished?' finished':'')+(!state?.finished&&state?.remainingMs<=86400000?' is-urgent':''),attr:{'data-countdown-id':item.id}}); card._countdown = item;
+      const state = countdownState(item); const card = list.createDiv({cls:PLUGIN_ID+'-countdown-card'+(item.enabled?'':' disabled')+(state?.finished?' finished':'')+(!state?.finished&&state?.remainingMs<=86400000?' is-urgent':''),attr:{'data-countdown-id':item.id}}); card._countdown = item;
       const top = card.createDiv({cls:PLUGIN_ID+'-countdown-card-top'}); const meta = top.createDiv({cls:PLUGIN_ID+'-countdown-meta'});
       meta.createDiv({cls:PLUGIN_ID+'-countdown-name',text:item.name});
       meta.createDiv({cls:PLUGIN_ID+'-countdown-target',text:(en?'Target: ':'目标：')+new Date(item.targetAt).toLocaleString(en?'en-US':'zh-CN',{hour12:false})});
@@ -416,7 +417,7 @@ async function buildCountdownModule(view, root) {
       const remove=actions.createEl('button',{attr:{type:'button','aria-label':en?'Delete':'删除'}});obs.setIcon(remove,'trash-2');remove.onclick=async(event)=>{event.preventDefault();event.stopPropagation();if(window.confirm(en?'Delete this countdown?':'删除这个倒计时？'))await service.remove(item.id);};
     }); updateClocks();
   };
-  add.onclick=(event)=>{event.preventDefault();event.stopPropagation();openCountdownEditor(view,null,render);};
+  cockpitCreateModuleAction(controls, 'plus', en ? 'New countdown' : '新建倒计时', () => openCountdownEditor(view, null, render));
   view._countdownUnsubscribe?.(); view._countdownUnsubscribe=service.subscribe(()=>render().catch((e)=>console.warn('Cockpit countdown render failed',e)));
   if (view._countdownDisplayTimer) clearInterval(view._countdownDisplayTimer); view._countdownDisplayTimer=window.setInterval(updateClocks,1000);
   await render(); view._makeModuleCollapsible('countdowns',title,content); return content;

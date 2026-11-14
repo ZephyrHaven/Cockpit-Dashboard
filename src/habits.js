@@ -6,12 +6,8 @@ async function buildHabitsModule(view, root) {
   const t = (key, vars) => view._t(key, vars);
   const vault = view.app.vault;
 
-  // 与 stats/cats 相同的标题写法：裸文本节点 + 按钮子元素，支持模块重命名。
-  const title = root.createDiv({ cls: PLUGIN_ID + '-section-title ' + PLUGIN_ID + '-habits-title', text: t('sections.habits') });
+  const title = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: t('sections.habits') });
   title.dataset.section = 'habits-title';
-  const addBtn = title.createEl('button', { cls: PLUGIN_ID + '-alarm-add', attr: { type:'button', title:en?'New habit':'新建习惯', 'aria-label':en?'New habit':'新建习惯' } });
-  obs.setIcon(addBtn, 'plus');
-
   const body = root.createDiv({ cls: PLUGIN_ID + '-habits' });
   body.dataset.section = 'habits-body';
 
@@ -38,6 +34,29 @@ async function buildHabitsModule(view, root) {
       } catch (e) { console.warn('Cockpit habit id migration failed', e); }
     }
     body.empty();
+
+    const addRow = body.createDiv({ cls: PLUGIN_ID + '-habit-add-row' });
+    const input = addRow.createEl('input', { cls: PLUGIN_ID + '-habit-add-input', attr: { type:'text', maxlength:'60', 'aria-label':en?'Habit name':'习惯名称', placeholder:en?'New habit, e.g. Read 30 min':'新习惯，例如：阅读 30 分钟' } });
+    const submit = async () => {
+      const name = normalizeHabitName(input.value);
+      if (!name) { input.focus(); return; }
+      const icons = ['📚','🏃','💧','🧘','💪','🌱','🎸','🛏️','✍️','☀️'];
+      const outcome = await mutateHabits(vault, (list) => {
+        if (list.some((item) => item.name === name)) return false;
+        list.push({ id:habitId(), name, icon:icons[list.length % icons.length], created:window.moment().format('YYYY-MM-DD'), log:[], _extraMeta:[] });
+        return true;
+      });
+      if (!outcome.saved) {
+        if (outcome.habits && outcome.habits.some((item) => item.name === name)) new obs.Notice(en ? 'This habit already exists.' : '已经存在同名习惯。');
+        else notifyFail();
+        return;
+      }
+      input.value = '';
+      render();
+      view._refreshWeeklyReviewRef?.();
+    };
+    input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); submit(); } });
+    cockpitCreateModuleAction(addRow, 'plus', en ? 'New habit' : '新建习惯', submit);
 
     const streakOf = (habit) => computeStreak(habit.log || [], window.moment());
     const doneToday = (habit) => (habit.log || []).includes(todayKey);
@@ -144,39 +163,6 @@ async function buildHabitsModule(view, root) {
       icon.setAttribute('aria-label', (doneToday(habit) ? (en ? 'Undo today' : '取消今日打卡') : (en ? 'Check in today' : '今日打卡')));
       icon.classList.add('clickable');
     });
-
-    // 底部快速新增：输入名称回车即创建，图标自动轮换分配。
-    const addRow = body.createDiv({ cls: PLUGIN_ID + '-habit-add-row' });
-    const input = addRow.createEl('input', { cls: PLUGIN_ID + '-habit-add-input', attr: { type:'text', maxlength:'60', placeholder:en?'New habit, e.g. Read 30 min':'新习惯，例如：阅读 30 分钟' } });
-    const ok = addRow.createEl('button', { cls: PLUGIN_ID + '-todo-input-ok', text:'+', attr:{ type:'button', title:en?'Add habit':'添加习惯' } });
-    const submit = async () => {
-      const name = normalizeHabitName(input.value);
-      if (!name) return;
-      const icons = ['📚','🏃','💧','🧘','💪','🌱','🎸','🛏️','✍️','☀️'];
-      const outcome = await mutateHabits(vault, (list) => {
-        if (list.some((item) => item.name === name)) return false;
-        list.push({ id:habitId(), name, icon:icons[list.length % icons.length], created:window.moment().format('YYYY-MM-DD'), log:[], _extraMeta:[] });
-        return true;
-      });
-      if (!outcome.saved) {
-        if (outcome.habits && outcome.habits.some((item) => item.name === name)) new obs.Notice(en ? 'This habit already exists.' : '已经存在同名习惯。');
-        else notifyFail();
-        return;
-      }
-      input.value = '';
-      render();
-      view._refreshWeeklyReviewRef?.();
-    };
-    input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); submit(); } });
-    ok.onclick = submit;
-  };
-
-  addBtn.onclick = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const input = body.querySelector('.' + PLUGIN_ID + '-habit-add-input');
-    if (input) { input.focus(); return; }
-    render().then(() => body.querySelector('.' + PLUGIN_ID + '-habit-add-input')?.focus()).catch(() => {});
   };
 
   view._refreshHabitsRef = render;

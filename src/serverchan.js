@@ -629,7 +629,7 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
       .setName(en ? 'Target calendar' : '目标日历')
       .setDesc(appleSupported
         ? (en ? 'Usually configured automatically. Read or switch calendars here only when you want an advanced override.' : '通常会自动配置；只有需要手动切换目标时，才使用这里的读取和选择功能。')
-        : (en ? 'This feature requires the Mac desktop app.' : '此功能仅支持 Mac 桌面端，其他平台不会执行系统命令。'));
+        : (en ? 'This feature requires the Mac desktop app.' : '仅支持 Mac 桌面端。'));
     targetSetting.addDropdown((dropdown) => {
       dropdown.addOption('', en ? 'Not selected' : '未选择');
       cachedCalendars.forEach((calendar) => dropdown.addOption(calendar.id, calendar.name));

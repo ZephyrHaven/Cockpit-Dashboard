@@ -400,23 +400,14 @@ function openAlarmEditor(view, alarm, onSaved, linkedTodo) {
 async function buildAlarmModule(view, root) {
   const en = view._lang() === 'en';
   const service = view._plugin.alarms;
-  const title = root.createDiv({ cls:PLUGIN_ID + '-section-title ' + PLUGIN_ID + '-alarm-title' });
+  const title = root.createDiv({ cls:PLUGIN_ID + '-section-title', text:view._t('sections.alarms') });
   title.dataset.section = 'alarms-title';
-  title.createSpan({ text:view._t('sections.alarms') });
-  const titleActions = title.createDiv({cls:PLUGIN_ID + '-alarm-title-actions'});
-  const settingsButton = titleActions.createEl('button', {cls:PLUGIN_ID + '-alarm-add', attr:{type:'button', title:en ? 'Alarm reminder settings' : '闹钟提醒设置', 'aria-label':en ? 'Alarm reminder settings' : '闹钟提醒设置', 'aria-expanded':'false'}});
-  obs.setIcon(settingsButton, 'sliders-horizontal');
-  const add = titleActions.createEl('button', { cls:PLUGIN_ID + '-alarm-add', attr:{type:'button', title:en ? 'New alarm' : '新建闹钟', 'aria-label':en ? 'New alarm' : '新建闹钟'} });
-  obs.setIcon(add, 'plus');
-  [settingsButton,add].forEach((button) => button.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
-  }));
   const content = root.createDiv({ cls:PLUGIN_ID + '-alarms' });
   content.dataset.section = 'alarms-body';
+  const controls = content.createDiv({ cls:PLUGIN_ID + '-module-actions' });
   const settingsPanel = content.createDiv({cls:PLUGIN_ID + '-alarm-settings'});
   settingsPanel.hidden = true;
   settingsPanel.id = PLUGIN_ID + '-alarm-settings-' + Math.random().toString(36).slice(2,8);
-  settingsButton.setAttribute('aria-controls', settingsPanel.id);
   const modeField = settingsPanel.createEl('label', {cls:PLUGIN_ID + '-alarm-settings-field'});
   modeField.createSpan({text:en ? 'Reminder display' : '提醒显示方式'});
   const modeSelect = modeField.createEl('select', {attr:{'aria-label':en ? 'Reminder display' : '提醒显示方式'}});
@@ -431,15 +422,13 @@ async function buildAlarmModule(view, root) {
   const settingsError = settingsPanel.createDiv({cls:PLUGIN_ID + '-alarm-settings-error',attr:{'aria-live':'polite'}});
   let currentSettings = normalizeAlarmReminderSettings(null), settingBusy = false, renderEpoch = 0;
   const list = content.createDiv({cls:PLUGIN_ID + '-alarm-list'});
-  settingsButton.onclick = (event) => {
-    event.preventDefault(); event.stopPropagation();
+  const settingsButton = cockpitCreateModuleAction(controls, 'sliders-horizontal', en ? 'Reminder settings' : '提醒设置', () => {
     settingsPanel.hidden = !settingsPanel.hidden;
     settingsButton.setAttribute('aria-expanded', String(!settingsPanel.hidden));
-    if (!settingsPanel.hidden) {
-      if (title.getAttribute('aria-expanded') === 'false') title.click();
-      modeSelect.focus();
-    }
-  };
+    if (!settingsPanel.hidden) modeSelect.focus();
+  });
+  settingsButton.setAttribute('aria-expanded', 'false');
+  settingsButton.setAttribute('aria-controls', settingsPanel.id);
   modeSelect.onchange = async () => {
     const selectedMode = modeSelect.value;
     settingBusy = true; modeSelect.disabled = settingsPreview.disabled = true; settingsError.textContent = '';
@@ -458,7 +447,6 @@ async function buildAlarmModule(view, root) {
       const empty = list.createDiv({ cls:PLUGIN_ID + '-alarm-empty' });
       obs.setIcon(empty.createSpan(), 'alarm-clock');
       empty.createDiv({ text:en ? 'No alarms yet' : '还没有闹钟' });
-      empty.createEl('button', { text:en ? 'Create alarm' : '创建闹钟', attr:{type:'button'} }).onclick = () => openAlarmEditor(view, null, render);
       return;
     }
     const sorted = alarms.slice().sort((a, b) => (nextAlarmOccurrence(a)?.getTime() || Infinity) - (nextAlarmOccurrence(b)?.getTime() || Infinity));
@@ -485,7 +473,7 @@ async function buildAlarmModule(view, root) {
       remove.onclick = async () => { if (window.confirm(en ? 'Delete this alarm?' : '删除这个闹钟？')) { await service.remove(alarm.id); render(); } };
     });
   };
-  add.onclick = (event) => { event.preventDefault(); event.stopPropagation(); openAlarmEditor(view, null, render); };
+  cockpitCreateModuleAction(controls, 'plus', en ? 'New alarm' : '新建闹钟', () => openAlarmEditor(view, null, render));
   view._alarmUnsubscribe?.();
   view._alarmUnsubscribe = service.subscribe(() => render().catch((e) => console.warn('Cockpit alarm render failed', e)));
   await render();

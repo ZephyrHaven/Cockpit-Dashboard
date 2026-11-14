@@ -19,8 +19,9 @@ class Modal { constructor(app) {this.app=app;this.modalEl=new Element('div',{cls
 const notices=[];
 const body=new Element(); body.classList={add(){},remove(){}};
 const ctx=vm.createContext({console,require,Buffer,setTimeout,clearTimeout,document:{body},obs:{Modal,Notice:class{constructor(message){notices.push(message);}},ItemView:class{},Plugin:class{}},PLUGIN_ID:'cockpit-dashboard',module:{exports:{}}, navigator:{clipboard:{writeText:async()=>{}}},loadTodos:async()=>[{text:'Personal secret',done:false,tags:[],priority:'mid'}]});
+ctx.obs.setIcon=()=>{};
+for(const name of ['utils','modal-motion','lan-sync-core','team-sync-core','team-sync-ui','team-todos','_framework']) vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/'+name+'.js'),'utf8'),ctx);
 ctx.makeCockpitDialogDraggable=(panel,handle)=>{ panel.dataset.cockpitDragBound='true'; return ()=>{ delete panel.dataset.cockpitDragBound; }; };
-for(const name of ['modal-motion','lan-sync-core','team-sync-core','team-sync-ui','team-todos','_framework']) vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/'+name+'.js'),'utf8'),ctx);
 vm.runInContext('this.build = buildTeamTodosModule;this.Editor = CockpitTeamEditorModal;this.Manager = CockpitTeamModal;this.Share = CockpitTeamShareModal;this.Approval = CockpitTeamApprovalModal;this.policyFields = teamSyncPolicyFields;this.normalizePolicy = teamSyncPolicy;this.registry = CockpitView.prototype._moduleRegistry;',ctx);
 const A='a'.repeat(32),B='b'.repeat(32),T='d'.repeat(32);
 const now=Date.now();
@@ -37,7 +38,7 @@ const view={app:{},_plugin:{teamSync:service},_lang:()=> 'zh-CN',_t:key=>key,_ma
   assert.equal(module.collapsible,true);assert.ok(module.matches(view.collapse.title));assert.ok(module.matches(view.collapse.body));
   assert.ok(root.all().some(el=>el.text.includes('来源：Bob')));
   assert.equal(listeners.size,1);
-  const toolbarButton=root.all().find(el=>el.text==='+');
+  const toolbarButton=view.collapse.body.querySelectorAll('.cockpit-dashboard-module-action').find(button=>button.children.some(child=>child.text==='新增团队待办'));
   assert.ok(toolbarButton,'Team creation belongs to the team toolbar');
   service.status='Sync heartbeat';for(const listener of listeners)listener();
   assert.ok(root.all().includes(toolbarButton),'A heartbeat must preserve toolbar DOM and focus');
@@ -47,7 +48,7 @@ const view={app:{},_plugin:{teamSync:service},_lang:()=> 'zh-CN',_t:key=>key,_ma
   record.value.text='Team sample';record.revision=1;
   await ctx.build(view,new Element());assert.equal(listeners.size,1,'Rebuilding must remove the old subscription');
   host=false;const readOnly=new Element();await ctx.build(view,readOnly);
-  assert.ok(!readOnly.all().some(el=>['编辑','删除','新建团队待办'].includes(el.text)));
+  assert.ok(!readOnly.all().some(el=>['编辑','删除','新增团队待办'].includes(el.text)));
   assert.equal(readOnly.all().find(el=>el.className==='cockpit-dashboard-todo-chk').disabled,true);
   // The editor keeps typed content when network listeners refresh a different subtree.
   host=true;const editor=new ctx.Editor({},service,record);service.modals.add(editor);editor.open();

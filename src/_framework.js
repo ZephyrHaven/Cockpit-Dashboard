@@ -95,7 +95,7 @@ class CockpitView extends obs.ItemView {
       { id:'calendar', label:this._t('layout.modules.calendar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-cal-wrap') || el.classList.contains(PLUGIN_ID + '-cal-detail') || el.classList.contains(PLUGIN_ID + '-cal-split-resize') },
       { id:'cats', label:this._t('sections.cats'), collapsible:true, matches:(el) => el.dataset.section === 'cats-title' || el.classList.contains(PLUGIN_ID + '-cats') },
       { id:'stats', label:this._t('sections.stats'), collapsible:true, matches:(el) => el.dataset.section === 'stats-title' || el.classList.contains(PLUGIN_ID + '-stats') },
-      { id:'todos', label:this._t('sections.todos'), collapsible:true, matches:(el) => el.classList.contains(PLUGIN_ID + '-todo-header') || el.dataset.section === 'todos-body' },
+      { id:'todos', label:this._t('sections.todos'), collapsible:true, matches:(el) => el.dataset.section === 'todos-title' || el.dataset.section === 'todos-body' },
       { id:'teamTodos', label:this._lang() === 'en' ? 'Team tasks' : '团队待办', collapsible:true, matches:(el) => el.dataset.section === 'teamTodos-title' || el.dataset.section === 'teamTodos-body' },
       { id:'habits', label:this._t('layout.modules.habits'), collapsible:true, matches:(el) => el.dataset.section === 'habits-title' || el.dataset.section === 'habits-body' || el.classList.contains(PLUGIN_ID + '-habits') },
       { id:'projects', label:this._t('layout.modules.projects'), collapsible:true, matches:(el) => el.dataset.section === 'projects-title' || el.dataset.section === 'projects-body' || el.classList.contains(PLUGIN_ID + '-projects') },
@@ -133,7 +133,7 @@ class CockpitView extends obs.ItemView {
     return this._customModuleLabels?.[id] || this._moduleRegistry().find((module) => module.id === id)?.label || id;
   }
   _moduleTitleElement(wrapper) {
-    return wrapper?.querySelector('[data-section$="-title"], .' + PLUGIN_ID + '-todo-header .' + PLUGIN_ID + '-section-title') || null;
+    return wrapper?.querySelector('[data-section$="-title"]') || null;
   }
   _applyCustomModuleTitle(wrapper, moduleId) {
     const title = this._moduleTitleElement(wrapper);
@@ -431,7 +431,7 @@ class CockpitView extends obs.ItemView {
     return true;
   }
   async _deletePresetToolbarAction(action) {
-    if (!['hermes', 'cockpit-h5', 'work-log'].includes(action)) return;
+    if (action !== 'work-log') return;
     this._deletedToolbarActions.add(action);
     this._hiddenToolbarActions.delete(action);
     await this._mutatePluginData((data) => {
@@ -613,9 +613,15 @@ class CockpitView extends obs.ItemView {
     this._todos = loaded ?? ensureTodoIds(DEFAULT_TODOS.map(t=>({...t})));
     this._bookmarks = new Set(await this._storage.loadBookmarks());
 
-    // 同步 Hermes 功能待办到库内待办；文件已存在且无内置功能待办时跳过，
-    // 避免每次重载都多一轮文件读取。
-    if (loaded === null || HERMES_TODOS.length) await syncHermesTodos(this.app.vault, this._todos);
+    if (loaded === null && this._todos.length) {
+      const vault = this.app.vault;
+      const seeded = await mutateTodos(vault, (todos) => {
+        if (vault.getAbstractFileByPath(TODO_FILE)) return false;
+        todos.push(...this._todos.map((todo) => ({ ...todo })));
+        return true;
+      });
+      if (seeded.todos) this._todos = seeded.todos;
+    }
 
     // 加载用户自定义名称 + 初始化首次使用日期
     this._glassCardsEnabled = false;
@@ -657,7 +663,7 @@ class CockpitView extends obs.ItemView {
       this._collapsed = pluginData?.collapsed || {};
       this._moduleOrder = this._normalizeModuleOrder(pluginData?.moduleOrder);
       this._hiddenModules = new Set(this._normalizeModuleSubset(pluginData?.hiddenModules));
-      this._deletedToolbarActions = new Set((Array.isArray(pluginData?.deletedToolbarActions) ? pluginData.deletedToolbarActions : []).filter((action) => ['hermes','cockpit-h5','work-log'].includes(action)));
+      this._deletedToolbarActions = new Set((Array.isArray(pluginData?.deletedToolbarActions) ? pluginData.deletedToolbarActions : []).filter((action) => action === 'work-log'));
       this._hiddenToolbarActions = new Set(this._normalizeToolbarActionSubset(pluginData?.hiddenToolbarActions));
       this._customToolbarButtons = normalizeCustomToolbarButtons(pluginData?.customToolbarButtons);
       const workspaceState = pluginData?.workspaceState && typeof pluginData.workspaceState === 'object' ? pluginData.workspaceState : {};
@@ -1329,13 +1335,12 @@ class CockpitView extends obs.ItemView {
     const updateStats = cockpitBuildStatsSection(this, root, sectionCtx);
 
     // ===== 5. TODOs =====
-    const todoHeader = root.createDiv({ cls: PLUGIN_ID+'-todo-header' });
-    const todoTitleEl = todoHeader.createDiv({ cls: PLUGIN_ID+'-section-title', text: t('sections.todos') });
+    const todoTitleEl = root.createDiv({ cls: PLUGIN_ID+'-section-title '+PLUGIN_ID+'-todo-header', text: t('sections.todos') });
     todoTitleEl.dataset.section = 'todos-title';
-    const addBtn = todoHeader.createEl('button', { cls: PLUGIN_ID+'-todo-add', text:'+', attr:{title:t('todo.add')} });
-    const refreshBtn = todoHeader.createEl('button', { cls: PLUGIN_ID+'-todo-add', text:'↻', attr:{title:t('todo.refresh')} });
     const todoWrap = root.createDiv();
     todoWrap.dataset.section = 'todos-body';
+    const todoActions = todoWrap.createDiv({ cls: PLUGIN_ID+'-module-actions' });
+    const tabsWrap = todoWrap.createDiv({ cls: PLUGIN_ID+'-todo-tabs-wrap' });
     const todayBar = todoWrap.createDiv({ cls: PLUGIN_ID+'-today-bar' });
     const todosEl = todoWrap.createDiv({ cls: PLUGIN_ID+'-todos' });
 
@@ -1348,7 +1353,7 @@ class CockpitView extends obs.ItemView {
       { key:'todo', label:t('todo.todo') },
       { key:'done', label:t('todo.done') }
     ];
-    const statusSelectWrap = todoHeader.createDiv({ cls: PLUGIN_ID+'-status-select-wrap' });
+    const statusSelectWrap = todoActions.createDiv({ cls: PLUGIN_ID+'-status-select-wrap' });
     obs.setIcon(statusSelectWrap.createSpan({ cls: PLUGIN_ID+'-status-select-icon' }), 'list-filter');
     const statusSelect = statusSelectWrap.createEl('select', {
       cls: PLUGIN_ID+'-status-select',
@@ -1423,13 +1428,6 @@ class CockpitView extends obs.ItemView {
       const baseTodayGroups = currentStatus === 'today' ? groupTodayTodos(this._todos.filter(todo=>!todo.tags?.includes('_archived')), todayKey) : null;
       const statusFiltered = getStatusFilteredTodos(baseTodayGroups);
 
-      // 如果没有页签容器，创建它（插在 todoHeader 之后）
-      let tabsWrap = root.querySelector('.'+PLUGIN_ID+'-todo-tabs-wrap');
-      if (!tabsWrap) {
-        tabsWrap = document.createElement('div');
-        tabsWrap.className = PLUGIN_ID+'-todo-tabs-wrap';
-        todoWrap.prepend(tabsWrap);
-      }
       const allTags = getVisibleTags(statusFiltered);
       if (currentTag !== 'all' && !allTags.includes(currentTag.replace('tag:',''))) currentTag = 'all';
       renderTabs(allTags, tabsWrap);
@@ -1720,7 +1718,7 @@ class CockpitView extends obs.ItemView {
     this._refreshTodosRef = renderTodos;
 
     // 刷新按钮：从 MD 文件重新加载数据
-    refreshBtn.onclick = async ()=>{
+    cockpitCreateModuleAction(todoActions, 'refresh-cw', t('todo.refresh'), async () => {
       const loaded = await loadTodos(this.app.vault);
       if (loaded) {
         this._todos = loaded;
@@ -1729,15 +1727,11 @@ class CockpitView extends obs.ItemView {
       }
       // loadTodos 已在同一队列内完成旧格式 ID 的一次性回写，无需再重复写文件。
       await renderTodos({ persist:false });
-    };
+    });
+    cockpitCreateModuleAction(todoActions, 'plus', t('todo.add'), () => openTodoEditor());
 
     await renderTodos({ persist:false });
     makeCollapsible(todoTitleEl, todoWrap, 'todos');
-
-    // 新增待办（结构化编辑器，兼容旧格式）
-    addBtn.onclick = async ()=>{
-      openTodoEditor();
-    };
 
     try { await buildTeamTodosModule(this, root); }
     catch (error) { console.warn('Cockpit team module failed; dashboard basics remain available', error); }
@@ -1754,7 +1748,7 @@ class CockpitView extends obs.ItemView {
       statusSelect.value = currentStatus;
       todoRenderLimit = 120;
       await renderTodos({ persist:false });
-      todoHeader.scrollIntoView({ behavior:'smooth', block:'start' });
+      todoTitleEl.scrollIntoView({ behavior:'smooth', block:'start' });
     };
 
     // ===== 5.3 习惯打卡（独立模块；数据在 _data/habits.md） =====
@@ -1776,7 +1770,7 @@ class CockpitView extends obs.ItemView {
           currentTag = 'tag:' + tag;
           todoRenderLimit = 120;
           renderTodos({ persist:false }).catch((err) => console.warn('Cockpit project filter failed', err));
-          todoHeader.scrollIntoView({ behavior:'smooth', block:'start' });
+          todoTitleEl.scrollIntoView({ behavior:'smooth', block:'start' });
         }
       });
     } catch (e) {
@@ -2020,12 +2014,6 @@ class CockpitView extends obs.ItemView {
     this._applyModuleLayout(root);
   }
 
-  _getToolbarCommandConfig(...names) {
-    for (const name of names) {
-      if (name && this._toolbarCmds[name]) return this._toolbarCmds[name];
-    }
-    return null;
-  }
   _isCommandMissingError(err) {
     // 通用判断：命令不存在 / 找不到可执行文件（不再针对任何写死路径做特判）。
     const code = String((err && err.code) || '').toUpperCase();
@@ -2066,51 +2054,11 @@ class CockpitView extends obs.ItemView {
       const id = String(a).slice('custom:'.length);
       return executeCustomToolbarButton(this, this._customToolbarButtons.find((button) => button.id === id));
     }
-    if (this._isMobile() && ['hermes','cockpit-h5','work-log'].includes(a)) {
-      new obs.Notice(this._t('notices.desktopOnly', { action: a }) || (this._lang() === 'en' ? 'This action is only available on desktop.' : '此功能仅在桌面端可用。'));
-      return;
-    }
-    if (a === 'hermes') {
-      (async () => {
-        try {
-          const cfg = this._getToolbarCommandConfig('Hermes', 'hermes') || {};
-          const command = String(cfg.command || '').trim();
-          if (!command) { new obs.Notice(this._t('notices.hermesMissing')); return; }
-          await this._launchInSystemTerminal(command);
-          new obs.Notice(this._t('notices.hermesStartingExternal'));
-        } catch(e) {
-          console.warn('Hermes failed', e);
-          if (this._isCommandMissingError(e)) { this._notifyCommandNeedsConfig('hermes', sourceEl); return; }
-          new obs.Notice(this._t('notices.hermesFailed', { message: e?.message || 'unknown error' }));
-        }
-      })();
-      return;
-    }
-    if (a === 'cockpit-h5') {
-      try {
-        const { exec, execFile } = require('child_process');
-        const cfg = this._toolbarCmds['驾驶舱'];
-        const cmd = cfg && cfg.command;
-        if (!cmd) { new obs.Notice(this._t('notices.cockpitMissing')); return; }
-        const url = cfg && cfg.url || DEFAULT_COCKPIT_URL;
-        exec(cmd, (err) => {
-          if (err) {
-            if (!err.message.includes('EADDRINUSE')) {
-              console.warn('驾驶舱 启动失败', err);
-              if (this._isCommandMissingError(err)) { this._notifyCommandNeedsConfig('cockpit-h5', sourceEl); return; }
-              new obs.Notice(this._t('notices.cockpitFailed', { message: err.message }));
-              return;
-            }
-          }
-          setTimeout(() => { execFile('open', [url]); }, 800);
-        });
-        new obs.Notice(this._t('notices.cockpitStarting'));
-      } catch(e) {
-        console.warn('驾驶舱 launch failed', e);
-      }
-      return;
-    }
     if (a === 'work-log') {
+      if (this._isMobile()) {
+        new obs.Notice(this._lang() === 'en' ? 'This action is only available on desktop.' : '此功能仅在桌面端可用。');
+        return;
+      }
       try {
         const { exec } = require('child_process');
         const cfg = this._toolbarCmds['工作日志'];

@@ -208,9 +208,11 @@ class FlowElement {
 const vm = require('node:vm');
 const flowContext=vm.createContext({
   PLUGIN_ID:'cockpit-dashboard', window:{moment:()=>({format:()=> '2026-11-07 12:00'})},
-  document:{createElement:()=>new FlowElement()}, formatCalendarDetailHeading:()=> 'November 7', obs:{setIcon(){}}
+  document:{createElement:()=>new FlowElement()}, obs:{setIcon(){}}
 });
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/utils.js'),'utf8'),flowContext);
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/todo-editor.js'),'utf8'),flowContext);
+flowContext.formatCalendarDetailHeading=()=> 'November 7';
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/calendar-day-flow.js'),'utf8')+';this.render=renderCalendarDayFlow;',flowContext);
 const flowHost=new FlowElement();
 const flowOptions={anchor:{parentNode:flowHost},date:{format:()=> '2026-11-07',clone(){return this;},startOf(){return this;},valueOf:()=>0,isSame:()=>true},language:'en',t:key=>key,filter:'all',todosForDate:[],rssItems:[],calendarEvents:[],automationItems:[],countdownItems:[]};

@@ -282,7 +282,7 @@ class CockpitTeamModal extends CockpitModal {
     if (service.isHost()) this.renderMembers();
     this.renderDrafts();
     if (service.isHost()) this.renderConflicts();
-    this.contentEl.createEl('p', { cls:'cockpit-lan-muted', text:'仅同步团队待办、设备来源和成员名称。授权范围外的内容不会发送；移除成员无法远程收回已下载副本。成员设备更换网络地址后，可用新邀请重新配对。' });
+    this.contentEl.createEl('p', { cls:'cockpit-lan-muted', text:'仅同步授权范围内的团队待办、设备来源和成员名称。成员设备更换网络地址后，可用新邀请重新配对。' });
     const danger = this.contentEl.createDiv({ cls:'cockpit-team-danger-zone' });
     teamSyncButton(danger, service.isHost() ? '解散本机团队' : '退出团队', () => service.openModal(new CockpitTeamConfirmModal(this.app, service,
       '将清空本机团队缓存、待提交修改和草稿，并关闭团队连接。原记录先备份到插件目录；其他电脑已有的副本不会被远程删除。', async () => { await service.leave(); this.render(); })));

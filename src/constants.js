@@ -9,8 +9,6 @@ const FOCUS_FILE = '_data/focus.md';
 const HABIT_FILE = '_data/habits.md';
 const DAILY_DIR = '_daily';
 const DATA_DIR = '_data';
-// 驾驶舱 H5 服务默认地址（可被工具栏配置覆盖）
-const DEFAULT_COCKPIT_URL = 'http://localhost:3456';
 const DEFAULT_LANG = 'zh-CN';
 const LANG_OPTIONS = [
   { code: 'zh-CN', label: '中文', short: '中文' },
@@ -73,8 +71,6 @@ const I18N = {
       command: '命令',
       ai: 'AI 助手',
       more: '更多',
-      hermes: 'Hermes',
-      cockpit: '驾驶舱',
       workLog: '工作日志',
       todayNote: '今日笔记',
       pomodoro: '番茄钟'
@@ -123,17 +119,9 @@ const I18N = {
       }
     },
     notices: {
-      hermesStarting: '🤖 Hermes 正在启动…',
-      hermesStartingExternal: '🤖 已在外部终端启动 Hermes',
-      hermesFallbackExternal: '🤖 已切换到外部终端启动 Hermes',
-      hermesFailed: ({ message }) => '🤖 Hermes 启动失败: ' + message,
-      cockpitMissing: '🛩️ 驾驶舱未配置',
-      cockpitStarting: '🛩️ 驾驶舱正在启动…',
-      cockpitFailed: ({ message }) => '🛩️ 驾驶舱启动失败: ' + message,
       workLogMissing: '📝 工作日志未配置',
       workLogFailed: ({ message }) => '📝 工作日志执行失败: ' + message,
       workLogDone: '📝 工作日志已执行完毕',
-      hermesMissing: '🤖 Hermes 未配置命令，请在工具栏设置中填写',
       commandNotAvailable: '⚙️ 命令不可用或未安装，请在弹出的工具栏设置中修改'
     },
     calendar: {
@@ -359,8 +347,6 @@ const I18N = {
       command: 'Commands',
       ai: 'AI assistant',
       more: 'More',
-      hermes: 'Hermes',
-      cockpit: 'Dashboard',
       workLog: 'Work Log',
       todayNote: 'Today note',
       pomodoro: 'Pomodoro'
@@ -409,17 +395,9 @@ const I18N = {
       }
     },
     notices: {
-      hermesStarting: '🤖 Starting Hermes…',
-      hermesStartingExternal: '🤖 Hermes opened in an external terminal',
-      hermesFallbackExternal: '🤖 Hermes fell back to an external terminal',
-      hermesFailed: ({ message }) => '🤖 Hermes failed to start: ' + message,
-      cockpitMissing: '🛩️ Dashboard command is not configured',
-      cockpitStarting: '🛩️ Launching dashboard…',
-      cockpitFailed: ({ message }) => '🛩️ Failed to launch dashboard: ' + message,
       workLogMissing: '📝 Work log command is not configured',
       workLogFailed: ({ message }) => '📝 Work log failed: ' + message,
       workLogDone: '📝 Work log finished',
-      hermesMissing: '🤖 Hermes command is not configured. Set it in the toolbar settings.',
       commandNotAvailable: '⚙️ Command unavailable or not installed. Update it in the toolbar settings that just opened.'
     },
     calendar: {
@@ -611,10 +589,6 @@ function getText(lang, key, vars) {
   if (typeof value === 'function') return value(vars || {});
   return value == null ? key : String(value);
 }
-
-// Hermes 待办同步：默认不注入任何内容。
-// 历史版本曾在这里硬编码作者个人的开发待办，会在其他用户的 vault 里凭空出现，已清空。
-const HERMES_TODOS = [];
 
 const DEFAULT_TODOS = [
   { text:'欢迎使用 Cockpit Dashboard，点击左侧圆圈即可完成这条待办', tags:['入门'], priority:'mid', dueDate:null, done:false, created:null, doneDate:null },

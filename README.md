@@ -2,7 +2,7 @@
 
 **English** | [中文](README.zh-CN.md)
 
-Cockpit Dashboard is a local-first home dashboard for Obsidian. Todos, calendar, RSS, AI assistant, focus stats and local automation live in one workbench you can rearrange freely — no account, no cloud, no telemetry.
+Cockpit Dashboard is a local-first home dashboard for Obsidian. It brings tasks, calendar, RSS, an AI assistant, focus stats and local automation into a customizable workspace.
 
 ## Highlights
 
@@ -28,8 +28,6 @@ Pair the dashboard with [Cockpit Glass](https://github.com/ZephyrHaven/cockpit-g
 
 For matching dashboard surfaces, enable **Settings → Cockpit → Appearance & motion → Unified glass appearance**. On macOS, the host’s **Translucent window** option enables native window frost. See the [theme’s installation guide](https://github.com/ZephyrHaven/cockpit-glass#readme) for platform requirements and appearance options.
 
-The theme is installed and updated separately through the theme store. Existing theme files remain in place when you upgrade the plugin.
-
 ## Glass alarm reminders
 
 Open the sliders icon in the alarm module to choose **Half screen** or **Full screen** and preview it. The choice applies to all alarms and is saved locally; existing installations keep full screen by default. Both modes use a frosted surface that obscures the content behind the reminder.
@@ -54,7 +52,7 @@ Download the reading-progress example from the store, or see the [SDK v1 guide](
 
 ## Data & privacy
 
-Everything is stored in your vault or the plugin folder. There is no telemetry, and nothing is uploaded to the developer.
+Plugin data is stored locally. The plugin collects no telemetry and sends no data to the developer.
 
 | Where | What |
 |---|---|
@@ -66,14 +64,15 @@ Everything is stored in your vault or the plugin folder. There is no telemetry, 
 | `custom-components.json`, `.backup` | Locally imported component code, enable state, runtime errors and private JSON data; uninstall can retain data for reinstall. No automatic network access or sync |
 | IndexedDB | Local RSS article cache and read state |
 
-**Network access happens only when you use the related feature:**
+**Apple Calendar (Mac only)** uses a local script to read and write calendar events. "Show system calendar events" is off by default. When enabled, it caches event titles, times, locations and calendar names locally for up to 24 hours. Click an event to create a meeting note.
+
+**Network access**
 
 - **AI** — selected note excerpts, attachments, local RAG matches or the report draft you choose are sent to the model endpoint you configure. Free-form Q&A retrieves locally and never uploads the whole vault.
 - **LAN and team sync** — tasks, bookmark paths, display name, language and the morning-brief routing choice are sent only to devices you explicitly pair, encrypted with AES-256-GCM and kept inside your local network. API keys, commands, workspace paths, AI history and note contents are excluded.
 - **Notifications and mail** — messages go only to the channels you enable (local, ServerChan³, Bark, MEOW, Resend, SMTP).
-- **Apple Calendar (Mac only)** — a fixed local script reads or writes the Calendar app after you opt in; no calendar data reaches the developer. "Show system calendar events" is off by default and caches event titles, times, locations and calendar names locally for up to 24 hours. Meeting notes are created only when you click an event.
 - **RSS** — subscribed feeds are fetched directly into a local IndexedDB cache.
-- **Updates** — a standard HTTPS request to the public GitHub Releases API at most once every 24 hours.
+- **Updates** — background checks periodically query GitHub Releases by default. Use Software update to turn them off or check manually.
 
 ## Development
 

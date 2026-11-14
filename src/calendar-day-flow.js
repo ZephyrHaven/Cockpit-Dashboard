@@ -87,8 +87,7 @@ function renderCalendarDayFlow(options) {
   title.createDiv({ cls:PLUGIN_ID + '-cal-detail-title', text:formatCalendarDetailHeading(date, language) });
   title.createDiv({ cls:PLUGIN_ID + '-cal-detail-count', text:en ? `${flowItems.length} items` : `共 ${flowItems.length} 项` });
   const actions = head.createDiv({ cls:PLUGIN_ID + '-cal-detail-actions' });
-  const add = actions.createEl('button', { cls:PLUGIN_ID + '-cal-detail-add', text:'+ ' + t('calendar.addTodo'), attr:{ type:'button' } });
-  add.onclick = () => openTodoEditor({ dueDate:date });
+  cockpitCreateModuleAction(actions, 'plus', t('calendar.addTodo'), () => openTodoEditor({ dueDate:date }));
 
   const counts = { all:flowItems.length, todo:todos.filter((todo) => !todo.teamTodo).length, teamTodo:todos.filter((todo) => todo.teamTodo).length, countdown:countdowns.length, automation:automations.length, rss:articles.length, event:events.length };
   const filters = detail.createDiv({ cls:PLUGIN_ID + '-cal-flow-filters', attr:{ role:'tablist', 'aria-label':en ? 'Filter day items' : '筛选日期事项' } });

@@ -410,11 +410,13 @@ class ScheduledTaskService {
       view = this._toolbarView();
     }
     if (!view) throw new Error('Cockpit dashboard is not available.');
+    const retired = cockpitRetiredToolbarActionMessage(actionId, view._lang() === 'en');
+    if (retired) throw new Error(retired);
     // 每次运行前读取最新配置。定时任务只保存稳定 action ID，按钮改名或脚本更新后自动使用新内容。
     const data = await this.plugin.loadData() || {};
     view._customToolbarButtons = normalizeCustomToolbarButtons(data.customToolbarButtons);
     view._deletedToolbarActions = new Set((Array.isArray(data.deletedToolbarActions) ? data.deletedToolbarActions : [])
-      .filter((action) => ['hermes','cockpit-h5','work-log'].includes(action)));
+      .filter((action) => action === 'work-log'));
     if (view._storage) view._toolbarCmds = await view._storage.loadToolbarCommands(view._defaultToolbarCommands());
     const action = scheduledToolbarActions(view).find((item) => item.id === actionId);
     if (!action) throw new Error('Toolbar action no longer exists: ' + actionId);
@@ -716,7 +718,10 @@ async function openScheduledTaskEditor(view, existing, options = {}) {
   const toolbarPicker=commandWrap.createEl('select'); toolbarPicker.createEl('option',{text:en?'Choose a Toolbar action…':'选择 Toolbar 动作…',attr:{value:''}});
   const toolbarActions=scheduledToolbarActions(view); const builtinGroup=toolbarPicker.createEl('optgroup',{attr:{label:en?'Built-in buttons':'内置按钮'}}); const customGroup=toolbarPicker.createEl('optgroup',{attr:{label:en?'Custom buttons':'自定义按钮'}});
   toolbarActions.forEach((action)=>(action.custom?customGroup:builtinGroup).createEl('option',{text:action.label,attr:{value:action.id}}));
-  if(draft.kind==='toolbar-action'&&draft.command&&!toolbarActions.some((action)=>action.id===draft.command))toolbarPicker.createEl('option',{text:(en?'Unavailable: ':'已失效：')+draft.command,attr:{value:draft.command,disabled:'disabled'}});
+  if (draft.kind === 'toolbar-action' && draft.command && !toolbarActions.some((action) => action.id === draft.command)) {
+    const message = cockpitRetiredToolbarActionMessage(draft.command, en) || (en ? 'Unavailable: ' : '已失效：') + draft.command;
+    toolbarPicker.createEl('option', { text:message, attr:{ value:draft.command, disabled:'disabled' } });
+  }
   toolbarPicker.value=draft.kind==='toolbar-action'?draft.command:''; toolbarPicker.onchange=()=>{if(toolbarPicker.value)command.value=toolbarPicker.value;};
   const workflowPicker=commandWrap.createEl('select'); workflowPicker.createEl('option',{text:en?'Choose a workflow…':'选择自动化流程…',attr:{value:''}});
   workflowOptions.forEach((item)=>workflowPicker.createEl('option',{text:item.name,attr:{value:item.id}}));
@@ -854,12 +859,10 @@ function buildScheduledTasksModule(view, root) {
   const body = root.createDiv({ cls: PLUGIN_ID + '-scheduler' });
   body.dataset.section = 'scheduled-tasks-body';
 
-  const makeControl = (parent, iconName, text, extraClass) => {
-    const button = parent.createEl('button', { cls: extraClass || '', attr: { type:'button' } });
-    const icon = button.createSpan({ cls: S + 'control-icon' });
-    obs.setIcon(icon, iconName);
-    button.createSpan({ text });
-    return button;
+  const renderControls = (parent) => {
+    const controls = parent.createDiv({ cls:PLUGIN_ID + '-module-actions' });
+    cockpitCreateModuleAction(controls, 'history', en ? 'Run history' : '运行记录', () => openScheduledTaskLogs(view));
+    cockpitCreateModuleAction(controls, 'plus', en ? 'New task' : '新建任务', () => openScheduledTaskEditor(view));
   };
 
   const render = async () => {
@@ -869,15 +872,11 @@ function buildScheduledTasksModule(view, root) {
 
     if (!tasks.length) {
       const empty = body.createDiv({ cls: S + 'empty-state' });
+      renderControls(empty);
       const icon = empty.createDiv({ cls: S + 'empty-icon' });
       obs.setIcon(icon, 'calendar-clock');
       empty.createDiv({ cls: S + 'empty-title', text: en ? 'No scheduled tasks yet' : '还没有定时任务' });
       empty.createDiv({ cls: S + 'empty-desc', text: en ? 'Let daily notes, reports and pushes run on a schedule.' : '让日志、周报和推送按计划自动执行。' });
-      const emptyActions = empty.createDiv({ cls: S + 'empty-actions' });
-      const addFirst = makeControl(emptyActions, 'plus', en ? 'Create the first task' : '新建第一个任务', 'primary');
-      addFirst.onclick = () => openScheduledTaskEditor(view);
-      const history = makeControl(emptyActions, 'history', en ? 'Run history' : '运行记录');
-      history.onclick = () => openScheduledTaskLogs(view);
       return;
     }
 
@@ -914,11 +913,7 @@ function buildScheduledTasksModule(view, root) {
     const health = side.createDiv({ cls: S + 'overview-health ' + healthKey });
     health.createSpan({ cls: S + 'overview-health-dot' });
     health.createSpan({ text: healthText });
-    const controls = side.createDiv({ cls: S + 'controls' });
-    const logs = makeControl(controls, 'history', en ? 'Run history' : '运行记录');
-    logs.onclick = () => openScheduledTaskLogs(view);
-    const add = makeControl(controls, 'plus', en ? 'New task' : '新建任务', 'primary');
-    add.onclick = () => openScheduledTaskEditor(view);
+    renderControls(side);
 
     const preview = scheduledWeekPreview(tasks, now, en);
     if (preview.some((day) => day.count)) {

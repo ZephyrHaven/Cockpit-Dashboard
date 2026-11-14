@@ -40,7 +40,7 @@ function setup(data = {}, fullscreen = 'reject') {
   const plugin={app:{workspace:{getLeavesOfType:()=>[{view:{_lang:()=> 'zh-CN'}}]}},loadData:async()=>JSON.parse(JSON.stringify(data)),mutateData:async fn=>{await fn(data);},registerInterval(){}};
   const ctx=vm.createContext({console,document,window,PLUGIN_ID:'cockpit-dashboard',VIEW_TYPE:'cockpit',DEFAULT_LANG:'zh-CN',...core,
     obs:{setIcon(){},Notice:class{}},require:()=>({}),setTimeout:fn=>{fn();return 0;},clearInterval:id=>intervals.delete(id)});
-  const api=vm.runInContext(['alarm-core.js','alarm-reminder.js','alarm.js'].map(f=>fs.readFileSync(path.join(__dirname,'../src',f),'utf8')).join('\n')+'\n({AlarmOverlayRuntime,AlarmService,buildAlarmModule})',ctx);
+  const api=vm.runInContext(['utils.js','alarm-core.js','alarm-reminder.js','alarm.js'].map(f=>fs.readFileSync(path.join(__dirname,'../src',f),'utf8')).join('\n')+'\n({AlarmOverlayRuntime,AlarmService,buildAlarmModule})',ctx);
   const runtime=new api.AlarmOverlayRuntime(plugin),service=new api.AlarmService(plugin);
   return {api,runtime,service,plugin,document,window,intervals,listeners,data,requests:()=>requests,exits:()=>exits,closedAudio:()=>closedAudio,grant:()=>resolveFullscreen?.(),
     find:(root,suffix)=>root.querySelector('.cockpit-dashboard-'+suffix),flush:async()=>{for(let i=0;i<8;i++)await Promise.resolve();}};
@@ -99,8 +99,14 @@ function setup(data = {}, fullscreen = 'reject') {
   let collapseCalls=0;
   const view={_plugin:ui.plugin,_lang:()=> 'zh-CN',_t:()=> '闹钟',_alarmUnsubscribe:null,_makeModuleCollapsible:(id,title,content)=>{collapseCalls++;assert.equal(id,'alarms');title.setAttribute('aria-expanded','false');content.style.display='none';title.addEventListener('click',()=>{title.setAttribute('aria-expanded','true');content.style.display='';});}};
   await ui.api.buildAlarmModule(view,root);
-  const settingsButton=ui.find(root,'alarm-title-actions').children[0];settingsButton.click();
-  const settings=ui.find(root,'alarm-settings');assert.equal(settings.hidden,false);assert.equal(ui.find(root,'alarms').style.display,'');
+  const title=root.children[0], content=ui.find(root,'alarms');
+  assert.equal(title.querySelector('button'),null,'The collapsed alarm title contains no action buttons.');
+  assert.equal(content.style.display,'none');
+  const controls=ui.find(content,'module-actions');
+  assert.deepEqual(controls.children.map(button=>button.children[1].textContent),['提醒设置','新建闹钟']);
+  title.click();
+  const settingsButton=controls.children[0];settingsButton.click();
+  const settings=ui.find(content,'alarm-settings');assert.equal(settings.hidden,false);assert.equal(content.style.display,'');
   const select=settings.querySelector('select');assert.equal(select.value,'half');select.value='fullscreen';await select.onchange();await ui.flush();
   assert.equal(ui.data.alarmReminderSettings.displayMode,'fullscreen');assert.equal(select.disabled,false);assert.equal(collapseCalls,1);
   const beforeFailure=select.value;ui.plugin.mutateData=async()=>{throw new Error('disk failure');};select.value='half';await select.onchange();assert.equal(select.value,beforeFailure);assert.ok(ui.find(root,'alarm-settings-error').textContent);
