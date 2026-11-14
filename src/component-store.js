@@ -5,7 +5,7 @@ const COMPONENT_STORE_META = {
   alarms:{icon:'alarm-clock',category:'focus'}, countdowns:{icon:'timer-reset',category:'focus'}, calendar:{icon:'calendar-days',category:'planning'},
   cats:{icon:'folders',category:'knowledge'}, stats:{icon:'chart-no-axes-column-increasing',category:'insights',manager:'stats'}, todos:{icon:'list-checks',category:'planning'}, teamTodos:{icon:'users',category:'team'},
   habits:{icon:'flame',category:'focus'}, projects:{icon:'target',category:'planning'}, focusChart:{icon:'chart-line',category:'insights'}, bookmarks:{icon:'star',category:'knowledge'},
-  flash:{icon:'zap',category:'knowledge'}, resurface:{icon:'history',category:'knowledge'}, heatmap:{icon:'grid-3x3',category:'insights'},
+  flash:{icon:'zap',category:'knowledge'}, resurface:{icon:'history',category:'knowledge'}, heatmap:{icon:'calendar-range',category:'insights'},
   scheduledTasks:{icon:'calendar-clock',category:'automation'}, workflows:{icon:'workflow',category:'automation'}, reportStudio:{icon:'notebook-pen',category:'insights'},
   recent:{icon:'history',category:'knowledge'}
 };
