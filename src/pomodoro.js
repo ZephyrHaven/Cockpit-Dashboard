@@ -121,7 +121,8 @@ function createPomodoro(view, root, initialTodo) {
     }
 
     const FOCUS_ACCENT = '#ff6b57';
-    const BREAK_ACCENT = '#48b4ff';
+    // 休息态跟随宿主强调色；专注态保留番茄钟自己的珊瑚色。
+    const BREAK_ACCENT = 'var(--ck-accent)';
 
     function getPomodoroCount() {
       return Math.max(0, Math.floor((self._focusMinutes || 0) / POMODORO_FOCUS_MINUTES));

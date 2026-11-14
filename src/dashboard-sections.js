@@ -283,8 +283,8 @@ function cockpitBuildHeatmapSection(view, root, ctx) {
     if (key) dayCounts[key] = (dayCounts[key]||0) + 1;
   });
   const maxCount = Math.max(1, ...Object.values(dayCounts));
-  // 5 级色阶：无→低→中→高→极高
-  const colors = ['rgba(129,140,248,0.12)','rgba(129,140,248,0.3)','rgba(129,140,248,0.5)','rgba(99,102,241,0.7)','rgba(79,70,229,0.9)'];
+  // 5 级色阶：无→低→中→高→极高，取自 styles.css 的主题 token，跟随宿主强调色
+  const colors = ['var(--ck-heat-1)','var(--ck-heat-2)','var(--ck-heat-3)','var(--ck-heat-4)','var(--ck-heat-5)'];
   const getColor = (count) => {
     if (count === 0) return 'var(--background-modifier-border)';
     if (count >= maxCount * 0.8) return colors[4];

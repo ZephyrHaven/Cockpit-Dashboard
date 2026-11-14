@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cockpit Dashboard · 主题强调色预览</title>
+<!-- 真实插件样式：从仓库根目录起静态服务（python3 -m http.server），本页位于 /preview/。 -->
+<link rel="stylesheet" href="../styles.css">
+<style>
+  /* ---- 模拟 Obsidian 宿主变量（只模拟宿主，不改插件样式） ---- */
+  body {
+    --font-interface: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    --color-accent: var(--preview-accent, #8a5cf5);
+    --interactive-accent: var(--color-accent);
+    --text-on-accent: #fff;
+    margin: 0; font-family: var(--font-interface); font-size: 16px;
+    background: var(--background-primary); color: var(--text-normal);
+  }
+  body.theme-dark {
+    --background-primary: #1e1e1e; --background-secondary: #262626; --background-modifier-border: #363636;
+    --text-normal: #dadada; --text-muted: #b3b3b3; --text-faint: #8a8a8a; --text-accent: var(--color-accent);
+  }
+  body.theme-light {
+    --background-primary: #ffffff; --background-secondary: #f6f6f6; --background-modifier-border: #e0e0e0;
+    --text-normal: #222222; --text-muted: #5c5c5c; --text-faint: #ababab; --text-accent: var(--color-accent);
+  }
+  /* ---- 仅预览页的排版（不涉及任何颜色） ---- */
+  .pv-bar { position: sticky; top: 0; z-index: 1000; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 12px 20px; background: var(--background-secondary); border-bottom: 1px solid var(--background-modifier-border); }
+  .pv-bar button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal); }
+  .pv-bar button[aria-pressed="true"] { outline: 2px solid var(--text-normal); outline-offset: 1px; }
+  .pv-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .pv-sep { width: 1px; align-self: stretch; background: var(--background-modifier-border); margin: 0 6px; }
+  .pv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+  .pv-card { position: relative; padding: 16px; border: 1px solid var(--background-modifier-border); border-radius: 12px; min-height: 120px; }
+  .pv-card h3 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+  .pv-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .pv-card .cockpit-dashboard-scene-menu { position: relative; top: auto; right: auto; }
+  .pv-card .cockpit-dashboard-ai-launcher { position: relative; right: auto; bottom: auto; }
+  .pv-card .cockpit-dashboard-cal-rss-btn { min-height: 30px; }
+  .pv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pv-table th, .pv-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--background-modifier-border); }
+  .pv-pass { font-weight: 600; } .pv-fail { font-weight: 700; text-decoration: underline wavy; }
+</style>
+</head>
+<body class="theme-dark">
+<div class="pv-bar" role="toolbar" aria-label="预览控制">
+  <button type="button" data-theme="theme-dark" aria-pressed="true">深色</button>
+  <button type="button" data-theme="theme-light" aria-pressed="false">浅色</button>
+  <span class="pv-sep"></span>
+  <span style="font-size:13px;color:var(--text-muted)">强调色：</span>
+  <button type="button" data-accent="#8a5cf5"><span class="pv-swatch" style="background:#8a5cf5"></span>Obsidian 默认紫</button>
+  <button type="button" data-accent="#48b4ff"><span class="pv-swatch" style="background:#48b4ff"></span>冰蓝（插件回退）</button>
+  <button type="button" data-accent="#2f80ed"><span class="pv-swatch" style="background:#2f80ed"></span>蓝</button>
+  <button type="button" data-accent="#22c55e"><span class="pv-swatch" style="background:#22c55e"></span>绿</button>
+  <button type="button" data-accent="#f97316"><span class="pv-swatch" style="background:#f97316"></span>橙</button>
+  <button type="button" data-accent="#ec4899"><span class="pv-swatch" style="background:#ec4899"></span>粉</button>
+  <button type="button" data-accent="#eab308"><span class="pv-swatch" style="background:#eab308"></span>黄（极端）</button>
+</div>
+
+<div class="cockpit-dashboard-root" style="width:100%;max-width:1200px">
+  <div class="pv-grid">
+    <section class="pv-card"><h3>情景菜单 · 选中项</h3>
+      <div class="cockpit-dashboard-scene-menu" role="menu">
+        <div class="cockpit-dashboard-scene-menu-caption">布局情景</div>
+        <div class="cockpit-dashboard-scene-menu-list">
+          <button type="button" class="cockpit-dashboard-scene-menu-item active" role="menuitem" id="pv-scene-active"><span class="cockpit-dashboard-scene-menu-icon">◆</span><span class="cockpit-dashboard-scene-menu-name">专注工作</span><span class="cockpit-dashboard-scene-menu-check">✓</span></button>
+          <button type="button" class="cockpit-dashboard-scene-menu-item" role="menuitem"><span class="cockpit-dashboard-scene-menu-icon">◇</span><span class="cockpit-dashboard-scene-menu-name">晨间回顾</span></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="pv-card"><h3>今日胶囊 · 今日分组</h3>
+      <div class="pv-row">
+        <span class="cockpit-dashboard-today-count today" id="pv-today">今天 3</span>
+        <span class="cockpit-dashboard-today-count overdue">逾期 1</span>
+        <span class="cockpit-dashboard-today-count priority">高优 2</span>
+        <span class="cockpit-dashboard-today-count">全部 9</span>
+      </div>
+      <div class="cockpit-dashboard-today-group today" style="margin-top:12px">今天<span class="cockpit-dashboard-today-group-count">3</span></div>
+      <div class="pv-row" style="margin-top:12px">
+        <span class="cockpit-dashboard-spotlight-badge is-open">进行中</span>
+        <span class="cockpit-dashboard-scheduler-status running">运行中</span>
+        <span class="cockpit-dashboard-todo-editor-calendar-badge">已同步日历</span>
+      </div>
+    </section>
+
+    <section class="pv-card"><h3>RSS</h3>
+      <div class="pv-row">
+        <button type="button" class="cockpit-dashboard-cal-rss-btn" id="pv-rss">RSS<span class="cockpit-dashboard-cal-rss-count">12</span></button>
+        <button type="button" class="cockpit-dashboard-rss-menu-button">⋯</button>
+      </div>
+      <div class="cockpit-dashboard-rss-card unread" role="button" tabindex="0" style="margin:12px 0 0;width:100%">
+        <div class="cockpit-dashboard-rss-card-head"><div class="cockpit-dashboard-rss-source">少数派（跟随主题）</div><span class="cockpit-dashboard-rss-read-state unread" id="pv-rss-unread">未读</span></div>
+        <div class="cockpit-dashboard-rss-row-title">未设置自定义颜色的订阅源，来源名与未读竖线跟随强调色</div>
+      </div>
+    </section>
+
+    <section class="pv-card" style="grid-column:span 2"><h3>时间流 · NOW 徽章与日期 · 详情小标题</h3>
+      <div class="cockpit-dashboard-cal-detail has-items">
+        <div class="cockpit-dashboard-cal-detail-head">
+          <div class="cockpit-dashboard-cal-detail-title-wrap">
+            <div class="cockpit-dashboard-cal-detail-kicker" id="pv-kicker">今日运行总览</div>
+            <div class="cockpit-dashboard-cal-detail-title">11 月 14 日 周六</div>
+            <div class="cockpit-dashboard-cal-detail-count">共 2 项</div>
+          </div>
+        </div>
+        <div class="cockpit-dashboard-cal-timeline-row p-mid kind-todo is-personal-todo is-next">
+          <div class="cockpit-dashboard-cal-timeline-time"><span>14:30</span></div>
+          <div class="cockpit-dashboard-cal-timeline-rail first"><span class="cockpit-dashboard-cal-timeline-node p-mid"></span></div>
+          <div class="cockpit-dashboard-cal-timeline-content"><div class="cockpit-dashboard-cal-timeline-summary">
+            <button type="button" class="cockpit-dashboard-cal-timeline-title">评审主题色改动</button>
+            <div class="cockpit-dashboard-cal-timeline-meta">
+              <span class="cockpit-dashboard-cal-timeline-date cockpit-dashboard-cal-meta-1" id="pv-date">今天 14:30</span>
+              <span class="cockpit-dashboard-cal-timeline-priority p-mid cockpit-dashboard-cal-meta-1">中</span>
+            </div>
+            <span class="cockpit-dashboard-cal-timeline-now" id="pv-now">NOW</span>
+          </div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pv-card"><h3>AI 入口 · 打开态</h3>
+      <div class="pv-row" style="gap:16px">
+        <button type="button" class="cockpit-dashboard-ai-launcher is-open" id="pv-ai"><span class="cockpit-dashboard-ai-launcher-icon">✦</span><span class="cockpit-dashboard-ai-launcher-label">AI</span></button>
+        <button type="button" class="cockpit-dashboard-ai-launcher"><span class="cockpit-dashboard-ai-launcher-icon">✦</span></button>
+      </div>
+    </section>
+
+    <section class="pv-card" style="grid-column:1 / -1"><h3>对比度实测（按当前主题与强调色在浏览器里实时计算）</h3>
+      <table class="pv-table"><thead><tr><th>控件</th><th>文字色</th><th>实际底色</th><th>对比度</th><th>AA 4.5:1</th></tr></thead><tbody id="pv-contrast"></tbody></table>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const body = document.body;
+  const setPressed = (attr, value) => document.querySelectorAll('[' + attr + ']').forEach((b) => b.setAttribute('aria-pressed', String(b.getAttribute(attr) === value)));
+  // 用 1px canvas 把任意 CSS 颜色（oklch(from …)、color-mix 等）解析成 sRGB
+  const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true });
+  const rgba = (css) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); const d = ctx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+  const over = (top, under) => top.slice(0, 3).map((v, i) => v * top[3] + under[i] * (1 - top[3]));
+  const lum = (c) => { const l = c.map((v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]; };
+  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const hex = (c) => '#' + c.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+  // 沿祖先链把半透明背景逐层叠到页面底色上，得到文字真正落在的底色（渐变背景取 background-image 的首个颜色近似）
+  function effectiveBg(el) {
+    const layers = [];
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      let c = rgba(cs.backgroundColor);
+      if (c[3] === 0 && cs.backgroundImage.startsWith('linear-gradient')) { const m = cs.backgroundImage.match(/(?:rgba?|color|oklch|oklab)\([^()]*(?:\([^()]*\)[^()]*)*\)/); if (m) c = rgba(m[0]); }
+      if (c[3] > 0) layers.push(c);
+      if (c[3] >= 1) break;
+    }
+    let base = rgba(getComputedStyle(body).backgroundColor).slice(0, 3);
+    for (let i = layers.length - 1; i >= 0; i--) base = over(layers[i], base);
+    return base;
+  }
+  const targets = [['情景菜单选中项', 'pv-scene-active'], ['今日胶囊', 'pv-today'], ['RSS 按钮', 'pv-rss'], ['RSS 未读标记', 'pv-rss-unread'], ['时间流日期', 'pv-date'], ['NOW 徽章', 'pv-now'], ['详情小标题 kicker', 'pv-kicker'], ['AI 入口打开态', 'pv-ai']];
+  function measure() {
+    window.__contrast = [];
+    const rows = targets.map(([label, id]) => {
+      const el = document.getElementById(id); const bg = effectiveBg(el); const fg = over(rgba(getComputedStyle(el).color), bg); const r = ratio(fg, bg);
+      window.__contrast.push({ label, fg: hex(fg), bg: hex(bg), ratio: +r.toFixed(2) });
+      return `<tr><td>${label}</td><td>${hex(fg)}</td><td>${hex(bg)}</td><td>${r.toFixed(2)}:1</td><td class="${r >= 4.5 ? 'pv-pass' : 'pv-fail'}">${r >= 4.5 ? '通过' : '未达标'}</td></tr>`;
+    });
+    document.getElementById('pv-contrast').innerHTML = rows.join('');
+  }
+  document.querySelectorAll('[data-theme]').forEach((b) => b.onclick = () => { body.classList.remove('theme-dark', 'theme-light'); body.classList.add(b.dataset.theme); setPressed('data-theme', b.dataset.theme); requestAnimationFrame(measure); });
+  document.querySelectorAll('[data-accent]').forEach((b) => b.onclick = () => { body.style.setProperty('--preview-accent', b.dataset.accent); setPressed('data-accent', b.dataset.accent); requestAnimationFrame(measure); });
+  const q = new URLSearchParams(location.search);
+  if (q.get('theme')) document.querySelector(`[data-theme="${q.get('theme')}"]`)?.click();
+  const startAccent = q.get('accent') ? '#' + q.get('accent').replace('#', '') : '#8a5cf5';
+  (document.querySelector(`[data-accent="${startAccent}"]`) || document.querySelector('[data-accent]')).click();
+})();
+</script>
+</body>
+</html>
