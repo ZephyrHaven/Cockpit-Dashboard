@@ -1,16 +1,16 @@
 // todo-repeat-editor.js — 复用现有待办编辑器；无需额外的仪表盘模块或浮层。
-function buildTodoRepeatEditor(body, draft, language, completed) {
+function buildTodoRepeatEditor(body, draft, language, completed, summary) {
   const en = language === 'en';
   const field = body.createDiv({ cls:PLUGIN_ID + '-todo-editor-field' });
-  field.createDiv({ cls:PLUGIN_ID + '-todo-editor-label', text:en ? 'Repeat' : '重复' });
+  if (!summary) field.createDiv({ cls:PLUGIN_ID + '-todo-editor-label', text:en ? 'Repeat' : '重复' });
   const row = field.createDiv({ cls:PLUGIN_ID + '-todo-repeat-controls' });
   const unit = row.createEl('select', { attr:{ 'aria-label':en ? 'Repeat frequency' : '重复频率' } });
-  [['', en ? 'Never' : '不重复'], ['day', en ? 'Day' : '天'], ['week', en ? 'Week' : '周'],
-    ['month', en ? 'Month' : '月'], ['year', en ? 'Year' : '年']].forEach(([value, text]) => unit.createEl('option', { text, attr:{ value } }));
+  const units = en ? { day:'day', week:'week', month:'month', year:'year' } : { day:'天', week:'周', month:'月', year:'年' };
+  [['', en ? 'Never' : '不重复'], ...Object.entries(units)].forEach(([value, text]) => unit.createEl('option', { text, attr:{ value } }));
   const interval = row.createEl('input', { attr:{ type:'number', min:'1', max:'365', step:'1', 'aria-label':en ? 'Repeat interval' : '重复间隔' } });
   const mode = row.createEl('select', { attr:{ 'aria-label':en ? 'Repeat schedule' : '重复排期方式' } });
-  mode.createEl('option', { text:en ? 'Fixed schedule' : '按固定排期', attr:{ value:'scheduled' } });
-  mode.createEl('option', { text:en ? 'After completion' : '完成后间隔', attr:{ value:'completion' } });
+  const modes = { scheduled:en ? 'Fixed schedule' : '按固定排期', completion:en ? 'After completion' : '完成后间隔' };
+  Object.entries(modes).forEach(([value, text]) => mode.createEl('option', { text, attr:{ value } }));
   const note = field.createDiv({ cls:PLUGIN_ID + '-todo-editor-hint', attr:{ 'aria-live':'polite' } });
   const original = normalizeTodoRepeat(draft.repeat);
   unit.value = original?.unit || '';
@@ -22,6 +22,12 @@ function buildTodoRepeatEditor(body, draft, language, completed) {
     interval.disabled = mode.disabled = completed || !unit.value;
     unit.disabled = completed;
     draft.repeat = read();
+    if (summary) {
+      const rule = draft.repeat;
+      summary.setText(rule
+        ? (en ? 'Repeat every ' + rule.interval + ' ' + units[rule.unit] + (rule.interval === 1 ? '' : 's') : '每 ' + rule.interval + ' ' + units[rule.unit] + '重复') + ' · ' + modes[rule.mode]
+        : (en ? 'Repeat' : '重复'));
+    }
     if (completed) { note.setText(en ? 'Completed occurrences keep their history. Edit the next open task to change the series.' : '已完成记录保留原规则；请编辑下一条未完成待办来调整或停止重复。'); return; }
     if (!unit.value) { note.setText(en ? 'One-time task.' : '只执行一次。'); return; }
     const next = nextTodoRepeatDate({ ...draft, repeat:draft.repeat }, window.moment());
@@ -31,11 +37,11 @@ function buildTodoRepeatEditor(body, draft, language, completed) {
   };
   [unit, interval, mode].forEach((input) => input.addEventListener('change', refresh));
   refresh();
-  return { refresh, validate(dueDate) {
+  return { refresh, validate(dueDate, reveal = () => {}) {
     if (!unit.value) return true;
     draft.repeat = read();
-    if (!draft.repeat) { interval.focus(); return false; }
-    if (draft.repeat.mode === 'scheduled' && !dueDate) return false;
+    if (!draft.repeat) { reveal(); interval.focus(); return false; }
+    if (draft.repeat.mode === 'scheduled' && !dueDate) { reveal(); return false; }
     return true;
   } };
 }

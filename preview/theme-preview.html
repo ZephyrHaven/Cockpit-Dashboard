@@ -97,7 +97,7 @@
       </div>
     </section>
 
-    <section class="pv-card" style="grid-column:span 2"><h3>时间流 · NOW 徽章与日期 · 详情小标题</h3>
+    <section class="pv-card" style="grid-column:span 2"><h3>时间流 · 下一项徽章与优先级 · 详情小标题</h3>
       <div class="cockpit-dashboard-cal-detail has-items">
         <div class="cockpit-dashboard-cal-detail-head">
           <div class="cockpit-dashboard-cal-detail-title-wrap">
@@ -112,10 +112,9 @@
           <div class="cockpit-dashboard-cal-timeline-content"><div class="cockpit-dashboard-cal-timeline-summary">
             <button type="button" class="cockpit-dashboard-cal-timeline-title">评审主题色改动</button>
             <div class="cockpit-dashboard-cal-timeline-meta">
-              <span class="cockpit-dashboard-cal-timeline-date cockpit-dashboard-cal-meta-1" id="pv-date">今天 14:30</span>
-              <span class="cockpit-dashboard-cal-timeline-priority p-mid cockpit-dashboard-cal-meta-1">中</span>
+              <span class="cockpit-dashboard-cal-timeline-priority p-mid cockpit-dashboard-cal-meta-1" id="pv-priority">普通</span>
             </div>
-            <span class="cockpit-dashboard-cal-timeline-now" id="pv-now">NOW</span>
+            <span class="cockpit-dashboard-cal-timeline-next" id="pv-next">下一项</span>
           </div></div>
         </div>
       </div>
@@ -159,7 +158,7 @@
     for (let i = layers.length - 1; i >= 0; i--) base = over(layers[i], base);
     return base;
   }
-  const targets = [['情景菜单选中项', 'pv-scene-active'], ['今日胶囊', 'pv-today'], ['RSS 按钮', 'pv-rss'], ['RSS 未读标记', 'pv-rss-unread'], ['时间流日期', 'pv-date'], ['NOW 徽章', 'pv-now'], ['详情小标题 kicker', 'pv-kicker'], ['AI 入口打开态', 'pv-ai']];
+  const targets = [['情景菜单选中项', 'pv-scene-active'], ['今日胶囊', 'pv-today'], ['RSS 按钮', 'pv-rss'], ['RSS 未读标记', 'pv-rss-unread'], ['时间流优先级', 'pv-priority'], ['下一项徽章', 'pv-next'], ['详情小标题 kicker', 'pv-kicker'], ['AI 入口打开态', 'pv-ai']];
   function measure() {
     window.__contrast = [];
     const rows = targets.map(([label, id]) => {

@@ -9,12 +9,22 @@ let opened=0,closed=0,records=[];
 class Modal {constructor(app){this.app=app;this.contentEl=new Element('div');}open(){opened++;this.onOpen();}close(){closed++;this.onClose();}}
 const notices=[],ctx=vm.createContext({require,module:{exports:{}},console,TextEncoder,URL,Blob,Date,obs:{Modal,ItemView:class{},Plugin:class{},Notice:class{constructor(message){notices.push(message);}}},PLUGIN_ID:'cockpit-dashboard',window:{moment:()=>({format:()=> '2026-09-17'})},parseDate:()=>null});
 for(const name of ['modal-motion','team-sync-core','dashboard-insights','todo-bulk','_framework'])vm.runInContext(fs.readFileSync('src/'+name+'.js','utf8'),ctx);
-vm.runInContext('this.api={openCockpitLogs,buildRunHistory,buildSyncHealth,buildTodoBulkBar,CockpitDetailModal,registry:CockpitView.prototype._moduleRegistry,cockpitMentionedModules};',ctx);
+vm.runInContext('this.api={openCockpitLogs,buildRunHistory,buildSyncHealth,buildTodoBulkBar,CockpitDetailModal,CockpitView,cockpitMentionedModules};',ctx);
 (async()=>{
   const calls=[],plugin={loadData:async()=>({}),teamSync:{state:{team:null},subscribe:()=>()=>{},status:'Paused'},scheduledTasks:{readLogs:()=>[],subscribe:()=>()=>{}},workflows:{subscribe:()=>()=>{}},lanSync:{store:{state:{doc:{},peers:[]}},listeners:new Set(),status:'Paused'}};
   const view={_plugin:plugin,app:{vault:{}},_lang:()=> 'en',_t:key=>key,_makeModuleCollapsible:(id,title,body)=>{calls.push(id);assert.equal(body.dataset.section,id+'-body');assert.equal(title.dataset.section,id+'-title');}};
+  const registry = ctx.api.CockpitView.prototype._moduleRegistry;
   const root=new Element('div');ctx.api.buildRunHistory(view,root);ctx.api.buildSyncHealth(view,root);await new Promise(resolve=>setImmediate(resolve));
-  for(const id of ['teamStats','runHistory','syncHealth']){assert.ok(!calls.includes(id));assert.equal(ctx.api.registry.call(view).find(module=>module.id===id),undefined);}
+  for(const id of ['teamStats','runHistory','syncHealth']){assert.ok(!calls.includes(id));assert.equal(registry.call(view).find(module=>module.id===id),undefined);}
+  const scenes = Object.create(ctx.api.CockpitView.prototype);
+  scenes._sceneLayouts = { work:{ id:'work' }, focus:{ id:'focus' } };
+  scenes._activeSceneId = 'focus';
+  scenes._sceneRuleMatches = () => true;
+  const switches = [];
+  scenes._switchScene = async (id) => { switches.push(id); scenes._activeSceneId = id; };
+  await scenes._applyAutomaticScene();
+  await scenes._applyAutomaticScene();
+  assert.deepEqual(switches, ['work'], 'Overlapping rules elect a stable winner even when that scene is already active.');
   assert.ok(root.find('button').some(el=>el.text==='Configure services'));
   ctx.api.openCockpitLogs(view);
   const logModal=Array.from(plugin._cockpitDetailModals)[0];

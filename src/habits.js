@@ -90,7 +90,7 @@ async function buildHabitsModule(view, root) {
       weekKeys.forEach((key) => {
         const cell = strip.createEl('button', {
           cls: PLUGIN_ID + '-habit-day' + (logSet.has(key) ? ' on' : '') + (key === todayKey ? ' today' : ''),
-          attr: { type:'button', title:key, 'aria-label':habit.name + ' · ' + key }
+          attr: { type:'button', title:key, 'aria-label':habit.name + ' · ' + key, 'aria-pressed':String(logSet.has(key)) }
         });
         cell.textContent = String(window.moment(key).date());
         cell.onclick = async (event) => {

@@ -367,13 +367,16 @@ class CockpitAIView extends obs.ItemView {
     const permIcon = perm.createSpan({ cls:PLUGIN_ID + '-ai-perm-icon' });
     const agentSelect = perm.createEl('select', { cls:PLUGIN_ID + '-ai-agent-select dropdown', attr:{ 'aria-label':en ? 'Agent permission mode' : 'Agent 权限模式', title:en ? 'Agent permission mode' : 'Agent 权限模式' } });
     [['readonly', en ? 'Read-only' : '只读'],
-     ['read-write', en ? 'Read/write' : '读写'],
+     ['read-write', en ? 'Read/write · Confirm writes' : '读写 · 写入前确认'],
      ['full', en ? 'Auto-allow safe actions' : '自动允许低风险操作']].forEach(([value, label]) => {
       agentSelect.createEl('option', { value, text:label });
     });
     agentSelect.value = this._agentMode;
     agentSelect.classList.toggle('is-full', this._agentMode === 'full');
-    const syncPermIcon = () => obs.setIcon(permIcon, this._agentMode === 'full' ? 'shield-alert' : 'shield-check');
+    const syncPermIcon = () => {
+      obs.setIcon(permIcon, this._agentMode === 'full' ? 'shield-alert' : 'shield-check');
+      agentSelect.title = agentSelect.selectedOptions?.[0]?.textContent || '';
+    };
     syncPermIcon();
     agentSelect.onchange = async () => {
       const previous = this._agentMode;

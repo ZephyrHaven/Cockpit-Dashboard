@@ -213,7 +213,7 @@ class CockpitComponentStoreModal extends CockpitModal {
       const card=grid.createDiv({cls:PLUGIN_ID+'-component-card'+(this._visible(entry.id)?' added':'') ,attr:{'data-module-id':entry.id}});
       card.dataset.motionKey='component:'+entry.id;
       const icon=card.createSpan({cls:PLUGIN_ID+'-component-card-icon'});obs.setIcon(icon,entry.icon);
-      const main=card.createDiv({cls:PLUGIN_ID+'-component-card-main'});main.createDiv({cls:PLUGIN_ID+'-component-card-name',text:entry.label});main.createDiv({cls:PLUGIN_ID+'-component-card-category',text:c.categories[entry.category]});main.createDiv({cls:PLUGIN_ID+'-component-card-description',text:entry.description});
+      const main=card.createDiv({cls:PLUGIN_ID+'-component-card-main'});main.createDiv({cls:PLUGIN_ID+'-component-card-name',text:entry.label});main.createDiv({cls:PLUGIN_ID+'-component-card-description',text:entry.description});
       renderComponentPreview(card,entry,'card');
       const actions=card.createDiv({cls:PLUGIN_ID+'-component-card-actions'});
       const settings=actions.createEl('button',{text:c.configure,attr:{type:'button'}});settings.onclick=()=>{this.detailId=entry.id;this.render();};
@@ -244,7 +244,21 @@ class CockpitComponentStoreModal extends CockpitModal {
       const row=list.createDiv({cls:PLUGIN_ID+'-component-nested-row',attr:{draggable:'true'}});row.ondragstart=()=>{this.dragId=button.action;};row.ondragover=(e)=>{if(this.dragId&&this.dragId!==button.action)e.preventDefault();};row.ondrop=(e)=>{e.preventDefault();if(this.dragId&&this.dragId!==button.action){this.draft=moveNestedItemBefore(this.draft,'toolbarOrder',this.dragId,button.action);this.render();}};
       row.createSpan({cls:PLUGIN_ID+'-component-row-handle',text:'⠿'});row.createSpan({cls:PLUGIN_ID+'-component-nested-icon',text:button.icon});row.createDiv({cls:PLUGIN_ID+'-component-nested-name',text:button.label});
       const tools=row.createDiv({cls:PLUGIN_ID+'-component-nested-tools'});const hidden=button.builtin?this.draft.hiddenToolbarActions.includes(button.action):!!button.hidden;
-      const toggle=tools.createEl('button',{text:hidden?c.show:c.hide,attr:{type:'button'}});toggle.onclick=async()=>{if(button.builtin){this.draft=setNestedItemVisibility(this.draft,'hiddenToolbarActions',button.action,hidden);this.render();}else{await this.view._saveCustomToolbarButtons(this.view._customToolbarButtons.map((item)=>item.id===button.id?{...item,hidden:!item.hidden}:item));this._markGlobalChanged();}};
+      const en=this.view._lang()==='en';
+      const scope=button.builtin ? (en?'Current scene · apply to save':'当前情景 · 应用后保存') : (en?'All scenes · saves immediately':'所有情景 · 即时保存');
+      const visibility=tools.createDiv({cls:PLUGIN_ID+'-component-visibility-scope'});
+      const toggle=visibility.createEl('button',{text:hidden?c.show:c.hide,attr:{type:'button','aria-label':(hidden?c.show:c.hide)+' · '+button.label+' · '+scope}});
+      visibility.createSpan({text:scope});
+      toggle.onclick=async()=>{
+        if(button.builtin){this.draft=setNestedItemVisibility(this.draft,'hiddenToolbarActions',button.action,hidden);this.render();return;}
+        toggle.disabled=true;
+        try {
+          await this.view._saveCustomToolbarButtons(this.view._customToolbarButtons.map((item)=>item.id===button.id?{...item,hidden:!item.hidden}:item));
+          this._markGlobalChanged();
+        } catch (error) {
+          new obs.Notice((en?'Could not save button visibility: ':'按钮显示状态保存失败：')+(error?.message||error));
+        } finally {toggle.disabled=false;}
+      };
       const root=this._dashboardRoot();
       if(button.builtin&&isConfigurableToolbarAction(button.action)){const edit=tools.createEl('button',{text:c.edit,attr:{type:'button'}});edit.onclick=()=>openBuiltinToolbarConfigEditor(this.view,root,button.action,{onChanged:()=>this._markGlobalChanged()});}
       if(button.builtin&&button.action==='work-log'){const remove=tools.createEl('button',{cls:'danger',text:c.delete,attr:{type:'button'}});remove.onclick=async()=>{if(!window.confirm(this.view._lang()==='en'?`Delete “${button.label}” from every layout?`:`从所有布局永久删除“${button.label}”？`))return;await this.view._deletePresetToolbarAction(button.action);this.draft.toolbarOrder=this.draft.toolbarOrder.filter((id)=>id!==button.action);this.draft.hiddenToolbarActions=this.draft.hiddenToolbarActions.filter((id)=>id!==button.action);this._markGlobalChanged();};}

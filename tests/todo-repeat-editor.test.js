@@ -14,10 +14,13 @@ const context = vm.createContext({ PLUGIN_ID:'cockpit-dashboard', window:{ momen
 vm.runInContext(fs.readFileSync('src/todo-repeat.js', 'utf8') + '\n' + fs.readFileSync('src/todo-repeat-editor.js', 'utf8')
   + '\nthis.build=buildTodoRepeatEditor;', context);
 const body = new Element('div'), draft = { dueDate:'2026-01-31', dueHasTime:false };
-const editor = context.build(body, draft, 'zh', false);
+const summary = new Element('summary');
+const editor = context.build(body, draft, 'zh', false, summary);
+assert.equal(summary.text, '重复');
 const [unit, mode] = body.find('select'), [interval] = body.find('input');
 assert.equal(mode.disabled, true);
 unit.value = 'month'; unit.events.change();
+assert.match(summary.text, /每 1 月重复/);
 assert.equal(mode.disabled, false);
 assert.equal(body.find('div').some((element) => element.text.includes('2026-02-28')), true);
 assert.equal(editor.validate(draft.dueDate), true);

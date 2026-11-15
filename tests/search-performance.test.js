@@ -21,7 +21,7 @@ vm.runInContext(fs.readFileSync('src/search.js', 'utf8')
   const plugin = { rag:{ index } };
   const makeModal = () => {
     const modal = new context.api.CockpitGlobalSearchModal({ vault }, 'en', { _plugin:plugin, _todos:[] });
-    modal.hint = { setText:() => {} }; modal._renderResults = () => {}; modal.contentEl = { empty:() => {} };
+    modal.hint = { setText:() => {} }; modal.searchStatus = { setText:() => {} }; modal._renderResults = () => {}; modal.contentEl = { empty:() => {} };
     return modal;
   };
   const first = makeModal(); await first._search('needle', 0);
@@ -41,6 +41,30 @@ vm.runInContext(fs.readFileSync('src/search.js', 'utf8')
   files[90].stat.mtime++;
   second._queryCache.clear(); await second._search('needle', 0);
   assert.equal(reads, 101, 'Changed files are re-read rather than returning stale cached content.');
+  const keyboard = makeModal();
+  keyboard._results = [{ kind:'todo' }, { file:files[0] }];
+  const scrolled = [];
+  let hint;
+  keyboard.hint.setText = (text) => { hint = text; };
+  const rows = keyboard._results.map((_, index) => ({
+    classList:{ add(){}, remove(){} },
+    scrollIntoView:() => scrolled.push(index)
+  }));
+  keyboard.resultsEl = { querySelectorAll:() => rows };
+  keyboard._onKeydown({ key:'ArrowDown', preventDefault(){} });
+  assert.deepEqual(scrolled, [1]);
+  assert.match(hint, /Enter open.*copy link/);
+  keyboard._onKeydown({ key:'ArrowDown', preventDefault(){} });
+  assert.deepEqual(scrolled, [1, 0]);
+  assert.match(hint, /Enter edit task/);
+  keyboard.input = { value:'different query' };
+  keyboard.resultsEl.empty = () => {};
+  keyboard.resultsEl.createDiv = () => {};
+  keyboard._openResult = () => assert.fail('Old results cannot be opened after the query changes.');
+  keyboard._queueInputSearch();
+  keyboard._onKeydown({ key:'Enter', preventDefault(){} });
+  assert.equal(keyboard._results.length, 0);
+  keyboard.onClose();
 
   const bounded = new context.api.CockpitSearchContentCache(30);
   bounded.set('a\n1', '1234567890'); bounded.set('b\n1', 'abcdefghij');

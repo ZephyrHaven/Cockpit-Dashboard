@@ -474,6 +474,7 @@ function openWeeklyReportPreview(view, draft) {
   const saveOriginal = footer.createEl('button', { text: en ? 'Save original' : '保存原稿', attr: { type: 'button' } });
   const saveAi = footer.createEl('button', { cls: 'primary', text: en ? 'Save AI version' : '保存 AI 版', attr: { type: 'button' } });
   saveAi.disabled = true;
+  let isPartialDraft = false;
 
   const setStatus = (text, state = '') => {
     statusText.setText(text);
@@ -487,6 +488,7 @@ function openWeeklyReportPreview(view, draft) {
     style.disabled = value;
     saveOriginal.disabled = value;
     saveAi.disabled = value || !aiVersion.editor.value.trim();
+    saveAi.setText(isPartialDraft ? (en ? 'Save draft' : '保存草稿') : (en ? 'Save AI version' : '保存 AI 版'));
     optimize.setText(value ? (en ? 'Optimizing…' : '优化中…') : (aiVersion.editor.value.trim() ? (en ? 'Optimize again' : '重新优化') : (en ? 'AI Optimize' : 'AI 优化')));
   };
   const emitSaved = (path, version) => {
@@ -513,7 +515,9 @@ function openWeeklyReportPreview(view, draft) {
       const path = await weeklyReportSaveToVault(view.app, draft.record, editor.value, draft.start, draft.systems);
       emitSaved(path, version);
       closePreview();
-      new obs.Notice((version === 'ai' ? (en ? 'AI version saved: ' : 'AI 优化版已保存：') : (en ? 'Original saved: ' : '原稿已保存：')) + path);
+      const savedLabel = version === 'original' ? (en ? 'Original saved: ' : '原稿已保存：')
+        : isPartialDraft ? (en ? 'Draft saved: ' : '草稿已保存：') : (en ? 'AI version saved: ' : 'AI 优化版已保存：');
+      new obs.Notice(savedLabel + path);
     } catch (e) {
       new obs.Notice((en ? 'Save failed: ' : '保存失败：') + (e?.message || e));
       saveOriginal.disabled = false;
@@ -557,6 +561,7 @@ function openWeeklyReportPreview(view, draft) {
 
     abortController = new AbortController();
     aiVersion.editor.value = '';
+    isPartialDraft = false;
     aiVersion.editor.placeholder = en ? 'The optimized report will appear here as it is generated…' : '优化内容会在这里实时生成…';
     aiVersion.card.querySelector('.' + PLUGIN_ID + '-report-version-badge')?.setText(en ? 'Generating' : '生成中');
     switchPane('ai');
@@ -612,6 +617,7 @@ function openWeeklyReportPreview(view, draft) {
       setStatus(en ? 'Optimization complete. Review both versions before saving.' : '优化完成，请对照检查后选择保存版本。', 'success');
     } catch (error) {
       const stopped = abortController?.signal?.aborted || error?.name === 'AbortError' || error?.code === 'AI_ABORTED';
+      isPartialDraft = Boolean(aiVersion.editor.value.trim());
       aiVersion.card.querySelector('.' + PLUGIN_ID + '-report-version-badge')?.setText(aiVersion.editor.value.trim() ? (en ? 'Partial draft' : '未完成草稿') : (en ? 'Not generated' : '尚未生成'));
       setStatus(stopped
         ? (en ? 'Optimization stopped. You can run it again.' : '已停止，可重新优化。')

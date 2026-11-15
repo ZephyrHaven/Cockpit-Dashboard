@@ -116,18 +116,26 @@ class CockpitGlobalSearchModal extends CockpitModal {
       cls: PLUGIN_ID + '-spotlight-input',
       attr: { type: 'text', placeholder: this._text('搜索待办、笔记内容、文件名或路径…', 'Search todos, notes, content, or paths…') }
     });
-    this.hint = box.createDiv({ cls: PLUGIN_ID + '-spotlight-hint', text: this._text('↑↓ 选择 · Enter 打开 · ⌘↵ 分栏 · ⌘⇧C 复制 · ⌘P 收藏', '↑↓ select · Enter open · ⌘↵ split · ⌘⇧C copy · ⌘P pin') });
+    this.searchStatus = box.createDiv({ cls: PLUGIN_ID + '-spotlight-hint', attr:{ 'aria-live':'polite', hidden:'' } });
     this.resultsEl = box.createDiv({ cls: PLUGIN_ID + '-spotlight-results' });
-    this.input.addEventListener('input', () => {
-      clearTimeout(this._timer);
-      // 输入一变化就使正在进行的正文扫描失效，再对下一次搜索做防抖。
-      const version = ++this._queryVersion;
-      this.hint.setText(this._text('继续输入以缩小范围…', 'Keep typing to narrow results…'));
-      this._timer = setTimeout(() => this._search(this.input.value, version), 280);
-    });
+    this.hint = box.createDiv({ cls: PLUGIN_ID + '-spotlight-hint ' + PLUGIN_ID + '-spotlight-footer' });
+    this.input.addEventListener('input', () => this._queueInputSearch());
     this.input.addEventListener('keydown', (evt) => this._onKeydown(evt));
     this.input.focus();
     this._renderEmpty();
+  }
+
+  _queueInputSearch() {
+    clearTimeout(this._timer);
+    const version = ++this._queryVersion;
+    this._results = [];
+    this._cursor = 0;
+    this._renderEmpty();
+    const query = this.input.value;
+    if (!normalizeSearchQuery(query)) return;
+    this.searchStatus.setText(this._text('正在搜索…', 'Searching…'));
+    this.searchStatus.hidden = false;
+    this._timer = setTimeout(() => this._search(query, version), 280);
   }
 
   _bindDrag(handle) {
@@ -172,7 +180,7 @@ class CockpitGlobalSearchModal extends CockpitModal {
     if (cached) {
       this._results = cached;
       this._cursor = 0;
-      this.hint.setText(this._text('↑↓ 选择 · Enter 打开 · Esc 关闭', '↑↓ select · Enter open · Esc close'));
+      this.searchStatus.hidden = true;
       this._renderResults();
       return;
     }
@@ -184,7 +192,8 @@ class CockpitGlobalSearchModal extends CockpitModal {
     if (todoResults.length) { seen.add(TODO_FILE); named = named.filter((file) => file.path !== TODO_FILE); }
     const results = todoResults
       .concat(named.slice(0, 20).map((file, index) => ({ file, match: '', count:1, kind:'name', score: 120 - index })));
-    this.hint.setText(this._text('正在搜索笔记内容…', 'Searching note content…'));
+    this.searchStatus.hidden = false;
+    this.searchStatus.setText(this._text('正在搜索笔记内容…', 'Searching note content…'));
     this._results = results;
     this._cursor = 0;
     this._renderResults();
@@ -223,17 +232,20 @@ class CockpitGlobalSearchModal extends CockpitModal {
     this._results = results.slice(0, 40);
     this._queryCache.set(query, this._results);
     if (this._queryCache.size > 24) this._queryCache.delete(this._queryCache.keys().next().value);
-    this.hint.setText(this._text('↑↓ 选择 · Enter 打开 · Esc 关闭', '↑↓ select · Enter open · Esc close'));
+    this.searchStatus.hidden = true;
     this._renderResults();
   }
 
   _renderEmpty() {
+    this.searchStatus.hidden = true;
+    this._updateResultHint();
     this.resultsEl.empty();
     this.resultsEl.createDiv({ cls: PLUGIN_ID + '-spotlight-empty', text: this._text('搜索整个 Vault', 'Search your entire vault') });
   }
 
   _renderResults() {
     this.resultsEl.empty();
+    this._updateResultHint();
     if (!this._results.length) {
       this.resultsEl.createDiv({ cls: PLUGIN_ID + '-spotlight-empty', text: this._text('没有找到匹配的待办或笔记', 'No matching todos or notes') });
       return;
@@ -286,11 +298,17 @@ class CockpitGlobalSearchModal extends CockpitModal {
   }
 
   _onKeydown(evt) {
+    if (evt.isComposing) return;
     if (evt.key === 'ArrowDown' || evt.key === 'ArrowUp') {
       evt.preventDefault();
       if (!this._results.length) return;
+      const rows = this.resultsEl.querySelectorAll('.' + PLUGIN_ID + '-spotlight-result');
+      rows[this._cursor]?.classList.remove('selected');
       this._cursor = (this._cursor + (evt.key === 'ArrowDown' ? 1 : -1) + this._results.length) % this._results.length;
-      this._renderResults();
+      const selected = rows[this._cursor];
+      selected?.classList.add('selected');
+      selected?.scrollIntoView({ block:'nearest', inline:'nearest' });
+      this._updateResultHint();
     } else if (evt.key === 'Enter' && this._results[this._cursor]) {
       evt.preventDefault(); this._openResult(this._results[this._cursor], evt.metaKey || evt.ctrlKey);
     } else if ((evt.metaKey || evt.ctrlKey) && evt.shiftKey && evt.key.toLowerCase() === 'c' && this._results[this._cursor]) {
@@ -298,6 +316,19 @@ class CockpitGlobalSearchModal extends CockpitModal {
     } else if ((evt.metaKey || evt.ctrlKey) && evt.key.toLowerCase() === 'p' && this._results[this._cursor]) {
       evt.preventDefault(); this._toggleBookmark(this._results[this._cursor]);
     }
+  }
+
+  _updateResultHint() {
+    const result = this._results[this._cursor];
+    const isMac = obs.Platform?.isMacOS;
+    const modifier = isMac ? '⌘' : 'Ctrl+';
+    const copyShortcut = isMac ? '⌘⇧C' : 'Ctrl+Shift+C';
+    const splitShortcut = modifier + (isMac ? '↵' : 'Enter');
+    const pin = this.view?._storage ? this._text(' · ' + modifier + 'P 收藏', ' · ' + modifier + 'P pin') : '';
+    const actions = result?.file
+      ? this._text('Enter 打开 · ' + splitShortcut + ' 分栏 · ' + copyShortcut + ' 复制链接', 'Enter open · ' + splitShortcut + ' split · ' + copyShortcut + ' copy link') + pin
+      : result ? this._text('Enter 编辑待办', 'Enter edit task') : '';
+    this.hint.setText(actions ? this._text('↑↓ 选择 · ', '↑↓ select · ') + actions : this._text('Esc 关闭', 'Esc close'));
   }
 
   async _copyResult(result) {

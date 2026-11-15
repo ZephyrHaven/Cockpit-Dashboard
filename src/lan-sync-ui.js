@@ -99,21 +99,49 @@ class CockpitLanPairModal extends CockpitModal {
     this.contentEl.empty();
   }
 }
+function lanConflictTodoFields(value, en) {
+  const todo = parseTodoLine(value);
+  if (!todo) return null;
+  return new Map([
+    [en ? 'Task' : '待办', todo.text],
+    [en ? 'Status' : '状态', todo.done ? (en ? 'Completed' : '已完成') : (en ? 'Open' : '未完成')],
+    [en ? 'Due' : '截止日期', todo.dueDate?.format(todo.dueHasTime ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD')],
+    [en ? 'Priority' : '优先级', en ? { high:'High', mid:'Normal', low:'Low' }[todo.priority] : { high:'高', mid:'普通', low:'低' }[todo.priority]],
+    [en ? 'Tags' : '标签', todo.tags.join(' · ')],
+    [en ? 'Progress' : '进度', todo.progress && (todo.progress.completed + ' / ' + todo.progress.total)],
+    [en ? 'Calendar sync' : '日历同步', todo.calendarSync ? (en ? 'On' : '开启') : (en ? 'Off' : '关闭')]
+  ]);
+}
+
 class CockpitLanConflictsModal extends CockpitModal {
-  constructor(app, service) { super(app); this.service = service; }
+  constructor(app, service, en) { super(app); this.service = service; this.en = en; }
   onOpen() { this.render(); }
   render() {
-    this.contentEl.empty(); this.contentEl.createEl('h2', { text:'选择要保留的版本' });
-    this.contentEl.createEl('p', { text:'两台设备同时修改了同一条数据。选择后会在下次同步传到其他设备；未选择前，两个版本都会保留。' });
+    const en = this.en;
+    this.contentEl.empty(); this.contentEl.createEl('h2', { text:en ? 'Choose which version to keep' : '选择要保留的版本' });
+    this.contentEl.createEl('p', { text:en ? 'Your choice is shared with other devices on the next sync.' : '选择后会在下次同步传到其他设备。' });
     const conflicts = lanSyncConflicts(this.service.store.state.doc);
-    if (!conflicts.length) this.contentEl.createEl('p', { text:'没有待处理的冲突。' });
+    if (!conflicts.length) this.contentEl.createEl('p', { text:en ? 'No conflicts to resolve.' : '没有待处理的冲突。' });
     for (const [key, versions] of conflicts.slice(0, 30)) {
-      const card = this.contentEl.createDiv({ cls:'cockpit-lan-card' }); card.createEl('strong', { text:key });
-      for (const value of new Set(versions.map(v => v.value))) {
-        const row = card.createDiv(); row.createEl('pre', { text:value === null ? '删除此条目' : value, cls:'cockpit-lan-conflict' });
-        const button = row.createEl('button', { text:'保留此版本' });
+      const values = [...new Set(versions.map(v => v.value))];
+      const fields = key.startsWith('todo:') ? values.map((value) => lanConflictTodoFields(value, en)) : [];
+      const first = fields.find(Boolean);
+      const title = first?.get(en ? 'Task' : '待办') || key;
+      const changed = first ? Array.from(first.keys()).filter((label) => fields.some((version) => version && version.get(label) !== first.get(label))) : [];
+      const card = this.contentEl.createDiv({ cls:'cockpit-lan-card' }); card.createEl('strong', { text:title });
+      values.forEach((value, index) => {
+        const row = card.createDiv();
+        if (fields[index] && changed.length) {
+          changed.forEach((label) => row.createDiv({ text:label + (en ? ': ' : '：') + (fields[index].get(label) || '—') }));
+          const details = row.createEl('details');
+          details.createEl('summary', { text:en ? 'Full version' : '完整内容' });
+          details.createEl('pre', { text:value, cls:'cockpit-lan-conflict' });
+        } else {
+          row.createEl('pre', { text:value === null ? (en ? 'Delete this item' : '删除此条目') : value, cls:'cockpit-lan-conflict' });
+        }
+        const button = row.createEl('button', { text:en ? 'Keep this version' : '保留此版本' });
         button.onclick = async () => { button.disabled = true; try { await this.service.resolve(key, value); this.render(); } catch (error) { new obs.Notice(error.message); button.disabled = false; } };
-      }
+      });
     }
   }
   onClose() { this.service.modals.delete(this); this.contentEl.empty(); }
@@ -147,7 +175,7 @@ async function renderLanSyncSettings(container, plugin, language, options = {}) 
   actions.createEl('button', { text:en ? 'Sync now' : '立即同步' }).onclick = () => run(async () => { await service.start(); await service.sync(); });
   const devices = container.createDiv();
   const conflicts = container.createEl('button');
-  conflicts.onclick = () => { const modal = new CockpitLanConflictsModal(plugin.app, service); service.modals.add(modal); modal.open(); };
+  conflicts.onclick = () => { const modal = new CockpitLanConflictsModal(plugin.app, service, en); service.modals.add(modal); modal.open(); };
   const backup = container.createEl('p', { cls:'cockpit-lan-muted' });
   container.createEl('p', { cls:'cockpit-lan-muted', text:en ? 'Every 30 seconds while enabled. Both apps must be running. Morning-brief routing is shared, but keys, commands, workspace paths, AI history and note contents stay on this computer. Bookmark targets are not copied.' : '开启后每 30 秒同步，两端均需运行。晨报发送策略会同步；密钥、命令、工作区路径、AI 会话和笔记正文不参与，收藏只同步路径，不复制笔记。' });
   container.createEl('p', { cls:'cockpit-lan-muted', text:en ? 'If a firewall prompt appears, allow access on your private network. A changed network address may require pairing again. Avoid syncing these same records with another tool.' : '首次连接若出现防火墙提示，请允许专用网络访问。网络地址变化后可能需要重新配对；避免其他同步工具同时改写这些数据。' });

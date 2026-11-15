@@ -36,6 +36,16 @@ function calendarBuildEventDayMap(events, momentFactory) {
   return map;
 }
 
+function calendarGetNextItem(todayOpen, events, now) {
+  const upcomingTodo = todayOpen.find((todo) => todo.dueHasTime && todo.dueDate.valueOf() >= now);
+  const upcomingEvent = events.find((event) => !event.allDay && event.start >= now);
+  if (upcomingEvent && (!upcomingTodo || upcomingEvent.start < upcomingTodo.dueDate.valueOf())) {
+    return { event:upcomingEvent };
+  }
+  const todo = upcomingTodo || todayOpen.find((todo) => !todo.dueHasTime);
+  return todo ? { todo } : null;
+}
+
 function buildCalendar(root, todos, opts) {
   const { language, t, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoIncrement, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, initialSplitRatio, onSplitRatioChange, lunarEnabled, teamTodos, loadCalendarEvents, onQuickCreate, onEventOpen } = opts;
   // 刷新时必须读取视图的最新待办数组；不能闭包捕获初次渲染的旧快照。
@@ -51,6 +61,7 @@ function buildCalendar(root, todos, opts) {
   let viewMode = initialViewMode === 'week' ? 'week' : 'month';
   let flowFilter = 'all';
   let detailRequest = 0;
+  let summaryNextItem = null;
   let lastRenderKey = '';
   let lastViewKey = '';
   // 系统日程（只读）：按可见时间窗异步加载，仅内容变化时更新。
@@ -231,6 +242,7 @@ function buildCalendar(root, todos, opts) {
       if (request !== detailRequest || !calRoot?.parentNode) return;
       const detail = renderCalendarDayFlow({
         anchor:calRoot, date, language, t, todosForDate, rssItems, calendarEvents:eventsForDate(date),
+        nextItem:summaryNextItem,
         automationItems:Array.isArray(automationItems) ? automationItems : [],
         countdownItems:Array.isArray(countdownItems) ? countdownItems : [],
         filter:flowFilter,
@@ -361,11 +373,9 @@ function buildCalendar(root, todos, opts) {
   const renderSummary = (surface, todoMap, now) => {
     const en = language === 'en';
     const todayOpen = sortDayTodos((todoMap[now.format('YYYY-MM-DD')] || []).filter((todo) => !todo.done));
-    const upcomingTodo = todayOpen.find((todo) => todo.dueHasTime && todo.dueDate.isSameOrAfter(now));
-    const upcomingEvent = eventsForDate(now).find((event) => !event.allDay && event.start >= now.valueOf());
     // 下一项在“带时间的待办”和“系统日程”里取更早的；都没有时退回今天的全天待办。
-    const nextEvent = upcomingEvent && (!upcomingTodo || upcomingEvent.start < upcomingTodo.dueDate.valueOf()) ? upcomingEvent : null;
-    const nextTodo = nextEvent ? null : (upcomingTodo || todayOpen.find((todo) => !todo.dueHasTime) || null);
+    summaryNextItem = calendarGetNextItem(todayOpen, eventsForDate(now), now.valueOf());
+    const { event:nextEvent, todo:nextTodo } = summaryNextItem || {};
     const todayStart = now.clone().startOf('day');
     const overdue = (getTodos() || []).filter((todo) => !todo.done && todo.dueDate && todo.dueDate.isBefore(todayStart)).sort((a, b) => a.dueDate.valueOf() - b.dueDate.valueOf());
     const weekStart = now.clone().startOf('isoWeek');
@@ -389,10 +399,12 @@ function buildCalendar(root, todos, opts) {
 
     const next = summary.createEl('button', { cls:PLUGIN_ID + '-cal-summary-next' + (nextEvent ? ' is-event' : nextTodo ? ' p-' + (nextTodo.priority || 'mid') : ' is-clear'), attr:{ type:'button', title:nextEvent ? eventTitle(nextEvent) : (nextTodo?.text || '') } });
     const nextHead = next.createSpan({ cls:PLUGIN_ID + '-cal-summary-next-head' });
-    nextHead.createSpan({ cls:PLUGIN_ID + '-cal-summary-kicker', text:nextEvent ? (en ? 'NEXT EVENT' : '下一日程') : nextTodo ? (en ? 'NEXT' : '下一项') : (en ? 'ALL CLEAR' : '今天已清空') });
+    const nextLabel = en ? 'Next' : '下一项';
+    const emptyLabel = todayOpen.length ? (en ? 'Nothing upcoming' : '没有下一项') : (en ? 'All clear' : '今天已清空');
+    nextHead.createSpan({ cls:PLUGIN_ID + '-cal-summary-kicker', text:summaryNextItem ? nextLabel : emptyLabel });
     if (nextEvent) nextHead.createSpan({ cls:PLUGIN_ID + '-cal-summary-time', text:window.moment(nextEvent.start).format('HH:mm') });
     else if (nextTodo?.dueHasTime) nextHead.createSpan({ cls:PLUGIN_ID + '-cal-summary-time', text:nextTodo.dueDate.format('HH:mm') });
-    next.createSpan({ cls:PLUGIN_ID + '-cal-summary-text', text:nextEvent ? nextEvent.title : nextTodo ? nextTodo.text : (en ? 'Nothing left for today' : '没有剩余待办，享受空档') });
+    next.createSpan({ cls:PLUGIN_ID + '-cal-summary-text', text:nextEvent ? nextEvent.title : nextTodo ? nextTodo.text : t('calendar.addTodo') });
     next.onclick = () => (nextEvent ? (typeof onEventOpen === 'function' ? onEventOpen(nextEvent) : selectDate(now.clone().startOf('day'))) : nextTodo ? openCalendarTodo(nextTodo) : openTodoEditor({ dueDate:now.clone().startOf('day') }));
   };
   const renderAll = () => {
@@ -638,4 +650,4 @@ function buildCalendar(root, todos, opts) {
   return renderAll;
 }
 
-if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports = { calendarSplitOwner, calendarBuildEventDayMap };
+if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports = { calendarSplitOwner, calendarBuildEventDayMap, calendarGetNextItem };

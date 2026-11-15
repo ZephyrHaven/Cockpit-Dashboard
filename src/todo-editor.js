@@ -79,7 +79,11 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
   const titleInput = fieldTask.createEl('textarea', { cls: PID + '-todo-editor-textarea', attr: { rows: '3', placeholder: t('todo.editorTaskPlaceholder') } });
   titleInput.value = draft.text;
 
-  const progressFields = body.createDiv({ cls:PID + '-todo-editor-progress' });
+  const progressDetails = document.createElement('details');
+  progressDetails.className = PID + '-todo-editor-options';
+  const progressSummary = progressDetails.createEl('summary');
+  progressDetails.open = options.focusProgress === true;
+  const progressFields = progressDetails.createDiv({ cls:PID + '-todo-editor-progress' });
   const progressInput = (label, value, placeholder) => {
     const field = progressFields.createEl('label', { cls:PID + '-todo-editor-field' });
     field.createSpan({ cls:PID + '-todo-editor-label', text:label });
@@ -91,8 +95,13 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
   };
   const progressTotal = progressInput(lang === 'en' ? 'Total quantity (optional)' : '总数量（选填）', existingTodo?.progress?.total, '');
   const progressCompleted = progressInput(lang === 'en' ? 'Completed quantity' : '已完成数量', existingTodo?.progress?.completed, '0');
-  const updateProgressFields = () => { progressCompleted.disabled = !progressTotal.value.trim(); };
+  const updateProgressFields = () => {
+    progressCompleted.disabled = !progressTotal.value.trim();
+    const label = lang === 'en' ? 'Quantity progress' : '数量进度';
+    progressSummary.setText(progressCompleted.disabled ? label : label + ' · ' + (progressCompleted.value.trim() || '0') + ' / ' + progressTotal.value.trim());
+  };
   progressTotal.addEventListener('input', updateProgressFields);
+  progressCompleted.addEventListener('input', updateProgressFields);
   updateProgressFields();
 
   const fieldDue = body.createDiv({ cls: PID + '-todo-editor-field' });
@@ -136,7 +145,10 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
     repeatEditor?.refresh();
   });
 
-  repeatEditor = buildTodoRepeatEditor(body, draft, lang, !!existingTodo?.done);
+  const repeatDetails = document.createElement('details');
+  repeatDetails.className = PID + '-todo-editor-options';
+  const repeatSummary = repeatDetails.createEl('summary');
+  repeatEditor = buildTodoRepeatEditor(repeatDetails, draft, lang, !!existingTodo?.done, repeatSummary);
 
   const calendarSyncSupported = this._plugin.appleCalendar?.isSupported?.() === true;
   const calendarSyncField = body.createEl('label', { cls: PID + '-todo-editor-calendar-sync' + (calendarSyncSupported ? '' : ' is-disabled') });
@@ -161,6 +173,7 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
   calendarSyncInput.addEventListener('change', () => { draft.calendarSync = calendarSyncInput.checked; });
 
   const fieldPriority = body.createDiv({ cls: PID + '-todo-editor-field' });
+  body.insertBefore(fieldPriority, calendarSyncField);
   fieldPriority.createDiv({ cls: PID + '-todo-editor-label', text: t('todo.editorPriority') });
   const priorityRow = fieldPriority.createDiv({ cls: PID + '-todo-editor-segment' });
   const priorityOptions = [
@@ -244,6 +257,7 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
     }
   });
 
+  body.append(progressDetails, repeatDetails);
   body.createDiv({ cls: PID + '-todo-editor-hint', text: t('todo.legacyHint') });
 
   const footer = sheet.createDiv({ cls: PID + '-todo-editor-footer' });
@@ -269,6 +283,7 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
     const total = progressTotal.value.trim();
     const progress = total ? parseTodoProgress(total, progressCompleted.value.trim()) : null;
     if (total && !progress) {
+      progressDetails.open = true;
       const validTotal = parseTodoProgress(total);
       new obs.Notice(lang === 'en'
         ? 'Enter a positive whole number for the total and a whole number from zero to the total for completed.'
@@ -276,7 +291,7 @@ function openCockpitTodoEditor(options = {}, helpers = {}) {
       (validTotal ? progressCompleted : progressTotal).focus();
       return;
     }
-    if (!repeatEditor.validate(merged.dueDate)) {
+    if (!repeatEditor.validate(merged.dueDate, () => { repeatDetails.open = true; })) {
       new obs.Notice(lang === 'en' ? 'Set a valid repeat interval and a due date for a fixed schedule.' : '请填写有效的重复间隔；按固定排期时还需设置截止日期。');
       return;
     }

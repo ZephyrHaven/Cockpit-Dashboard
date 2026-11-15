@@ -12,6 +12,7 @@ class MiniMoment {
   diff(other, unit){ const ms=this.valueOf()-new MiniMoment(other).valueOf(); return unit==='minutes'?Math.floor(ms/60000):ms; }
   add(amount, unit){ const ms=unit==='day'?86400000:60000;this.date=new Date(this.valueOf()+amount*ms);return this; }
   startOf(unit){ if(unit==='day')this.date.setUTCHours(0,0,0,0);return this; }
+  isSame(other, unit){ return unit === 'day' ? this.format('YYYY-MM-DD') === new MiniMoment(other).format('YYYY-MM-DD') : this.valueOf() === new MiniMoment(other).valueOf(); }
   hour(value){ if(value===undefined)return this.date.getUTCHours();this.date.setUTCHours(value);return this; }
   minute(value){ if(value===undefined)return this.date.getUTCMinutes();this.date.setUTCMinutes(value);return this; }
   day(){ return this.date.getUTCDay(); }
@@ -21,7 +22,7 @@ class MiniMoment {
 global.window = { moment:(value=Date.now()) => new MiniMoment(value) };
 const api = require('../src/scheduled-tasks.js');
 const dayFlowApi = require('../src/calendar-day-flow.js');
-const { calendarSplitOwner, calendarBuildEventDayMap } = require('../src/calendar.js');
+const { calendarSplitOwner, calendarBuildEventDayMap, calendarGetNextItem } = require('../src/calendar.js');
 
 const initialCalendarHost = { id:'dashboard-root' };
 const mountedCalendarModule = { id:'calendar-module' };
@@ -121,7 +122,8 @@ assert.match(dayFlow, /summarizeCalendarRss/, 'RSS entries are condensed into on
 assert.doesNotMatch(dayFlow, /\.\.\.articles\.map\(\(rssItem\)/, 'The calendar no longer expands every RSS article into the timeline.');
 assert.match(dayFlow, /cal-flow-filter[\s\S]*automation[\s\S]*rss/, 'The combined day flow can be filtered by source.');
 assert.match(dayFlow, /countdowns\.map\([\s\S]*kind:'countdown'/, 'Countdown completions participate in the shared daily timeline.');
-assert.match(dayFlow, /if \(todo && todo === nextTimed\)/, 'Only the actual next todo receives the NOW badge.');
+assert.match(calendar, /nextItem:summaryNextItem/, 'The timeline receives the item already chosen by the summary.');
+assert.match(calendar, /nextTodo\.text : t\('calendar\.addTodo'\)/, 'The empty summary names its add-task action.');
 assert.match(dayFlow, /cal-timeline-summary/, 'Timeline titles and metadata share a bounded summary region before the action rail.');
 assert.doesNotMatch(dayFlow, /format\(todo\.teamTodo \? 'HH:mm:ss'/, 'Team tasks use the same minute-level time style as personal tasks.');
 assert.match(dayFlow, /cal-timeline-tag/, 'Task tags render as separate calendar pills instead of leaking into the title.');
@@ -225,15 +227,47 @@ assert.ok(updatedFlow.className.includes('is-refreshing'),'Same-day updates supp
 assert.equal(updatedFlow.scrollTop,125,'Same-day updates preserve panel scrolling.');
 const nextFlow=flowContext.render({...flowOptions,date:{...flowOptions.date,format:()=> '2026-11-08'}});
 assert.ok(!nextFlow.className.includes('is-refreshing'),'Selecting a different day retains the normal transition.');
+
+const findAll = (el, cls) => el.children.flatMap((child) => [
+  ...(child.className?.split(' ').includes('cockpit-dashboard-' + cls) ? [child] : []), ...findAll(child, cls)
+]);
+const meeting = { id:'meeting', title:'Team meeting', start:planTime('14:00'), end:planTime('14:15') };
+const timedTodo = { id:'review', text:'Review notes', dueHasTime:true, dueDate:window.moment(planTime('14:30')) };
+const allDayTodo = { id:'send', text:'Send notes', dueHasTime:false, dueDate:window.moment(planStart) };
+const nextOptions = {
+  ...flowOptions, date:{...flowOptions.date,valueOf:()=>planStart},
+  calendarEvents:[meeting], todosForDate:[timedTodo, allDayTodo].map((todo) => ({ ...todo, raw:todo })),
+  rssItems:[{ id:'update' }]
+};
+flowContext.window.moment = (value = planTime('13:50')) => window.moment(value);
+const upcoming = calendarGetNextItem([timedTodo, allDayTodo], [meeting], planTime('13:50'));
+assert.equal(upcoming.event, meeting, 'An earlier meeting wins over a later timed task.');
+const findNextTitle = (detail) => findAll(detail, 'cal-timeline-row')
+  .filter((row) => findAll(row, 'cal-timeline-next').length)
+  .map((row) => findAll(row, 'cal-timeline-title')[0].textContent);
+const grouped = flowContext.render({ ...nextOptions, nextItem:upcoming, calendarEvents:[{ ...meeting }] });
+assert.deepEqual(findNextTitle(grouped), ['Team meeting']);
+assert.deepEqual(findAll(grouped, 'cal-timeline-group-label').map((label) => label.textContent), ['All day', 'No scheduled time']);
+
+const filtered = flowContext.render({ ...nextOptions, nextItem:upcoming, filter:'todo' });
+assert.deepEqual(findNextTitle(filtered), [], 'A filter does not assign the badge to a different item.');
+assert.deepEqual(findAll(filtered, 'cal-timeline-group-label').map((label) => label.textContent), ['All day']);
+
+const upcomingTodo = calendarGetNextItem([timedTodo, allDayTodo], [meeting], planTime('14:01'));
+assert.equal(upcomingTodo.todo, timedTodo);
+assert.deepEqual(findNextTitle(flowContext.render({ ...nextOptions, nextItem:upcomingTodo })), ['Review notes']);
+const fallback = calendarGetNextItem([timedTodo, allDayTodo], [meeting], planTime('14:31'));
+assert.equal(fallback.todo, allDayTodo);
+assert.deepEqual(findNextTitle(flowContext.render({ ...nextOptions, nextItem:fallback })), ['Send notes']);
+assert.deepEqual(findNextTitle(flowContext.render({ ...nextOptions, date:{...nextOptions.date,isSame:()=>false}, nextItem:fallback })), []);
+assert.equal(calendarGetNextItem([timedTodo], [meeting], planTime('14:31')), null);
+
 async function checkTodoProgress() {
   let todo = { id:'processes', text:'调整流程', done:false, progress:{ completed:2, total:6 } };
   const plain = { id:'plain', text:'发送会议纪要', done:false };
   const team = { ...todo, id:'team', teamTodo:true };
   const calendarTodos = () => [todo, plain, team].map((item) => ({ ...item, raw:item }));
   const event = { stopPropagation(){} };
-  const findAll = (el, cls) => el.children.flatMap((child) => [
-    ...(child.className?.split(' ').includes('cockpit-dashboard-' + cls) ? [child] : []), ...findAll(child, cls)
-  ]);
   let editOptions;
   const options = {
     ...flowOptions, todosForDate:calendarTodos(),

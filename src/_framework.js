@@ -260,9 +260,12 @@ class CockpitView extends obs.ItemView {
     await this._mutatePluginData((data) => { data.sceneLayouts = this._sceneLayouts; });
     await this._applyAutomaticScene();
   }
+  _getAutomaticScene(now = window.moment()) {
+    return this._sceneList().find((scene) => this._sceneRuleMatches(scene, now));
+  }
   async _applyAutomaticScene() {
-    const match = this._sceneList().find((scene) => scene.id !== this._activeSceneId && this._sceneRuleMatches(scene));
-    if (match) await this._switchScene(match.id);
+    const match = this._getAutomaticScene();
+    if (match && match.id !== this._activeSceneId) await this._switchScene(match.id);
   }
   _startSceneAutoSwitching() {
     if (this._sceneAutoTimer) window.clearInterval(this._sceneAutoTimer);

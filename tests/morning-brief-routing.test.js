@@ -20,7 +20,7 @@ for (const file of ['serverchan', 'morning-brief']) {
 }
 const morningBriefSource = fs.readFileSync(path.join(__dirname, '../src/morning-brief.js'), 'utf8');
 vm.runInContext(`globalThis.api = {
-  normalizeMorningBriefConfig,
+  normalizeMorningBriefConfig, CockpitMorningBriefService,
   morningBriefDeviceOptions:typeof morningBriefDeviceOptions === 'function' ? morningBriefDeviceOptions : null,
   morningBriefDefaultSenderId:typeof morningBriefDefaultSenderId === 'function' ? morningBriefDefaultSenderId : null,
   morningBriefShouldAutoSend:typeof morningBriefShouldAutoSend === 'function' ? morningBriefShouldAutoSend : null,
@@ -69,4 +69,21 @@ assert.match(morningBriefSource, /多设备发送/);
 assert.match(morningBriefSource, /指定设备发送/);
 assert.match(morningBriefSource, /所有设备都发送/);
 
-console.log('Morning brief multi-device routing tests passed');
+(async () => {
+  const deliveries = [];
+  ctx.recordDelivery = (...args) => { deliveries.push(args); };
+  vm.runInContext('sendNotificationChannel = recordDelivery;', ctx);
+  const channels = { serverChan:{ enabled:true }, bark:{ enabled:true } };
+  const service = new api.CockpitMorningBriefService({ serverChan:{ getConfig:async () => ({ channels }) } });
+  service.getRouting = async () => ({ currentDeviceId:A });
+  service.getConfig = async () => api.normalizeMorningBriefConfig({});
+  service.saveConfig = async () => {};
+  service.assemble = async () => { throw new Error('Preview must be reused'); };
+  const preview = { title:'Preview title', body:'Preview body', channelIds:['serverChan'] };
+  assert.equal(await service.sendNow(preview), true);
+  assert.deepEqual(deliveries.map(([id,,title,body]) => [id,title,body]), [['serverChan','Preview title','Preview body']]);
+  channels.serverChan.enabled = false;
+  await assert.rejects(service.sendNow(preview), /推送渠道已变化|Delivery channels changed/);
+  assert.equal(deliveries.length, 1, 'Disabling a previewed channel prevents sending to any destination.');
+  console.log('Morning brief routing and preview delivery tests passed');
+})().catch((error) => { console.error(error); process.exitCode = 1; });

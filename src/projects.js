@@ -43,16 +43,15 @@ function buildProjectsModule(view, root, options = {}) {
       head.createDiv({ cls:PLUGIN_ID + '-project-name', text:'#' + project.tag });
       const arrow = head.createSpan({ cls:PLUGIN_ID + '-project-arrow' }); obs.setIcon(arrow, 'arrow-up-right');
       const metrics = row.createDiv({ cls:PLUGIN_ID + '-project-metrics' });
-      metrics.createSpan({ cls:PLUGIN_ID + '-project-percent', text:pct + '%' });
-      metrics.createSpan({ cls:PLUGIN_ID + '-project-count', text:en ? project.done + ' / ' + project.total + ' completed' : '已完成 ' + project.done + ' / ' + project.total });
+      metrics.createSpan({ cls:PLUGIN_ID + '-project-count', text:project.open ? (en ? project.done + ' / ' + project.total + ' completed' : '已完成 ' + project.done + ' / ' + project.total) : (en ? 'Completed' : '已完成') });
+      if (project.overdue) metrics.createSpan({ cls:PLUGIN_ID + '-project-overdue', text:en ? project.overdue + ' overdue' : project.overdue + ' 项逾期' });
       const bar = row.createDiv({ cls:PLUGIN_ID + '-project-bar', attr:{ role:'progressbar', 'aria-label':en ? 'Completion' : '完成进度', 'aria-valuemin':'0', 'aria-valuemax':'100', 'aria-valuenow':String(pct) } });
       bar.createDiv({ cls:PLUGIN_ID + '-project-fill', attr:{ style:'width:' + pct + '%' } });
-      const status = row.createDiv({ cls:PLUGIN_ID + '-project-status' });
-      status.createSpan({ text:en ? project.open + ' remaining' : '剩余 ' + project.open + ' 项' });
-      if (project.overdue) status.createSpan({ cls:'is-overdue', text:en ? project.overdue + ' overdue' : project.overdue + ' 项逾期' });
-      const next = row.createDiv({ cls:PLUGIN_ID + '-project-next' });
-      next.createSpan({ cls:PLUGIN_ID + '-project-next-label', text:en ? 'Next' : '下一项' });
-      next.createSpan({ cls:PLUGIN_ID + '-project-next-title', text:project.nextTodo?.text || (en ? 'All tasks completed' : '所有待办均已完成'), attr:{ title:project.nextTodo?.text || '' } });
+      if (project.nextTodo) {
+        const next = row.createDiv({ cls:PLUGIN_ID + '-project-next' });
+        next.createSpan({ cls:PLUGIN_ID + '-project-next-label', text:en ? 'Next' : '下一项' });
+        next.createSpan({ cls:PLUGIN_ID + '-project-next-title', text:project.nextTodo.text, attr:{ title:project.nextTodo.text } });
+      }
       const open = () => {
         if (view._editMode) return;
         openCockpitProject(view, project.tag, options);

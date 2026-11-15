@@ -270,19 +270,19 @@ function cockpitBuildHeatmapSection(view, root, ctx) {
   const hmTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: t('sections.heatmap') });
   hmTitle.dataset.section = 'heatmap-title';
   const heatmapEl = root.createDiv({ cls: PLUGIN_ID+'-heatmap' });
+  const en = lang === 'en';
+  heatmapEl.createDiv({ cls:PLUGIN_ID+'-hm-caption', text:en ? 'Grouped by each note’s last modified date' : '按笔记最后修改日统计' });
   const today = window.moment();
-  const dayCounts = {};
+  const filesByDay = new Map();
   const dayKeyByStart = new Map();
-  const startOfToday = today.clone().startOf('day').valueOf();
   for (let i = 0; i < 30; i++) { const d = today.clone().subtract(i, 'days'); dayKeyByStart.set(d.clone().startOf('day').valueOf(), d.format('YYYY-MM-DD')); }
-  const windowStart = startOfToday - 29 * 86400000;
   allFiles.forEach(f=>{
-    const mtime = f.stat.mtime;
-    if (mtime < windowStart) return;
-    const key = dayKeyByStart.get(new Date(mtime).setHours(0, 0, 0, 0));
-    if (key) dayCounts[key] = (dayCounts[key]||0) + 1;
+    const key = dayKeyByStart.get(new Date(f.stat.mtime).setHours(0, 0, 0, 0));
+    if (!key) return;
+    if (!filesByDay.has(key)) filesByDay.set(key, []);
+    filesByDay.get(key).push(f);
   });
-  const maxCount = Math.max(1, ...Object.values(dayCounts));
+  const maxCount = Math.max(1, ...Array.from(filesByDay.values(), (files) => files.length));
   // 5 级色阶：无→低→中→高→极高，取自 styles.css 的主题 token，跟随宿主强调色
   const colors = ['var(--ck-heat-1)','var(--ck-heat-2)','var(--ck-heat-3)','var(--ck-heat-4)','var(--ck-heat-5)'];
   const getColor = (count) => {
@@ -295,13 +295,25 @@ function cockpitBuildHeatmapSection(view, root, ctx) {
   for (let i = 29; i >= 0; i--) {
     const d = today.clone().subtract(i, 'days');
     const key = d.format('YYYY-MM-DD');
-    const count = dayCounts[key] || 0;
+    const files = filesByDay.get(key) || [];
+    const count = files.length;
     const cell = heatmapEl.createDiv({ cls: PLUGIN_ID+'-hm-cell' });
     cell.title = key + ': ' + t('heatmap.files', { count });
-    cell.tabIndex = 0; cell.setAttribute('role','button');
-    const openDay = async () => { const dayStart=window.moment(key,'YYYY-MM-DD').valueOf(); const candidates=allFiles.filter((file)=>file.stat.mtime>=dayStart&&file.stat.mtime<dayStart+86400000).sort((a,b)=>b.stat.mtime-a.stat.mtime);if(candidates[0])await view.app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:candidates[0].path}});else new obs.Notice(lang==='en'?'No edited notes on view date.':'这一天没有编辑过的笔记。'); };
-    cell.onclick=openDay;cell.onkeydown=(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openDay();}};
     cell.style.background = getColor(count);
+    if (!count) continue;
+    cell.tabIndex = 0; cell.setAttribute('role','button');
+    cell.setAttribute('aria-label', cell.title);
+    const openNote = (file) => view.app.workspace.getUnpinnedLeaf().setViewState({ type:'markdown', state:{file:file.path}, active:true });
+    const openDay = async () => {
+      if (count === 1) return openNote(files[0]);
+      new CockpitDetailModal(view, cell.title, (content, modal) => {
+        const list = content.createDiv({ cls:PLUGIN_ID+'-hm-note-list' });
+        files.slice().sort((a,b) => b.stat.mtime-a.stat.mtime).forEach((file) => {
+          cockpitDetailButton(list, file.path, async () => { await openNote(file); modal.close(); });
+        });
+      }).open();
+    };
+    cell.onclick=openDay;cell.onkeydown=(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openDay();}};
   }
   // 图例
   const legend = hmTitle.createDiv({ cls: PLUGIN_ID+'-hm-legend' });

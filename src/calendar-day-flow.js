@@ -31,25 +31,31 @@ function calendarCountdownItemsForDate(items, dateValue) {
   }).filter((item) => item?.id && item.name).sort((a,b) => a.sortTime - b.sortTime || a.name.localeCompare(b.name));
 }
 
+const CAL_FLOW_UNTIMED = Number.MAX_SAFE_INTEGER;
+const CAL_FLOW_ALL_DAY = CAL_FLOW_UNTIMED - 1;
+
 function calendarBuildDayFlowItems({ dayStart, events, todos, rssSummary, countdowns, automations }) {
   // 定时事项先按时刻排列，全天事项随后，无固定时刻的摘要与监听放在末尾。
-  const allDayTime = Number.MAX_SAFE_INTEGER - 1;
   return [
-    ...events.map((event) => ({ kind:'event', event, sortTime:event.allDay ? allDayTime : Math.max(dayStart, event.start) })),
-    ...todos.map((todo) => ({ kind:todo.teamTodo ? 'teamTodo' : 'todo', todo, sortTime:todo.dueHasTime ? todo.dueDate.valueOf() : allDayTime })),
-    ...(rssSummary.count ? [{ kind:'rss', rssSummary, sortTime:Number.MAX_SAFE_INTEGER }] : []),
+    ...events.map((event) => ({ kind:'event', event, sortTime:event.allDay ? CAL_FLOW_ALL_DAY : Math.max(dayStart, event.start) })),
+    ...todos.map((todo) => ({ kind:todo.teamTodo ? 'teamTodo' : 'todo', todo, sortTime:todo.dueHasTime ? todo.dueDate.valueOf() : CAL_FLOW_ALL_DAY })),
+    ...(rssSummary.count ? [{ kind:'rss', rssSummary, sortTime:CAL_FLOW_UNTIMED }] : []),
     ...countdowns.map((countdown) => ({ kind:'countdown', countdown, sortTime:countdown.sortTime })),
-    ...automations.map((automation) => ({ kind:'automation', automation, sortTime:Number(automation.sortTime) || Number.MAX_SAFE_INTEGER }))
+    ...automations.map((automation) => ({ kind:'automation', automation, sortTime:Number(automation.sortTime) || CAL_FLOW_UNTIMED }))
   ].sort((a, b) => a.sortTime - b.sortTime || a.kind.localeCompare(b.kind));
 }
 
 function renderCalendarDayFlow(options) {
-  const { anchor, date, language, t, todosForDate, rssItems, calendarEvents, automationItems, countdownItems, filter, onFilterChange, bindTodoDrag, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoIncrement, onTodoAlarm, hasLinkedTodoAlarm, openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen, rerender, rss } = options;
+  const { anchor, date, language, t, todosForDate, rssItems, calendarEvents, nextItem, automationItems, countdownItems, filter, onFilterChange, bindTodoDrag, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoIncrement, onTodoAlarm, hasLinkedTodoAlarm, openRss, onAutomationOpen, onAutomationRun, onCountdownOpen, onEventOpen, rerender, rss } = options;
   const parent = anchor?.parentNode;
   if (!parent) return null;
   const previous = parent.querySelector('.' + PLUGIN_ID + '-cal-detail');
   const dateKey = date.format('YYYY-MM-DD');
-  const renderKey = JSON.stringify([dateKey, window.moment().format('YYYY-MM-DD HH:mm'), filter, todosForDate, rssItems, calendarEvents, automationItems, countdownItems]);
+  const now = window.moment();
+  const isToday = date.isSame(now, 'day');
+  const nextTodo = isToday ? nextItem?.todo : null;
+  const nextEvent = isToday ? nextItem?.event : null;
+  const renderKey = JSON.stringify([dateKey, now.format('YYYY-MM-DD HH:mm'), filter, todosForDate, rssItems, calendarEvents, automationItems, countdownItems, nextTodo?.id, nextTodo?.teamTodo, nextEvent]);
   if (previous?._cockpitRenderKey === renderKey) return previous;
   const refreshing = previous?.dataset.date === dateKey;
   const scrollTop = previous?.scrollTop || 0;
@@ -83,7 +89,7 @@ function renderCalendarDayFlow(options) {
   parent.insertBefore(detail, anchor.nextSibling);
   const head = detail.createDiv({ cls:PLUGIN_ID + '-cal-detail-head' });
   const title = head.createDiv({ cls:PLUGIN_ID + '-cal-detail-title-wrap' });
-  title.createDiv({ cls:PLUGIN_ID + '-cal-detail-kicker', text:date.isSame(window.moment(), 'day') ? (en ? 'TODAY OPERATIONS' : '今日运行总览') : (en ? 'DAY PLAN' : '日期事项总览') });
+  title.createDiv({ cls:PLUGIN_ID + '-cal-detail-kicker', text:isToday ? (en ? 'TODAY OPERATIONS' : '今日运行总览') : (en ? 'DAY PLAN' : '日期事项总览') });
   title.createDiv({ cls:PLUGIN_ID + '-cal-detail-title', text:formatCalendarDetailHeading(date, language) });
   title.createDiv({ cls:PLUGIN_ID + '-cal-detail-count', text:en ? `${flowItems.length} items` : `共 ${flowItems.length} 项` });
   const actions = head.createDiv({ cls:PLUGIN_ID + '-cal-detail-actions' });
@@ -109,9 +115,10 @@ function renderCalendarDayFlow(options) {
     return finish();
   }
 
-  const timeline = detail.createDiv({ cls:PLUGIN_ID + '-cal-timeline', attr:{ role:'list' } });
-  const now = window.moment();
-  const nextTimed = date.isSame(now, 'day') ? todos.find((todo) => !todo.done && todo.dueHasTime && todo.dueDate?.isSameOrAfter?.(now)) : null;
+  const timeline = detail.createDiv({ cls:PLUGIN_ID + '-cal-timeline' });
+  const getGroup = (item) => item.sortTime >= CAL_FLOW_UNTIMED ? 'untimed' : item.sortTime === CAL_FLOW_ALL_DAY ? 'allDay' : 'timed';
+  const groupLabels = { allDay:en ? 'All day' : '全天', untimed:en ? 'No scheduled time' : '无固定时刻' };
+  let groupList;
   const priorityText = en ? {high:'High',mid:'Normal',low:'Low'} : {high:'高',mid:'普通',low:'低'};
   const priorityIcon = {high:'arrow-up',mid:'minus',low:'arrow-down'};
   const statusText = en
@@ -119,21 +126,33 @@ function renderCalendarDayFlow(options) {
     : {pending:'待执行',due:'待补跑',listening:'监听中',success:'已完成',failed:'失败',skipped:'已跳过'};
 
   visibleItems.forEach((flow, index) => {
+    const group = getGroup(flow);
+    const first = !index || getGroup(visibleItems[index - 1]) !== group;
+    const last = index === visibleItems.length - 1 || getGroup(visibleItems[index + 1]) !== group;
+    if (first) {
+      const label = groupLabels[group];
+      if (label) timeline.createEl('h3', { cls:PLUGIN_ID + '-cal-timeline-group-label', text:label });
+      groupList = timeline.createDiv({ attr:label ? { role:'list', 'aria-label':label } : { role:'list' } });
+    }
     const todo = flow.todo;
     const rssEntry = flow.rssSummary;
     const countdown = flow.countdown;
     const automation = flow.automation;
     const calEvent = flow.event;
+    const isNext = todo
+      ? nextTodo && !todo.done && todo.id === nextTodo.id && !!todo.teamTodo === !!nextTodo.teamTodo
+      : calEvent && nextEvent && calEvent.id === nextEvent.id && calEvent.start === nextEvent.start
+        && calEvent.calendar === nextEvent.calendar && calEvent.title === nextEvent.title;
     const rowClass = todo
-      ? PLUGIN_ID + '-cal-timeline-row p-' + (todo.priority || 'mid') + ' kind-todo ' + (todo.teamTodo ? 'is-team-todo' : 'is-personal-todo') + (todo.done ? ' done' : '') + (todo === nextTimed ? ' is-next' : '')
+      ? PLUGIN_ID + '-cal-timeline-row p-' + (todo.priority || 'mid') + ' kind-todo ' + (todo.teamTodo ? 'is-team-todo' : 'is-personal-todo') + (todo.done ? ' done' : '')
       : PLUGIN_ID + '-cal-timeline-row kind-' + flow.kind;
-    const row = timeline.createDiv({ cls:rowClass, attr:{ role:'listitem' } });
+    const row = groupList.createDiv({ cls:rowClass + (isNext ? ' is-next' : ''), attr:{ role:'listitem' } });
     const time = row.createDiv({ cls:PLUGIN_ID + '-cal-timeline-time' });
       time.createSpan({ text:todo
       ? (todo.dueHasTime ? todo.dueDate.format('HH:mm') : (en ? 'All day' : '全天'))
-      : calEvent ? (calEvent.allDay || calEvent.start < dayStart ? (en ? 'All day' : '全天') : window.moment(calEvent.start).format('HH:mm'))
+      : calEvent ? (calEvent.allDay ? (en ? 'All day' : '全天') : calEvent.start < dayStart ? (en ? 'Cont.' : '续') : window.moment(calEvent.start).format('HH:mm'))
       : rssEntry ? 'RSS' : countdown ? countdown.time : (automation.time || (en ? 'Event' : '事件')) });
-    const rail = row.createDiv({ cls:PLUGIN_ID + '-cal-timeline-rail' + (index === 0 ? ' first' : '') + (index === visibleItems.length - 1 ? ' last' : '') });
+    const rail = row.createDiv({ cls:PLUGIN_ID + '-cal-timeline-rail' + (first ? ' first' : '') + (last ? ' last' : '') });
     let check = null;
     if (todo) {
       check = rail.createEl('button', { cls:PLUGIN_ID + '-cal-timeline-node p-' + (todo.priority || 'mid') + (todo.done ? ' done' : ''), attr:{ type:'button', 'aria-label':todo.done ? (en ? 'Mark task open' : '恢复为待办') : (en ? 'Complete task' : '完成待办'), 'aria-pressed':String(todo.done) } });
@@ -185,7 +204,7 @@ function renderCalendarDayFlow(options) {
       chip(2, '', automation.actionLabel);
       chip(1, 'status-' + automation.status, statusText[automation.status] || automation.status);
     }
-    if (todo && todo === nextTimed) summary.createSpan({ cls:PLUGIN_ID + '-cal-timeline-now', text:'NOW' });
+    if (isNext) summary.createSpan({ cls:PLUGIN_ID + '-cal-timeline-next', text:en ? 'Next' : '下一项' });
     const rowActions = content.createDiv({ cls:PLUGIN_ID + '-cal-timeline-actions' });
 
     if (todo && !todo.teamTodo && !todo.done && todo.raw.id) {

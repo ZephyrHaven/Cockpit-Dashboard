@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const workflows = fs.readFileSync(path.join(__dirname, '../src/workflows.js'), 'utf8');
 const weeklyReport = fs.readFileSync(path.join(__dirname, '../src/weekly-report.js'), 'utf8');
@@ -67,4 +68,22 @@ const actionsDeclaration = weeklyReport.indexOf("const actions = row.createDiv({
 const actionsBinding = weeklyReport.indexOf('actions.onpointerdown');
 assert.ok(actionsDeclaration >= 0 && actionsBinding > actionsDeclaration, 'Report card actions must be created before event handlers are attached.');
 
-console.log('UI construction regression checks passed');
+const rss = fs.readFileSync(path.join(__dirname, '../src/rss.js'), 'utf8');
+const rssContext = vm.createContext({ __RSS_FILTER_DEFAULTS__:[], CockpitModal:class {} });
+vm.runInContext(rss + '\nthis.RssService = CockpitRssService;', rssContext);
+const rssReader = rss.slice(rss.indexOf('class CockpitRssModal'), rss.indexOf('class CockpitRssSettingsModal'));
+assert.doesNotMatch(rssReader, /if \(!selected\.readAt\)/, 'Rendering the default article does not mark it as read.');
+(async () => {
+  const service = new rssContext.RssService({});
+  const item = { id:'note' };
+  service._items = [item];
+  service._writeCache = async () => {};
+  await service.updateProgress(item.id, 40);
+  assert.equal(item.readAt, undefined, 'Scroll restoration cannot mark a preview as read.');
+  await service.setRead(item.id, true);
+  assert.ok(item.readAt > 0);
+  await service.setRead(item.id, false);
+  await service.updateProgress(item.id, 60);
+  assert.equal(item.readAt, 0, 'Marking unread persists independently of progress.');
+  console.log('UI construction and RSS reading status checks passed');
+})().catch((error) => { console.error(error); process.exitCode = 1; });

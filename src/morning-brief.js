@@ -390,27 +390,34 @@ class CockpitMorningBriefService {
     return this.deliver(ids, { currentDeviceId:routing.currentDeviceId });
   }
 
-  // 手动触发（命令 / 设置页按钮）：忽略时间窗，立即向全部启用渠道发送一次。
-  async sendNow() {
+  // 手动发送忽略时间窗；如果有预览，只发送预览中的正文与渠道。
+  async sendNow(preview = null) {
     const channelConfig = await this.plugin.serverChan.getConfig();
     const ids = getEnabledChannels(channelConfig);
-    if (!ids.length) {
+    if (!ids.length && !preview) {
       const language = await getServerChanSettingsLanguage(this.plugin).catch(() => 'zh-CN');
       throw new Error(getMorningBriefSettingsCopy(language).noChannel);
     }
     const routing = await this.getRouting();
-    return this.deliver(ids, { currentDeviceId:routing.currentDeviceId });
+    return this.deliver(preview ? preview.channelIds : ids, { currentDeviceId:routing.currentDeviceId, preview });
   }
 
   async deliver(ids, options = {}) {
     if (this._sending) return false;
     this._sending = true;
     try {
-      const brief = await this.assemble();
+      const brief = options.preview || await this.assemble();
       if (!brief.channelIds.length) return false;
       const targets = ids.filter((id) => brief.channelIds.includes(id));
       if (!targets.length) return false;
       const channelConfig = await this.plugin.serverChan.getConfig();
+      if (options.preview) {
+        const enabled = new Set(getEnabledChannels(channelConfig));
+        if (targets.some((id) => !enabled.has(id))) {
+          const language = await getServerChanSettingsLanguage(this.plugin).catch(() => 'zh-CN');
+          throw new Error(getMorningBriefSettingsCopy(language).channelsChanged);
+        }
+      }
       const results = await Promise.allSettled(targets.map((id) => sendNotificationChannel(id, channelConfig.channels[id], brief.title, brief.body)));
       const config = await this.getConfig();
       const key = window.moment().format('YYYY-MM-DD');
@@ -455,8 +462,10 @@ function getMorningBriefSettingsCopy(language) {
     senderDeviceDesc:en ? 'Pair another computer under Nearby devices before selecting it here.' : '需要选择其他电脑时，请先在“附近设备”中完成配对。',
     aiPolish:en ? 'AI opening line' : 'AI 开场小结',
     aiPolishDesc:en ? 'Adds one AI-written sentence on top of the template. Configure a model in “AI models” first; falls back silently when unavailable.' : '在模板上方追加一句 AI 生成的总结。需先在「AI 模型」里完成配置；不可用时自动跳过，不影响发送。',
-    test:en ? 'Preview & send now' : '立即预览发送',
-    testDesc:en ? 'Assemble a brief immediately and deliver it through all enabled channels.' : '立即组装一条简报并通过所有启用渠道发送。',
+    test:en ? 'Preview brief' : '预览简报',
+    testDesc:en ? 'Review the message and delivery channels before sending.' : '发送前查看简报内容与推送渠道。',
+    channelsChanged:en ? 'Delivery channels changed. Open a new preview.' : '推送渠道已变化，请重新预览。',
+    previewFail:en ? 'Could not preview the brief: ' : '生成简报预览失败：',
     sending:en ? 'Sending…' : '发送中…',
     sentOk:en ? 'Morning brief sent' : '晨间简报已发送',
     sentFail:en ? 'Send failed: ' : '发送失败：',
@@ -538,15 +547,36 @@ async function renderMorningBriefSettings(panel, plugin, language) {
 
   const actions = new obs.Setting(panel).setName(copy.test).setDesc(copy.testDesc);
   actions.addButton((button) => button.setButtonText(copy.test).onClick(async () => {
-    button.setDisabled(true); button.setButtonText(copy.sending);
+    button.setDisabled(true);
     try {
-      const ok = await plugin.morningBrief.sendNow();
-      new obs.Notice(ok ? copy.sentOk : (copy.sentFail + (en ? 'no enabled channel' : '没有可用渠道')));
+      const brief = await plugin.morningBrief.assemble();
+      new CockpitDetailModal({ app:plugin.app, _plugin:plugin }, copy.test, (content, modal) => {
+        content.createEl('h3', { text:brief.title });
+        content.createEl('div', { cls:PLUGIN_ID + '-brief-preview-body', text:brief.body });
+        const channels = brief.channelIds.map((id) => NOTIFICATION_CHANNELS[id]?.label || id);
+        content.createEl('p', { text:channels.length ? (en ? 'Delivery channels: ' : '推送渠道：') + channels.join('、') : copy.noChannel });
+        new obs.Setting(content)
+          .addButton((cancel) => cancel.setButtonText(en ? 'Cancel' : '取消').onClick(() => modal.close()))
+          .addButton((send) => send.setButtonText(en ? 'Send' : '发送').setCta().setDisabled(!channels.length).onClick(async () => {
+            send.setDisabled(true); send.setButtonText(copy.sending);
+            try {
+              const ok = await plugin.morningBrief.sendNow(brief);
+              if (ok) modal.close();
+              else send.setDisabled(false);
+              new obs.Notice(ok ? copy.sentOk : copy.sentFail + (en ? 'preview was not delivered' : '未送达'));
+            } catch (error) {
+              new obs.Notice(copy.sentFail + (error?.message || 'unknown error'));
+              send.setDisabled(false);
+            } finally {
+              send.setButtonText(en ? 'Send' : '发送');
+              if (panel.isConnected) renderStatus().catch(() => {});
+            }
+          }));
+      }).open();
     } catch (e) {
-      new obs.Notice(copy.sentFail + (e?.message || 'unknown error'));
+      new obs.Notice(copy.previewFail + (e?.message || 'unknown error'));
     } finally {
-      button.setDisabled(false); button.setButtonText(copy.test);
-      renderStatus().catch(() => {});
+      button.setDisabled(false);
     }
   }));
 

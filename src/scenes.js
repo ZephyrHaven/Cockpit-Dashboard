@@ -106,6 +106,10 @@ class CockpitSceneScheduleModal extends CockpitModal {
     const heading = contentEl.createEl('h2', { text:en ? 'Automatic scene schedule' : '情景自动切换规则' });
     this._dragCleanup = makeCockpitModalDraggable(this, heading, en ? 'Drag scene schedule dialog' : '拖动情景规则窗口');
     contentEl.createDiv({ cls:PLUGIN_ID + '-scene-name-help', text:en ? 'This scene is selected when the current time is in its rule. Manual switching always remains available.' : '当前时间命中规则时自动切换到此情景；仍可随时手动切换。' });
+    const match = this.view._getAutomaticScene();
+    const matchLabel = match ? this.view._sceneLabel(match) + ' · ' + match.autoRule.start + '–' + match.autoRule.end : (en ? 'None' : '无');
+    contentEl.createDiv({ cls:PLUGIN_ID + '-scene-name-help', text:(en ? 'Current match: ' : '当前命中：') + matchLabel });
+    contentEl.createDiv({ cls:PLUGIN_ID + '-scene-name-help', text:en ? 'If rules overlap, the first matching scene in the menu takes priority.' : '规则重叠时，按情景菜单顺序采用第一条命中的规则。' });
     const enabledLabel = contentEl.createEl('label'); const enabled = enabledLabel.createEl('input', { attr:{ type:'checkbox' } }); enabled.checked = rule.enabled === true; enabledLabel.createSpan({ text:en ? ' Enable automatic switching' : ' 启用自动切换' });
     const row = contentEl.createDiv({ cls:PLUGIN_ID + '-scene-schedule-row' });
     const start = row.createEl('input', { attr:{ type:'time', 'aria-label':en ? 'Start time' : '开始时间' } }); start.value = /^\d{2}:\d{2}$/.test(rule.start || '') ? rule.start : '09:00';

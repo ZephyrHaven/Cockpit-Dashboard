@@ -280,8 +280,9 @@ async function openCountdownEditor(view, raw, onSaved, options = {}) {
   const selected = new Set(existing?.channelIds || Object.keys(config.channels).filter((id) => config.channels[id]?.enabled));
   Object.values(NOTIFICATION_CHANNELS).forEach((channel) => {
     const label = channelWrap.createEl('label'); const input = label.createEl('input', { attr:{type:'checkbox'} }); input.checked = selected.has(channel.id);
+    input.disabled = !config.channels[channel.id]?.enabled;
     input.onchange = () => input.checked ? selected.add(channel.id) : selected.delete(channel.id);
-    label.createSpan({ text:channel.label + (config.channels[channel.id]?.enabled ? '' : (en ? ' (not configured)' : '（未启用）')) });
+    label.createSpan({ text:channel.label + (input.disabled ? (en ? ' (enable in Settings → Channels first)' : '（请先在设置 → 推送渠道中启用）') : '') });
   });
   const localLabel = channelWrap.createEl('label'); const local = localLabel.createEl('input',{attr:{type:'checkbox'}}); local.checked = existing?.localNotification !== false; localLabel.createSpan({text:en?'Local system notification':'本机系统通知'});
   const endLabel = channelWrap.createEl('label'); const notifyEnd = endLabel.createEl('input',{attr:{type:'checkbox'}}); notifyEnd.checked = existing?.notifyAtEnd !== false; endLabel.createSpan({text:en?'Notify again at the deadline':'到达目标时间时再次通知'});
