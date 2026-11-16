@@ -629,6 +629,9 @@ class CockpitView extends obs.ItemView {
     // 加载用户自定义名称 + 初始化首次使用日期
     this._glassCardsEnabled = false;
     this._moduleTitleIconsEnabled = true;
+    this._moduleNavEnabled = true;
+    this._moduleNavPosition = 'top';
+    this._moduleNavAutoHide = true;
     try {
       const pluginData = await this._plugin.loadData() || {};
       if (pluginData.dashboardComponentsRevision !== 1) {
@@ -660,6 +663,9 @@ class CockpitView extends obs.ItemView {
       this._motionV2Enabled = pluginData?.motionV2Enabled !== false;
       this._glassCardsEnabled = pluginData?.glassCardsEnabled === true;
       this._moduleTitleIconsEnabled = pluginData?.moduleTitleIconsEnabled !== false;
+      this._moduleNavEnabled = pluginData?.moduleNavEnabled !== false;
+      this._moduleNavPosition = pluginData?.moduleNavPosition === 'left' || pluginData?.moduleNavPosition === 'bottom' ? pluginData.moduleNavPosition : 'top';
+      this._moduleNavAutoHide = pluginData?.moduleNavAutoHide !== false;
       this._username = pluginData?.username || this._t('hero.defaultName');
       const savedContentWidth = Number(pluginData?.dashboardContentWidth);
       this._contentWidth = Number.isFinite(savedContentWidth) && savedContentWidth >= 480 ? Math.round(savedContentWidth) : null;
@@ -875,6 +881,7 @@ class CockpitView extends obs.ItemView {
 
   async _renderDashboard(reloadState, crossfadeScene) {
     cockpitDestroyCustomComponents(this);
+    if (typeof cockpitDestroyModuleNav === 'function') cockpitDestroyModuleNav(this);
     this._teamUnsubscribe?.(); this._teamUnsubscribe = null; this._teamBuildToken = null;
     if (reloadState) await this._reloadDashboardState();
     this._blankContextMenuItems = [];
@@ -901,6 +908,9 @@ class CockpitView extends obs.ItemView {
     const root = container.createDiv({ cls:initialClasses.join(' ') });
     root.dataset.glass = this._glassCardsEnabled ? 'on' : 'off';
     root.dataset.moduleTitleIcons = this._moduleTitleIconsEnabled !== false ? 'on' : 'off';
+    root.dataset.moduleNavEnabled = this._moduleNavEnabled === false ? 'off' : 'on';
+    root.dataset.moduleNavPosition = this._moduleNavPosition || 'top';
+    root.dataset.moduleNavAutoHide = this._moduleNavAutoHide === false ? 'off' : 'on';
     cockpitApplyMotionState(root, this);
     if (previousRoot) root.classList.add(PLUGIN_ID + '-scene-preparing');
     this._ensureStylesheetLoaded();
@@ -1848,6 +1858,7 @@ class CockpitView extends obs.ItemView {
     };
     this._applyModuleEditState(root);
     this._attachContentResizeHandle(root);
+    if (typeof cockpitBuildModuleNav === 'function') cockpitBuildModuleNav(this, root);
 
     // ===== 番茄钟浮动组件 =====
     if (this._pomodoroAutoShow || this._pomodoroSession?.active) buildPomodoro(this, root);
@@ -2138,6 +2149,7 @@ class CockpitView extends obs.ItemView {
   }
   async onClose() {
     cockpitDestroyCustomComponents(this, true);
+    if (typeof cockpitDestroyModuleNav === 'function') cockpitDestroyModuleNav(this);
     cancelAnimationFrame(this._contentWidthFrame); this._contentWidthFrame = null;
     clearTimeout(this._contentWidthTimer); this._contentWidthTimer = null;
     this._teamUnsubscribe?.(); this._teamUnsubscribe = null; this._teamBuildToken = null;

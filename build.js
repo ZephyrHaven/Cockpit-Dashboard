@@ -116,6 +116,7 @@ const MODULES = [
   'updater.js',
   'toolbar-defs.js',
   'layout-edit.js',
+  'module-nav.js',
   'custom-components-core.js',
   'custom-components-service.js',
   'custom-components-runtime.js',

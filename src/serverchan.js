@@ -447,6 +447,33 @@ class CockpitServerChanSettingTab extends obs.PluginSettingTab {
         await this.plugin.mutateData(data => { data.moduleTitleIconsEnabled = value === true; });
         cockpitRefreshModuleTitleIcons(this.plugin, value === true);
       }));
+    new obs.Setting(panels.appearance)
+      .setName(en ? 'Enable module Dock' : '启用模块 Dock')
+      .addToggle(toggle => toggle.setValue(motionData.moduleNavEnabled !== false).onChange(async value => {
+        await this.plugin.mutateData(data => { data.moduleNavEnabled = value; });
+        cockpitRefreshModuleNavEnabled(this.plugin, value);
+      }));
+    new obs.Setting(panels.appearance)
+      .setName(en ? 'Dock position' : 'Dock 位置')
+      .setDesc(en ? 'Choose where the Dock appears in the dashboard.' : '选择 Dock 在仪表盘内的停靠位置。')
+      .addDropdown(dropdown => dropdown
+        .addOptions({
+          top: en ? 'Top center' : '顶部居中',
+          left: en ? 'Left side' : '左侧竖排',
+          bottom: en ? 'Bottom center' : '底部居中'
+        })
+        .setValue(cockpitNormalizeModuleNavPosition(motionData.moduleNavPosition))
+        .onChange(async value => {
+          await this.plugin.mutateData(data => { data.moduleNavPosition = value; });
+          cockpitRefreshModuleNavPosition(this.plugin, value);
+        }));
+    new obs.Setting(panels.appearance)
+      .setName(en ? 'Hide Dock on the first screen' : '首屏隐藏 Dock')
+      .setDesc(en ? 'The Dock appears after you scroll past the first screen and hides when you return. Turn this off to keep it visible from the start.' : '滚出首屏后显示，返回首屏时收起。关闭后从首屏起一直显示。')
+      .addToggle(toggle => toggle.setValue(motionData.moduleNavAutoHide !== false).onChange(async value => {
+        await this.plugin.mutateData(data => { data.moduleNavAutoHide = value === true; });
+        cockpitRefreshModuleNavAutoHide(this.plugin, value === true);
+      }));
     const motionStatus = panels.appearance.createDiv({ cls:PLUGIN_ID + '-motion-settings-preview' });
     const previewOrb = motionStatus.createDiv({ cls:PLUGIN_ID + '-motion-settings-orb' });
     obs.setIcon(previewOrb, 'sparkles');

@@ -108,6 +108,7 @@ function cockpitApplyModuleEditState(view, root) {
   });
   cockpitApplyToolbarButtonEditState(view, root);
   if (typeof cockpitSyncCustomComponents === 'function') cockpitSyncCustomComponents(view);
+  if (typeof view._syncModuleNav === 'function') view._syncModuleNav();
 }
 function cockpitWireModuleDnD(view, root) {
   root.querySelectorAll('.' + PLUGIN_ID + '-module').forEach((wrapper) => {

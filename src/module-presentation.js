@@ -1,8 +1,11 @@
 // module-presentation.js — 标题装饰统一使用宿主提供的线条图标。
+function cockpitModuleIcon(moduleId) {
+  return COMPONENT_STORE_META[moduleId]?.icon || 'layout-grid';
+}
 function cockpitSetModuleTitleIcon(title, moduleId, iconName) {
   if (!title || title.querySelector('.' + PLUGIN_ID + '-module-title-icon')) return;
   const icon = title.createSpan({ cls:PLUGIN_ID + '-module-title-icon', attr:{ 'aria-hidden':'true' } });
-  obs.setIcon(icon, iconName || COMPONENT_STORE_META[moduleId]?.icon || 'layout-grid');
+  obs.setIcon(icon, iconName || cockpitModuleIcon(moduleId));
   title.insertBefore(icon, title.firstChild);
 }
 function cockpitApplyModuleTitleIcon(wrapper, moduleId) {
