@@ -48,7 +48,7 @@ root.createDiv({ cls: PLUGIN_ID+'-hero' }, el => {
   langSwitch.addEventListener('pointerleave', () => {
     langSwitch.querySelectorAll('.' + PLUGIN_ID + '-lang-btn').forEach(elm => elm.classList.remove('pressing'));
   });
-  buildSceneSwitcher(this, heroControls);
+  buildSceneSwitcher(view, heroControls);
   const greetLine = el.createDiv({ cls: PLUGIN_ID+'-greeting' });
   const greetingPrefixEl = greetLine.createSpan({ text: gr+'，' });
   let currNameSpan = greetLine.createSpan({ cls: PLUGIN_ID+'-name', text: view._username });

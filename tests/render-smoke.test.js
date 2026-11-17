@@ -30,7 +30,9 @@ function FakeEl(){
   this.offsetHeight=0;this.offsetWidth=0;this.scrollTop=0;this.scrollHeight=0;
 }
 const E=FakeEl.prototype;
-['createDiv','createEl','createSpan','createSvg','createSvg'].forEach(m=>E[m]=function(tag,o){const c=new FakeEl();if(o&&o.text)c.textContent=o.text;if(o&&o.cls)c._cls=o.cls;return c;});
+// createDiv/createEl/createSpan: 支持 Obsidian 的 (opts, callback) 形式——callback(el) 会就地填充子节点。
+// 早期 mock 丢弃 callback 会导致嵌套渲染（Hero/情景切换/各区块内部）根本不执行，冒烟测试产生假阴性。
+['createDiv','createEl','createSpan','createSvg'].forEach(m=>E[m]=function(a,b){const c=new FakeEl();const opts=(a&&typeof a==='object')?a:null;if(opts){if(opts.text!=null)c.textContent=opts.text;if(opts.cls)c._cls=opts.cls;}else if(typeof a==='string'){c._tag=a;}const cb=(typeof a==='function')?a:(typeof b==='function'?b:null);if(cb){try{cb(c);}catch(e){throw e;}}return c;});
 E.empty=function(){this.children=[];return this};
 E.appendChild=function(c){this.children.push(c);return c};
 E.append=function(...c){c.forEach(x=>this.children.push(x));return this};
