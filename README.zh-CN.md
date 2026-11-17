@@ -1,8 +1,30 @@
+<!-- Banner -->
+<div align="center">
+
 # Cockpit Dashboard
 
-[English](README.md) | **简体中文**
+**把一整天，收进驾驶舱的一页 —— 本地优先，就在 Obsidian 里。**
 
-Cockpit Dashboard 是一个本地优先的 Obsidian 驾驶舱首页插件，把待办、日历、RSS、AI 助手、专注统计与本地自动化放进一个可自由编排的工作台。
+待办、日历、RSS、专注统计、自动化，以及可选的多模型 AI 助手，按你的习惯自由编排。
+
+[![Release](https://img.shields.io/github/v/release/ZephyrHaven/Cockpit-Dashboard?style=for-the-badge&label=release&color=6E56CF)](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases)
+[![Downloads](https://img.shields.io/github/downloads/ZephyrHaven/Cockpit-Dashboard/total?style=for-the-badge&color=2F9E44)](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases)
+[![Stars](https://img.shields.io/github/stars/ZephyrHaven/Cockpit-Dashboard?style=for-the-badge&color=E8590C)](https://github.com/ZephyrHaven/Cockpit-Dashboard/stargazers)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
+[![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A50.15.0-7C3AED?style=for-the-badge&logo=obsidian&logoColor=white)](https://obsidian.md)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-4C6EF5?style=for-the-badge)](#安装)
+
+[![Sponsor](https://img.shields.io/badge/%F0%9F%92%96%20%E8%B5%9E%E5%8A%A9-Afdian-946CE6?style=for-the-badge)](https://afdian.com/a/zephyrhaven)
+
+[English](README.md) · **简体中文**
+
+[主要功能](#主要功能) · [安装](#安装) · [数据与隐私](#数据与隐私) · [开发](#开发) · [赞助](#-赞助)
+
+</div>
+
+![Cockpit Dashboard 界面预览](assets/screenshot.png)
+
+---
 
 ## 主要功能
 
@@ -16,9 +38,15 @@ Cockpit Dashboard 是一个本地优先的 Obsidian 驾驶舱首页插件，把�
 
 ## 安装
 
-**社区插件市场（推荐）**：设置 → 第三方插件 → 浏览 → 搜索 **Cockpit Dashboard** → 安装并启用。
+**社区插件市场（推荐）**
 
-**手动安装**：从 [GitHub Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases) 下载最新版，把 `main.js`、`manifest.json`、`styles.css` 复制到 `.obsidian/plugins/cockpit-dashboard/` 后启用插件。升级时只覆盖这三个文件，保留 `data.json` 中的设置。
+1. 打开 **设置 → 第三方插件 → 浏览**。
+2. 搜索 **Cockpit Dashboard**。
+3. 安装并启用。
+
+**手动安装**
+
+从 [GitHub Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases) 下载最新版，把 `main.js`、`manifest.json`、`styles.css` 复制到 `.obsidian/plugins/cockpit-dashboard/` 后启用插件。升级时只覆盖这三个文件，保留 `data.json` 中的设置。
 
 ## 推荐
 
@@ -89,14 +117,24 @@ bash deploy.sh          # 构建并复制到本机插件目录
 
 发布 tag 不加 `v` 前缀，附件包含 `main.js`、`styles.css`、`manifest.json` 三个独立文件。
 
-## 赞助作者
+## 💖 赞助
 
-如果这个插件帮你省下了时间，欢迎请作者喝一杯：
+Cockpit Dashboard 利用业余时间开发与维护，始终免费、本地优先。如果它帮你省下了时间，欢迎请作者喝一杯咖啡，非常感谢！
+
+<div align="center">
 
 [![爱发电 Afdian](assets/afdian-badge-zh.svg)](https://afdian.com/a/zephyrhaven)
 
-<https://afdian.com/a/zephyrhaven>
+**[☕ 前往爱发电支持 →](https://afdian.com/a/zephyrhaven)**
+
+<sub>也可以点一个 ⭐、在 [Discussions](https://github.com/ZephyrHaven/Cockpit-Dashboard/discussions) 留句话，或推荐给朋友 —— 同样感谢。</sub>
+
+</div>
 
 ## 作者
 
-- GitHub: [ZephyrHaven](https://github.com/ZephyrHaven)
+- GitHub: [@ZephyrHaven](https://github.com/ZephyrHaven)
+
+---
+
+<div align="center"><sub>为喜欢把一天收进一页的人而做。如果 Cockpit Dashboard 对你有帮助，欢迎点一个 ⭐。</sub></div>

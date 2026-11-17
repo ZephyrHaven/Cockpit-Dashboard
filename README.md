@@ -1,8 +1,30 @@
+<!-- Banner -->
+<div align="center">
+
 # Cockpit Dashboard
 
-**English** | [中文](README.zh-CN.md)
+**Your entire day, on one calm, local-first page — inside Obsidian.**
 
-Cockpit Dashboard is a local-first home dashboard for Obsidian. It brings tasks, calendar, RSS, an AI assistant, focus stats and local automation into a customizable workspace.
+Tasks, calendar, RSS, focus stats, automation and an optional multi-model AI assistant, arranged exactly the way you work.
+
+[![Release](https://img.shields.io/github/v/release/ZephyrHaven/Cockpit-Dashboard?style=for-the-badge&label=release&color=6E56CF)](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases)
+[![Downloads](https://img.shields.io/github/downloads/ZephyrHaven/Cockpit-Dashboard/total?style=for-the-badge&color=2F9E44)](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases)
+[![Stars](https://img.shields.io/github/stars/ZephyrHaven/Cockpit-Dashboard?style=for-the-badge&color=E8590C)](https://github.com/ZephyrHaven/Cockpit-Dashboard/stargazers)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
+[![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A50.15.0-7C3AED?style=for-the-badge&logo=obsidian&logoColor=white)](https://obsidian.md)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-4C6EF5?style=for-the-badge)](#installation)
+
+[![Sponsor](https://img.shields.io/badge/%F0%9F%92%96%20Sponsor-Afdian-946CE6?style=for-the-badge)](https://afdian.com/a/zephyrhaven)
+
+**English** · [简体中文](README.zh-CN.md)
+
+[Highlights](#highlights) · [Install](#installation) · [Data & privacy](#data--privacy) · [Development](#development) · [Sponsor](#-sponsor)
+
+</div>
+
+![Cockpit Dashboard preview](assets/screenshot.png)
+
+---
 
 ## Highlights
 
@@ -16,9 +38,15 @@ Cockpit Dashboard is a local-first home dashboard for Obsidian. It brings tasks,
 
 ## Installation
 
-**Community plugins (recommended)**: Settings → Community plugins → Browse → search **Cockpit Dashboard** → install and enable.
+**Community plugins (recommended)**
 
-**Manual install**: download the latest release from [GitHub Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases), copy `main.js`, `manifest.json` and `styles.css` into `.obsidian/plugins/cockpit-dashboard/`, then enable the plugin. To upgrade, replace only those three files so your `data.json` settings stay intact.
+1. Open **Settings → Community plugins → Browse**.
+2. Search for **Cockpit Dashboard**.
+3. Install and enable.
+
+**Manual install**
+
+Download the latest release from [GitHub Releases](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases), then copy `main.js`, `manifest.json` and `styles.css` into `.obsidian/plugins/cockpit-dashboard/` and enable the plugin. To upgrade, replace only those three files so your `data.json` settings stay intact.
 
 ## Recommendations
 
@@ -26,7 +54,7 @@ Cockpit Dashboard is a local-first home dashboard for Obsidian. It brings tasks,
 
 Pair the dashboard with [Cockpit Glass](https://github.com/ZephyrHaven/cockpit-glass), our companion theme with frosted surfaces, layered cards, and light and dark modes. It is available in the Obsidian theme store: **Settings → Appearance → Themes → Manage → search Cockpit Glass → Install and use**.
 
-For matching dashboard surfaces, enable **Settings → Cockpit → Appearance & motion → Unified glass appearance**. On macOS, the host’s **Translucent window** option enables native window frost. See the [theme’s installation guide](https://github.com/ZephyrHaven/cockpit-glass#readme) for platform requirements and appearance options.
+For matching dashboard surfaces, enable **Settings → Cockpit → Appearance & motion → Unified glass appearance**. On macOS, the host's **Translucent window** option enables native window frost. See the [theme's installation guide](https://github.com/ZephyrHaven/cockpit-glass#readme) for platform requirements and appearance options.
 
 ## Glass alarm reminders
 
@@ -42,7 +70,7 @@ Choose normal, compact or persistent minimal mode. To keep the dial visible, shr
 
 Moving and stretching provide subtle visual feedback, with tactile feedback where supported by the device and system settings, including Force Touch trackpads on Mac. The dial uses a rotating second hand.
 
-When a session ends, the lower-half frosted reminder offers a five-minute break or another focus round. Full-screen reminders and break-end reminders are configurable separately. Reset before changing a session’s duration once progress has begun; breaks do not count toward focus totals.
+When a session ends, the lower-half frosted reminder offers a five-minute break or another focus round. Full-screen reminders and break-end reminders are configurable separately. Reset before changing a session's duration once progress has begun; breaks do not count toward focus totals.
 
 ## Custom components
 
@@ -89,14 +117,24 @@ Source modules are plain scripts concatenated in a fixed order by `build.js`, th
 
 Releases are tagged without a `v` prefix and include `main.js`, `styles.css`, `manifest.json` as three separate assets.
 
-## Sponsor
+## 💖 Sponsor
 
-If this plugin saves you time, you can buy the author a coffee:
+Cockpit Dashboard is built and maintained in my spare time, and it stays free and local-first. If it saves you time, a coffee goes a long way — thank you!
 
-[![Support on Afdian](assets/afdian-badge.svg)](https://afdian.com/a/zephyrhaven)
+<div align="center">
 
-<https://afdian.com/a/zephyrhaven>
+[![Sponsor on Afdian](assets/afdian-badge.svg)](https://afdian.com/a/zephyrhaven)
+
+**[☕ Support on Afdian →](https://afdian.com/a/zephyrhaven)**
+
+<sub>Prefer other ways to say thanks? A ⭐ star, a kind word in [Discussions](https://github.com/ZephyrHaven/Cockpit-Dashboard/discussions), or sharing it with a friend all help just as much.</sub>
+
+</div>
 
 ## Author
 
-- GitHub: [ZephyrHaven](https://github.com/ZephyrHaven)
+- GitHub: [@ZephyrHaven](https://github.com/ZephyrHaven)
+
+---
+
+<div align="center"><sub>Made with care for people who like their day on one page. If Cockpit Dashboard helps you, please consider a ⭐.</sub></div>
