@@ -4,7 +4,7 @@
 // 通过 ctx 注入 _buildAll 侧的共享闭包（commitTodoMutation/openTodoEditor/incrementTodoProgress/
 // updateStats/refreshCalendarRef/makeCollapsible/todoHooks），并返回块外仍需使用的句柄。
 async function cockpitBuildTodoSection(view, root, ctx) {
-  const { t, lang, makeCollapsible, commitTodoMutation, openTodoEditor, incrementTodoProgress, updateStats, refreshCalendarOnce, refreshHero, todoHooks } = ctx;
+  const { t, lang, makeCollapsible, commitTodoMutation, openTodoEditor, incrementTodoProgress, updateStats, refreshCalendarOnce, refreshHero, refreshLinkedAlarmTodoIds, openTodoAlarm, decomposeTodoWithAi, getLinkedAlarmTodoIds, todoHooks } = ctx;
 
   // ===== 5. TODOs =====
   const todoTitleEl = root.createDiv({ cls: PLUGIN_ID+'-section-title '+PLUGIN_ID+'-todo-header', text: t('sections.todos') });
@@ -305,7 +305,7 @@ async function cockpitBuildTodoSection(view, root, ctx) {
         };
       }
       if (!done && todo.id) {
-        const hasLinkedAlarm = linkedAlarmTodoIds.has(todo.id);
+        const hasLinkedAlarm = getLinkedAlarmTodoIds().has(todo.id);
         const alarmBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn alarm'+(hasLinkedAlarm ? ' active' : ''), attr:{type:'button', 'aria-label':t(hasLinkedAlarm ? 'todo.editAlarm' : 'todo.createAlarm'), 'aria-pressed':String(hasLinkedAlarm)} });
         obs.setIcon(alarmBtn, 'alarm-clock');
         alarmBtn.onclick = async (e) => { e.stopPropagation(); await openTodoAlarm(todo); };

@@ -916,7 +916,14 @@ class CockpitView extends obs.ItemView {
     if (previousRoot) root.classList.add(PLUGIN_ID + '-scene-preparing');
     this._ensureStylesheetLoaded();
     this._attachRootContextMenu(container);
-    await this._buildAll(root);
+    try {
+      await this._buildAll(root);
+    } catch (e) {
+      console.error('Cockpit dashboard build failed; rendering available content', e);
+    } finally {
+      // 无论构建是否完整成功，都必须解除初始隐藏态，避免整页空白。
+      root.classList.remove(PLUGIN_ID+'-initializing');
+    }
     if (previousRoot) {
       const first = cockpitCaptureLayout(previousRoot.querySelectorAll('[data-motion-key]'));
       cockpitPlayFlip(root, first, this);
@@ -1367,6 +1374,10 @@ class CockpitView extends obs.ItemView {
       t, lang, makeCollapsible, commitTodoMutation, openTodoEditor, incrementTodoProgress, updateStats,
       refreshCalendarOnce: () => refreshCalendarRef?.(),
       refreshHero: this._refreshHeroReminder,
+      refreshLinkedAlarmTodoIds,
+      openTodoAlarm,
+      decomposeTodoWithAi,
+      getLinkedAlarmTodoIds: () => linkedAlarmTodoIds,
       todoHooks,
     });
     const { setFilter: setTodoFilter, scrollToTodo } = todoSection;

@@ -41,4 +41,42 @@ assert.match(framework, /const \{ setFilter: setTodoFilter, scrollToTodo \} = to
 const frameworkLines = framework.split('\n').length;
 assert.ok(frameworkLines < 2000, '_framework.js stays lean after the todo extraction (now ' + frameworkLines + ' lines).');
 
+// 6) ctx 依赖完整性守卫：todo-section 引用的 _buildAll 局部函数/数据必须经 ctx 注入，
+//    防止拆分后引用未注入的块内局部变量导致运行时 ReferenceError（曾致整页空白）。
+{
+  // 这些是曾从 _buildAll 泄漏进待办区的块内局部绑定，必须出现在委托处传入的 ctx 对象构造里。
+  const requiredCtx = [
+    'refreshLinkedAlarmTodoIds',
+    'openTodoAlarm',
+    'decomposeTodoWithAi',
+    'getLinkedAlarmTodoIds',
+    'commitTodoMutation',
+    'openTodoEditor',
+    'incrementTodoProgress',
+    'updateStats',
+    'makeCollapsible',
+  ];
+  // 委托调用区（await cockpitBuildTodoSection(...) 到分号收尾）里必须逐一声明。
+  const callMatch = framework.match(/await cockpitBuildTodoSection\(this, root, \{([\s\S]*?)\}\);/);
+  assert.ok(callMatch, 'Framework passes a ctx object to cockpitBuildTodoSection.');
+  const ctxBody = callMatch[1];
+  for (const name of requiredCtx) {
+    assert.ok(
+      new RegExp('(^|[\\s,{])' + name + '\\s*[:,]').test(ctxBody),
+      'ctx passed to cockpitBuildTodoSection must provide ' + name + '.'
+    );
+  }
+  // todo-section 顶部必须从 ctx 解构这些注入项。
+  const destructure = todo.match(/const\s*\{([\s\S]*?)\}\s*=\s*ctx/);
+  assert.ok(destructure, 'todo-section destructures its ctx dependencies.');
+  for (const name of requiredCtx) {
+    assert.ok(
+      destructure[1].includes(name),
+      'todo-section must destructure ' + name + ' from ctx.'
+    );
+  }
+  // 拆出后的 todo-section 不得再直接引用 linkedAlarmTodoIds（应改用 getLinkedAlarmTodoIds()）。
+  assert.ok(!/\blinkedAlarmTodoIds\b/.test(todo), 'todo-section must read linked alarm ids via getLinkedAlarmTodoIds(), not the block-local variable.');
+}
+
 console.log('Todo section extraction checks passed');
