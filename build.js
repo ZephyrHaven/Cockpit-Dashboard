@@ -138,6 +138,7 @@ const MODULES = [
   'silent-refresh.js',
   'onboarding.js',
   'todo-section.js',
+  'hero-section.js',
   'commands.js',
   '_framework.js'
 ];
