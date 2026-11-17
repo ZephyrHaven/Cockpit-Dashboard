@@ -8134,92 +8134,113 @@ body.is-translucent :is(.cockpit-dashboard-pomo-reminder-container,.cockpit-dash
   .cockpit-dashboard-tip-label
 ) { font-size: max(10px, .62em) !important; }
 
-/* ── 日志与诊断：卡片式信息架构 ─────────────────────────────────────── */
-.cockpit-logs-shell { display:flex; flex-direction:column; gap:14px; }
+/* ── 日志与诊断：精致卡片式信息架构 ─────────────────────────────────── */
+.cockpit-logs-shell { display:flex; flex-direction:column; gap:16px; }
 .cockpit-logs-header { display:flex; flex-direction:column; gap:2px; }
-.cockpit-logs-subtitle { margin:0; color:var(--text-muted); font-size:13px; line-height:1.5; }
+.cockpit-logs-subtitle { margin:0; color:var(--text-faint); font-size:12.5px; line-height:1.5; }
 .cockpit-logs-tabs { margin-bottom:2px; }
 .cockpit-logs-panel { display:block; }
-.cockpit-logs-host { display:flex; flex-direction:column; gap:12px; }
+.cockpit-logs-host { display:flex; flex-direction:column; gap:14px; }
+.cockpit-logs-body { display:flex; flex-direction:column; gap:14px; }
 
 /* 工具栏 */
-.cockpit-log-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
-.cockpit-log-toolbar-left { display:flex; align-items:center; gap:8px; }
+.cockpit-log-toolbar { display:flex; align-items:center; gap:10px; }
 .cockpit-log-toolbar-right { display:flex; align-items:center; gap:6px; margin-left:auto; }
-.cockpit-log-toolbar button { display:inline-flex; align-items:center; gap:5px; }
-.cockpit-log-toolbar .cockpit-detail-muted { flex:1 1 auto; }
-.cockpit-log-seg { display:inline-flex; padding:3px; gap:2px; border-radius:10px; background:var(--ck-surface-sunken, var(--background-secondary)); }
-.cockpit-log-seg-btn { height:28px; min-height:28px; margin:0; padding:4px 12px; border:0; border-radius:8px; background:transparent; color:var(--text-muted); font-size:12.5px; font-weight:600; box-shadow:none; }
-.cockpit-log-seg-btn.is-active { background:var(--background-primary); color:var(--text-normal); box-shadow:var(--ck-shadow-sm, 0 1px 4px rgba(0,0,0,.1)); }
+.cockpit-log-toolbar button { display:inline-flex; align-items:center; gap:5px; height:30px; min-height:30px; margin:0; padding:4px 12px; font-size:12.5px; }
+.cockpit-log-seg { display:inline-flex; padding:3px; gap:2px; border-radius:9px; background:var(--ck-surface-sunken, var(--background-secondary)); }
+.cockpit-log-seg-btn { display:inline-flex; align-items:center; gap:6px; height:28px; min-height:28px; margin:0; padding:4px 12px; border:0; border-radius:7px; background:transparent; color:var(--text-muted); font-size:12.5px; font-weight:600; box-shadow:none; transition:background .12s ease,color .12s ease; }
+.cockpit-log-seg-btn:hover { color:var(--text-normal); }
+.cockpit-log-seg-btn.is-active { background:var(--background-primary); color:var(--text-normal); box-shadow:0 1px 3px rgba(0,0,0,.1); }
+.cockpit-log-seg-count { min-width:16px; padding:0 5px; border-radius:999px; background:var(--background-modifier-border); color:var(--text-muted); font-size:10.5px; font-weight:700; line-height:16px; text-align:center; font-variant-numeric:tabular-nums; }
+.cockpit-log-seg-btn.is-active .cockpit-log-seg-count { background:var(--background-modifier-border); color:var(--text-normal); }
 
-/* 概览统计条 */
-.cockpit-log-summary { display:flex; flex-wrap:wrap; gap:18px; padding:10px 14px; border-radius:var(--ck-radius-md, 10px); background:var(--ck-surface-sunken, var(--background-secondary)); border:1px solid var(--ck-border, var(--background-modifier-border)); }
-.cockpit-log-summary-item { display:flex; align-items:baseline; gap:6px; }
-.cockpit-log-summary-value { font-size:18px; font-weight:700; color:var(--text-normal); font-variant-numeric:tabular-nums; }
-.cockpit-log-summary-label { font-size:12px; color:var(--text-muted); }
-.cockpit-log-summary-item.tone-ok .cockpit-log-summary-value { color:var(--color-green, #3ba55d); }
-.cockpit-log-summary-item.tone-bad .cockpit-log-summary-value { color:var(--color-red, #e5534b); }
+/* 日期分组标题 */
+.cockpit-log-group-title { display:flex; align-items:center; gap:8px; padding:0 2px; margin-bottom:-4px; }
+.cockpit-log-group-label { font-size:12px; font-weight:700; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em; }
+.cockpit-log-group-count { font-size:11px; font-weight:600; color:var(--text-faint); }
 
-/* 卡片列表 */
-.cockpit-log-list { display:flex; flex-direction:column; gap:10px; }
-.cockpit-log-card { position:relative; display:flex; align-items:flex-start; gap:11px; padding:13px 14px 13px 16px; border-radius:var(--ck-radius-md, 12px); background:var(--ck-surface, var(--background-primary)); border:1px solid var(--ck-border, var(--background-modifier-border)); box-shadow:var(--ck-shadow-sm, 0 1px 3px rgba(0,0,0,.06)); overflow:hidden; }
-.cockpit-log-card-accent { position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--text-faint, #888); opacity:.5; }
-.cockpit-log-card.tone-ok .cockpit-log-card-accent { background:var(--color-green, #3ba55d); opacity:1; }
-.cockpit-log-card.tone-bad .cockpit-log-card-accent { background:var(--color-red, #e5534b); opacity:1; }
-.cockpit-log-card.tone-warn .cockpit-log-card-accent { background:var(--color-orange, #d9a441); opacity:1; }
-.cockpit-log-card-icon { flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:8px; background:var(--ck-surface-sunken, var(--background-secondary)); color:var(--text-muted); }
-.cockpit-log-card-icon .svg-icon { width:16px; height:16px; }
-.cockpit-log-card-main { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:5px; }
-.cockpit-log-card-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
-.cockpit-log-card-title { font-size:14px; font-weight:650; color:var(--text-normal); overflow-wrap:anywhere; }
-.cockpit-log-card-meta { display:flex; align-items:center; flex-wrap:wrap; gap:6px; font-size:12px; color:var(--text-muted); }
-.cockpit-log-card-type { font-weight:600; color:var(--text-muted); }
-.cockpit-log-card-dot { opacity:.5; }
-.cockpit-log-card-abs { opacity:.85; }
-.cockpit-log-card-error { margin:2px 0 0; padding:8px 10px; border-radius:8px; background:var(--background-modifier-error-hover, rgba(229,83,75,.08)); color:var(--text-muted); font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
-.cockpit-log-card-sub { margin:0; font-size:12px; color:var(--text-muted); }
-.cockpit-log-card-actions { flex:0 0 auto; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
-.cockpit-log-card-actions button { height:28px; min-height:28px; margin:0; padding:4px 10px; font-size:12px; }
+/* 运行记录行 */
+.cockpit-log-list { display:flex; flex-direction:column; border-radius:var(--ck-radius-md, 10px); background:var(--ck-surface, var(--background-primary)); border:1px solid var(--ck-border, var(--background-modifier-border)); overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+.cockpit-log-row { display:flex; align-items:center; gap:11px; padding:10px 14px; border-bottom:1px solid var(--ck-border, var(--background-modifier-border)); }
+.cockpit-log-row:last-child { border-bottom:0; }
+.cockpit-log-row:hover { background:var(--background-modifier-hover); }
+.cockpit-log-row-lead { position:relative; flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:8px; background:var(--ck-surface-sunken, var(--background-secondary)); color:var(--text-muted); }
+.cockpit-log-row-icon { display:flex; }
+.cockpit-log-row-icon .svg-icon { width:15px; height:15px; }
+.cockpit-log-row-dot { position:absolute; right:-2px; bottom:-2px; width:9px; height:9px; border-radius:50%; border:2px solid var(--ck-surface, var(--background-primary)); background:var(--text-faint); }
+.cockpit-log-row-dot.tone-ok { background:var(--color-green, #3ba55d); }
+.cockpit-log-row-dot.tone-bad { background:var(--color-red, #e5534b); }
+.cockpit-log-row-dot.tone-warn { background:var(--color-orange, #d9a441); }
+.cockpit-log-row-dot.tone-busy { background:var(--color-blue, #508cdc); }
+.cockpit-log-row-main { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.cockpit-log-row-head { display:flex; align-items:center; gap:8px; }
+.cockpit-log-row-title { font-size:13.5px; font-weight:600; color:var(--text-normal); overflow-wrap:anywhere; }
+.cockpit-log-row-meta { display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--text-faint); }
+.cockpit-log-row-type { color:var(--text-muted); }
+.cockpit-log-row-sep { opacity:.5; }
+.cockpit-log-row-error { margin:2px 0 0; padding:6px 9px; border-radius:6px; background:rgba(229,83,75,.08); color:var(--text-muted); font-size:11.5px; line-height:1.45; overflow-wrap:anywhere; }
+.cockpit-log-row-actions { flex:0 0 auto; }
+.cockpit-log-row-actions button { height:26px; min-height:26px; margin:0; padding:3px 10px; font-size:11.5px; }
 
 /* 状态徽章 */
-.cockpit-log-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border-radius:999px; font-size:11.5px; font-weight:600; line-height:1.6; }
-.cockpit-log-badge .svg-icon { width:12px; height:12px; }
+.cockpit-log-badge { display:inline-flex; align-items:center; gap:4px; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600; line-height:1.7; white-space:nowrap; }
+.cockpit-log-badge-icon { display:flex; }
+.cockpit-log-badge .svg-icon { width:11px; height:11px; }
 .cockpit-log-badge.tone-ok { background:rgba(59,165,93,.14); color:var(--color-green, #3ba55d); }
 .cockpit-log-badge.tone-bad { background:rgba(229,83,75,.14); color:var(--color-red, #e5534b); }
 .cockpit-log-badge.tone-warn { background:rgba(217,164,65,.16); color:var(--color-orange, #c08a2b); }
 .cockpit-log-badge.tone-busy { background:rgba(80,140,220,.16); color:var(--color-blue, #508cdc); }
 .cockpit-log-badge.tone-muted { background:var(--background-modifier-border); color:var(--text-muted); }
 
-/* 同步诊断指标 */
-.cockpit-log-metrics { display:flex; flex-wrap:wrap; gap:14px; margin-top:2px; }
-.cockpit-log-metric { display:flex; align-items:baseline; gap:5px; }
-.cockpit-log-metric-value { font-size:16px; font-weight:700; color:var(--text-normal); font-variant-numeric:tabular-nums; }
-.cockpit-log-metric-label { font-size:11.5px; color:var(--text-muted); }
-.cockpit-log-metric.tone-warn .cockpit-log-metric-value { color:var(--color-orange, #c08a2b); }
-.cockpit-log-metric.tone-bad .cockpit-log-metric-value { color:var(--color-red, #e5534b); }
-.cockpit-log-peers { display:flex; flex-direction:column; gap:5px; margin-top:4px; padding-top:8px; border-top:1px dashed var(--ck-border, var(--background-modifier-border)); }
-.cockpit-log-peer { display:flex; align-items:center; flex-wrap:wrap; gap:6px; font-size:12px; }
-.cockpit-log-peer-icon { display:inline-flex; color:var(--text-faint); }
-.cockpit-log-peer-icon .svg-icon { width:13px; height:13px; }
-.cockpit-log-peer-name { font-weight:600; color:var(--text-normal); }
-.cockpit-log-peer-meta { color:var(--text-muted); overflow-wrap:anywhere; }
+/* 同步诊断卡片 */
+.cockpit-sync-list { display:flex; flex-direction:column; gap:12px; }
+.cockpit-sync-card { display:flex; flex-direction:column; gap:10px; padding:13px 15px; border-radius:var(--ck-radius-md, 12px); background:var(--ck-surface, var(--background-primary)); border:1px solid var(--ck-border, var(--background-modifier-border)); box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.cockpit-sync-head { display:flex; align-items:center; gap:11px; }
+.cockpit-sync-icon { flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:9px; background:var(--ck-surface-sunken, var(--background-secondary)); color:var(--text-muted); }
+.cockpit-sync-icon .svg-icon { width:17px; height:17px; }
+.cockpit-sync-title-wrap { flex:1 1 auto; display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; }
+.cockpit-sync-title { font-size:14px; font-weight:650; color:var(--text-normal); }
+.cockpit-sync-actions { flex:0 0 auto; display:flex; align-items:center; gap:6px; }
+.cockpit-sync-actions button { height:28px; min-height:28px; margin:0; padding:4px 11px; font-size:12px; }
+.cockpit-sync-chips { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.cockpit-sync-chip { display:inline-flex; align-items:baseline; gap:5px; padding:4px 11px; border-radius:8px; background:var(--ck-surface-sunken, var(--background-secondary)); }
+.cockpit-sync-chip-value { font-size:15px; font-weight:700; color:var(--text-normal); font-variant-numeric:tabular-nums; }
+.cockpit-sync-chip-label { font-size:11px; color:var(--text-faint); }
+.cockpit-sync-chip.tone-warn .cockpit-sync-chip-value { color:var(--color-orange, #c08a2b); }
+.cockpit-sync-chip.tone-bad .cockpit-sync-chip-value { color:var(--color-red, #e5534b); }
+.cockpit-sync-last { font-size:11.5px; color:var(--text-faint); margin-left:2px; }
+.cockpit-sync-peers { display:flex; flex-direction:column; gap:6px; padding-top:9px; border-top:1px dashed var(--ck-border, var(--background-modifier-border)); }
+.cockpit-sync-peer { display:flex; align-items:center; flex-wrap:wrap; gap:6px; font-size:12px; }
+.cockpit-sync-peer-icon { display:inline-flex; color:var(--text-faint); }
+.cockpit-sync-peer-icon .svg-icon { width:13px; height:13px; }
+.cockpit-sync-peer-name { font-weight:600; color:var(--text-normal); }
+.cockpit-sync-peer-meta { color:var(--text-faint); overflow-wrap:anywhere; }
 
-/* 性能面板大指标卡 */
-.cockpit-log-metrics-wide { gap:10px; }
-.cockpit-log-metric-card { flex:1 1 140px; display:flex; flex-direction:column; gap:2px; padding:12px 14px; border-radius:var(--ck-radius-md, 12px); background:var(--ck-surface, var(--background-primary)); border:1px solid var(--ck-border, var(--background-modifier-border)); box-shadow:var(--ck-shadow-sm, 0 1px 3px rgba(0,0,0,.06)); }
-.cockpit-log-metric-card-value { font-size:24px; font-weight:750; color:var(--text-normal); font-variant-numeric:tabular-nums; line-height:1.15; }
-.cockpit-log-metric-card-unit { font-size:13px; font-weight:600; color:var(--text-muted); margin-left:3px; }
-.cockpit-log-metric-card-label { font-size:12px; color:var(--text-muted); }
-.cockpit-log-metric-card.tone-ok .cockpit-log-metric-card-value { color:var(--color-green, #3ba55d); }
-.cockpit-log-metric-card.tone-warn .cockpit-log-metric-card-value { color:var(--color-orange, #c08a2b); }
-.cockpit-log-metric-card.tone-bad .cockpit-log-metric-card-value { color:var(--color-red, #e5534b); }
-.cockpit-log-section-title { font-size:13px; font-weight:700; color:var(--text-normal); margin-top:6px; }
-.cockpit-log-perf-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 12px; border-radius:8px; background:var(--ck-surface, var(--background-primary)); border:1px solid var(--ck-border, var(--background-modifier-border)); font-size:12.5px; }
-.cockpit-log-perf-label { color:var(--text-normal); overflow-wrap:anywhere; }
-.cockpit-log-perf-value { color:var(--text-muted); font-variant-numeric:tabular-nums; flex:0 0 auto; }
-.cockpit-log-perf-row.tone-warn .cockpit-log-perf-value { color:var(--color-orange, #c08a2b); }
+/* 性能面板：统计网格 */
+.cockpit-perf-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; }
+.cockpit-perf-tile { display:flex; flex-direction:column; gap:3px; padding:12px 15px; border-radius:var(--ck-radius-md, 12px); background:var(--ck-surface, var(--background-primary)); border:1px solid var(--ck-border, var(--background-modifier-border)); box-shadow:0 1px 2px rgba(0,0,0,.04); }
+.cockpit-perf-tile-label { font-size:11.5px; color:var(--text-faint); }
+.cockpit-perf-tile-value { display:flex; align-items:baseline; gap:3px; }
+.cockpit-perf-tile-num { font-size:26px; font-weight:750; line-height:1.1; color:var(--text-normal); font-variant-numeric:tabular-nums; }
+.cockpit-perf-tile-unit { font-size:12.5px; font-weight:600; color:var(--text-faint); }
+.cockpit-perf-tile.tone-ok .cockpit-perf-tile-num { color:var(--color-green, #3ba55d); }
+.cockpit-perf-tile.tone-warn .cockpit-perf-tile-num { color:var(--color-orange, #c08a2b); }
+.cockpit-perf-tile.tone-bad .cockpit-perf-tile-num { color:var(--color-red, #e5534b); }
+
+/* 性能面板：分区表 */
+.cockpit-perf-section { display:flex; flex-direction:column; gap:7px; }
+.cockpit-perf-section-title { font-size:12px; font-weight:700; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em; padding:0 2px; }
+.cockpit-perf-table { display:flex; flex-direction:column; border-radius:var(--ck-radius-md, 10px); background:var(--ck-surface, var(--background-primary)); border:1px solid var(--ck-border, var(--background-modifier-border)); overflow:hidden; }
+.cockpit-perf-trow { display:flex; align-items:center; gap:10px; padding:9px 13px; border-bottom:1px solid var(--ck-border, var(--background-modifier-border)); }
+.cockpit-perf-trow:last-child { border-bottom:0; }
+.cockpit-perf-trow-name { flex:1 1 auto; min-width:0; font-size:12.5px; color:var(--text-normal); overflow-wrap:anywhere; }
+.cockpit-perf-trow-right { flex:0 0 auto; display:flex; align-items:baseline; gap:8px; }
+.cockpit-perf-trow-sub { font-size:11px; color:var(--text-faint); }
+.cockpit-perf-trow-val { font-size:12.5px; font-weight:600; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.cockpit-perf-trow.tone-warn .cockpit-perf-trow-val { color:var(--color-orange, #c08a2b); }
+.cockpit-perf-foot { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.cockpit-perf-foot button { height:28px; min-height:28px; margin:0; padding:4px 12px; font-size:12px; }
 
 /* 空态 */
-.cockpit-log-empty { display:flex; align-items:center; justify-content:center; padding:40px 20px; text-align:center; }
-.cockpit-log-empty p { margin:0; color:var(--text-muted); font-size:13px; }
-
+.cockpit-log-empty { display:flex; align-items:center; justify-content:center; padding:48px 20px; text-align:center; }
+.cockpit-log-empty p { margin:0; color:var(--text-faint); font-size:13px; }
