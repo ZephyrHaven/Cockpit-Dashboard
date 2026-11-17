@@ -155,9 +155,9 @@ async function openCustomToolbarLogs(view) {
     const clear = controls.createEl('button', { text:view._lang()==='en'?'Clear':'清空', attr:{type:'button'} });
     const close = controls.createEl('button', { attr:{type:'button'} }); obs.setIcon(close, 'x'); close.onclick = () => overlay.remove();
     makeCockpitDialogDraggable(panel, head, { label:view._lang()==='en' ? 'Drag Toolbar logs' : '拖动 Toolbar 日志窗口' });
-    clear.onclick = () => {
+    clear.onclick = async () => {
       if (isMobile) { overlay.remove(); return; }
-      if (!window.confirm(view._lang()==='en'?'Clear all Toolbar logs?':'清空所有 Toolbar 运行日志？')) return;
+      if (!await cockpitConfirm(view, view._lang()==='en'?'Clear all Toolbar logs?':'清空所有 Toolbar 运行日志？', { danger:true, confirmText:view._lang()==='en'?'Clear':'清空' })) return;
       overlay.remove();
       cockpitClearJsonl(file).catch((e) => console.warn('[Cockpit toolbar log clear]', e)).then(() => openCustomToolbarLogs(view));
     };
@@ -241,7 +241,7 @@ function openCustomToolbarButtonEditor(view, root, existing, options = {}) {
   if (existing) {
     const remove = footer.createEl('button', { cls:PID + '-custom-toolbar-secondary danger', text:en?'Delete button':'删除按钮', attr:{type:'button'} });
     remove.onclick = async () => {
-      if (!window.confirm(en?'Delete this custom button?':'确定删除这个自定义按钮吗？')) return;
+      if (!await cockpitConfirm(view, en?'Delete this custom button?':'确定删除这个自定义按钮吗？', { danger:true, confirmText:en?'Delete':'删除' })) return;
       await view._saveCustomToolbarButtons(view._customToolbarButtons.filter((button) => button.id !== existing.id));
       overlay.remove();
       refreshToolbar(view, root);

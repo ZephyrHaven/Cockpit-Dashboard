@@ -46,8 +46,20 @@ function calendarGetNextItem(todayOpen, events, now) {
   return todo ? { todo } : null;
 }
 
+// drop 事件拿不到被拖元素；捕获阶段记下起点矩形，供纸飞机从原位置起飞。
+let cockpitTodoDragOrigin = null;
+if (typeof document !== 'undefined') {
+  document.addEventListener('dragstart', (event) => {
+    const rect = event.target?.getBoundingClientRect?.();
+    cockpitTodoDragOrigin = rect && rect.width > 0
+      ? { left:rect.left, top:rect.top, width:rect.width, height:rect.height }
+      : null;
+  }, true);
+  document.addEventListener('dragend', () => { setTimeout(() => { cockpitTodoDragOrigin = null; }, 0); }, true);
+}
+
 function buildCalendar(root, todos, opts) {
-  const { language, t, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoIncrement, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, initialSplitRatio, onSplitRatioChange, lunarEnabled, teamTodos, loadCalendarEvents, onQuickCreate, onEventOpen } = opts;
+  const { language, t, openTodoEditor, onTeamTodoOpen, onTeamTodoToggle, onTodoToggle, onTodoIncrement, onTodoSchedule, onTodoAlarm, hasLinkedTodoAlarm, rss, openRss, loadAutomationItems, loadCountdownItems, onAutomationOpen, onAutomationRun, onCountdownOpen, initialViewMode, onViewModeChange, initialSplitRatio, onSplitRatioChange, lunarEnabled, teamTodos, loadCalendarEvents, onQuickCreate, onEventOpen, onSummary, motionOwner } = opts;
   // 刷新时必须读取视图的最新待办数组；不能闭包捕获初次渲染的旧快照。
   const getTodos = typeof todos === 'function' ? todos : () => todos;
   let calYear = window.moment().year();
@@ -363,7 +375,16 @@ function buildCalendar(root, todos, opts) {
       if (!todoId) return;
       event.preventDefault(); event.stopPropagation(); target.classList.remove('todo-drop-target');
       const keepTime = event.dataTransfer?.types?.includes('application/x-cockpit-calendar') === true;
-      await onTodoSchedule?.(todoId, date.clone().startOf('day'), { keepTime });
+      // 排期会触发局部刷新重建日期格，起落矩形必须在 await 之前取好。
+      const dropRect = target.getBoundingClientRect();
+      const originRect = cockpitTodoDragOrigin;
+      const scheduled = await onTodoSchedule?.(todoId, date.clone().startOf('day'), { keepTime });
+      if (scheduled === false) return;
+      cockpitFlyPaperPlane({
+        fromRect:originRect || { left:event.clientX, top:event.clientY, width:0, height:0 },
+        toRect:dropRect,
+        owner:motionOwner
+      });
     });
   };
   const getDayInfo = (date) => ((lunarEnabled === false || language === 'en') ? null : getCockpitDayInfo(date));
@@ -406,6 +427,14 @@ function buildCalendar(root, todos, opts) {
     else if (nextTodo?.dueHasTime) nextHead.createSpan({ cls:PLUGIN_ID + '-cal-summary-time', text:nextTodo.dueDate.format('HH:mm') });
     next.createSpan({ cls:PLUGIN_ID + '-cal-summary-text', text:nextEvent ? nextEvent.title : nextTodo ? nextTodo.text : t('calendar.addTodo') });
     next.onclick = () => (nextEvent ? (typeof onEventOpen === 'function' ? onEventOpen(nextEvent) : selectDate(now.clone().startOf('day'))) : nextTodo ? openCalendarTodo(nextTodo) : openTodoEditor({ dueDate:now.clone().startOf('day') }));
+    if (typeof onSummary === 'function') {
+      const nextTime = nextEvent ? window.moment(nextEvent.start).format('HH:mm') : nextTodo?.dueHasTime ? nextTodo.dueDate.format('HH:mm') : '';
+      const nextTitle = nextEvent ? eventTitle(nextEvent) : nextTodo?.text || '';
+      const parts = [en ? todayOpen.length + ' today' : todayOpen.length + ' 项今天', en ? weekOpen + ' this week' : '本周 ' + weekOpen];
+      if (overdue.length) parts.push(en ? overdue.length + ' overdue' : overdue.length + ' 项逾期');
+      if (nextTitle) parts.push((nextTime ? nextTime + ' ' : '') + nextTitle);
+      onSummary(parts.join(' · '));
+    }
   };
   const renderAll = () => {
     const now = window.moment();
@@ -443,7 +472,7 @@ function buildCalendar(root, todos, opts) {
     const header = surface.createDiv({ cls: PLUGIN_ID + '-cal-header' });
     const title = header.createDiv({ cls: PLUGIN_ID + '-cal-title-wrap', attr:{ 'aria-label':formatMonthTitle(calYear, calMonth, language) } });
     const titleLine = title.createDiv({ cls: PLUGIN_ID + '-cal-title' });
-    cockpitSetModuleTitleIcon(titleLine, 'calendar');
+    cockpitSetModuleTitleIcon(titleLine, 'calendar', language);
     titleMonthEl = titleLine.createSpan({ cls:PLUGIN_ID + '-cal-title-month', text:en ? getMonthLabels(language, 'long')[calMonth] : (calMonth + 1) + '月' });
     const titleMeta = title.createDiv({ cls:PLUGIN_ID + '-cal-title-meta' });
     titleYearEl = titleMeta.createSpan({ cls:PLUGIN_ID + '-cal-title-year', text:String(calYear) });

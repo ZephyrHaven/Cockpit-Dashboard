@@ -71,7 +71,17 @@ function buildProjectsModule(view, root, options = {}) {
   }; });
   search.oninput = () => { limit = 8; render(); };
   more.onclick = () => { limit += 8; render(); };
-  const refresh = () => { projectIndex = collectCockpitProjects(view._todos || []); render(); };
+  const refresh = () => {
+    projectIndex = collectCockpitProjects(view._todos || []);
+    const activeProjects = projectIndex.filter((entry) => entry.open > 0);
+    const top = activeProjects.slice().sort((a, b) => b.open - a.open)[0];
+    view._projectSummary = activeProjects.length
+      ? (en ? activeProjects.length + ' active' + (top ? ' · #' + top.tag + ' ' + Math.round(top.done / top.total * 100) + '%' : '')
+        : activeProjects.length + ' 个进行中' + (top ? ' · #' + top.tag + ' ' + Math.round(top.done / top.total * 100) + '%' : ''))
+      : (en ? 'No active projects' : '暂无进行中的项目');
+    if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view);
+    render();
+  };
   view._refreshProjectsRef = refresh;
   refresh();
   view._makeModuleCollapsible('projects', title, body);

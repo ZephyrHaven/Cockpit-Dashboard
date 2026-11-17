@@ -787,7 +787,7 @@ async function openWorkflowEditor(view, workflowIdValue = null, trigger = null) 
 
   const error = panel.createDiv({ cls:PLUGIN_ID+'-scheduler-error' });
   const footer = panel.createDiv({ cls:PLUGIN_ID+'-scheduler-footer' });
-  if (existing) { const remove = footer.createEl('button', { cls:'danger', text:en ? 'Delete' : '删除', attr:{ type:'button' } }); remove.onclick = async () => { if (!window.confirm(en ? 'Delete this workflow?' : '删除这个自动化流程？')) return; await engine.remove(draft.id); overlay.remove(); }; }
+  if (existing) { const remove = footer.createEl('button', { cls:'danger', text:en ? 'Delete' : '删除', attr:{ type:'button' } }); remove.onclick = async () => { if (!await cockpitConfirm(view, en ? 'Delete this workflow?' : '删除这个自动化流程？', { danger:true, confirmText:en ? 'Delete' : '删除' })) return; await engine.remove(draft.id); overlay.remove(); }; }
   const cancel = footer.createEl('button', { text:en ? 'Cancel' : '取消', attr:{ type:'button' } }); cancel.onclick = () => overlay.remove();
   const save = footer.createEl('button', { cls:'primary', text:en ? 'Save workflow' : '保存流程', attr:{ type:'button' } });
   save.onclick = async () => {

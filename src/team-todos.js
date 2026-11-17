@@ -46,9 +46,8 @@ async function buildTeamTodosModule(view, root) {
   const title = root.createDiv({ cls:PLUGIN_ID + '-section-title', text:view._lang() === 'en' ? 'Team tasks' : '团队待办' });
   title.dataset.section = 'teamTodos-title';
   const body = root.createDiv({ cls:'cockpit-team-todos' }); body.dataset.section = 'teamTodos-body';
-  view._makeModuleCollapsible('teamTodos', title, body);
   const service = view._plugin.teamSync;
-  if (!service) { body.createEl('p', { text:'团队服务不可用，请重新加载插件。' }); return; }
+  if (!service) { body.createEl('p', { text:'团队服务不可用，请重新加载插件。' }); view._makeModuleCollapsible('teamTodos', title, body, true); return; }
   await service.load();
   if (view._teamBuildToken !== token) return;
   let filter = 'open', tagFilter = '', limit = 50, statusEl = null, signature = teamTodoViewSignature(service.state);
@@ -57,6 +56,9 @@ async function buildTeamTodosModule(view, root) {
   const render = () => {
     body.empty();
     const state = service.state;
+    const openTasks = Object.values(state.tasks || {}).filter((task) => task.value && !task.value.done).length;
+    view._teamSummary = state.team ? ((view._lang() === 'en' ? openTasks + ' open · ' : openTasks + ' 项未完成 · ') + state.team.name) : '';
+    if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view);
     const toolbar = body.createDiv({ cls:'cockpit-team-list-header' });
     const summary = toolbar.createDiv({cls:'cockpit-team-list-summary'});
     summary.createSpan({ text:state.team ? state.team.name : '和同事协作' });
@@ -164,6 +166,7 @@ async function buildTeamTodosModule(view, root) {
     if (rows.length > limit) teamSyncButton(body, '加载更多（共 ' + rows.length + ' 条）', () => { limit += 50; render(); });
   };
   render();
+  view._makeModuleCollapsible('teamTodos', title, body, !service.state.team);
   view._teamUnsubscribe = service.subscribe(() => {
     const nextSignature = teamTodoViewSignature(service.state);
     // A 30-second sync heartbeat updates transport timestamps and status text,

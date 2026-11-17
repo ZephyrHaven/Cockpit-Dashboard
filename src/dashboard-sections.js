@@ -9,13 +9,13 @@ function cockpitBuildStatsSection(view, root, ctx) {
   const statsEl = root.createDiv({ cls: PLUGIN_ID+'-stats' });
   const noteCount = allFiles.filter(f=>f.basename!=='Home'&&f.basename!=='欢迎').length;
   const statConfig = [
-    { label:t('stats.noteCount'), max:50, color:'#818cf8', type:'static', field:'noteCount' },
-    { label:t('stats.todoCount'), max:20, color:'#c084fc', type:'dynamic', field:'todoCount' },
-    { label:t('stats.doneCount'), max:1,  color:'#22c55e', type:'dynamic', field:'doneCount' },
-    { label:t('stats.doneRate'),  max:100,color:'#34d399', type:'dynamic', field:'donePct', suffix:'%' },
-    { label:t('stats.focusToday'),max:480,color:'#f97316', type:'dynamic', field:'focusMin', suffix:' min' },
-    { label:lang==='en'?'Focus gap':'连续未专注',max:7,color:'#ef4444',type:'dynamic',field:'focusGap',suffix:lang==='en'?' d':' 天' },
-    { label:lang==='en'?'Largest backlog':'最大标签积压',max:20,color:'#38bdf8',type:'dynamic',field:'tagBacklog' }
+    { label:t('stats.noteCount'), max:50, color:'var(--ck-accent)', type:'static', field:'noteCount' },
+    { label:t('stats.todoCount'), max:20, color:'color-mix(in srgb, var(--ck-accent) 62%, var(--text-muted))', type:'dynamic', field:'todoCount' },
+    { label:t('stats.doneCount'), max:1,  color:'var(--color-green, var(--ck-accent))', type:'dynamic', field:'doneCount' },
+    { label:t('stats.doneRate'),  max:100,color:'var(--color-green, var(--ck-accent))', type:'dynamic', field:'donePct', suffix:'%' },
+    { label:t('stats.focusToday'),max:480,color:'var(--color-orange, var(--ck-accent))', type:'dynamic', field:'focusMin', suffix:' min' },
+    { label:lang==='en'?'Focus gap':'连续未专注',max:7,color:'var(--color-red, var(--ck-accent))',type:'dynamic',field:'focusGap',suffix:lang==='en'?' d':' 天' },
+    { label:lang==='en'?'Largest backlog':'最大标签积压',max:20,color:'var(--color-cyan, var(--ck-accent))',type:'dynamic',field:'tagBacklog' }
   ];
   const statById = new Map(statConfig.map((cfg) => [cfg.field, cfg]));
   const statValEls = new Map(), statFillEls = new Map();
@@ -107,6 +107,7 @@ function cockpitBuildStatsSection(view, root, ctx) {
         fill.style.width = pct + '%';
       }
     });
+    if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view);
   };
   view._updateStatsRef = updateStats;
   updateStats();
@@ -169,7 +170,7 @@ function cockpitBuildFlashSection(view, root, ctx) {
     };
     makeAction(en ? 'Make todo' : '转为待办', en ? 'Create a todo from view thought' : '将刚才的闪念创建为待办', () => openTodoEditor({ text }));
     makeAction(en ? 'Add tag' : '添加标签', en ? 'Add a tag to view thought in today\'s note' : '给今日日记里的这条闪念添加标签', async () => {
-      const tag = window.prompt(en ? 'Tag name' : '标签名称'); if (!tag) return;
+      const tag = await cockpitPrompt(view, en ? 'Tag name' : '标签名称', '', { title:en ? 'Add tag' : '添加标签', placeholder:en ? 'e.g. idea' : '例如：灵感' }); if (!tag) return;
       const file = view.app.vault.getAbstractFileByPath(filePath); if (!file) return;
       const rawTag = tag.replace(/^#/, '');
       const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -220,9 +221,10 @@ function cockpitBuildFlashSection(view, root, ctx) {
   // 渲染封装成可重复调用的函数，AI 操作完成后局部刷新，不整页重绘。
   const renderFlashInboxUi = async () => {
     flashContent.querySelector('.' + PLUGIN_ID + '-flash-inbox')?.remove();
-    if (!view._flashInbox.length) { flashTitle.setText(t('sections.flash')); delete flashTitle.dataset.pending; return; }
+    if (!view._flashInbox.length) { flashTitle.setText(t('sections.flash')); delete flashTitle.dataset.pending; if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view); return; }
     flashTitle.setText(t('sections.flash')+' · '+view._flashInbox.length);
     flashTitle.dataset.pending = String(view._flashInbox.length);
+    if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view);
     const inbox = flashContent.createDiv({ cls:PLUGIN_ID+'-flash-inbox' });
     inbox.createSpan({ text:(lang==='en'?'To organize: ':'待整理：')+view._flashInbox.length });
     const persistInbox = () => view._mutatePluginData((data)=>{const state=data.workspaceState&&typeof data.workspaceState==='object'?data.workspaceState:{};state.flashInbox=view._flashInbox;data.workspaceState=state;});
@@ -316,6 +318,10 @@ function cockpitBuildHeatmapSection(view, root, ctx) {
     cell.onclick=openDay;cell.onkeydown=(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openDay();}};
   }
   // 图例
+  const todayKey = today.format('YYYY-MM-DD');
+  const todayCount = (filesByDay.get(todayKey) || []).length;
+  view._heatmapSummary = en ? todayCount + ' notes today' : '今日 ' + todayCount + ' 篇';
+  if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view);
   const legend = hmTitle.createDiv({ cls: PLUGIN_ID+'-hm-legend' });
   legend.createSpan({ cls: PLUGIN_ID+'-hm-legend-label', text: t('heatmap.low') });
   colors.forEach(c => {

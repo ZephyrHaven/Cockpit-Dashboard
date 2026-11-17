@@ -420,7 +420,7 @@ async function buildAlarmModule(view, root) {
   modeSelect.setAttribute('aria-describedby', hint.id);
   const settingsPreview = settingsPanel.createEl('button', {text:en ? 'Preview reminder' : '预览提醒',attr:{type:'button'}});
   const settingsError = settingsPanel.createDiv({cls:PLUGIN_ID + '-alarm-settings-error',attr:{'aria-live':'polite'}});
-  let currentSettings = normalizeAlarmReminderSettings(null), settingBusy = false, renderEpoch = 0;
+  let currentSettings = normalizeAlarmReminderSettings(null), settingBusy = false, renderEpoch = 0, lastAlarms = [];
   const list = content.createDiv({cls:PLUGIN_ID + '-alarm-list'});
   const settingsButton = cockpitCreateModuleAction(controls, 'sliders-horizontal', en ? 'Reminder settings' : '提醒设置', () => {
     settingsPanel.hidden = !settingsPanel.hidden;
@@ -442,6 +442,13 @@ async function buildAlarmModule(view, root) {
     const [alarms,settings] = await Promise.all([service.load(), service.loadReminderSettings()]);
     if (epoch !== renderEpoch) return;
     currentSettings = settings; if (!settingBusy) modeSelect.value = settings.displayMode;
+    lastAlarms = alarms;
+    const enabledAlarms = alarms.filter((alarm) => alarm.enabled);
+    const nextAlarm = enabledAlarms.slice().sort((a, b) => (nextAlarmOccurrence(a)?.getTime() || Infinity) - (nextAlarmOccurrence(b)?.getTime() || Infinity))[0];
+    view._alarmSummary = alarms.length
+      ? (nextAlarm ? (en ? alarms.length + ' · next ' + nextAlarm.time : alarms.length + ' 个 · 下次 ' + nextAlarm.time) : (en ? alarms.length + ' · all off' : alarms.length + ' 个 · 全部停用'))
+      : '';
+    if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view);
     list.empty();
     if (!alarms.length) {
       const empty = list.createDiv({ cls:PLUGIN_ID + '-alarm-empty' });
@@ -470,13 +477,13 @@ async function buildAlarmModule(view, root) {
       const preview = actions.createEl('button', { attr:{type:'button', title:en ? 'Preview' : '预览', 'aria-label':en ? 'Preview' : '预览'} }); obs.setIcon(preview, 'play');
       preview.onclick = () => service.ring(alarm, true);
       const remove = actions.createEl('button', { attr:{type:'button', title:en ? 'Delete' : '删除', 'aria-label':en ? 'Delete' : '删除'} }); obs.setIcon(remove, 'trash-2');
-      remove.onclick = async () => { if (window.confirm(en ? 'Delete this alarm?' : '删除这个闹钟？')) { await service.remove(alarm.id); render(); } };
+      remove.onclick = async () => { if (await cockpitConfirm(view, en ? 'Delete this alarm?' : '删除这个闹钟？', { danger:true, confirmText:en ? 'Delete' : '删除' })) { await service.remove(alarm.id); render(); } };
     });
   };
   cockpitCreateModuleAction(controls, 'plus', en ? 'New alarm' : '新建闹钟', () => openAlarmEditor(view, null, render));
   view._alarmUnsubscribe?.();
   view._alarmUnsubscribe = service.subscribe(() => render().catch((e) => console.warn('Cockpit alarm render failed', e)));
   await render();
-  view._makeModuleCollapsible('alarms', title, content);
+  view._makeModuleCollapsible('alarms', title, content, !lastAlarms.length);
   return content;
 }

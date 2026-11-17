@@ -40,7 +40,7 @@ body.theme-light,
   --ck-accent-text: color-mix(in srgb, var(--ck-accent) 60%, #000);
   --ck-accent-border: color-mix(in srgb, var(--ck-accent) 40%, transparent);
 }
-/* 支持相对颜色语法时（Obsidian 当前的 Chromium 均支持），直接夹住 OKLCH 明度，
+/* 支持相对颜色语法时（宿主应用当前的 Chromium 均支持），直接夹住 OKLCH 明度，
    这样黄色、浅青这类很亮的强调色在浅色主题里也不会掉到 AA 以下。 */
 @supports (color: oklch(from red l c h)) {
   body,
@@ -3790,6 +3790,24 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--c
 .cockpit-dashboard-ai-context-chips { display:flex; gap:5px; margin-top:7px; overflow-x:auto; scrollbar-width:none; }
 .cockpit-dashboard-ai-context-chips:empty { display:none; }
 .cockpit-dashboard-ai-context-chips::-webkit-scrollbar { display:none; }
+/* 输入框顶部一行：左侧附件上下文，右侧工作区路径。 */
+.cockpit-dashboard-ai-composer-top { display:flex; align-items:center; gap:6px; min-width:0; min-height:24px; margin:0 0 3px; }
+.cockpit-dashboard-ai-composer-top .cockpit-dashboard-ai-context-chips { flex:1 1 auto; margin:0; padding:0 1px; }
+.cockpit-dashboard-ai-composer-top .cockpit-dashboard-ai-ws-chip {
+  flex:0 0 auto;
+  max-width:52%;
+  height:24px;
+  margin-left:auto;
+  padding:0 9px;
+  border:1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+  border-radius:999px;
+  background:transparent;
+  color:var(--text-muted);
+  font-size:10px;
+}
+.cockpit-dashboard-ai-composer-top .cockpit-dashboard-ai-ws-chip:hover { color:var(--text-normal); background:var(--background-modifier-hover); }
+.cockpit-dashboard-ai-composer-top .cockpit-dashboard-ai-ws-chip.is-active { color:var(--text-muted); border-color:color-mix(in srgb, var(--ck-accent) 30%, transparent); background:color-mix(in srgb, var(--ck-accent) 9%, transparent); }
+.cockpit-dashboard-ai-composer-top .cockpit-dashboard-ai-ws-chip svg { width:13px; height:13px; }
 .cockpit-dashboard-ai-context-chip { display:inline-flex; align-items:center; gap:4px; min-width:0; max-width:150px; height:25px; flex:0 0 auto; padding:0 3px 0 7px; border:1px solid color-mix(in srgb,var(--cockpit-ai-accent) 22%,var(--background-modifier-border)); border-radius:999px; color:var(--text-muted); background:color-mix(in srgb,var(--cockpit-ai-accent) 6%,transparent); font-size:10px; }
 .cockpit-dashboard-ai-context-chip-icon { display:grid; place-items:center; flex:0 0 auto; color:var(--cockpit-ai-accent); }
 .cockpit-dashboard-ai-context-chip-icon svg { width:11px; height:11px; }
@@ -6440,6 +6458,20 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--c
 .cockpit-dashboard-root[data-motion="full"] .cockpit-dashboard-cal-rss-btn .ck-motion-ripple { display:none; }
 .cockpit-dashboard-root[data-motion="full"] .ck-pressed { transform:scale(.97) !important; }
 .ck-motion-ripple { position:absolute; z-index:0; width:240%; aspect-ratio:1; border-radius:50%; pointer-events:none; background:radial-gradient(circle,color-mix(in srgb,var(--interactive-accent) 52%,transparent),color-mix(in srgb,var(--interactive-accent) 12%,transparent) 36%,transparent 68%); transform:translate(-50%,-50%) scale(.2); }
+/* 纸飞机投递：待办拖入日历后，沿虚线弧飞入目标日期格。 */
+.ck-paper-plane-layer { position:fixed; inset:0; z-index:10050; overflow:hidden; pointer-events:none; }
+.ck-paper-plane-canvas { display:block; width:100%; height:100%; }
+.ck-paper-plane-arc { fill:none; stroke:var(--ck-accent,var(--interactive-accent,#48b4ff)); stroke-width:1.8; stroke-linecap:round; stroke-dasharray:.028 .022; opacity:.66; }
+.ck-paper-plane-glyph { filter:drop-shadow(0 3px 7px rgba(2,6,23,.32)); }
+.ck-paper-plane-body { fill:#fff; stroke:rgba(15,23,42,.12); stroke-width:.5; stroke-linejoin:round; }
+.ck-paper-plane-ring { fill:none; stroke:var(--ck-accent,var(--interactive-accent,#48b4ff)); stroke-width:2; opacity:0; transform-box:fill-box; transform-origin:center; }
+.ck-paper-plane-layer.is-landing .ck-paper-plane-ring { animation:ck-paper-plane-ring 520ms var(--ck-ease-out,cubic-bezier(.23,1,.32,1)) forwards; }
+@keyframes ck-paper-plane-ring { from{opacity:.8;transform:scale(.28)} to{opacity:0;transform:scale(1.9)} }
+/* 完成待办：时间线圆点处的微型烟火，固定层播放。 */
+.ck-celebrate-layer { position:fixed; z-index:10050; width:0; height:0; pointer-events:none; }
+.ck-celebrate-flash { position:absolute; left:-22px; top:-22px; width:44px; height:44px; border-radius:999px; background:radial-gradient(circle,color-mix(in srgb,var(--ck-accent,var(--interactive-accent,#48b4ff)) 42%,transparent),transparent 70%); }
+.ck-celebrate-ring { position:absolute; left:-13px; top:-13px; width:26px; height:26px; border:2px solid color-mix(in srgb,var(--ck-accent,var(--interactive-accent,#48b4ff)) 80%,transparent); border-radius:999px; }
+.ck-celebrate-spark { position:absolute; left:-2.25px; top:-2.25px; width:4.5px; height:4.5px; border-radius:999px; background:var(--ck-accent,var(--interactive-accent,#48b4ff)); box-shadow:0 0 8px color-mix(in srgb,var(--ck-accent,var(--interactive-accent,#48b4ff)) 65%,transparent); }
 .cockpit-dashboard-root[data-motion="full"] .ck-number-changing { filter:blur(.4px); transform:translateY(-1px); }
 
 .cockpit-dashboard-motion-settings-preview { position:relative; display:grid; grid-template-columns:42px minmax(0,1fr) auto; align-items:center; gap:12px; margin:0 0 8px; padding:14px 16px; overflow:hidden; border:1px solid color-mix(in srgb,var(--background-modifier-border) 70%,transparent); border-radius:var(--radius-l,12px); background:color-mix(in srgb,var(--setting-items-background,var(--background-secondary)) 88%,var(--background-primary)); }
@@ -7172,17 +7204,25 @@ body.is-translucent .cockpit-dashboard-overlay-theme[data-glass="on"].modal-cont
   .cockpit-dashboard-overlay-theme[data-glass="on"].modal-container .modal { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--background-primary); }
 }
 
-/* 标题装饰仅由外观开关控制，不影响折叠箭头和操作按钮。 */
-.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-module-title-icon {
+/* 标题图标与临时聚焦 */
+.cockpit-dashboard-root.cockpit-dashboard-root button.cockpit-dashboard-module-title-icon {
   display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto;
   width:18px; height:18px; margin-inline-end:2px; color:var(--text-muted);
-  vertical-align:middle; pointer-events:none;
+  vertical-align:middle; padding:0; border:0; border-radius:4px;
+  background:transparent; box-shadow:none; cursor:pointer; touch-action:manipulation;
 }
+.cockpit-dashboard-root.cockpit-dashboard-root button.cockpit-dashboard-module-title-icon:hover { color:var(--text-accent); }
+.cockpit-dashboard-root.cockpit-dashboard-root button.cockpit-dashboard-module-title-icon:focus-visible { outline:2px solid var(--text-accent); outline-offset:2px; }
+.cockpit-dashboard-module-title-icon > span { display:flex; }
 .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-module-title-icon svg { width:18px; height:18px; stroke-width:1.75; }
-.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-greeting > .cockpit-dashboard-module-title-icon,
-.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-footer > .cockpit-dashboard-module-title-icon { margin-inline-end:8px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-greeting > button.cockpit-dashboard-module-title-icon,
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-footer > button.cockpit-dashboard-module-title-icon { margin-inline-end:8px; }
 .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-cal-title > .cockpit-dashboard-module-title-icon { align-self:center; }
-.cockpit-dashboard-root.cockpit-dashboard-root[data-module-title-icons="off"] .cockpit-dashboard-module-title-icon { display:none; }
+.cockpit-dashboard-root.cockpit-dashboard-root[data-module-title-icons="off"] button.cockpit-dashboard-module-title-icon { display:none; }
+.cockpit-dashboard-root[data-module-focus] > .cockpit-dashboard-module:not(.is-module-focused) { opacity:.24; }
+@media (prefers-reduced-motion: no-preference) {
+  .cockpit-dashboard-root[data-motion="full"] > .cockpit-dashboard-module { transition:opacity 160ms ease; }
+}
 
 /* ── Agent 任务流单栏：状态带 · 单行任务状态 · 精简底部 ───────────────────── */
 .cockpit-dashboard-ai-header-controls { position:relative; }
@@ -7334,8 +7374,7 @@ body.is-translucent .cockpit-dashboard-overlay-theme[data-glass="on"].modal-cont
   color:var(--text-faint);
   font-size:10px;
 }
-.cockpit-dashboard-ai-composer-meta .cockpit-dashboard-ai-ws-chip { height:22px; padding:0 5px; color:var(--text-faint); font-size:10px; }
-.cockpit-dashboard-ai-composer-meta .cockpit-dashboard-ai-ws-chip.is-active { color:var(--text-muted); }
+.cockpit-dashboard-ai-composer-meta:has(.cockpit-dashboard-ai-session-stats[hidden]) { display:none; }
 .cockpit-dashboard-ai-composer-meta .cockpit-dashboard-ai-session-stats {
   min-width:0;
   margin:0 0 0 auto;
@@ -7427,7 +7466,8 @@ body.is-translucent .cockpit-dashboard-ai-view[data-glass="on"] .cockpit-dashboa
 @container cockpit-ai-view (max-width:460px) {
   .cockpit-dashboard-ai-composer-tools { gap:0; }
   .cockpit-dashboard-ai-composer-meta .cockpit-dashboard-ai-session-stats { display:none; }
-  .cockpit-dashboard-ai-composer-meta .cockpit-dashboard-ai-ws-chip-label { max-width:12ch; }
+  .cockpit-dashboard-ai-composer-top .cockpit-dashboard-ai-ws-chip { max-width:38%; }
+  .cockpit-dashboard-ai-composer-top .cockpit-dashboard-ai-ws-chip-label { max-width:12ch; }
   .cockpit-dashboard-ai-perm .cockpit-dashboard-ai-agent-select { max-width:88px; }
   .cockpit-dashboard-ai-composer .cockpit-dashboard-ai-model-select { max-width:88px; }
   .cockpit-dashboard-ai-context-summary { max-width:84px; }
@@ -7760,6 +7800,25 @@ body.is-translucent :is(.cockpit-dashboard-pomo-reminder-container,.cockpit-dash
   background:radial-gradient(ellipse at 28% 70%,rgba(255,255,255,.045),transparent 55%);
 }
 
+/* ===== 折叠摘要 ===== */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-section-title .cockpit-dashboard-collapse-summary {
+  order: 100;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 58%;
+  margin-left: 10px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: max(10px, .72em);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-section-title .cockpit-dashboard-collapse-arrow { order: 101; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-section-title[aria-expanded="false"] { margin-bottom: 8px; }
+
 /* ===== 模块 Dock ===== */
 .cockpit-dashboard-module-nav-anchor {
   --ck-dock-size: 30px;
@@ -7957,3 +8016,106 @@ body.is-translucent :is(.cockpit-dashboard-pomo-reminder-container,.cockpit-dash
   .cockpit-dashboard-module-nav-icon { transition: none; }
   .cockpit-dashboard-root .cockpit-dashboard-module-nav-icon { transform: none; }
 }
+@media (max-width: 720px) {
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-section-title .cockpit-dashboard-collapse-summary { max-width: 46%; }
+}
+
+/* ===== 应用内确认 / 输入对话框 ===== */
+.modal:has(.cockpit-dashboard-dialog-modal) {
+  width: min(440px, calc(100vw - 28px));
+  max-width: none;
+  padding: 20px 22px 14px;
+  border-radius: 18px;
+}
+.cockpit-dashboard-dialog-modal h2 {
+  margin: 0 0 10px;
+  font-size: 1.06em;
+  font-weight: 760;
+  letter-spacing: -.01em;
+  color: var(--text-normal);
+}
+.cockpit-dashboard-dialog-message { color: var(--text-normal); font-size: .9em; line-height: 1.6; overflow-wrap: anywhere; }
+.cockpit-dashboard-dialog-detail { margin-top: 8px; color: var(--text-muted); font-size: .8em; line-height: 1.55; overflow-wrap: anywhere; }
+.cockpit-dashboard-dialog-field { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.cockpit-dashboard-dialog-field-label { color: var(--text-muted); font-size: max(10px, .72em); font-weight: 700; letter-spacing: .02em; }
+.cockpit-dashboard-dialog-input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid var(--ck-border, var(--background-modifier-border));
+  border-radius: 10px;
+  background: var(--ck-surface-sunken, var(--background-secondary));
+  color: var(--text-normal);
+  font-size: .92em;
+  box-shadow: none;
+}
+.cockpit-dashboard-dialog-input:focus { border-color: var(--ck-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ck-accent) 14%, transparent); outline: none; }
+.cockpit-dashboard-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.cockpit-dashboard-dialog-actions button { min-height: 34px; padding: 6px 15px; border-radius: 10px; font-size: .82em; font-weight: 700; box-shadow: none; }
+.cockpit-dashboard-dialog-actions .cockpit-dashboard-dialog-confirm-danger,
+.cockpit-dashboard-dialog-actions .mod-cta.cockpit-dashboard-dialog-confirm-danger {
+  border-color: transparent !important;
+  background: var(--text-error) !important;
+  color: #fff !important;
+}
+.cockpit-dashboard-dialog-actions .cockpit-dashboard-dialog-confirm-danger:hover { filter: brightness(1.06); }
+
+/* ===== 每日提示更紧凑 ===== */
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-tip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+  padding: 11px 46px 11px 18px;
+  margin: 12px 0;
+  border-radius: 14px;
+}
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-tip-label { margin: 0; font-size: max(10px, .62em); white-space: nowrap; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-tip-label::before { width: 15px; height: 15px; }
+.cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-tip-text {
+  padding-left: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: .82em;
+  line-height: 1.5;
+}
+@media (max-width: 720px) {
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-tip { column-gap: 8px; padding: 10px 40px 10px 14px; }
+  .cockpit-dashboard-root.cockpit-dashboard-root .cockpit-dashboard-tip-text { font-size: .8em; -webkit-line-clamp: 3; }
+}
+
+/* ===== 小字号下限：中文元信息不低于 10px ===== */
+.cockpit-dashboard-root.cockpit-dashboard-root :is(
+  .cockpit-dashboard-scene-menu-caption,
+  .cockpit-dashboard-focus-chart-labels,
+  .cockpit-dashboard-scheduler-kind,
+  .cockpit-dashboard-scheduler-details,
+  .cockpit-dashboard-scheduler-last-error,
+  .cockpit-dashboard-scheduler-status,
+  .cockpit-dashboard-scheduler-channel,
+  .cockpit-dashboard-scheduler-channel-hint,
+  .cockpit-dashboard-scheduler-log-meta,
+  .cockpit-dashboard-scheduler-log-notification,
+  .cockpit-dashboard-scheduler-notification-subtitle,
+  .cockpit-dashboard-scheduler-meta,
+  .cockpit-dashboard-scheduler-next,
+  .cockpit-dashboard-cal-badge,
+  .cockpit-dashboard-cal-dow,
+  .cockpit-dashboard-cal-week-today,
+  .cockpit-dashboard-cal-week-month,
+  .cockpit-dashboard-cal-week-metric,
+  .cockpit-dashboard-cal-week-empty,
+  .cockpit-dashboard-cal-week-name,
+  .cockpit-dashboard-cal-rss-btn,
+  .cockpit-dashboard-cal-subtitle,
+  .cockpit-dashboard-hm-legend-label,
+  .cockpit-dashboard-rss-result-count,
+  .cockpit-dashboard-rss-read-state,
+  .cockpit-dashboard-toolbtn-label,
+  .cockpit-dashboard-stat-label,
+  .cockpit-dashboard-todo-due,
+  .cockpit-dashboard-todo-tag,
+  .cockpit-dashboard-tip-label
+) { font-size: max(10px, .62em) !important; }

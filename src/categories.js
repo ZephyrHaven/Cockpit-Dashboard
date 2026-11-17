@@ -80,7 +80,13 @@ function cockpitBuildCategoriesSection(view, root, ctx) {
     if (!categories.length) grid.createDiv({ cls:PLUGIN_ID + '-categories-empty', text:en ? 'No matching categories. Categories follow your top-level note folders.' : '没有匹配的分类。分类来自库内顶层笔记文件夹。' });
   };
   search.oninput = render; sort.onchange = render;
-  const refresh = () => { categoryIndex = collectCockpitCategories(view._allFiles, view.app.vault.getAllLoadedFiles()); render(); };
+  const refresh = () => {
+    categoryIndex = collectCockpitCategories(view._allFiles, view.app.vault.getAllLoadedFiles());
+    const noteTotal = categoryIndex.reduce((sum, category) => sum + category.files.length, 0);
+    view._categorySummary = categoryIndex.length ? (en ? categoryIndex.length + ' categories · ' + noteTotal + ' notes' : categoryIndex.length + ' 个分类 · ' + noteTotal + ' 篇笔记') : '';
+    if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view);
+    render();
+  };
   view._refreshCategoriesRef = refresh;
   refresh(); makeCollapsible(title, body, 'cats');
 }

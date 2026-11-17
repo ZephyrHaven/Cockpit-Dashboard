@@ -130,12 +130,23 @@ class CockpitGlobalSearchModal extends CockpitModal {
     const version = ++this._queryVersion;
     this._results = [];
     this._cursor = 0;
-    this._renderEmpty();
     const query = this.input.value;
+    if (this._isCommandQuery(query)) { this._renderCommandResults(query); return; }
+    this._renderEmpty();
     if (!normalizeSearchQuery(query)) return;
     this.searchStatus.setText(this._text('正在搜索…', 'Searching…'));
     this.searchStatus.hidden = false;
     this._timer = setTimeout(() => this._search(query, version), 280);
+  }
+
+  _isCommandQuery(rawQuery) { return /^\s*>/.test(String(rawQuery || '')); }
+
+  _renderCommandResults(rawQuery) {
+    this.searchStatus.hidden = true;
+    const items = typeof cockpitSearchCommands === 'function' ? cockpitSearchCommands(this.view, rawQuery) : [];
+    this._results = items;
+    this._cursor = 0;
+    this._renderResults();
   }
 
   _bindDrag(handle) {
@@ -174,6 +185,7 @@ class CockpitGlobalSearchModal extends CockpitModal {
   async _search(rawQuery, version) {
     const query = normalizeSearchQuery(rawQuery);
     if (version !== this._queryVersion) return;
+    if (this._isCommandQuery(rawQuery)) { this._renderCommandResults(rawQuery); return; }
     if (!query) { this._results = []; this._renderEmpty(); return; }
     const files = this.app.vault.getMarkdownFiles();
     const cached = this._queryCache.get(query);
@@ -240,43 +252,54 @@ class CockpitGlobalSearchModal extends CockpitModal {
     this.searchStatus.hidden = true;
     this._updateResultHint();
     this.resultsEl.empty();
-    this.resultsEl.createDiv({ cls: PLUGIN_ID + '-spotlight-empty', text: this._text('搜索整个 Vault', 'Search your entire vault') });
+    if (this._isCommandQuery(this.input?.value)) { this._renderCommandResults(this.input.value); return; }
+    this.resultsEl.createDiv({ cls: PLUGIN_ID + '-spotlight-empty', text: this._text('搜索整个 Vault，输入 > 打开命令', 'Search your entire vault · type > for commands') });
   }
 
   _renderResults() {
     this.resultsEl.empty();
     this._updateResultHint();
     if (!this._results.length) {
-      this.resultsEl.createDiv({ cls: PLUGIN_ID + '-spotlight-empty', text: this._text('没有找到匹配的待办或笔记', 'No matching todos or notes') });
+      const command = this._isCommandQuery(this.input?.value);
+      this.resultsEl.createDiv({ cls: PLUGIN_ID + '-spotlight-empty', text: command ? this._text('没有匹配的命令', 'No matching commands') : this._text('没有找到匹配的待办或笔记', 'No matching todos or notes') });
       return;
     }
     let previousKind = '';
     const query = normalizeSearchQuery(this.input?.value);
-    const groupLabel = (kind) => kind === 'todo' ? this._text('待办命中', 'Todo matches')
+    const groupLabel = (kind, result) => kind === 'command'
+      ? result.group
+      : kind === 'todo' ? this._text('待办命中', 'Todo matches')
       : kind === 'name' ? this._text('文件名命中', 'Filename matches')
       : this._text('正文命中', 'Content matches');
     const kindIcon = (result, kind) => {
-      if (kind === 'todo') return result.sub === 'done' ? '✅' : '🔲';
-      return kind === 'name' ? '📄' : '📝';
+      if (kind === 'command') return { icon:result.icon || 'terminal', fallback:'⌘' };
+      if (kind === 'todo') return result.sub === 'done' ? { icon:'circle-check', fallback:'✅' } : { icon:'circle', fallback:'🔲' };
+      return kind === 'name' ? { icon:'file-text', fallback:'📄' } : { icon:'text-search', fallback:'📝' };
     };
+    const groupKeyOf = (result, kind) => kind === 'command' ? 'cmd:' + (result.group || '') : kind;
     this._results.forEach((result, index) => {
       const kind = result.kind || (result.match ? 'body' : 'name');
-      if (kind !== previousKind) {
-        const count = this._results.filter((item) => (item.kind || (item.match ? 'body' : 'name')) === kind).length;
+      const groupKey = groupKeyOf(result, kind);
+      if (groupKey !== previousKind) {
+        const count = this._results.filter((item) => groupKeyOf(item, item.kind || (item.match ? 'body' : 'name')) === groupKey).length;
         const header = this.resultsEl.createDiv({ cls:PLUGIN_ID + '-spotlight-group' });
-        header.createSpan({ text:groupLabel(kind) });
+        header.createSpan({ text:groupLabel(kind, result) });
         header.createSpan({ cls:PLUGIN_ID + '-spotlight-group-count', text:String(count) });
-        previousKind = kind;
+        previousKind = groupKey;
       }
       const row = this.resultsEl.createDiv({ cls: PLUGIN_ID + '-spotlight-result is-' + kind + (index === this._cursor ? ' selected' : '') });
-      row.createDiv({ cls:PLUGIN_ID + '-spotlight-kindicon', text:kindIcon(result, kind) });
+      const iconEl = row.createDiv({ cls:PLUGIN_ID + '-spotlight-kindicon' });
+      const iconSpec = kindIcon(result, kind);
+      if (typeof obs.setIcon === 'function') obs.setIcon(iconEl, iconSpec.icon);
+      if (!iconEl.querySelector?.('svg')) iconEl.textContent = iconSpec.fallback;
       const copy = row.createDiv({ cls: PLUGIN_ID + '-spotlight-copy' });
-      const displayName = kind === 'todo' ? result.name : result.file.basename;
-      const displayPath = kind === 'todo'
+      const displayName = kind === 'command' ? result.name : kind === 'todo' ? result.name : result.file.basename;
+      const displayPath = kind === 'command' ? (result.sub || '')
+        : kind === 'todo'
         ? (result.sub === 'done' ? this._text('已完成待办 · 点击编辑', 'Done todo · click to edit') : this._text('未完成待办 · 点击编辑', 'Open todo · click to edit'))
         : (result.match || result.file.path);
-      this._appendHighlighted(copy.createDiv({ cls: PLUGIN_ID + '-spotlight-name' }), displayName, query);
-      this._appendHighlighted(copy.createDiv({ cls: PLUGIN_ID + '-spotlight-path' }), displayPath, query);
+      this._appendHighlighted(copy.createDiv({ cls: PLUGIN_ID + '-spotlight-name' }), displayName, kind === 'command' ? '' : query);
+      this._appendHighlighted(copy.createDiv({ cls: PLUGIN_ID + '-spotlight-path' }), displayPath, kind === 'command' ? '' : query);
       // 右侧徽章：正文命中显示次数，待办显示状态；文件名命中不放冗余徽章。
       if (kind === 'body' && Number(result.count) > 1) row.createSpan({ cls:PLUGIN_ID + '-spotlight-badge is-count', text:'×' + result.count });
       else if (kind === 'todo') row.createSpan({ cls:PLUGIN_ID + '-spotlight-badge ' + (result.sub === 'done' ? 'is-done' : 'is-open'), text:result.sub === 'done' ? this._text('已完成', 'Done') : this._text('进行中', 'Open') });
@@ -320,6 +343,10 @@ class CockpitGlobalSearchModal extends CockpitModal {
 
   _updateResultHint() {
     const result = this._results[this._cursor];
+    if (this._isCommandQuery(this.input?.value) || result?.kind === 'command') {
+      this.hint.setText(this._text('↑↓ 选择 · Enter 执行 · Esc 关闭', '↑↓ select · Enter run · Esc close'));
+      return;
+    }
     const isMac = obs.Platform?.isMacOS;
     const modifier = isMac ? '⌘' : 'Ctrl+';
     const copyShortcut = isMac ? '⌘⇧C' : 'Ctrl+Shift+C';
@@ -346,6 +373,11 @@ class CockpitGlobalSearchModal extends CockpitModal {
   }
 
   _openResult(result, split = false) {
+    if (result.kind === 'command') {
+      this.close();
+      Promise.resolve(result.action?.()).catch((e) => console.warn('Cockpit command failed', e));
+      return;
+    }
     // 待办命中：打开待办编辑器而不是文件。
     if (result.kind === 'todo') {
       if (this.view?._openTodoEditorRef) { this.close(); this.view._openTodoEditorRef({ id:result.todoId }); }

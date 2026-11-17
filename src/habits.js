@@ -60,6 +60,9 @@ async function buildHabitsModule(view, root) {
 
     const streakOf = (habit) => computeStreak(habit.log || [], window.moment());
     const doneToday = (habit) => (habit.log || []).includes(todayKey);
+    const doneCount = habits.filter(doneToday).length;
+    view._habitSummary = habits.length ? (en ? doneCount + '/' + habits.length + ' done today' : doneCount + '/' + habits.length + ' 今日已打卡') : '';
+    if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view);
 
     if (!habits.length) {
       const empty = body.createDiv({ cls: PLUGIN_ID + '-habit-empty' });
@@ -113,10 +116,10 @@ async function buildHabitsModule(view, root) {
       const actions = row.createDiv({ cls: PLUGIN_ID + '-habit-actions' });
       const edit = actions.createEl('button', { attr:{ type:'button', title:en?'Rename / icon':'改名 / 图标', 'aria-label':en?'Edit habit':'编辑习惯' } });
       obs.setIcon(edit, 'pencil');
-      edit.onclick = () => {
-        const nextName = normalizeHabitName(window.prompt(en ? 'Habit name' : '习惯名称', habit.name) || '');
+      edit.onclick = async () => {
+        const nextName = normalizeHabitName(await cockpitPrompt(view, en ? 'Habit name' : '习惯名称', habit.name, { title:en ? 'Edit habit' : '编辑习惯' }) || '');
         if (!nextName) return;
-        const rawIcon = window.prompt(en ? 'Icon (single emoji or letter)' : '图标（一个 emoji 或字符）', habit.icon || '🔥') || '';
+        const rawIcon = await cockpitPrompt(view, en ? 'Icon (single emoji or letter)' : '图标（一个 emoji 或字符）', habit.icon || '🔥', { title:en ? 'Habit icon' : '习惯图标', maxLength:8 }) || '';
         mutateHabits(vault, (list) => {
           const target = list.find((item) => item.id === habit.id);
           if (!target) return false;
@@ -130,7 +133,7 @@ async function buildHabitsModule(view, root) {
       const remove = actions.createEl('button', { attr:{ type:'button', title:en?'Delete':'删除', 'aria-label':en?'Delete habit':'删除习惯' } });
       obs.setIcon(remove, 'trash-2');
       remove.onclick = async () => {
-        if (!window.confirm(en ? ('Delete "' + habit.name + '"? Check-in history will be removed too.') : ('删除「' + habit.name + '」？打卡记录会一并删除。'))) return;
+        if (!await cockpitConfirm(view, en ? ('Delete "' + habit.name + '"? Check-in history will be removed too.') : ('删除「' + habit.name + '」？打卡记录会一并删除。'), { danger:true, confirmText:en ? 'Delete' : '删除' })) return;
         const outcome = await mutateHabits(vault, (list) => {
           const index = list.findIndex((item) => item.id === habit.id);
           if (index === -1) return false;

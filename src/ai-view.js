@@ -340,20 +340,52 @@ class CockpitAIView extends obs.ItemView {
       : '请读取我的未完成待办，建议一个实际可执行的处理顺序；不要修改待办。'));
     if (this._selectedContextPaths.length || this._uploadedContexts.length) action('file-text', en ? 'Summarize selected notes' : '总结已选笔记', () => this._run('summarize', ''));
   }
-  _renderActiveSession() {
+  // 打开会话时贴住最新一条：Markdown 与图片会在首帧之后继续撑高内容，
+  // 只设一次 scrollTop 会停在顶部，因此等渲染落定后再滚动，并兜底等待未完成的图片。
+  async _renderActiveSession() {
     if (!this._messagesEl) return;
     const session = this._activeSession();
     if (this._sessionTitleEl) this._sessionTitleEl.setText(session?.title || (this._language === 'en' ? 'New chat' : '新对话'));
     this._messagesEl.empty();
+    const rendered = [];
     if (!session?.messages?.length) this._renderWelcome();
-    else session.messages.forEach((message) => this._appendMessage(message.role, message.content, false, { markdown:message.role === 'assistant', activity:message.activity, changedFiles:message.changedFiles, plan:message.plan }));
-    this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
+    else session.messages.forEach((message) => {
+      const entry = this._appendMessage(message.role, message.content, false, { markdown:message.role === 'assistant', activity:message.activity, changedFiles:message.changedFiles, plan:message.plan });
+      if (entry?.rendered) rendered.push(entry.rendered);
+    });
+    this._scrollMessagesToEnd();
+    if (rendered.length) await Promise.allSettled(rendered);
+    await this._settleMessageMedia();
+    this._scrollMessagesToEnd();
+  }
+  _scrollMessagesToEnd() {
+    const element = this._messagesEl;
+    if (!element) return;
+    element.scrollTop = element.scrollHeight;
+    if (typeof requestAnimationFrame !== 'function') return;
+    requestAnimationFrame(() => {
+      if (this._messagesEl !== element) return;
+      element.scrollTop = element.scrollHeight;
+    });
+  }
+  // 笔记里的图片加载完成会改变高度；短等一批未完成的图片，超时即放行，避免卡住渲染。
+  async _settleMessageMedia() {
+    const element = this._messagesEl;
+    if (!element) return;
+    const pending = Array.from(element.querySelectorAll('img')).filter((img) => !img.complete);
+    if (!pending.length) return;
+    await Promise.allSettled(pending.map((img) => new Promise((resolve) => {
+      img.addEventListener('load', resolve, { once:true });
+      img.addEventListener('error', resolve, { once:true });
+      window.setTimeout(resolve, 800);
+    })));
   }
   async _buildComposer(shell) {
     const en = this._language === 'en';
     const composer = shell.createEl('section', { cls:PLUGIN_ID + '-ai-composer' });
     const uploadInput = composer.createEl('input', { cls:PLUGIN_ID + '-ai-upload-input', attr:{ type:'file', multiple:'multiple', accept:'.md,.txt,.csv,.json,.yaml,.yml,.log,.html,.htm,.xml,image/*,text/*' } });
-    const chips = composer.createDiv({ cls:PLUGIN_ID + '-ai-context-chips' });
+    const top = composer.createDiv({ cls:PLUGIN_ID + '-ai-composer-top' });
+    const chips = top.createDiv({ cls:PLUGIN_ID + '-ai-context-chips' });
     const input = composer.createEl('textarea', { cls:PLUGIN_ID + '-ai-input', attr:{ rows:'2', maxlength:'8000', placeholder:en ? 'Work with Cockpit Agent' : '和 Cockpit Agent 一起工作（可 Ctrl+V 贴图）', 'aria-label':en ? 'Ask Cockpit AI' : '向 Cockpit AI 提问' } });
     const queuePanel = composer.createDiv({ cls:PLUGIN_ID + '-ai-queue' }); queuePanel.hidden = true;
     // 底栏单行：左侧上下文与权限，右侧模型与发送，与常见编码 Agent 的输入条一致。
@@ -400,21 +432,21 @@ class CockpitAIView extends obs.ItemView {
     this._fillModelOptions(modelSelect, config);
     const send = right.createEl('button', { cls:PLUGIN_ID + '-ai-send', attr:{ type:'button' } });
     const queueSend = right.createEl('button', { cls:PLUGIN_ID + '-ai-queue-send', attr:{ type:'button', title:en ? 'Queue this message' : '将消息加入队列', 'aria-label':en ? 'Queue this message' : '将消息加入队列' } }); obs.setIcon(queueSend, 'list-plus');
-    // 输入卡下方的状态条：工作区切换 + 本会话用量，像编码 Agent 的底栏一样不占输入区。
-    const meta = shell.createDiv({ cls:PLUGIN_ID + '-ai-composer-meta' });
-    // 工作区指示 + 就地编辑：点击徽标弹出面板即可粘贴路径、切换最近使用或清除，不必进设置页。
-    const wsChip = meta.createEl('button', { cls:PLUGIN_ID + '-ai-ws-chip', attr:{ type:'button', title:en ? 'Coding workspace (click to switch)' : '编码工作区（点击切换）', 'aria-label':en ? 'Coding workspace' : '编码工作区', 'aria-haspopup':'dialog', 'aria-expanded':'false' } });
+    // 工作区指示放在输入框右上角：与上下文附件同一行，点击即可切换。
+    const wsChip = top.createEl('button', { cls:PLUGIN_ID + '-ai-ws-chip', attr:{ type:'button', title:en ? 'Coding workspace (click to switch)' : '编码工作区（点击切换）', 'aria-label':en ? 'Coding workspace' : '编码工作区', 'aria-haspopup':'dialog', 'aria-expanded':'false' } });
     obs.setIcon(wsChip.createSpan(), 'folder-open');
     const wsChipLabel = wsChip.createSpan({ cls:PLUGIN_ID + '-ai-ws-chip-label' });
     this._workspaceChipEls = { chip:wsChip, label:wsChipLabel };
     this._updateWorkspaceChip(config.workspaceRoot);
+    // 输入卡下方的状态条只保留本会话用量，没有用量时会自动隐藏。
+    const meta = shell.createDiv({ cls:PLUGIN_ID + '-ai-composer-meta' });
     const popover = composer.createDiv({ cls:PLUGIN_ID + '-ai-context-popover' }); popover.hidden = true;
     const menu = popover.createDiv({ cls:PLUGIN_ID + '-ai-context-menu', attr:{ role:'menu' } });
     this._contextPickerEls = { composer, popover, menu, chips, uploadInput, add, contextButton, contextLabel };
     const togglePopover = (event) => { event.stopPropagation(); const open = popover.hidden; popover.hidden = !open; add.setAttribute('aria-expanded', String(open)); contextButton.setAttribute('aria-expanded', String(open)); };
     add.onclick = togglePopover; contextButton.onclick = togglePopover; popover.onclick = (event) => event.stopPropagation();
-    // 工作区面板挂在状态条上，紧贴徽标向上展开，与上下文弹出层同一交互模式（点外部关闭）。
-    this._buildWorkspacePopover(meta, wsChip);
+    // 工作区面板挂在输入卡上，紧贴右上角徽标向上展开，与上下文弹出层同一交互模式（点外部关闭）。
+    this._buildWorkspacePopover(composer, wsChip);
     uploadInput.onchange = async () => {
       if (this._busy) { uploadInput.value = ''; new obs.Notice(en ? 'Wait for the current reply to finish.' : '请等待当前回答完成'); return; }
       try {
@@ -870,7 +902,8 @@ class CockpitAIView extends obs.ItemView {
     const content = row.createDiv({ cls:PLUGIN_ID + '-ai-message-content' });
     const body = content.createDiv({ cls:PLUGIN_ID + '-ai-message-body' });
     if (role === 'assistant') this._renderAgentPlan(content, options.plan, body);
-    if (options.markdown && role === 'assistant') this._renderMarkdown(body, text); else body.setText(text || '');
+    let rendered = null;
+    if (options.markdown && role === 'assistant') rendered = this._renderMarkdown(body, text); else body.setText(text || '');
     if (role === 'assistant') this._renderChangedFiles(content, options.changedFiles, body);
     // 处理过程放在回答与改动文件之后：先给结论，再给可展开的执行细节。
     if (role === 'assistant' && Array.isArray(options.activity) && options.activity.length) {
@@ -890,7 +923,7 @@ class CockpitAIView extends obs.ItemView {
     // 用户消息与历史 AI 回复同样提供复制；流式占位消息由完成后的工具行接管。
     if (!pending && options.copy !== false) this._appendMessageActions(content, () => String(text || ''), role);
     this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
-    return { row, content, body };
+    return { row, content, body, rendered };
   }
   _renderAgentPlan(parent, steps, before = null) {
     if (!Array.isArray(steps) || !steps.length) return null;

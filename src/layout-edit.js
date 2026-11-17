@@ -107,6 +107,7 @@ function cockpitApplyModuleEditState(view, root) {
     }
   });
   cockpitApplyToolbarButtonEditState(view, root);
+  cockpitSyncModuleFocus(view, root);
   if (typeof cockpitSyncCustomComponents === 'function') cockpitSyncCustomComponents(view);
   if (typeof view._syncModuleNav === 'function') view._syncModuleNav();
 }
@@ -166,7 +167,7 @@ function cockpitWireModuleDnD(view, root) {
         const titleEl = view._moduleTitleElement(wrapper);
         const builtIn = titleEl?.dataset.defaultModuleTitle || view._moduleRegistry().find((module) => module.id === moduleId)?.label || moduleId;
         const current = view._customModuleLabels[moduleId] || builtIn;
-        const input = window.prompt(view._lang() === 'en' ? 'Module title (leave empty to restore default)' : '组件标题（留空恢复默认名称）', current);
+        const input = await cockpitPrompt(view, view._lang() === 'en' ? 'Leave empty to restore the default title.' : '留空恢复默认标题。', current, { title:view._lang() === 'en' ? 'Module title' : '组件标题', allowEmpty:true });
         if (input === null) return;
         const value = input.trim().slice(0,40);
         if (!value || value === builtIn) delete view._customModuleLabels[moduleId];
@@ -258,7 +259,7 @@ function cockpitApplyModuleLayout(view, root) {
     wrapper.style.setProperty('--ck-i', String(fragment.childNodes.length));
     nodes.forEach((node) => wrapper.appendChild(node));
     view._applyCustomModuleTitle(wrapper, moduleId);
-    cockpitApplyModuleTitleIcon(wrapper, moduleId);
+    cockpitApplyModuleTitleIcon(wrapper, moduleId, view._lang());
     fragment.appendChild(wrapper);
   });
   unclassified.forEach((node) => fragment.appendChild(node));
@@ -272,6 +273,7 @@ function cockpitMakeModuleCollapsible(view, moduleId, titleEl, contentEl, defaul
 }
 function cockpitMakeCollapsible(view, titleEl, contentEl, key, defaultCollapsed) {
   if (titleEl.dataset.collapseBound === 'true') return;
+  const summary = titleEl.createSpan({ cls: PLUGIN_ID+'-collapse-summary', attr:{ 'data-module-summary-for':key, 'aria-hidden':'true' } });
   const arrow = titleEl.createSpan({ cls: PLUGIN_ID+'-collapse-arrow', attr:{ 'aria-hidden':'true' } });
   titleEl.style.cursor = 'pointer';
   titleEl.tabIndex = 0;
@@ -284,6 +286,7 @@ function cockpitMakeCollapsible(view, titleEl, contentEl, key, defaultCollapsed)
     // 箭头由 CSS 绘制并旋转，避免字体字形的基线造成视觉偏移。
     arrow.classList.toggle('is-collapsed', collapsed);
     titleEl.setAttribute('aria-expanded', String(!collapsed));
+    if (typeof cockpitSyncCollapseSummary === 'function') cockpitSyncCollapseSummary(view, titleEl);
   };
   apply(false);
   titleEl.dataset.collapseBound = 'true';
@@ -298,7 +301,7 @@ function cockpitMakeCollapsible(view, titleEl, contentEl, key, defaultCollapsed)
   };
   titleEl.addEventListener('click', toggle);
   titleEl.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target !== titleEl || (e.key !== 'Enter' && e.key !== ' ')) return;
     e.preventDefault();
     toggle(e);
   });

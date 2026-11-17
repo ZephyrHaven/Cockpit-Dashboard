@@ -284,7 +284,7 @@ class CockpitView extends obs.ItemView {
   async _deleteActiveScene() {
     if (this._activeSceneId === 'default') return;
     const scene = this._getActiveScene();
-    if (!window.confirm(this._lang() === 'en' ? `Delete “${this._sceneLabel(scene)}”?` : `确定删除“${this._sceneLabel(scene)}”吗？`)) return;
+    if (!await cockpitConfirm(this, this._lang() === 'en' ? `Delete “${this._sceneLabel(scene)}”?` : `确定删除“${this._sceneLabel(scene)}”吗？`, { danger:true, confirmText:this._lang() === 'en' ? 'Delete' : '删除' })) return;
     delete this._sceneLayouts[this._activeSceneId]; this._activeSceneId = 'default'; this._applySceneSnapshot(this._sceneLayouts.default);
     await this._saveActiveSceneLayout(); await this._renderDashboard(false);
   }
@@ -880,6 +880,8 @@ class CockpitView extends obs.ItemView {
   }
 
   async _renderDashboard(reloadState, crossfadeScene) {
+    this._moduleFocusCleanup?.();
+    this._moduleFocusCleanup = null;
     cockpitDestroyCustomComponents(this);
     if (typeof cockpitDestroyModuleNav === 'function') cockpitDestroyModuleNav(this);
     this._teamUnsubscribe?.(); this._teamUnsubscribe = null; this._teamBuildToken = null;
@@ -906,6 +908,7 @@ class CockpitView extends obs.ItemView {
     if (!this._isMobile() && initialWidth >= 680 && initialWidth < 980) initialClasses.push(PLUGIN_ID+'-tablet');
     if (this._calendarLayout === 'split') initialClasses.push(PLUGIN_ID+'-calendar-split');
     const root = container.createDiv({ cls:initialClasses.join(' ') });
+    this._moduleFocusCleanup = cockpitBindModuleFocus(this, root);
     root.dataset.glass = this._glassCardsEnabled ? 'on' : 'off';
     root.dataset.moduleTitleIcons = this._moduleTitleIconsEnabled !== false ? 'on' : 'off';
     root.dataset.moduleNavEnabled = this._moduleNavEnabled === false ? 'off' : 'on';
@@ -1096,6 +1099,7 @@ class CockpitView extends obs.ItemView {
       // 项目卡片与待办同源，待办变化后局部刷新（模块未开启时为空操作）。
       this._refreshProjectsRef?.();
       cockpitNotifyCustomComponents(this, ['todos']);
+      if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(this);
       return true;
     };
 
@@ -1240,8 +1244,10 @@ class CockpitView extends obs.ItemView {
     await refreshLinkedAlarmTodoIds();
     const refreshCalendar = buildCalendar(root, () => this._todos, {
       language: lang,
+      motionOwner:this,
       lunarEnabled: this._calendarLunarEnabled !== false,
       t,
+      onSummary:(text) => { this._calendarSummary = text; },
       openTodoEditor,
       onTodoIncrement:incrementTodoProgress,
       onTeamTodoOpen:(todo) => {
@@ -1859,6 +1865,7 @@ class CockpitView extends obs.ItemView {
     this._applyModuleEditState(root);
     this._attachContentResizeHandle(root);
     if (typeof cockpitBuildModuleNav === 'function') cockpitBuildModuleNav(this, root);
+    if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(this);
 
     // ===== 番茄钟浮动组件 =====
     if (this._pomodoroAutoShow || this._pomodoroSession?.active) buildPomodoro(this, root);
@@ -2148,6 +2155,8 @@ class CockpitView extends obs.ItemView {
     } catch (e) { console.warn('Cockpit: stylesheet probe failed', e); }
   }
   async onClose() {
+    this._moduleFocusCleanup?.();
+    this._moduleFocusCleanup = null;
     cockpitDestroyCustomComponents(this, true);
     if (typeof cockpitDestroyModuleNav === 'function') cockpitDestroyModuleNav(this);
     cancelAnimationFrame(this._contentWidthFrame); this._contentWidthFrame = null;

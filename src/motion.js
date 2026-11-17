@@ -15,6 +15,9 @@ const COCKPIT_TILT_SELECTOR = [
 ].map((suffix) => '.' + PLUGIN_ID + suffix).join(',');
 const COCKPIT_PRESS_SELECTOR = 'button:not(:disabled),[role="button"]:not([aria-disabled="true"])';
 const cockpitMotionAnimations = new Set();
+const cockpitPaperPlaneLayers = new Set();
+const cockpitCelebrationLayers = new Set();
+let cockpitPaperPlaneSeq = 0;
 
 function cockpitPrefersReducedMotion() {
   try { return !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
@@ -35,6 +38,8 @@ function cockpitTrackAnimation(animation) {
   return animation;
 }
 function cockpitCancelMotion() {
+  Array.from(cockpitPaperPlaneLayers).forEach((cleanup) => cleanup());
+  Array.from(cockpitCelebrationLayers).forEach((cleanup) => cleanup());
   cockpitMotionAnimations.forEach((animation) => { try { animation.finish?.(); } catch (e) { try { animation.cancel?.(); } catch (ignore) {} } });
   cockpitMotionAnimations.clear();
 }
@@ -255,6 +260,209 @@ function cockpitSettle(element, status, owner) {
   cockpitTrackAnimation(element.animate(frames, { duration:status === 'failed' ? 460 : 380, easing:COCKPIT_MOTION.easeOut }));
 }
 
+// 完成待办的局部仪式：粒子与光圈挂在固定层上，列表随后重绘也不会打断动画。
+function cockpitCelebrate(anchorEl, owner) {
+  if (!anchorEl?.isConnected || !cockpitMotionAllowed(owner) || typeof document === 'undefined' || !document.body || typeof document.createElement !== 'function' || typeof anchorEl.animate !== 'function') return false;
+  const rect = anchorEl.getBoundingClientRect?.();
+  if (!rect || (!rect.width && !rect.height)) return false;
+  const layer = document.createElement('div');
+  layer.className = 'ck-celebrate-layer';
+  layer.setAttribute('aria-hidden', 'true');
+  layer.style.left = (rect.left + rect.width / 2) + 'px';
+  layer.style.top = (rect.top + rect.height / 2) + 'px';
+  const flash = document.createElement('span');
+  flash.className = 'ck-celebrate-flash';
+  layer.appendChild(flash);
+  const ring = document.createElement('span');
+  ring.className = 'ck-celebrate-ring';
+  layer.appendChild(ring);
+  const sparks = [];
+  for (let index = 0; index < 10; index++) {
+    const spark = document.createElement('span');
+    spark.className = 'ck-celebrate-spark';
+    if (index % 3 === 2) spark.style.background = 'var(--ck-accent-2,#8b5cf6)';
+    layer.appendChild(spark);
+    const angle = Math.PI * 2 * index / 10 + (Math.random() - .5) * .4;
+    const distance = 18 + Math.random() * 10;
+    sparks.push({ spark, dx:Math.cos(angle) * distance, dy:Math.sin(angle) * distance - 4 });
+  }
+  document.body.appendChild(layer);
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    cockpitCelebrationLayers.delete(cleanup);
+    layer.remove();
+  };
+  cockpitCelebrationLayers.add(cleanup);
+  let pending = sparks.length;
+  const settle = () => { pending -= 1; if (pending <= 0) cleanup(); };
+  try {
+    cockpitTrackAnimation(flash.animate([
+      { transform:'scale(.55)', opacity:.55 },
+      { transform:'scale(1.25)', opacity:0 }
+    ], { duration:300, easing:COCKPIT_MOTION.easeOut }));
+    cockpitTrackAnimation(ring.animate([
+      { transform:'scale(.32)', opacity:.9 },
+      { transform:'scale(2.1)', opacity:0 }
+    ], { duration:620, easing:COCKPIT_MOTION.easeOut }));
+    sparks.forEach(({ spark, dx, dy }) => {
+      const animation = cockpitTrackAnimation(spark.animate([
+        { transform:'translate(0,0) scale(.7)', opacity:1 },
+        { transform:`translate(${dx.toFixed(1)}px,${dy.toFixed(1)}px) scale(.18)`, opacity:0 }
+      ], { duration:540 + Math.random() * 110, delay:Math.random() * 30, easing:COCKPIT_MOTION.easeOut }));
+      animation.onfinish = settle;
+      animation.oncancel = settle;
+    });
+  } catch (error) {
+    cleanup();
+    return false;
+  }
+  return true;
+}
+
+// 纸飞机投递：业务侧只上报起落矩形，轨迹、曲线、降级与清理都由这里负责。
+function cockpitFlightNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+function cockpitFlightProgress(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : 0;
+}
+function cockpitFlightCurve(from, to) {
+  const start = { x:cockpitFlightNumber(from?.x), y:cockpitFlightNumber(from?.y) };
+  const end = { x:cockpitFlightNumber(to?.x), y:cockpitFlightNumber(to?.y) };
+  const distance = Math.hypot(end.x - start.x, end.y - start.y);
+  const lift = Math.max(26, Math.min(150, distance * .3));
+  // 每圈的前进距离要小于圆周长，圈才能真正合拢。
+  const loops = distance >= 240 ? 2 : 1;
+  const loopRadius = Math.max(20, Math.min(78, distance * 1.9 / (loops * Math.PI * 2)));
+  return { start, end, control:{ x:(start.x + end.x) / 2, y:Math.min(start.y, end.y) - lift }, distance, lift, loopRadius, loops };
+}
+function cockpitFlightBasePoint(curve, progress) {
+  const t = cockpitFlightProgress(progress);
+  const u = 1 - t;
+  return {
+    x:u * u * curve.start.x + 2 * u * t * curve.control.x + t * t * curve.end.x,
+    y:u * u * curve.start.y + 2 * u * t * curve.control.y + t * t * curve.end.y
+  };
+}
+function cockpitFlightTangent(curve, progress) {
+  const t = cockpitFlightProgress(progress);
+  const u = 1 - t;
+  const dx = 2 * u * (curve.control.x - curve.start.x) + 2 * t * (curve.end.x - curve.control.x);
+  const dy = 2 * u * (curve.control.y - curve.start.y) + 2 * t * (curve.end.y - curve.control.y);
+  const length = Math.hypot(dx, dy) || 1;
+  return { x:dx / length, y:dy / length };
+}
+// 在基础弧线上叠加两圈逐渐收拢的盘旋，终点精确回到日期格中心。
+function cockpitFlightPoint(curve, progress) {
+  const t = cockpitFlightProgress(progress);
+  if (t === 0) return { x:curve.start.x, y:curve.start.y };
+  if (t === 1) return { x:curve.end.x, y:curve.end.y };
+  const base = cockpitFlightBasePoint(curve, t);
+  const tangent = cockpitFlightTangent(curve, t);
+  const normal = { x:-tangent.y, y:tangent.x };
+  const theta = Math.PI * 2 * (curve.loops || 0) * t;
+  const radius = curve.loopRadius || 0;
+  const along = Math.sin(theta) * radius;
+  const across = (1 - Math.cos(theta)) * radius;
+  return {
+    x:base.x + tangent.x * along + normal.x * across,
+    y:base.y + tangent.y * along + normal.y * across
+  };
+}
+function cockpitFlightAngle(curve, progress) {
+  const t = cockpitFlightProgress(progress);
+  const step = .002;
+  const before = cockpitFlightPoint(curve, Math.max(0, t - step));
+  const after = cockpitFlightPoint(curve, Math.min(1, t + step));
+  const dx = after.x - before.x;
+  const dy = after.y - before.y;
+  if (!dx && !dy) return 0;
+  return Math.atan2(dy, dx) * 180 / Math.PI;
+}
+function cockpitFlightPath(curve, count = 160) {
+  const parts = [];
+  for (let i = 0; i <= count; i++) {
+    const point = cockpitFlightPoint(curve, i / count);
+    parts.push((i ? 'L ' : 'M ') + point.x.toFixed(2) + ' ' + point.y.toFixed(2));
+  }
+  return parts.join(' ');
+}
+function cockpitSvgNode(tag, attrs) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  Object.entries(attrs).forEach(([name, value]) => node.setAttribute(name, String(value)));
+  return node;
+}
+function cockpitFlyPaperPlane({ fromRect, toRect, owner } = {}) {
+  const center = (rect) => (rect && ['left', 'top', 'width', 'height'].every((key) => Number.isFinite(Number(rect[key]))))
+    ? { x:Number(rect.left) + Number(rect.width) / 2, y:Number(rect.top) + Number(rect.height) / 2 }
+    : null;
+  const from = center(fromRect);
+  const to = center(toRect);
+  if (!from || !to || !cockpitMotionAllowed(owner) || typeof document === 'undefined' || !document.body || typeof document.createElementNS !== 'function') return false;
+  const curve = cockpitFlightCurve(from, to);
+  if (curve.distance < 16) return false;
+  const id = 'ck-paper-plane-mask-' + (++cockpitPaperPlaneSeq);
+  const pathData = cockpitFlightPath(curve, Math.round(Math.max(96, Math.min(220, curve.distance / 2))));
+  const layer = document.createElement('div');
+  layer.className = 'ck-paper-plane-layer';
+  layer.setAttribute('aria-hidden', 'true');
+  const svg = cockpitSvgNode('svg', { class:'ck-paper-plane-canvas' });
+  const mask = cockpitSvgNode('mask', { id, maskUnits:'userSpaceOnUse', x:0, y:0, width:'100%', height:'100%' });
+  const reveal = cockpitSvgNode('path', { d:pathData, fill:'none', stroke:'#fff', 'stroke-width':6, 'stroke-linecap':'round', 'stroke-dasharray':'1 1', 'stroke-dashoffset':1, pathLength:1 });
+  mask.appendChild(reveal);
+  const defs = cockpitSvgNode('defs', {});
+  defs.appendChild(mask);
+  const arc = cockpitSvgNode('path', { class:'ck-paper-plane-arc', d:pathData, pathLength:1, mask:`url(#${id})` });
+  const plane = cockpitSvgNode('g', { class:'ck-paper-plane-glyph' });
+  // Telegram 纸飞机轮廓；轮廓本身朝右上约 34°，先旋正再随航向转动。
+  const glyph = cockpitSvgNode('path', {
+    class:'ck-paper-plane-body',
+    d:'M9.417 15.181l-.397 5.584c.568 0 .814-.244 1.109-.537l2.663-2.545 5.518 4.041c1.012.564 1.725.267 1.998-.931L23.93 3.821c.321-1.496-.541-2.081-1.527-1.714L1.36 10.174c-1.453.564-1.431 1.374-.247 1.742l5.405 1.686L18.97 5.685c.593-.393 1.136-.175.69.218l-9.246 8.309z',
+    transform:'translate(-12.6 -11.4) rotate(34 12.6 11.4)'
+  });
+  plane.appendChild(glyph);
+  const ring = cockpitSvgNode('circle', { class:'ck-paper-plane-ring', cx:to.x, cy:to.y, r:16 });
+  [defs, arc, plane, ring].forEach((node) => svg.appendChild(node));
+  layer.appendChild(svg);
+  document.body.appendChild(layer);
+
+  const duration = Math.round(Math.max(900, Math.min(1500, 760 + curve.distance * .45 + curve.loops * 120)));
+  const launch = cockpitFlightPoint(curve, 0);
+  plane.setAttribute('transform', `translate(${launch.x.toFixed(2)} ${launch.y.toFixed(2)}) rotate(${cockpitFlightAngle(curve, 0).toFixed(2)})`);
+  let frame = 0;
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    if (frame) cancelAnimationFrame(frame);
+    cockpitPaperPlaneLayers.delete(cleanup);
+    layer.remove();
+  };
+  cockpitPaperPlaneLayers.add(cleanup);
+  const started = performance.now();
+  const step = (now) => {
+    const raw = Math.max(0, Math.min(1, (now - started) / duration));
+    const eased = raw < .5 ? 2 * raw * raw : 1 - Math.pow(-2 * raw + 2, 2) / 2;
+    const point = cockpitFlightPoint(curve, eased);
+    const scale = 1.12 - .34 * raw * raw;
+    plane.setAttribute('transform', `translate(${point.x.toFixed(2)} ${point.y.toFixed(2)}) rotate(${cockpitFlightAngle(curve, eased).toFixed(2)}) scale(${scale.toFixed(3)})`);
+    reveal.setAttribute('stroke-dashoffset', (1 - eased).toFixed(4));
+    if (raw < 1) { frame = requestAnimationFrame(step); return; }
+    frame = 0;
+    layer.classList.add('is-landing');
+    const fade = typeof layer.animate === 'function'
+      ? cockpitTrackAnimation(layer.animate([{ opacity:1 }, { opacity:0 }], { duration:COCKPIT_MOTION.exit + 80, delay:160, easing:'ease-out', fill:'forwards' }))
+      : null;
+    if (fade) { fade.onfinish = cleanup; fade.oncancel = cleanup; } else cleanup();
+  };
+  frame = requestAnimationFrame(step);
+  return true;
+}
+
 function cockpitAnimatePopover(popover, trigger, owner) {
   if (!popover || !trigger || !cockpitMotionEnabled(owner) || (typeof document !== 'undefined' && document.hidden) || typeof popover.animate !== 'function') return;
   const anchor = trigger.getBoundingClientRect();
@@ -334,6 +542,6 @@ if (typeof document !== 'undefined') document.addEventListener('visibilitychange
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports = {
   COCKPIT_MOTION, cockpitPrefersReducedMotion, cockpitMotionEnabled, cockpitMotionAllowed, cockpitApplyMotionState,
   cockpitRefreshMotionRoots, cockpitCancelMotion, cockpitAnimateCollapse, cockpitAnimateNumber, cockpitBindPointerGlow,
-  cockpitBindMotionInteractions, cockpitBindCinematicMotion, cockpitCaptureLayout, cockpitPlayFlip, cockpitRevealList, cockpitSettle, cockpitPlayEntrance, cockpitReplayMotion
-  , cockpitAnimatePopover, cockpitClosePopover
+  cockpitBindMotionInteractions, cockpitBindCinematicMotion, cockpitCaptureLayout, cockpitPlayFlip, cockpitRevealList, cockpitSettle, cockpitCelebrate, cockpitPlayEntrance, cockpitReplayMotion
+  , cockpitAnimatePopover, cockpitClosePopover, cockpitFlightCurve, cockpitFlightPoint, cockpitFlightAngle, cockpitFlyPaperPlane
 };

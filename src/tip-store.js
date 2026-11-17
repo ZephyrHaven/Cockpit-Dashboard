@@ -154,7 +154,7 @@ class CockpitTipLibraryModal extends CockpitModal {
     const reset = actions.createEl('button', { cls:PLUGIN_ID + '-tip-library-reset', text:copy.reset, attr:{ type:'button' } });
     const cancel = actions.createEl('button', { text:copy.cancel, attr:{ type:'button' } });
     const save = actions.createEl('button', { cls:'mod-cta', text:copy.save, attr:{ type:'button' } });
-    reset.onclick = async () => { if (!window.confirm(copy.resetConfirm)) return; const state = await this.view._tipStore.resetLanguage(this.activeLang); this.view._dailyTips = state.display; this.view._editableTips = state.editable; this.view._tipRotationMode = state.rotationMode; this.view._refreshTipSection(); this.close(); };
+    reset.onclick = async () => { if (!await cockpitConfirm(this.view, copy.resetConfirm, { danger:true, confirmText:this.view._lang() === 'en' ? 'Reset' : '重置' })) return; const state = await this.view._tipStore.resetLanguage(this.activeLang); this.view._dailyTips = state.display; this.view._editableTips = state.editable; this.view._tipRotationMode = state.rotationMode; this.view._refreshTipSection(); this.close(); };
     cancel.onclick = () => this.close();
     save.onclick = async () => {
       if (!this.draft.some((tip) => String(tip || '').trim())) { new obs.Notice(copy.empty); return; }

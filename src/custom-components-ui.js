@@ -59,7 +59,7 @@ function cockpitRenderCustomComponentManager(store,body,entry) {
   action(en?'Export package':'导出组件包',()=>cockpitDownloadComponent({manifest:pkg.manifest,code:pkg.code,styles:pkg.styles},pkg.manifest.id+'.cockpit-component.json'));
   const dataLabel=section.createEl('label',{cls:PLUGIN_ID+'-component-delete-data'});const removeData=dataLabel.createEl('input',{attr:{type:'checkbox'}});dataLabel.createSpan({text:en?'Delete private data when uninstalling':'卸载时同时清除组件私有数据'});
   action(en?'Uninstall component':'卸载组件',async()=>{
-    if(!window.confirm(en?'Uninstall this component from every layout?':'从所有布局中卸载此组件？'))return;
+    if(!await cockpitConfirm(store.view,en?'Uninstall this component from every layout?':'从所有布局中卸载此组件？',{danger:true,confirmText:en?'Uninstall':'卸载'}))return;
     await service.uninstall(pkg.manifest.id,removeData.checked);store.detailId='';store._syncCustomCatalog();store.render();
   }).addClass('danger');
   section.createEl('p',{cls:PLUGIN_ID+'-component-global-note',text:en?'Install, update and enable state apply to all layouts. Uninstall preserves private data unless selected above.':'安装、更新和启用状态作用于所有布局；卸载默认保留私有数据，重新导入同一 ID 后恢复。'});

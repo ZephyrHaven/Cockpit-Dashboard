@@ -260,7 +260,7 @@ function openStorageMigration(view) {
     cleanupBtn.disabled = !status.migrated;
   };
   migrateBtn.onclick = async () => {
-    if (!window.confirm(en?'Move bookmarks and toolbar settings to data.json?':'将收藏和工具栏配置迁移到 data.json？')) return;
+    if (!await cockpitConfirm(view, en?'Move bookmarks and toolbar settings to data.json?':'将收藏和工具栏配置迁移到 data.json？', { confirmText:en?'Migrate':'开始迁移' })) return;
     migrateBtn.disabled = true;
     message.textContent = en?'Copying current data…':'正在复制当前数据…';
     try {
@@ -283,14 +283,14 @@ function openStorageMigration(view) {
   };
   importBtn.onclick = async () => {
     try {
-      if (!window.confirm(en ? 'Import and overwrite the corresponding Cockpit settings?' : '导入并覆盖对应的 Cockpit 设置？')) return;
+      if (!await cockpitConfirm(view, en ? 'Import and overwrite the corresponding Cockpit settings?' : '导入并覆盖对应的 Cockpit 设置？', { confirmText:en ? 'Import' : '导入' })) return;
       await view._storage.importData(JSON.parse(input.value));
       message.textContent = en ? 'Import complete. Reloading…' : '导入完成，正在刷新…';
       overlay.remove(); await view._renderDashboard(true);
     } catch (e) { message.textContent = en ? 'Invalid or unsupported import JSON.' : '导入 JSON 无效或格式不受支持。'; }
   };
   cleanupBtn.onclick = async () => {
-    const ok = window.confirm(en ? 'Delete only the migrated legacy bookmark, Toolbar config, and old log files? Todos and focus history will remain.' : '仅删除已迁移的旧收藏、Toolbar 配置和旧日志文件？待办和专注历史会保留。');
+    const ok = await cockpitConfirm(view, en ? 'Delete only the migrated legacy bookmark, Toolbar config, and old log files? Todos and focus history will remain.' : '仅删除已迁移的旧收藏、Toolbar 配置和旧日志文件？待办和专注历史会保留。', { danger:true, confirmText:en ? 'Clean up' : '清理' });
     if (!ok) return;
     try {
       const removed = await view._storage.cleanupLegacy();

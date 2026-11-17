@@ -365,6 +365,13 @@ async function buildCountdownModule(view, root) {
   });
   const render = async () => {
     const items = await service.load(); list.empty();
+    const activeItems = items.filter((item) => item.enabled && countdownState(item) && !countdownState(item).finished);
+    const nearest = activeItems.slice().sort((a, b) => (countdownState(a)?.remainingMs || Infinity) - (countdownState(b)?.remainingMs || Infinity))[0];
+    view._countdownSummary = items.length
+      ? (nearest ? (en ? items.length + ' · ' + formatCountdownRemaining(countdownState(nearest).remainingMs, view._lang()) : items.length + ' 个 · ' + formatCountdownRemaining(countdownState(nearest).remainingMs, view._lang())) : (en ? items.length + ' · none active' : items.length + ' 个 · 无进行中'))
+      : '';
+    view._lastCountdownCount = items.length;
+    if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view);
     if (!items.length) {
       const empty = list.createDiv({cls:PLUGIN_ID+'-countdown-empty'}); obs.setIcon(empty.createSpan(),'timer-reset');
       empty.createDiv({text:en?'No countdowns yet':'还没有倒计时'});
@@ -415,13 +422,16 @@ async function buildCountdownModule(view, root) {
       const mail=actions.createEl('button',{cls:PLUGIN_ID+'-countdown-mail-rules',attr:{type:'button',title:en?'Email rules':'邮件规则','aria-label':en?'Configure SMTP email notifications':'配置 SMTP 邮件通知'}});obs.setIcon(mail,'mail');mail.onclick=(event)=>{event.preventDefault();event.stopPropagation();openCountdownEditor(view,item,render,{focusEmail:true});};
       const link=actions.createEl('button',{cls:PLUGIN_ID+'-countdown-link-automation',attr:{type:'button',title:en?'Link automation':'联动自动化','aria-label':en?'Link automation workflow':'联动自动化流程'}});obs.setIcon(link,'workflow');link.onclick=async(event)=>{event.preventDefault();event.stopPropagation();link.disabled=true;try{await openScheduledTaskEditor(view,countdownAutomationDraft(item,view._lang()),{asNew:true});}catch(error){new obs.Notice((en?'Could not open automation: ':'无法打开自动化配置：')+(error?.message||error));}finally{link.disabled=false;}};
       const edit=actions.createEl('button',{attr:{type:'button','aria-label':en?'Edit':'编辑'}});obs.setIcon(edit,'pencil');edit.onclick=(event)=>{event.preventDefault();event.stopPropagation();openCountdownEditor(view,item,render);};
-      const remove=actions.createEl('button',{attr:{type:'button','aria-label':en?'Delete':'删除'}});obs.setIcon(remove,'trash-2');remove.onclick=async(event)=>{event.preventDefault();event.stopPropagation();if(window.confirm(en?'Delete this countdown?':'删除这个倒计时？'))await service.remove(item.id);};
+      const remove=actions.createEl('button',{attr:{type:'button','aria-label':en?'Delete':'删除'}});obs.setIcon(remove,'trash-2');remove.onclick=async(event)=>{event.preventDefault();event.stopPropagation();if(await cockpitConfirm(view,en?'Delete this countdown?':'删除这个倒计时？',{danger:true,confirmText:en?'Delete':'删除'}))await service.remove(item.id);};
     }); updateClocks();
   };
   cockpitCreateModuleAction(controls, 'plus', en ? 'New countdown' : '新建倒计时', () => openCountdownEditor(view, null, render));
   view._countdownUnsubscribe?.(); view._countdownUnsubscribe=service.subscribe(()=>render().catch((e)=>console.warn('Cockpit countdown render failed',e)));
   if (view._countdownDisplayTimer) clearInterval(view._countdownDisplayTimer); view._countdownDisplayTimer=window.setInterval(updateClocks,1000);
-  await render(); view._makeModuleCollapsible('countdowns',title,content); return content;
+  if (view._collapsed && view._collapsed.countdowns === undefined) view._collapsed.countdowns = !view._lastCountdownCount;
+  await render();
+  if (view._collapsed && view._collapsed.countdowns === undefined) view._collapsed.countdowns = !view._lastCountdownCount;
+  view._makeModuleCollapsible('countdowns',title,content); return content;
 }
 
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') module.exports={countdownAutomationDraft};

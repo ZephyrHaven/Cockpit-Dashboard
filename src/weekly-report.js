@@ -351,7 +351,7 @@ function openWeeklyReportRecordEditor(view, existing, onDone) {
   if (existing) {
     const remove = footer.createEl('button', { cls: 'danger', text: en ? 'Delete' : '删除', attr: { type: 'button' } });
     remove.onclick = async () => {
-      if (!window.confirm(en ? 'Delete this report record? Scheduled tasks built on it will no longer run.' : '删除这条周报配置？基于它创建的定时任务将不再可用。')) return;
+      if (!await cockpitConfirm(view, en ? 'Delete this report record? Scheduled tasks built on it will no longer run.' : '删除这条周报配置？基于它创建的定时任务将不再可用。', { danger:true, confirmText:en ? 'Delete' : '删除' })) return;
       const cfg = await readWeeklyReportConfig(view._plugin);
       await writeWeeklyReportRecords(view._plugin, cfg.records.filter((record) => record.id !== draftId));
       refreshWeeklyReportCommands(view._plugin);
@@ -715,7 +715,7 @@ function buildWeeklyReportModule(view, root, options = {}) {
       const del = actions.createEl('button', { cls: PLUGIN_ID + '-scheduler-icon-btn', attr: { type: 'button', 'aria-label': en ? 'Delete' : '删除' } });
       obs.setIcon(del, 'trash');
       del.onclick = async () => {
-        if (!window.confirm(en ? 'Delete this report record?' : '删除这条周报配置？')) return;
+        if (!await cockpitConfirm(view, en ? 'Delete this report record?' : '删除这条周报配置？', { danger:true, confirmText:en ? 'Delete' : '删除' })) return;
         await writeWeeklyReportRecords(view._plugin, records.filter((item) => item.id !== record.id));
         if (state.selectedId === record.id) state.selectedId = null;
         refreshWeeklyReportCommands(view._plugin);

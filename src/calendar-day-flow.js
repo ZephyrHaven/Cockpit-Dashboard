@@ -214,7 +214,11 @@ function renderCalendarDayFlow(options) {
     }
     if (todo) {
       const edit = rowActions.createEl('button', { cls:PLUGIN_ID + '-cal-detail-edit', attr:{ type:'button', title:t('todo.edit'), 'aria-label':t('todo.edit') } }); obs.setIcon(edit, 'square-pen');
-      check.onclick = async (event) => { event.stopPropagation(); await (todo.teamTodo ? onTeamTodoToggle?.(todo.raw, !todo.raw.done) : onTodoToggle(todo.raw.id, !todo.raw.done)); };
+      check.onclick = async (event) => {
+        event.stopPropagation();
+        if (!todo.raw.done && !todo.teamTodo) cockpitCelebrate(check);
+        await (todo.teamTodo ? onTeamTodoToggle?.(todo.raw, !todo.raw.done) : onTodoToggle(todo.raw.id, !todo.raw.done));
+      };
       const open = (event) => { event.stopPropagation(); todo.teamTodo ? onTeamTodoOpen?.(todo.raw) : openTodoEditor({ id:todo.raw.id }); };
       text.onclick = open;
       edit.onclick = open;

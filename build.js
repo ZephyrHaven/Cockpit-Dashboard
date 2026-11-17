@@ -27,6 +27,7 @@ try { esbuild = require('esbuild'); esbuild.transformSync('', { loader:'js' }); 
 const MODULES = [
   'constants.js',
   'modal-motion.js',
+  'ui-dialogs.js',
   'data-store.js',
   'lan-sync-core.js',
   'lan-sync-transport.js',
@@ -93,6 +94,7 @@ const MODULES = [
   'calendar-day-flow.js',
   'calendar.js',
   'search.js',
+  'command-palette.js',
   'toolbar-config.js',
   'toolbar-custom.js',
   'toolbar.js',
@@ -116,6 +118,7 @@ const MODULES = [
   'updater.js',
   'toolbar-defs.js',
   'layout-edit.js',
+  'module-summary.js',
   'module-nav.js',
   'custom-components-core.js',
   'custom-components-service.js',

@@ -114,7 +114,7 @@ class CockpitUpdateModal extends CockpitModal {
     notes.onclick = () => new CockpitReleaseNotesModal(this.app, this.updater.plugin, this.language).open();
     const install = actions.createEl('button', { cls:'mod-cta', text:en ? 'Download and install' : '下载并安装' });
     install.onclick = async () => {
-      if (!window.confirm(en ? 'Download and install the update? Your settings and data will be kept. The current plugin files will be backed up locally.' : '下载并安装更新？本地设置和数据会保留，当前插件文件会在本机备份。')) return;
+      if (!await cockpitConfirm(this, en ? 'Download and install the update? Your settings and data will be kept. The current plugin files will be backed up locally.' : '下载并安装更新？本地设置和数据会保留，当前插件文件会在本机备份。', { confirmText:en ? 'Install' : '安装' })) return;
       install.disabled = true; notes.disabled = true;
       const progress = body.createEl('p', { cls:PLUGIN_ID + '-update-progress' });
       try {

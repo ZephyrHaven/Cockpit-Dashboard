@@ -41,6 +41,8 @@ async function buildResurfaceModule(view, root) {
     const files = getViewMarkdownFiles(view);
     const { list, kind } = pickCandidates(files);
     if (!list.length) {
+      view._resurfaceSummary = '';
+      if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view);
       body.createDiv({ cls: PLUGIN_ID + '-resurface-empty', text: en
         ? 'Not enough history yet. Notes untouched for a while will resurface here.'
         : '历史还不够多。超过半年没动过的笔记会出现在这里。' });
@@ -53,6 +55,8 @@ async function buildResurfaceModule(view, root) {
       ? (en ? 'On this day in past years' : '往年今天的笔记')
       : (en ? 'Dust off an old note' : '翻翻旧笔记');
     body.createDiv({ cls: PLUGIN_ID + '-resurface-caption', text: headingText });
+    view._resurfaceSummary = (kind === 'anniversary' ? (en ? 'On this day · ' : '往年今天 · ') : (en ? 'Old notes · ' : '旧笔记 · ')) + list.length;
+    if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(view);
 
     for (const file of shown) {
       const card = body.createDiv({ cls: PLUGIN_ID + '-resurface-card', attr:{ role:'button', tabindex:'0' } });

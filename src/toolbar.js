@@ -78,7 +78,7 @@ function createToolbarDeleteTool(view, root, tools, button) {
   remove.onclick = async (evt) => {
     evt.preventDefault(); evt.stopPropagation();
     const label = button.label || (view._lang()==='en'?'this button':'这个按钮');
-    if (!window.confirm(view._lang()==='en' ? `Delete “${label}”?` : `确定删除“${label}”吗？`)) return;
+    if (!await cockpitConfirm(view, view._lang()==='en' ? `Delete “${label}”?` : `确定删除“${label}”吗？`, { danger:true, confirmText:view._lang()==='en' ? 'Delete' : '删除' })) return;
     if (button.builtin) await view._deletePresetToolbarAction(button.action);
     else await view._saveCustomToolbarButtons(view._customToolbarButtons.filter((item) => item.id !== button.id));
     const slot = tools.closest('.' + PLUGIN_ID + '-toolslot');

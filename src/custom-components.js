@@ -4,7 +4,7 @@ function cockpitBuildCustomComponents(view,root) {
   for(const entry of view._plugin.customComponents?.entries()||[]) {
     const id=customComponentModuleId(entry.manifest.id);
     const title=root.createDiv({cls:PLUGIN_ID+'-section-title',text:entry.manifest.name});title.dataset.section=id+'-title';title.dataset.customComponent=entry.manifest.id;
-    cockpitSetModuleTitleIcon(title,id,entry.manifest.icon);
+    cockpitSetModuleTitleIcon(title,id,view._lang(),entry.manifest.icon);
     const body=root.createDiv({cls:PLUGIN_ID+'-custom-component-body'});body.dataset.section=id+'-body';body.dataset.customComponent=entry.manifest.id;
     const controller={id,body,runtime:null,failed:false,
       stop(){this.runtime?.destroy();this.runtime=null;},

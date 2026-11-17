@@ -180,7 +180,9 @@ function cockpitBuildModuleNav(view, root) {
     // 回到首屏时留一点滞后，避免触控板在阈值附近来回触发。
     const threshold = Math.max(64, height - (visible ? 72 : 24));
     const atEnd = scrollport.scrollHeight - height - scrollport.scrollTop <= 4;
-    visible = height > 0 && (root.dataset.moduleNavAutoHide === 'off' || distance >= threshold || (atEnd && distance >= 64));
+    // 跳回首屏时先等指针离开 Dock，保留同一图标接收双击的机会。
+    const pointingAtJump = visible && !!jumpTarget && pointedButton?.dataset.navModule === jumpTarget.dataset.moduleId;
+    visible = height > 0 && (root.dataset.moduleNavAutoHide === 'off' || distance >= threshold || (atEnd && distance >= 64) || pointingAtJump);
     nav.inert = !visible;
     nav.classList.toggle('is-visible', visible);
     if (!visible) {
@@ -235,8 +237,9 @@ function cockpitBuildModuleNav(view, root) {
       const wrapper = findModule(moduleId);
       if (!wrapper) continue;
       const iconName = customIcons.get(moduleId) || cockpitModuleIcon(moduleId);
-      const button = addButton(list, view._moduleLabel(moduleId), iconName,
-        (event) => jump(moduleId, event.detail === 0));
+      const button = addButton(list, view._moduleLabel(moduleId), iconName, event => {
+        if (event.detail < 2) jump(moduleId, event.detail === 0);
+      });
       button.dataset.navModule = moduleId;
       entries.push({ wrapper, button });
       if (moduleId === focusedId) button.focus({ preventScroll:true });

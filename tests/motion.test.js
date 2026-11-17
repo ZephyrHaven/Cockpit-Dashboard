@@ -25,7 +25,7 @@ const context = vm.createContext({
   Set, Map, WeakMap, Object, Array, Math
 });
 const source = fs.readFileSync(path.join(__dirname, '../src/motion.js'), 'utf8');
-vm.runInContext(source + ';globalThis.motionApi={cockpitMotionEnabled,cockpitMotionAllowed,cockpitApplyMotionState,cockpitCaptureLayout,cockpitBindCinematicMotion,cockpitPlayEntrance,cockpitRevealList,cockpitReplayMotion,cockpitAnimatePopover,cockpitClosePopover,COCKPIT_MOTION};', context);
+vm.runInContext(source + ';globalThis.motionApi={cockpitMotionEnabled,cockpitMotionAllowed,cockpitApplyMotionState,cockpitCaptureLayout,cockpitBindCinematicMotion,cockpitPlayEntrance,cockpitRevealList,cockpitReplayMotion,cockpitAnimatePopover,cockpitClosePopover,cockpitFlightCurve,cockpitFlightPoint,cockpitFlightAngle,cockpitFlyPaperPlane,cockpitCelebrate,COCKPIT_MOTION};', context);
 const api = context.motionApi;
 
 assert.equal(api.cockpitMotionEnabled({ _motionV2Enabled:true }), true);
@@ -40,6 +40,11 @@ reduced = false;
 context.document.hidden = true;
 assert.equal(api.cockpitMotionAllowed({ _motionV2Enabled:true }), false, 'Hidden pages do not start new motion.');
 context.document.hidden = false;
+
+reduced = true;
+assert.equal(api.cockpitCelebrate({ isConnected:true }, { _motionV2Enabled:true }), false, 'Reduce Motion skips the completion burst entirely.');
+reduced = false;
+assert.equal(api.cockpitCelebrate(null, { _motionV2Enabled:true }), false, 'The completion burst needs a live anchor node.');
 
 const classes = new Set();
 const root = { dataset:{}, classList:{ toggle:(name, on) => on ? classes.add(name) : classes.delete(name) } };
@@ -112,4 +117,46 @@ assert.match(source,/ck-motion-ripple-host/, 'Only actual ripple hosts opt into 
 assert.match(source,/classList\.remove\('ck-motion-ripple-host'\)/, 'Ripple clipping is removed after the feedback finishes.');
 assert.match(source,/content-resize-handle'\)\) return;/, 'The absolute dashboard resize handle opts out before press transforms or ripple clipping.');
 assert.match(source,/cal-rss-btn'\)\) return;/, 'Calendar RSS keeps press feedback but skips the clipping ripple.');
+
+// 纸飞机投递：拖拽落点后的弧线由纯几何函数驱动，可在没有 DOM 的环境里逐点验证。
+const flightCurve = api.cockpitFlightCurve({ x:100, y:500 }, { x:400, y:120 });
+assert.equal(flightCurve.start.x, 100);
+assert.equal(flightCurve.start.y, 500);
+assert.equal(flightCurve.end.x, 400);
+assert.equal(flightCurve.end.y, 120);
+assert.equal(Math.round(flightCurve.control.x), 250, 'The arc peaks above the horizontal midpoint.');
+assert.equal(flightCurve.control.y < 120, true, 'The control point lifts the path above both ends.');
+assert.equal(flightCurve.distance > 400, true);
+
+const flightStart = api.cockpitFlightPoint(flightCurve, 0);
+const flightEnd = api.cockpitFlightPoint(flightCurve, 1);
+assert.equal(flightStart.x, 100); assert.equal(flightStart.y, 500);
+assert.equal(flightEnd.x, 400); assert.equal(flightEnd.y, 120);
+assert.equal(api.cockpitFlightPoint(flightCurve, .5).y < 310, true, 'Mid-flight stays above the straight chord.');
+assert.equal(api.cockpitFlightPoint(flightCurve, -1).x, 100, 'Progress below zero clamps to the take-off point.');
+assert.equal(api.cockpitFlightPoint(flightCurve, 2).x, 400, 'Progress above one clamps to the landing point.');
+
+let turning = 0;
+let previousPoint = api.cockpitFlightPoint(flightCurve, 0);
+let previousAngle = null;
+for (let step = 1; step <= 200; step += 1) {
+  const point = api.cockpitFlightPoint(flightCurve, step / 200);
+  const angle = Math.atan2(point.y - previousPoint.y, point.x - previousPoint.x);
+  if (previousAngle !== null) {
+    let delta = angle - previousAngle;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    turning += delta;
+  }
+  previousAngle = angle;
+  previousPoint = point;
+}
+assert.equal(Math.abs(turning) > Math.PI * 3, true, 'The route banks through two full loops instead of one flat arc.');
+const takeOffAngle = api.cockpitFlightAngle(flightCurve, 0);
+const landingAngle = api.cockpitFlightAngle(flightCurve, 1);
+assert.equal(takeOffAngle < 0 && takeOffAngle > -90, true, 'The plane noses upward when it takes off.');
+assert.equal(landingAngle > 0, true, 'The plane noses downward as it dives into the date cell.');
+
+assert.equal(api.cockpitFlyPaperPlane({ fromRect:{ left:10, top:10, width:20, height:20 }, toRect:{ left:300, top:100, width:40, height:40 }, owner:{ _motionV2Enabled:false } }), false, 'Disabled motion skips the flight entirely.');
+assert.equal(api.cockpitFlyPaperPlane({ fromRect:null, toRect:null, owner:{ _motionV2Enabled:true } }), false, 'Missing drag geometry cannot start a flight.');
 console.log('Motion V2 checks passed');
