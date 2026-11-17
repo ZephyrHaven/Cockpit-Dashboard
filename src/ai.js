@@ -1,5 +1,8 @@
 // ai.js — Cockpit AI 核心：多模型配置、最近笔记上下文与 OpenAI-compatible 请求
 
+// 构建拼接时 getText 为全局符号；Node 单测单独 require 时回退到 constants.js 导出。
+var __aiText = (typeof getText === 'function') ? getText : require('./constants.js').getText;
+
 const AI_PROVIDER_PRESETS = Object.freeze([
   Object.freeze({ id:'openai', name:'OpenAI', baseUrl:'https://api.openai.com/v1', models:['gpt-4.1-mini','gpt-4o-mini'] }),
   Object.freeze({ id:'deepseek', name:'DeepSeek（深度求索）', baseUrl:'https://api.deepseek.com', models:['deepseek-v4-flash','deepseek-v4-pro'] }),
@@ -240,16 +243,16 @@ function buildAiMessages(options = {}) {
   const extraSystem = [agentEnvironment, memoryBlock].filter(Boolean).join('\n\n');
   const systemContent = extraSystem ? system + '\n\n' + extraSystem : system;
   const parts = [instruction];
-  if (question) parts.push((language === 'en' ? 'User question: ' : '用户问题：') + question);
+  if (question) parts.push(__aiText(language, 'ai.userQuestion') + question);
   if (contexts.length) {
     contexts.forEach((context, index) => {
-      const sourceLabel = context.source === 'upload' ? (language === 'en' ? 'uploaded file' : '上传文件')
-        : (context.source === 'rag' ? (language === 'en' ? 'local RAG excerpt' : '本地 RAG 片段') : (language === 'en' ? 'Vault note' : 'Vault 笔记'));
-      parts.push((language === 'en' ? 'Context ' : '上下文 ') + (index + 1) + ' · ' + sourceLabel + '\n'
-        + (language === 'en' ? 'Path: ' : '路径：') + context.path + '\n---\n' + context.content + '\n---');
+      const sourceLabel = context.source === 'upload' ? __aiText(language, 'ai.sourceUpload')
+        : (context.source === 'rag' ? __aiText(language, 'ai.sourceRag') : __aiText(language, 'ai.sourceVault'));
+      parts.push(__aiText(language, 'ai.contextLabel') + (index + 1) + ' · ' + sourceLabel + '\n'
+        + __aiText(language, 'ai.pathLabel') + context.path + '\n---\n' + context.content + '\n---');
     });
   } else if (options.action !== 'custom') {
-    parts.push(language === 'en' ? 'No note context is available.' : '当前没有可用的笔记上下文。');
+    parts.push(__aiText(language, 'ai.noContext'));
   }
   // 贴图作为最后一条 user 消息的多模态内容发送；仅接受 data URL 形式，上限 4 张。
   const imageParts = (Array.isArray(options.images) ? options.images : [])
@@ -1053,21 +1056,21 @@ class CockpitAIService {
     return { reasoning:reasoning.trim(), content:content.trim(), streamed:true, usage:streamUsage };
   }
   async testConnection(language) {
-    return this.complete({ action:'custom', question:language === 'en' ? 'Reply with only: Connection successful' : '请只回复：连接成功', note:null, language });
+    return this.complete({ action:'custom', question:__aiText(language, 'ai.testPrompt'), note:null, language });
   }
   async testProfile(profileId, language) {
     const config = await this.getConfig();
     const profile = config.profiles.find((item) => item.id === profileId);
-    if (!profile) throw new Error(language === 'en' ? 'Model profile not found.' : '找不到这个模型配置');
-    if (!profile.model) throw new Error(language === 'en' ? 'Configure a model ID first.' : '请先配置模型名称');
+    if (!profile) throw new Error(__aiText(language, 'ai.profileMissing'));
+    if (!profile.model) throw new Error(__aiText(language, 'ai.modelMissing'));
     const apiKey = this.getProfileApiKey(profile);
-    const question = language === 'en' ? 'Reply with only: Connection successful' : '请只回复：连接成功';
+    const question = __aiText(language, 'ai.testPrompt');
     const messages = buildAiMessages({ action:'custom', question, note:null, language, maxContextChars:config.maxContextChars });
     let response;
     try { response = await raceAiRequestTimeout(obs.requestUrl(createAiRequest(profile, apiKey, messages)), this.requestTimeoutMs); }
     catch (e) {
       if (e?.code === 'AI_TIMEOUT') throw e;
-      throw new Error(language === 'en' ? 'Could not connect to this model service.' : '无法连接这个模型服务，请检查网络与接口地址');
+      throw new Error(__aiText(language, 'ai.connectFail'));
     }
     if (response.status < 200 || response.status >= 300) throw new Error(getAiProviderError(response.status));
     let payload = response.json;

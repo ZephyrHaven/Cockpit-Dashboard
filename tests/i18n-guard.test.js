@@ -11,7 +11,7 @@ const root = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 // 核心框架层文件：新代码不应在此写内联双语三元，应登记到 constants.js。
-const coreFiles = ['_framework.js', 'dashboard-sections.js', 'onboarding.js', 'silent-refresh.js'];
+const coreFiles = ['_framework.js', 'dashboard-sections.js', 'onboarding.js', 'silent-refresh.js', 'ai.js', 'scenes.js'];
 
 const cnRe = /['"“][^'"”]*[\u4e00-\u9fff][^'"]*['"]/;
 const ternaryRe = /=== 'en' \?/g;
@@ -40,6 +40,16 @@ assert.equal(frameworkBlocks, 2, 'framework 文案段在 zh 与 en 两个语言�
 // 关键键必须双语存在（防止单边遗漏）。
 for (const key of ['completeAll', 'manageTips', 'saveTodosFail', 'desktopOnly']) {
   const occurrences = (constants.match(new RegExp(key + ':', 'g')) || []).length;
+  assert.ok(occurrences >= 2, key + ' 在 zh/en 两包中都要定义。');
+}
+
+// ai / scenes 文案段同样要 zh/en 双份齐备，且关键键不缺边。
+for (const seg of ['ai', 'scenes']) {
+  const blocks = (constants.match(new RegExp('^\\s*' + seg + ': \\{', 'gm')) || []).length;
+  assert.equal(blocks, 2, seg + ' 文案段在 zh 与 en 两个语言包中都要存在。');
+}
+for (const key of ['userQuestion', 'noContext', 'connectFail', 'switchScene', 'newScene', 'cancel']) {
+  const occurrences = (constants.match(new RegExp('\\b' + key + ':', 'g')) || []).length;
   assert.ok(occurrences >= 2, key + ' 在 zh/en 两包中都要定义。');
 }
 

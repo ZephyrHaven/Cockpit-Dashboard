@@ -340,6 +340,34 @@ const I18N = {
       dragToReorder: '拖动排序',
       dragWelcome: '拖动欢迎窗口',
       dragOnboarding: '拖动新手引导窗口'
+    },
+    ai: {
+        userQuestion: '用户问题：',
+        sourceUpload: '上传文件',
+        sourceRag: '本地 RAG 片段',
+        sourceVault: 'Vault 笔记',
+        contextLabel: '上下文 ',
+        pathLabel: '路径：',
+        noContext: '当前没有可用的笔记上下文。',
+        testPrompt: '请只回复：连接成功',
+        profileMissing: '找不到这个模型配置',
+        modelMissing: '请先配置模型名称',
+        connectFail: '无法连接这个模型服务，请检查网络与接口地址'
+      },
+      scenes: {
+        switchScene: '切换情景布局',
+        scenesCaption: '布局情景',
+        manageCaption: '管理',
+        newScene: '新建情景',
+        componentStore: '组件商店',
+        autoSchedule: '自动切换规则',
+        deleteScene: '删除当前情景',
+        newLayoutTitle: '新建情景',
+        dragDialog: '拖动情景窗口',
+        nameHelp: '将复制当前布局，保存后可继续编辑。',
+        namePlaceholder: '例如：专注工作',
+        cancel: '取消',
+        create: '创建'
     }
   },
   en: {
@@ -658,6 +686,34 @@ const I18N = {
       dragToReorder: 'Drag to reorder',
       dragWelcome: 'Drag welcome window',
       dragOnboarding: 'Drag onboarding guide'
+    },
+    ai: {
+        userQuestion: 'User question: ',
+        sourceUpload: 'uploaded file',
+        sourceRag: 'local RAG excerpt',
+        sourceVault: 'Vault note',
+        contextLabel: 'Context ',
+        pathLabel: 'Path: ',
+        noContext: 'No note context is available.',
+        testPrompt: 'Reply with only: Connection successful',
+        profileMissing: 'Model profile not found.',
+        modelMissing: 'Configure a model ID first.',
+        connectFail: 'Could not connect to this model service.'
+      },
+      scenes: {
+        switchScene: 'Switch layout scene',
+        scenesCaption: 'LAYOUT SCENES',
+        manageCaption: 'MANAGE',
+        newScene: 'New scene',
+        componentStore: 'Component store',
+        autoSchedule: 'Automatic schedule',
+        deleteScene: 'Delete current scene',
+        newLayoutTitle: 'New layout scene',
+        dragDialog: 'Drag scene dialog',
+        nameHelp: 'Copies the current layout. You can edit it afterwards.',
+        namePlaceholder: 'e.g. Focus',
+        cancel: 'Cancel',
+        create: 'Create'
     }
   }
 };
@@ -685,3 +741,8 @@ const DEFAULT_TODOS = [
   { text:'试试右键点击空白区域，可以打开快捷菜单', tags:['入门'], priority:'low', dueDate:null, done:false, created:null, doneDate:null },
   { text:'点击标题栏可以把任意模块折叠或展开', tags:['入门'], priority:'low', dueDate:null, done:true, created:null, doneDate:null }
 ];
+
+// 仅 Node 单元测试单独 require 时导出关键工具（构建拼接时 PLUGIN_ID 已定义，跳过，不污染打包作用域）。
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { I18N, getLangPack, getText, normalizeLang };
+}

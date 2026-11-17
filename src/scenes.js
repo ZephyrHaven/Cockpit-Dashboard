@@ -22,7 +22,7 @@ function buildSceneSwitcher(view, parent) {
   const refresh = () => {
     const scene = view._getActiveScene();
     label.textContent = view._sceneLabel(scene);
-    trigger.title = view._lang() === 'en' ? 'Switch layout scene' : '切换情景布局';
+    trigger.title = getText(view._lang(), 'scenes.switchScene');
     icon.empty();
     obs.setIcon(icon, 'layers-3');
   };
@@ -30,7 +30,7 @@ function buildSceneSwitcher(view, parent) {
     if (menu) { close(); return; }
     menu = wrap.createDiv({ cls: PLUGIN_ID + '-scene-menu', attr: { role: 'menu' } });
     menu.dataset.motionKey = 'scene-menu';
-    menu.createDiv({ cls:PLUGIN_ID + '-scene-menu-caption', text:view._lang() === 'en' ? 'LAYOUT SCENES' : '布局情景' });
+    menu.createDiv({ cls:PLUGIN_ID + '-scene-menu-caption', text:getText(view._lang(), 'scenes.scenesCaption') });
     const sceneList = menu.createDiv({ cls:PLUGIN_ID + '-scene-menu-list' });
     view._sceneList().forEach((scene) => {
       const item = sceneList.createEl('button', { cls: PLUGIN_ID + '-scene-menu-item' + (scene.id === view._activeSceneId ? ' active' : ''), attr: { type: 'button', role: 'menuitem' } });
@@ -43,7 +43,7 @@ function buildSceneSwitcher(view, parent) {
       item.onclick = async () => { close(); await view._switchScene(scene.id); };
     });
     menu.createDiv({ cls: PLUGIN_ID + '-scene-menu-divider' });
-    menu.createDiv({ cls:PLUGIN_ID + '-scene-menu-caption', text:view._lang() === 'en' ? 'MANAGE' : '管理' });
+    menu.createDiv({ cls:PLUGIN_ID + '-scene-menu-caption', text:getText(view._lang(), 'scenes.manageCaption') });
     const actions = menu.createDiv({ cls:PLUGIN_ID + '-scene-menu-actions' });
     const createAction = (iconName, text, extraClass = '') => {
       const button = actions.createEl('button', { cls:PLUGIN_ID + '-scene-menu-action' + (extraClass ? ' ' + extraClass : ''), attr:{ type:'button' } });
@@ -52,14 +52,14 @@ function buildSceneSwitcher(view, parent) {
       button.createSpan({ cls:PLUGIN_ID + '-scene-menu-action-label', text });
       return button;
     };
-    const create = createAction('plus', view._lang() === 'en' ? 'New scene' : '新建情景');
+    const create = createAction('plus', getText(view._lang(), 'scenes.newScene'));
     create.onclick = async () => { close(); await view._createScene(); };
-    const edit = createAction('blocks', view._lang() === 'en' ? 'Component store' : '组件商店');
+    const edit = createAction('blocks', getText(view._lang(), 'scenes.componentStore'));
     edit.onclick = () => { close(); openComponentStore(view); };
-    const automate = createAction('calendar-clock', view._lang() === 'en' ? 'Automatic schedule' : '自动切换规则');
+    const automate = createAction('calendar-clock', getText(view._lang(), 'scenes.autoSchedule'));
     automate.onclick = () => { close(); new CockpitSceneScheduleModal(view.app, view).open(); };
     if (view._activeSceneId !== 'default') {
-      const remove = createAction('trash-2', view._lang() === 'en' ? 'Delete current scene' : '删除当前情景', 'danger');
+      const remove = createAction('trash-2', getText(view._lang(), 'scenes.deleteScene'), 'danger');
       remove.onclick = async () => { close(); await view._deleteActiveScene(); };
     }
     trigger.setAttribute('aria-expanded', 'true');
@@ -76,13 +76,13 @@ class CockpitSceneNameModal extends CockpitModal {
   onOpen() {
     const { contentEl } = this;
     contentEl.addClass(PLUGIN_ID + '-scene-name-modal');
-    const heading = contentEl.createEl('h2', { text:this.view._lang() === 'en' ? 'New layout scene' : '新建情景' });
-    this._dragCleanup = makeCockpitModalDraggable(this, heading, this.view._lang() === 'en' ? 'Drag scene dialog' : '拖动情景窗口');
-    contentEl.createDiv({ cls:PLUGIN_ID + '-scene-name-help', text:this.view._lang() === 'en' ? 'Copies the current layout. You can edit it afterwards.' : '将复制当前布局，保存后可继续编辑。' });
-    const input = contentEl.createEl('input', { cls:PLUGIN_ID + '-scene-name-input', attr:{ type:'text', maxlength:'24', placeholder:this.view._lang() === 'en' ? 'e.g. Focus' : '例如：专注工作' } });
+    const heading = contentEl.createEl('h2', { text:getText(this.view._lang(), 'scenes.newLayoutTitle') });
+    this._dragCleanup = makeCockpitModalDraggable(this, heading, getText(this.view._lang(), 'scenes.dragDialog'));
+    contentEl.createDiv({ cls:PLUGIN_ID + '-scene-name-help', text:getText(this.view._lang(), 'scenes.nameHelp') });
+    const input = contentEl.createEl('input', { cls:PLUGIN_ID + '-scene-name-input', attr:{ type:'text', maxlength:'24', placeholder:getText(this.view._lang(), 'scenes.namePlaceholder') } });
     const actions = contentEl.createDiv({ cls:PLUGIN_ID + '-scene-name-actions' });
-    const cancel = actions.createEl('button', { text:this.view._lang() === 'en' ? 'Cancel' : '取消' });
-    const save = actions.createEl('button', { cls:'mod-cta', text:this.view._lang() === 'en' ? 'Create' : '创建' });
+    const cancel = actions.createEl('button', { text:getText(this.view._lang(), 'scenes.cancel') });
+    const save = actions.createEl('button', { cls:'mod-cta', text:getText(this.view._lang(), 'scenes.create') });
     const submit = async () => {
       const name = input.value.trim();
       if (!name) { input.focus(); return; }
