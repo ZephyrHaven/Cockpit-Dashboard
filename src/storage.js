@@ -118,7 +118,7 @@ class CockpitStorage {
       try {
         const commands = normalizeToolbarCommands(parseToolbarConfig(await this.app.vault.read(legacy)));
         if (Object.keys(commands).length) return commands;
-      } catch (e) {}
+      } catch (e) { console.warn('Cockpit legacy toolbar migration failed; using defaults', e); }
     }
     return normalizeToolbarCommands(defaults);
   }

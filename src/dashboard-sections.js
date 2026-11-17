@@ -260,7 +260,7 @@ function cockpitBuildFlashSection(view, root, ctx) {
           finally { aiBtn.disabled=false; }
         };
       }
-    } catch(e) {}
+    } catch(e) { console.warn('Cockpit flash inbox render failed', e); }
   };
   renderFlashInboxUi();
   makeCollapsible(flashTitle, flashContent, 'flash');

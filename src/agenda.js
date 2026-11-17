@@ -94,7 +94,7 @@ async function buildAgendaModule(view, root, options = {}) {
   view._agendaAlarmUnsubscribe?.();
   try {
     view._agendaAlarmUnsubscribe = view._plugin.alarms.subscribe(() => render().catch((e) => console.warn('Cockpit agenda re-render failed', e)));
-  } catch (e) {}
+  } catch (e) { console.warn('Cockpit agenda alarm subscribe failed', e); }
 
   view._refreshAgendaRef = render;
   try { await render(); } catch (e) { console.warn('Cockpit agenda failed; dashboard basics remain available', e); }
