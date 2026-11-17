@@ -136,6 +136,7 @@ const MODULES = [
   'dashboard-sections.js',
   'categories.js',
   'silent-refresh.js',
+  'onboarding.js',
   'commands.js',
   '_framework.js'
 ];

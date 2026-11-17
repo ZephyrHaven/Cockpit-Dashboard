@@ -101,7 +101,7 @@ assert.doesNotMatch(source, /_data\/.+\.md/, 'Scheduled tasks do not add Markdow
 assert.match(framework, /id:'scheduledTasks'[\s\S]*collapsible:true/, 'The scheduler participates in layout, visibility, scenes, and collapse state.');
 assert.match(build, /'scheduled-tasks\.js'/);
 
-const draggableSources = ['_framework.js','scenes.js','tip-store.js','rss.js','storage.js','toolbar-config.js','toolbar-custom.js']
+const draggableSources = ['_framework.js','scenes.js','tip-store.js','rss.js','storage.js','toolbar-config.js','toolbar-custom.js','onboarding.js']
   .map((file) => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8')).join('\n');
 assert.match(draggableSources, /makeCockpitModalDraggable/, 'Native secondary modals use the shared drag behavior.');
 assert.ok((draggableSources.match(/makeCockpitDialogDraggable/g) || []).length >= 7, 'Custom secondary pages consistently use the shared drag behavior.');
