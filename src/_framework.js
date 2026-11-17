@@ -96,7 +96,7 @@ class CockpitView extends obs.ItemView {
       { id:'cats', label:this._t('sections.cats'), collapsible:true, matches:(el) => el.dataset.section === 'cats-title' || el.classList.contains(PLUGIN_ID + '-cats') },
       { id:'stats', label:this._t('sections.stats'), collapsible:true, matches:(el) => el.dataset.section === 'stats-title' || el.classList.contains(PLUGIN_ID + '-stats') },
       { id:'todos', label:this._t('sections.todos'), collapsible:true, matches:(el) => el.dataset.section === 'todos-title' || el.dataset.section === 'todos-body' },
-      { id:'teamTodos', label:this._lang() === 'en' ? 'Team tasks' : '团队待办', collapsible:true, matches:(el) => el.dataset.section === 'teamTodos-title' || el.dataset.section === 'teamTodos-body' },
+      { id:'teamTodos', label:this._t('framework.teamTodos'), collapsible:true, matches:(el) => el.dataset.section === 'teamTodos-title' || el.dataset.section === 'teamTodos-body' },
       { id:'habits', label:this._t('layout.modules.habits'), collapsible:true, matches:(el) => el.dataset.section === 'habits-title' || el.dataset.section === 'habits-body' || el.classList.contains(PLUGIN_ID + '-habits') },
       { id:'projects', label:this._t('layout.modules.projects'), collapsible:true, matches:(el) => el.dataset.section === 'projects-title' || el.dataset.section === 'projects-body' || el.classList.contains(PLUGIN_ID + '-projects') },
       { id:'focusChart', label:this._t('layout.modules.focusChart'), collapsible:true, matches:(el) => el.dataset.section === 'focus-chart-title' || el.dataset.section === 'focus-chart' },
@@ -187,7 +187,7 @@ class CockpitView extends obs.ItemView {
     return this._hiddenToolbarActions.has(action);
   }
   _sceneSnapshot() { return { moduleOrder:[...this._moduleOrder], hiddenModules:Array.from(this._hiddenModules), toolbarOrder:[...this._toolbarOrder], hiddenToolbarActions:Array.from(this._hiddenToolbarActions), statsCardOrder:[...this._statsCardOrder], hiddenStatsCards:Array.from(this._hiddenStatsCards), moduleLabels:{...this._customModuleLabels}, contentWidth:Number.isFinite(this._contentWidth) ? this._contentWidth : null }; }
-  _sceneLabel(scene) { return scene?.id === 'default' ? (this._lang() === 'en' ? 'Default layout' : '默认布局') : (scene?.name || (this._lang() === 'en' ? 'Untitled scene' : '未命名情景')); }
+  _sceneLabel(scene) { return scene?.id === 'default' ? this._t('framework.sceneDefault') : (scene?.name || this._t('framework.sceneUntitled')); }
   _sceneList() { return Object.values(this._sceneLayouts); }
   _getActiveScene() { return this._sceneLayouts[this._activeSceneId] || this._sceneLayouts.default; }
   _applySceneSnapshot(scene) {
@@ -284,7 +284,7 @@ class CockpitView extends obs.ItemView {
   async _deleteActiveScene() {
     if (this._activeSceneId === 'default') return;
     const scene = this._getActiveScene();
-    if (!await cockpitConfirm(this, this._lang() === 'en' ? `Delete “${this._sceneLabel(scene)}”?` : `确定删除“${this._sceneLabel(scene)}”吗？`, { danger:true, confirmText:this._lang() === 'en' ? 'Delete' : '删除' })) return;
+    if (!await cockpitConfirm(this, this._t('framework.deleteScene', { name: this._sceneLabel(scene) }), { danger:true, confirmText:this._t('framework.delete') })) return;
     delete this._sceneLayouts[this._activeSceneId]; this._activeSceneId = 'default'; this._applySceneSnapshot(this._sceneLayouts.default);
     await this._saveActiveSceneLayout(); await this._renderDashboard(false);
   }
@@ -583,7 +583,7 @@ class CockpitView extends obs.ItemView {
       await this._mutatePluginData((data) => { data.calendarViewMode = next; });
     } catch (error) {
       console.warn('Cockpit: save calendar view failed', error);
-      new obs.Notice(this._lang() === 'en' ? 'Could not save the calendar view preference.' : '日历视图偏好保存失败。');
+      new obs.Notice(this._t('framework.saveCalViewFail'));
     }
   }
   async _setCalendarSplitRatio(value) {
@@ -594,7 +594,7 @@ class CockpitView extends obs.ItemView {
       await this._mutatePluginData((data) => { data.calendarSplitRatio = next; });
     } catch (error) {
       console.warn('Cockpit: save calendar split ratio failed', error);
-      new obs.Notice(this._lang() === 'en' ? 'Could not save the calendar column width.' : '日历分栏宽度保存失败。');
+      new obs.Notice(this._t('framework.saveCalWidthFail'));
     }
   }
 
@@ -1094,7 +1094,7 @@ class CockpitView extends obs.ItemView {
     const commitTodoMutation = async (mutator, failureMessage, mutationOptions = {}) => {
       const outcome = await mutateTodos(this.app.vault, mutator, mutationOptions);
       if (!outcome.saved || !outcome.todos) {
-        new obs.Notice(failureMessage || (lang === 'en' ? 'Could not save tasks. Nothing was changed.' : '待办保存失败，内容未发生变化。'));
+        new obs.Notice(failureMessage || t('framework.saveTodosFail'));
         return false;
       }
       this._todos = outcome.todos;
@@ -1215,7 +1215,7 @@ class CockpitView extends obs.ItemView {
     const tip = getDailyTip(lang, this._dailyTips).replace(/^💡\s*/, '');
     root.createDiv({ cls: PLUGIN_ID+'-tip' }, el => {
       el.createDiv({ cls: PLUGIN_ID+'-tip-label', text: t('tip.label') });
-      const manage = el.createEl('button', { cls:PLUGIN_ID+'-tip-manage', text:lang === 'en' ? 'Manage tips' : '管理提示', attr:{ type:'button' } });
+      const manage = el.createEl('button', { cls:PLUGIN_ID+'-tip-manage', text:t('framework.manageTips'), attr:{ type:'button' } });
       manage.style.display = this._editMode ? 'inline-flex' : 'none';
       manage.onclick = (evt) => { evt.preventDefault(); evt.stopPropagation(); new CockpitTipLibraryModal(this.app, this).open(); };
       el.createDiv({ cls: PLUGIN_ID+'-tip-text', text: tip });
@@ -1230,8 +1230,8 @@ class CockpitView extends obs.ItemView {
       { id:'exportBackup', title: t('contextMenu.exportBackup'), icon: 'archive', onClick: async () => {
         try {
           const path = await exportCockpitBackup(this._plugin);
-          new obs.Notice(path ? ('✅ ' + path) : (lang === 'en' ? 'Nothing to back up.' : '没有可备份的数据文件。'), 8000);
-        } catch (e) { new obs.Notice((lang === 'en' ? 'Backup failed: ' : '备份失败：') + (e?.message || e)); }
+          new obs.Notice(path ? ('✅ ' + path) : t('framework.nothingToBackup'), 8000);
+        } catch (e) { new obs.Notice(t('framework.backupFailed', { msg: e?.message || e })); }
       } }
     ];
 
@@ -1286,18 +1286,18 @@ class CockpitView extends obs.ItemView {
           target.dueDate = dueDate.clone(); target.dueHasTime = false;
         }
         return true;
-      }, lang === 'en' ? 'Could not schedule this task.' : '待办排期失败。'),
+      }, t('framework.schedTaskFail')),
       onQuickCreate: async (text, dueDate, hasTime, priority) => {
         const merged = mergeLegacyTodoInput(text, createTodoDraft(null, { dueDate:dueDate.clone(), dueHasTime:hasTime === true, priority:['high','mid','low'].includes(priority) ? priority : 'mid' }));
         if (!merged.text) return false;
         return commitTodoMutation((todos) => {
           todos.unshift({ text:merged.text, tags:merged.tags, dueDate:merged.dueDate, dueHasTime:merged.dueHasTime, calendarSync:false, repeat:null, priority:merged.priority, done:false, created:window.moment(), doneDate:null });
           return true;
-        }, lang === 'en' ? 'Could not create this task.' : '待办创建失败。');
+        }, t('framework.createTaskFail'));
       },
       onEventOpen: (event) => openMeetingNote(this._plugin, event).catch((error) => {
         console.warn('Cockpit meeting note failed', error);
-        new obs.Notice((lang === 'en' ? 'Could not open the meeting note: ' : '会议笔记打开失败：') + (error?.message || error));
+        new obs.Notice(t('framework.openMeetingFail', { msg: error?.message || error }));
       }),
       loadCalendarEvents: async (rangeStart, rangeEnd) => {
         try { return await this._plugin.appleCalendar?.readEvents?.(rangeStart, rangeEnd) || []; }
@@ -1339,7 +1339,7 @@ class CockpitView extends obs.ItemView {
       onAutomationOpen:(task) => openScheduledTaskEditor(this,task),
       onAutomationRun:async(task) => {
         const ok = await this._plugin.scheduledTasks.runTask(task.id,{trigger:'manual'});
-        new obs.Notice(ok ? (lang === 'en' ? 'Automation completed.' : '自动化执行完成。') : (lang === 'en' ? 'Automation failed. Check the audit log.' : '自动化执行失败，请查看审计日志。'));
+        new obs.Notice(ok ? t('framework.automationOk') : t('framework.automationFail'));
       },
       onCountdownOpen:(countdown) => openCountdownEditor(this,countdown),
       initialViewMode:this._calendarViewMode,
@@ -1376,7 +1376,7 @@ class CockpitView extends obs.ItemView {
     let currentStatus = 'today';
     const statusOptions = [
       { key:'today', label:t('todo.today') },
-      { key:'next', label:lang === 'en' ? 'Next' : '优先处理' },
+      { key:'next', label:t('framework.next') },
       { key:'all', label:t('todo.all') },
       { key:'todo', label:t('todo.todo') },
       { key:'done', label:t('todo.done') }
@@ -1385,9 +1385,9 @@ class CockpitView extends obs.ItemView {
     obs.setIcon(statusSelectWrap.createSpan({ cls: PLUGIN_ID+'-status-select-icon' }), 'list-filter');
     const statusSelect = statusSelectWrap.createEl('select', {
       cls: PLUGIN_ID+'-status-select',
-      attr: { title: lang === 'en' ? 'Filter tasks by status' : '按状态筛选待办', 'aria-label': lang === 'en' ? 'Task status filter' : '待办状态筛选' }
+      attr: { title: t('framework.filterByStatus'), 'aria-label': t('framework.statusFilter') }
     });
-    statusOptions.push({key:'archived',label:lang === 'en' ? 'Archived' : '已归档'});
+    statusOptions.push({key:'archived',label:t('framework.archived')});
     statusOptions.forEach((option) => {
       const optionEl = statusSelect.createEl('option', { text: option.label, attr: { value: option.key } });
       optionEl.selected = option.key === currentStatus;
@@ -1493,7 +1493,7 @@ class CockpitView extends obs.ItemView {
                 if (ids.has(todo.id) && !todo.done) todo.dueDate = tomorrow.clone();
               });
               return true;
-            }, lang === 'en' ? 'Could not defer overdue tasks. Nothing was changed.' : '延期失败，所有待办已保持原状。');
+            }, t('framework.deferOverdueFail'));
           };
         }
       }
@@ -1545,12 +1545,12 @@ class CockpitView extends obs.ItemView {
           heading.createSpan({ text:groupLabels[entry.group.key] });
           heading.createSpan({ cls:PLUGIN_ID+'-today-group-count', text:String(entry.group.items.length) });
           const groupActions = heading.createSpan({ cls:PLUGIN_ID+'-today-group-actions' });
-          const completeGroup = groupActions.createEl('button', { text:lang === 'en' ? 'Complete all' : '全部完成', attr:{ type:'button', title:lang === 'en' ? 'Complete every task in this group' : '完成本组全部待办' } });
+          const completeGroup = groupActions.createEl('button', { text:t('framework.completeAll'), attr:{ type:'button', title:t('framework.completeAllTitle') } });
           completeGroup.onclick = async () => {
             const ids = new Set(entry.group.items.map((todo) => todo.id));
             await commitTodoMutation((todos) => { const completedAt = window.moment(); todos.forEach((todo) => { if (ids.has(todo.id) && !todo.done) { todo.done = true; todo.doneDate = completedAt.clone(); } }); return true; });
           };
-          const deferGroup = groupActions.createEl('button', { text:lang === 'en' ? 'Tomorrow' : '延期明天', attr:{ type:'button', title:lang === 'en' ? 'Move every task in this group to tomorrow' : '将本组全部待办延期到明天' } });
+          const deferGroup = groupActions.createEl('button', { text:t('framework.tomorrow'), attr:{ type:'button', title:t('framework.tomorrowTitle') } });
           deferGroup.onclick = async () => {
             const ids = new Set(entry.group.items.map((todo) => todo.id)); const tomorrow = window.moment().add(1, 'day').startOf('day');
             await commitTodoMutation((todos) => { todos.forEach((todo) => { if (ids.has(todo.id) && !todo.done) { todo.dueDate = tomorrow.clone(); todo.dueHasTime = false; } }); return true; });
@@ -1559,7 +1559,7 @@ class CockpitView extends obs.ItemView {
         }
         const todo = entry.todo;
         const done = todo.done;
-        const item = todosEl.createDiv({ cls: PLUGIN_ID+'-todo'+(done?' done':''), attr:{ draggable:done ? 'false' : 'true', title:done ? '' : (lang === 'en' ? 'Drag onto a calendar date to schedule' : '拖到日历日期上进行排期') } });
+        const item = todosEl.createDiv({ cls: PLUGIN_ID+'-todo'+(done?' done':''), attr:{ draggable:done ? 'false' : 'true', title:done ? '' : t('framework.dragToSchedule') } });
         item.addEventListener('dragstart', (event) => { if (done) { event.preventDefault(); return; } event.dataTransfer.setData('application/x-cockpit-todo', todo.id); event.dataTransfer.effectAllowed = 'move'; item.classList.add('is-dragging'); });
         item.addEventListener('dragend', () => item.classList.remove('is-dragging'));
 
@@ -1572,7 +1572,7 @@ class CockpitView extends obs.ItemView {
         });
 
         // 复选框 - 切换完成状态，连带更新日期
-        const chk = item.createEl('button', { cls: PLUGIN_ID+'-todo-chk', text:done?'✓':'', attr:{ type:'button', 'aria-label':done ? (lang === 'en' ? 'Mark task open' : '恢复为待办') : (lang === 'en' ? 'Complete task' : '完成待办'), 'aria-pressed':String(done) } });
+        const chk = item.createEl('button', { cls: PLUGIN_ID+'-todo-chk', text:done?'✓':'', attr:{ type:'button', 'aria-label':done ? t('framework.markOpen') : t('framework.completeTask'), 'aria-pressed':String(done) } });
         chk.onclick = async (e)=>{
           e.stopPropagation();
           // 勾选完成：先播放打勾 + 划线动画，再提交并局部刷新列表。
@@ -1605,7 +1605,7 @@ class CockpitView extends obs.ItemView {
         renderTodoProgress(meta, todo, lang, openTodoEditor, incrementTodoProgress);
         if (todo.created) meta.createDiv({cls:PLUGIN_ID+'-todo-meta-item'}).createSpan({text:E.cal+' '+fmtDate(todo.created, lang)});
         if (done && todo.doneDate) meta.createDiv({cls:PLUGIN_ID+'-todo-meta-item'}).createSpan({text:E.check+' '+fmtDate(todo.doneDate, lang)});
-        if (todo.repeat) meta.createDiv({ cls:PLUGIN_ID+'-todo-meta-item', text:lang === 'en' ? 'Repeats' : '重复待办' });
+        if (todo.repeat) meta.createDiv({ cls:PLUGIN_ID+'-todo-meta-item', text:t('framework.repeats') });
         const focusStat = getTodoFocusStat(this._pomodoroTaskStats, todo);
         if (focusStat) meta.createSpan({ cls:PLUGIN_ID+'-todo-focus-stat', text:'🍅 '+focusStat.sessions+' · '+focusStat.totalMinutes+' min' });
         // 截止日期显示
@@ -1653,7 +1653,7 @@ class CockpitView extends obs.ItemView {
 
         // 延期、编辑与删除与宿主应用共用同一套 Lucide 图标，避免 emoji 风格割裂。
         if (!done && pomodoroTaskRef(todo)) {
-          const focusBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn focus', attr:{type:'button', 'aria-label':lang === 'en' ? 'Start a Pomodoro linked to this task' : '专注此任务：启动并关联番茄钟'} });
+          const focusBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn focus', attr:{type:'button', 'aria-label':t('framework.startPomodoroTask')} });
           obs.setIcon(focusBtn, 'timer');
           focusBtn.onclick = (e) => {
             e.stopPropagation();
@@ -1667,7 +1667,7 @@ class CockpitView extends obs.ItemView {
           alarmBtn.onclick = async (e) => { e.stopPropagation(); await openTodoAlarm(todo); };
         }
         if (!done && aiReady && todo.text) {
-          const aiBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn ai', attr:{type:'button', 'aria-label':lang === 'en' ? 'Break this task into subtasks with AI' : '用 AI 把这个任务拆解为子任务'} });
+          const aiBtn = actions.createEl('button', { cls:PLUGIN_ID+'-todo-btn ai', attr:{type:'button', 'aria-label':t('framework.breakTaskAI')} });
           obs.setIcon(aiBtn, 'sparkles');
           aiBtn.onclick = async (e) => {
             e.stopPropagation();
@@ -1678,7 +1678,7 @@ class CockpitView extends obs.ItemView {
           };
         }
         if (!done) {
-          const deferBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn', attr:{type:'button', 'aria-label':lang === 'en' ? 'Move this task to tomorrow' : '延期到明天：保留任务并调整截止日期'} });
+          const deferBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn', attr:{type:'button', 'aria-label':t('framework.moveTaskTomorrow')} });
           obs.setIcon(deferBtn, 'calendar-clock');
           deferBtn.onclick = async (e) => {
             e.stopPropagation();
@@ -1690,7 +1690,7 @@ class CockpitView extends obs.ItemView {
             });
           };
         }
-        const editBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn', attr:{type:'button', 'aria-label':lang === 'en' ? 'Edit title, date, priority, and tags' : '编辑：修改标题、日期、优先级和标签'} });
+        const editBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn', attr:{type:'button', 'aria-label':t('framework.editTaskTitle')} });
         obs.setIcon(editBtn, 'square-pen');
         editBtn.onclick = (e)=>{
           e.stopPropagation();
@@ -1698,7 +1698,7 @@ class CockpitView extends obs.ItemView {
         };
 
         // 删除按钮
-        const delBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn del', attr:{type:'button', 'aria-label':lang === 'en' ? 'Delete this task permanently' : '删除：永久移除此待办'} });
+        const delBtn = actions.createEl('button', { cls: PLUGIN_ID+'-todo-btn del', attr:{type:'button', 'aria-label':t('framework.deleteTask')} });
         obs.setIcon(delBtn, 'trash-2');
         delBtn.onclick = async (e)=>{
           e.stopPropagation();
@@ -1713,7 +1713,7 @@ class CockpitView extends obs.ItemView {
       if (renderedTodos < totalVisibleTodos) {
         const more = todosEl.createEl('button', {
           cls:PLUGIN_ID+'-todo-load-more',
-          text:lang === 'en' ? `Show more (${totalVisibleTodos - renderedTodos} remaining)` : `显示更多（还剩 ${totalVisibleTodos - renderedTodos} 项）`,
+          text:t('framework.showMore', { n: totalVisibleTodos - renderedTodos }),
           attr:{ type:'button' }
         });
         obs.setIcon(more.createSpan({ cls:PLUGIN_ID+'-todo-load-more-icon' }), 'chevrons-down');
@@ -2012,7 +2012,7 @@ class CockpitView extends obs.ItemView {
       const actions = item.createDiv({ cls: PLUGIN_ID + '-bookmark-actions' });
       const splitBtn = actions.createEl('button', {
         cls: PLUGIN_ID + '-bookmark-action',
-        attr: { type: 'button', title: this._lang() === 'en' ? 'Open in split' : '在分栏打开' }
+        attr: { type: 'button', title: this._t('framework.openInSplit') }
       });
       obs.setIcon(splitBtn, 'panel-right-open');
       splitBtn.onclick = async (e) => {
@@ -2020,11 +2020,11 @@ class CockpitView extends obs.ItemView {
         e.stopPropagation();
         await this._openBookmarkInSplit(path);
       };
-      const upBtn = actions.createEl('button', { cls: PLUGIN_ID + '-bookmark-action', attr: { type: 'button', title: this._lang() === 'en' ? 'Move up' : '上移' } });
+      const upBtn = actions.createEl('button', { cls: PLUGIN_ID + '-bookmark-action', attr: { type: 'button', title: this._t('framework.moveUp') } });
       upBtn.disabled = index === 0;
       obs.setIcon(upBtn, 'chevron-up');
       upBtn.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); if (index === 0) return; [this._bookmarkOrder[index - 1], this._bookmarkOrder[index]] = [this._bookmarkOrder[index], this._bookmarkOrder[index - 1]]; await this._saveBookmarkOrder(); await this._refreshBookmarkSection(root, allFiles); };
-      const downBtn = actions.createEl('button', { cls: PLUGIN_ID + '-bookmark-action', attr: { type: 'button', title: this._lang() === 'en' ? 'Move down' : '下移' } });
+      const downBtn = actions.createEl('button', { cls: PLUGIN_ID + '-bookmark-action', attr: { type: 'button', title: this._t('framework.moveDown') } });
       downBtn.disabled = index === orderedPaths.length - 1;
       obs.setIcon(downBtn, 'chevron-down');
       downBtn.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); if (index >= orderedPaths.length - 1) return; [this._bookmarkOrder[index + 1], this._bookmarkOrder[index]] = [this._bookmarkOrder[index], this._bookmarkOrder[index + 1]]; await this._saveBookmarkOrder(); await this._refreshBookmarkSection(root, allFiles); };
@@ -2080,7 +2080,7 @@ class CockpitView extends obs.ItemView {
     }
     if (a === 'work-log') {
       if (this._isMobile()) {
-        new obs.Notice(this._lang() === 'en' ? 'This action is only available on desktop.' : '此功能仅在桌面端可用。');
+        new obs.Notice(this._t('framework.desktopOnly'));
         return;
       }
       try {

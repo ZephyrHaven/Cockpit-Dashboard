@@ -28,7 +28,7 @@ function cockpitShowWelcomeCover(view, root) {
   const welcomeHandle = card.createDiv({ cls: PID + '-welcome-drag-area' });
   welcomeHandle.createDiv({ cls: PID + '-welcome-badge', text: t('welcome.badge') });
   welcomeHandle.createDiv({ cls: PID + '-welcome-title', text: t('welcome.title') });
-  makeCockpitDialogDraggable(card, welcomeHandle, { label: view._lang() === 'en' ? 'Drag welcome window' : '拖动欢迎窗口' });
+  makeCockpitDialogDraggable(card, welcomeHandle, { label: view._t('framework.dragWelcome') });
   const intro = card.createDiv({ cls: PID + '-welcome-intro' });
   intro.createDiv({ cls: PID + '-welcome-copy primary', text: t('welcome.introCn') });
   intro.createDiv({ cls: PID + '-welcome-copy', text: t('welcome.introEn') });
@@ -163,7 +163,7 @@ function cockpitShowOnboarding(view, root) {
     top.appendChild(cl);
     card.appendChild(top);
     tourDragCleanup?.();
-    tourDragCleanup = makeCockpitDialogDraggable(card, top, { label: view._lang() === 'en' ? 'Drag onboarding guide' : '拖动新手引导窗口' });
+    tourDragCleanup = makeCockpitDialogDraggable(card, top, { label: view._t('framework.dragOnboarding') });
     // body
     const body = document.createElement('div');
     body.textContent = s.text;

@@ -21,12 +21,12 @@ function cockpitBuildStatsSection(view, root, ctx) {
   const statValEls = new Map(), statFillEls = new Map();
   view._normalizeStatsCardOrder(view._statsCardOrder).map((id) => statById.get(id)).filter(Boolean).forEach((cfg)=>{
     const actionable = ['todoCount', 'doneCount', 'donePct', 'focusGap', 'tagBacklog'].includes(cfg.field);
-    const card = statsEl.createDiv({ cls: PLUGIN_ID+'-stat' + (actionable ? ' actionable' : ''), attr:actionable ? { role:'button', tabindex:'0', title:lang === 'en' ? 'Open the related task list' : '查看关联待办列表', 'aria-label':lang === 'en' ? 'Open the related task list' : '查看关联待办列表' } : {} });
+    const card = statsEl.createDiv({ cls: PLUGIN_ID+'-stat' + (actionable ? ' actionable' : ''), attr:actionable ? { role:'button', tabindex:'0', title:view._t('framework.openRelated'), 'aria-label':view._t('framework.openRelated') } : {} });
     card.dataset.statId = cfg.field;
     card.style.setProperty('--stat-clr', cfg.color);
     const editTools = card.createDiv({ cls:PLUGIN_ID+'-stat-edit-tools' });
     const hideBtn = editTools.createEl('button', { cls:PLUGIN_ID+'-stat-hide', text:'−', attr:{ type:'button' } });
-    const dragHandle = editTools.createEl('button', { cls:PLUGIN_ID+'-stat-drag', text:'⠿', attr:{ type:'button', draggable:'true', title:lang === 'en' ? 'Drag to reorder' : '拖动排序', 'aria-label':lang === 'en' ? 'Drag to reorder' : '拖动排序', tabindex:'-1' } });
+    const dragHandle = editTools.createEl('button', { cls:PLUGIN_ID+'-stat-drag', text:'⠿', attr:{ type:'button', draggable:'true', title:view._t('framework.dragToReorder'), 'aria-label':view._t('framework.dragToReorder'), tabindex:'-1' } });
     card.createDiv({ cls: PLUGIN_ID+'-stat-label', text: cfg.label });
     const valEl = card.createDiv({ cls: PLUGIN_ID+'-stat-val' });
     statValEls.set(cfg.field, valEl);

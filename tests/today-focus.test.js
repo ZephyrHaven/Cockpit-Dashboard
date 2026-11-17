@@ -141,7 +141,7 @@ assert.doesNotMatch(pomodoroSource, /self\._updateStatsRef\s*=\s*null/, 'Opening
 assert.match(todoSource, /'id:' \+ t\.id/, 'Stable todo IDs stay in the existing todos.md file.');
 assert.match(todoSource, /queueTodoFileMutation/, 'Todo ID migration serializes read, repair, and write.');
 assert.match(stylesSource, /today-group/, 'Today queue grouping has dedicated responsive styling.');
-assert.match(frameworkSource, /today-group-actions[\s\S]*Complete all|today-group-actions[\s\S]*全部完成/, 'Today groups expose batch completion.');
+assert.match(frameworkSource, /today-group-actions[\s\S]*framework\.completeAll/, 'Today groups expose batch completion.');
 assert.match(frameworkSource, /application\/x-cockpit-todo/, 'Tasks can be dragged onto the calendar for scheduling.');
 assert.match(calendarSource, /cal-week[\s\S]*add\(offset, 'day'\)/, 'Calendar provides a seven-day week view.');
 assert.match(calendarSource, /cal-title-meta[\s\S]*cal-title-year[\s\S]*cal-subtitle[\s\S]*cal-title-week/, 'Calendar groups year, selected day, and week number into one secondary title row.');
