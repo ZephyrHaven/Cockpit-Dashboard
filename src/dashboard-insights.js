@@ -66,18 +66,111 @@ async function cockpitRetryRun(view,record) {
   }
   return false;
 }
+// ── 日志面板共用展示助手 ───────────────────────────────────────────────
+// 状态 → 语义色 / 图标 / 文案。成功绿、失败红、中止/部分灰，其余中性。
+function cockpitRunStatusMeta(status, en) {
+  switch (String(status || '').toLowerCase()) {
+    case 'success': return { tone:'ok', icon:'check-circle-2', label:en?'Success':'成功' };
+    case 'failed': return { tone:'bad', icon:'x-circle', label:en?'Failed':'失败' };
+    case 'aborted': return { tone:'warn', icon:'ban', label:en?'Aborted':'中止' };
+    case 'running': return { tone:'busy', icon:'loader', label:en?'Running':'进行中' };
+    case 'partial': return { tone:'warn', icon:'alert-triangle', label:en?'Partial':'部分完成' };
+    default: return { tone:'muted', icon:'circle', label:String(status || (en?'Unknown':'未知')) };
+  }
+}
+// 运行类型 → 图标与中文名。
+function cockpitRunTypeMeta(type, en) {
+  switch (type) {
+    case 'task': return { icon:'calendar-clock', label:en?'Scheduled task':'定时任务' };
+    case 'workflow': return { icon:'workflow', label:en?'Workflow':'自动化流程' };
+    case 'brief': return { icon:'sunrise', label:en?'Morning brief':'晨间简报' };
+    case 'push': return { icon:'bell', label:en?'Reminder':'待办推送' };
+    case 'calendar': return { icon:'calendar-sync', label:en?'Calendar sync':'日历同步' };
+    default: return { icon:'activity', label:en?'Run':'运行' };
+  }
+}
+// 相对时间：刚刚 / N 分钟前 / N 小时前 / N 天前，超过 30 天回落到日期。
+function cockpitRelativeTime(at, en) {
+  const t = Date.parse(at);
+  if (!Number.isFinite(t)) return '';
+  const diff = Date.now() - t;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return en ? 'just now' : '刚刚';
+  if (min < 60) return en ? (min + ' min ago') : (min + ' 分钟前');
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return en ? (hr + ' h ago') : (hr + ' 小时前');
+  const day = Math.floor(hr / 24);
+  if (day < 30) return en ? (day + ' d ago') : (day + ' 天前');
+  return new Date(t).toLocaleDateString();
+}
+// 生成一个状态徽章元素。
+function cockpitStatusBadge(parent, meta) {
+  const badge = parent.createSpan({ cls:'cockpit-log-badge tone-' + meta.tone });
+  try { obs.setIcon(badge.createSpan({ cls:'cockpit-log-badge-icon' }), meta.icon); } catch (e) {}
+  badge.createSpan({ cls:'cockpit-log-badge-text', text:meta.label });
+  return badge;
+}
+// 面板顶部的概览统计条（记录总数 / 成功 / 失败）。
+function cockpitRunSummaryBar(parent, records, en) {
+  const total = records.length;
+  let ok = 0, bad = 0;
+  records.forEach((r) => { const s = String(r.status || '').toLowerCase(); if (s === 'success') ok++; else if (s === 'failed') bad++; });
+  const bar = parent.createDiv({ cls:'cockpit-log-summary' });
+  const addStat = (cls, value, label) => {
+    const item = bar.createDiv({ cls:'cockpit-log-summary-item ' + cls });
+    item.createSpan({ cls:'cockpit-log-summary-value', text:String(value) });
+    item.createSpan({ cls:'cockpit-log-summary-label', text:label });
+  };
+  addStat('', total, en ? 'total' : '总计');
+  addStat('tone-ok', ok, en ? 'succeeded' : '成功');
+  addStat(bad ? 'tone-bad' : '', bad, en ? 'failed' : '失败');
+}
+
 function buildRunHistory(view,root) {
   const en=view._lang()==='en';
   const body = root;
   body.classList.add('cockpit-insights');
   let token=0,failedOnly=false;
   const render=async()=>{const current=++token;const records=await cockpitRunRecords(view._plugin);if(current!==token||!body.isConnected)return;body.empty();
-    cockpitDetailButton(body,en?'Refresh':'刷新',render);cockpitDetailButton(body,failedOnly?(en?'Show all':'显示全部'):(en?'Failures only':'只看失败'),()=>{failedOnly=!failedOnly;return render();});
-    cockpitDetailButton(body,en?'Configure services':'配置服务',()=>new CockpitDetailModal(view,en?'Service settings':'服务配置',(parent,modal)=>{const tab=new CockpitServerChanSettingTab(view.app,view._plugin,cleanup=>modal.registerCleanup(cleanup));tab._activeSection='channels';tab.containerEl=parent;return tab.display();}).open());
+    // 工具栏：刷新 + 筛选分段 + 配置服务
+    const toolbar = body.createDiv({ cls:'cockpit-log-toolbar' });
+    const left = toolbar.createDiv({ cls:'cockpit-log-toolbar-left' });
+    const seg = left.createDiv({ cls:'cockpit-log-seg' });
+    const mkSeg = (id, label) => {
+      const btn = seg.createEl('button', { cls:'cockpit-log-seg-btn' + (failedOnly === (id === 'failed') ? ' is-active' : ''), attr:{ type:'button' }, text:label });
+      btn.onclick = () => { failedOnly = (id === 'failed'); return render(); };
+      return btn;
+    };
+    mkSeg('all', en ? 'All' : '全部');
+    mkSeg('failed', en ? 'Failures' : '只看失败');
+    const right = toolbar.createDiv({ cls:'cockpit-log-toolbar-right' });
+    try { obs.setIcon(cockpitDetailButton(right, en?'Refresh':'刷新', render), 'refresh-cw'); } catch(e) { cockpitDetailButton(right, en?'Refresh':'刷新', render); }
+    cockpitDetailButton(right, en?'Configure services':'配置服务',()=>new CockpitDetailModal(view,en?'Service settings':'服务配置',(parent,modal)=>{const tab=new CockpitServerChanSettingTab(view.app,view._plugin,cleanup=>modal.registerCleanup(cleanup));tab._activeSection='channels';tab.containerEl=parent;return tab.display();}).open());
+    // 概览条（基于全部记录）
+    cockpitRunSummaryBar(body, records, en);
     const rows=records.filter(record=>!failedOnly||['failed','aborted'].includes(record.status));
-    if(!rows.length)body.createEl('p',{text:en?'No matching runs yet.':'暂无符合条件的运行记录。'});
-    rows.slice(0,12).forEach(record=>{const row=body.createDiv({cls:'cockpit-detail-row'});row.createEl('strong',{text:record.name});row.createSpan({text:new Date(record.at).toLocaleString()+' · '+record.status});if(record.error)row.createEl('p',{text:record.error});
-      if(['failed','aborted'].includes(record.status))cockpitDetailButton(row,record.type==='workflow'?(en?'Rerun entire workflow':'重新运行整个流程'):(en?'Retry using current configuration':'按当前配置重试'),async()=>{const ok=await cockpitRetryRun(view,record);new obs.Notice(ok?(en?'Completed':'运行完成'):(en?'Not completed; check configuration or the latest result.':'未完成，请检查配置或最新结果。'));await render();});
+    if(!rows.length){ const empty=body.createDiv({cls:'cockpit-log-empty'}); empty.createEl('p',{text:en?'No matching runs yet.':'暂无符合条件的运行记录。'}); return; }
+    const list = body.createDiv({ cls:'cockpit-log-list' });
+    rows.slice(0,12).forEach(record=>{
+      const typeMeta = cockpitRunTypeMeta(record.type, en);
+      const statusMeta = cockpitRunStatusMeta(record.status, en);
+      const failed = ['failed','aborted'].includes(String(record.status||'').toLowerCase());
+      const card= list.createDiv({ cls:'cockpit-log-card tone-' + statusMeta.tone });
+      const accent = card.createDiv({ cls:'cockpit-log-card-accent' });
+      const iconWrap = card.createDiv({ cls:'cockpit-log-card-icon' });
+      try { obs.setIcon(iconWrap, typeMeta.icon); } catch (e) { iconWrap.setText('•'); }
+      const main = card.createDiv({ cls:'cockpit-log-card-main' });
+      const head = main.createDiv({ cls:'cockpit-log-card-head' });
+      head.createSpan({ cls:'cockpit-log-card-title', text:record.name });
+      cockpitStatusBadge(head, statusMeta);
+      const meta = main.createDiv({ cls:'cockpit-log-card-meta' });
+      meta.createSpan({ cls:'cockpit-log-card-type', text:typeMeta.label });
+      meta.createSpan({ cls:'cockpit-log-card-dot', text:'·' });
+      meta.createSpan({ cls:'cockpit-log-card-rel', text:cockpitRelativeTime(record.at, en) });
+      meta.createSpan({ cls:'cockpit-log-card-dot', text:'·' });
+      meta.createSpan({ cls:'cockpit-log-card-abs', text:new Date(record.at).toLocaleString() });
+      if(record.error) main.createEl('p',{cls:'cockpit-log-card-error', text:record.error});
+      if(failed){ const actions = card.createDiv({cls:'cockpit-log-card-actions'}); cockpitDetailButton(actions,record.type==='workflow'?(en?'Rerun entire workflow':'重新运行整个流程'):(en?'Retry using current configuration':'按当前配置重试'),async()=>{const ok=await cockpitRetryRun(view,record);new obs.Notice(ok?(en?'Completed':'运行完成'):(en?'Not completed; check configuration or the latest result.':'未完成，请检查配置或最新结果。'));await render();}); }
     });
   };const refresh=()=>render().catch(error=>console.warn('Cockpit run history refresh failed',error));refresh();return refresh;
 }
@@ -89,29 +182,61 @@ function cockpitSyncDiagnostics(plugin) {
 }
 function buildSyncHealth(view,root) {
   const en=view._lang()==='en';const body=root;body.classList.add('cockpit-insights');
-  const render=()=>{if(!body.isConnected)return;body.empty();cockpitSyncDiagnostics(view._plugin).forEach((diagnostic,index)=>{const row=body.createDiv({cls:'cockpit-detail-row'});
-    row.createEl('strong',{text:diagnostic.name+' · '+diagnostic.status});row.createSpan({text:'待提交 '+diagnostic.pending+' · 草稿 '+diagnostic.drafts+' · 冲突 '+diagnostic.conflicts});
-    if(diagnostic.lastSync)row.createSpan({text:'最后成功：'+new Date(diagnostic.lastSync).toLocaleString()});
-    diagnostic.peers.forEach(peer=>row.createEl('p',{text:peer.name+' · '+peer.version+' · '+(peer.lastSync?new Date(peer.lastSync).toLocaleString():'尚未同步')+(peer.error?' · '+peer.error:'')}));
-    cockpitDetailButton(row,en?'Manage / resolve':'管理 / 处理冲突',()=>index?view._plugin.teamSync.open():new CockpitDetailModal(view,en?'Nearby devices':'附近设备',(parent,modal)=>renderLanSyncSettings(parent,view._plugin,view._lang(),{registerCleanup:cleanup=>modal.registerCleanup(cleanup)})).open());
-    cockpitDetailButton(row,en?'Sync now':'立即同步',async()=>{const service=index?view._plugin.teamSync:view._plugin.lanSync;if(!service?.transport)throw new Error('请先在管理页开启同步。');await service.sync();render();});
-  });};render();return render;
+  const render=()=>{if(!body.isConnected)return;body.empty();
+    const list = body.createDiv({ cls:'cockpit-log-list' });
+    cockpitSyncDiagnostics(view._plugin).forEach((diagnostic,index)=>{
+      const connected = diagnostic.status && !/未初始化|尚未初始化|error|failed|offline/i.test(String(diagnostic.status));
+      const card = list.createDiv({ cls:'cockpit-log-card tone-' + (connected ? 'ok' : 'muted') });
+      card.createDiv({ cls:'cockpit-log-card-accent' });
+      const iconWrap = card.createDiv({ cls:'cockpit-log-card-icon' });
+      try { obs.setIcon(iconWrap, index ? 'users' : 'wifi'); } catch (e) { iconWrap.setText('•'); }
+      const main = card.createDiv({ cls:'cockpit-log-card-main' });
+      const head = main.createDiv({ cls:'cockpit-log-card-head' });
+      head.createSpan({ cls:'cockpit-log-card-title', text:diagnostic.name });
+      cockpitStatusBadge(head, { tone:connected ? 'ok' : 'muted', icon:connected ? 'check-circle-2' : 'circle', label:String(diagnostic.status || (en?'Not set up':'尚未初始化')) });
+      // 指标行
+      const metrics = main.createDiv({ cls:'cockpit-log-metrics' });
+      const addMetric = (value, label, tone) => {
+        const m = metrics.createDiv({ cls:'cockpit-log-metric' + (tone ? ' tone-' + tone : '') });
+        m.createSpan({ cls:'cockpit-log-metric-value', text:String(value) });
+        m.createSpan({ cls:'cockpit-log-metric-label', text:label });
+      };
+      addMetric(diagnostic.pending, en?'pending':'待提交', diagnostic.pending ? 'warn' : '');
+      addMetric(diagnostic.drafts, en?'drafts':'草稿', '');
+      addMetric(diagnostic.conflicts, en?'conflicts':'冲突', diagnostic.conflicts ? 'bad' : '');
+      if(diagnostic.lastSync) main.createEl('p',{cls:'cockpit-log-card-sub', text:(en?'Last success: ':'最后成功：')+new Date(diagnostic.lastSync).toLocaleString()});
+      if(diagnostic.peers.length){
+        const peers = main.createDiv({ cls:'cockpit-log-peers' });
+        diagnostic.peers.forEach(peer=>{
+          const p = peers.createDiv({ cls:'cockpit-log-peer' });
+          try { obs.setIcon(p.createSpan({cls:'cockpit-log-peer-icon'}), peer.error ? 'alert-triangle' : 'monitor'); } catch(e) {}
+          p.createSpan({ cls:'cockpit-log-peer-name', text:peer.name });
+          p.createSpan({ cls:'cockpit-log-peer-meta', text:peer.version + ' · ' + (peer.lastSync?new Date(peer.lastSync).toLocaleString():(en?'Never synced':'尚未同步')) + (peer.error?' · '+peer.error:'') });
+        });
+      }
+      const actions = card.createDiv({ cls:'cockpit-log-card-actions' });
+      cockpitDetailButton(actions,en?'Manage / resolve':'管理 / 处理冲突',()=>index?view._plugin.teamSync.open():new CockpitDetailModal(view,en?'Nearby devices':'附近设备',(parent,modal)=>renderLanSyncSettings(parent,view._plugin,view._lang(),{registerCleanup:cleanup=>modal.registerCleanup(cleanup)})).open());
+      cockpitDetailButton(actions,en?'Sync now':'立即同步',async()=>{const service=index?view._plugin.teamSync:view._plugin.lanSync;if(!service?.transport)throw new Error('请先在管理页开启同步。');await service.sync();render();});
+    });
+  };render();return render;
 }
 
 function openCockpitLogs(view) {
   const en = view._lang() === 'en';
   new CockpitDetailModal(view, en ? 'Logs & diagnostics' : '日志与诊断', (root, modal) => {
-    root.createEl('p', { cls:'cockpit-detail-muted', text:en ? 'Run results and connection status are available here when needed.' : '在这里按需查看运行结果与设备连接状态。' });
-    const tabs = root.createDiv({ cls:PLUGIN_ID + '-workspace-tabs', attr:{ role:'tablist', 'aria-label':en ? 'Log category' : '日志分类' } });
-    const panel = root.createDiv();
+    root.classList.add('cockpit-logs-shell');
+    const header = root.createDiv({ cls:'cockpit-logs-header' });
+    header.createEl('p', { cls:'cockpit-logs-subtitle', text:en ? 'Review run results and device connection status on demand.' : '按需查看运行结果与设备连接状态。' });
+    const tabs = root.createDiv({ cls:PLUGIN_ID + '-workspace-tabs cockpit-logs-tabs', attr:{ role:'tablist', 'aria-label':en ? 'Log category' : '日志分类' } });
+    const panel = root.createDiv({ cls:'cockpit-logs-panel' });
     let refresh = null;
     let closed = false;
     const buttons = [];
     const select = (id) => {
       panel.empty();
-      panel.className = '';
+      panel.className = 'cockpit-logs-panel';
       buttons.forEach((button) => { const active = button.dataset.logTab === id; button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1; });
-      const host = panel.createDiv();
+      const host = panel.createDiv({ cls:'cockpit-logs-host' });
       refresh = id === 'runs' ? buildRunHistory(view, host) : id === 'perf' ? buildPerformancePanel(view, host) : buildSyncHealth(view, host);
     };
     [['runs',en ? 'Run history' : '运行记录'],['sync',en ? 'Sync diagnostics' : '同步诊断'],['perf',en ? 'Performance' : '性能']].forEach(([id,label]) => {
@@ -138,41 +263,58 @@ function openCockpitLogs(view) {
 
 function buildPerformancePanel(view, root) {
   const en = view._lang() === 'en';
+  root.classList && root.classList.add('cockpit-insights');
   const render = () => {
     root.empty();
     const summary = typeof cockpitPerfSummary === 'function' ? cockpitPerfSummary() : null;
-    if (!summary || (!summary.firstPaintMs && !summary.slowestModules.length && !summary.slowestLabels.length)) {
-      root.createEl('p', { cls:'cockpit-detail-muted', text:en ? 'No performance samples yet. Interact with the cockpit and reopen this panel.' : '还没有性能样本。使用一下驾驶舱后再打开此面板。' });
+    const heat = typeof cockpitPerfRefreshHeat === 'function' ? cockpitPerfRefreshHeat() : null;
+    const hasHeat = !!(heat && heat.eventCount);
+    if (!summary || (!summary.firstPaintMs && !summary.slowestModules.length && !summary.slowestLabels.length && !hasHeat)) {
+      const empty = root.createDiv({ cls:'cockpit-log-empty' });
+      empty.createEl('p', { text:en ? 'No performance samples yet. Interact with the cockpit and reopen this panel.' : '还没有性能样本。使用一下驾驶舱后再打开此面板。' });
       return;
     }
-    if (summary.firstPaintMs != null) {
-      root.createEl('p', { text:(en ? 'Last full render: ' : '最近整页渲染：') + Math.round(summary.firstPaintMs) + ' ms' });
-    }
-    if (summary.refresh) {
-      root.createEl('p', { text:(en ? 'Silent refresh: ' : '静默刷新：') + Math.round(summary.refresh.avg) + ' ms avg · ' + Math.round(summary.refresh.max) + ' ms max · x' + summary.refresh.count });
-    }
-    const heat = typeof cockpitPerfRefreshHeat === 'function' ? cockpitPerfRefreshHeat() : null;
-    if (heat && heat.eventCount) {
-      root.createEl('h3', { text:en ? 'Refresh heat' : '刷新热力' });
-      root.createEl('p', { text:(en ? 'Refresh cycles: ' : '刷新轮次：') + heat.eventCount + (en ? ' · avg files read ' : ' · 平均读文件 ') + heat.avgFiles.toFixed(1) });
+    // 顶部概览指标卡
+    const metrics = root.createDiv({ cls:'cockpit-log-metrics cockpit-log-metrics-wide' });
+    const addCard = (value, unit, label, tone) => {
+      const card = metrics.createDiv({ cls:'cockpit-log-metric-card' + (tone ? ' tone-' + tone : '') });
+      const v = card.createDiv({ cls:'cockpit-log-metric-card-value' });
+      v.createSpan({ text:String(value) });
+      if (unit) v.createSpan({ cls:'cockpit-log-metric-card-unit', text:unit });
+      card.createDiv({ cls:'cockpit-log-metric-card-label', text:label });
+    };
+    if (summary.firstPaintMs != null) addCard(Math.round(summary.firstPaintMs), 'ms', en ? 'Last full render' : '最近整页渲染', summary.firstPaintMs > 120 ? 'warn' : 'ok');
+    if (summary.refresh) addCard(Math.round(summary.refresh.avg), 'ms', (en ? 'Silent refresh avg ×' : '静默刷新均值 ×') + summary.refresh.count, summary.refresh.avg > 80 ? 'warn' : 'ok');
+    if (summary.refresh) addCard(Math.round(summary.refresh.max), 'ms', en ? 'Silent refresh max' : '静默刷新峰值', summary.refresh.max > 200 ? 'bad' : '');
+    if (hasHeat) addCard(heat.avgFiles.toFixed(1), en ? 'files' : '文件', (en ? 'Avg files/refresh' : '每轮平均读文件'), '');
+
+    const section = (title) => root.createDiv({ cls:'cockpit-log-section-title', text:title });
+    const metricRow = (label, value, tone) => {
+      const row = root.createDiv({ cls:'cockpit-log-perf-row' + (tone ? ' tone-' + tone : '') });
+      row.createSpan({ cls:'cockpit-log-perf-label', text:label });
+      row.createSpan({ cls:'cockpit-log-perf-value', text:value });
+    };
+    if (hasHeat) {
+      section(en ? 'Refresh heat' : '刷新热力');
+      const wrap = root.createDiv({ cls:'cockpit-log-list' });
       heat.scopes.forEach((s) => {
-        root.createDiv({ cls:'cockpit-detail-row', text:(en ? 'scope ' : '范围 ') + s.scope + ' · x' + s.count });
+        const row = wrap.createDiv({ cls:'cockpit-log-perf-row' });
+        row.createSpan({ cls:'cockpit-log-perf-label', text:(en ? 'scope ' : '范围 ') + s.scope });
+        row.createSpan({ cls:'cockpit-log-perf-value', text:'×' + s.count });
       });
+      if (!heat.scopes.length) metricRow(en ? 'Refresh cycles' : '刷新轮次', String(heat.eventCount));
     }
     if (summary.slowestModules.length) {
-      root.createEl('h3', { text:en ? 'Slowest modules (last render)' : '最慢模块（最近一次渲染）' });
-      summary.slowestModules.forEach((m) => {
-        root.createDiv({ cls:'cockpit-detail-row', text:m.module + ' · ' + Math.round(m.ms) + ' ms' });
-      });
+      section(en ? 'Slowest modules (last render)' : '最慢模块（最近一次渲染）');
+      summary.slowestModules.forEach((m) => metricRow(m.module, Math.round(m.ms) + ' ms', m.ms > 50 ? 'warn' : ''));
     }
     if (summary.slowestLabels.length) {
-      root.createEl('h3', { text:en ? 'Slowest operations (avg)' : '最慢操作（平均）' });
-      summary.slowestLabels.forEach((l) => {
-        root.createDiv({ cls:'cockpit-detail-row', text:l.label + ' · avg ' + Math.round(l.avg) + ' ms · max ' + Math.round(l.max) + ' ms · x' + l.count });
-      });
+      section(en ? 'Slowest operations (avg)' : '最慢操作（平均）');
+      summary.slowestLabels.forEach((l) => metricRow(l.label + ' · avg ' + Math.round(l.avg) + ' ms · max ' + Math.round(l.max) + ' ms', '×' + l.count, l.avg > 80 ? 'warn' : ''));
     }
-    root.createEl('p', { cls:'cockpit-detail-muted', text:en ? 'In-memory only; nothing is stored or uploaded.' : '仅驻留内存，不落盘、不上传。' });
-    cockpitDetailButton(root, en ? 'Reset samples' : '重置样本', () => { if (typeof cockpitPerfReset === 'function') cockpitPerfReset(); render(); });
+    const foot = root.createDiv({ cls:'cockpit-log-toolbar' });
+    foot.createSpan({ cls:'cockpit-detail-muted', text:en ? 'In-memory only; nothing is stored or uploaded.' : '仅驻留内存，不落盘、不上传。' });
+    cockpitDetailButton(foot, en ? 'Reset samples' : '重置样本', () => { if (typeof cockpitPerfReset === 'function') cockpitPerfReset(); render(); });
   };
   render();
   return render;
