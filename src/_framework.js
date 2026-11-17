@@ -89,7 +89,7 @@ class CockpitView extends obs.ItemView {
     return [
       { id:'hero', label:this._t('layout.modules.hero'), matches:(el) => el.classList.contains(PLUGIN_ID + '-hero') },
       { id:'tip', label:this._t('layout.modules.tip'), matches:(el) => el.classList.contains(PLUGIN_ID + '-tip') },
-      { id:'toolbar', label:this._t('layout.modules.toolbar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-toolbar') || el.classList.contains(PLUGIN_ID + '-search-row') || el.classList.contains(PLUGIN_ID + '-search-results') },
+      { id:'toolbar', label:this._t('layout.modules.toolbar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-toolbar') },
       { id:'alarms', label:this._t('layout.modules.alarms'), collapsible:true, matches:(el) => el.dataset.section === 'alarms-title' || el.dataset.section === 'alarms-body' || el.classList.contains(PLUGIN_ID + '-alarms') },
       { id:'countdowns', label:this._t('layout.modules.countdowns'), collapsible:true, matches:(el) => el.dataset.section === 'countdowns-title' || el.dataset.section === 'countdowns-body' || el.classList.contains(PLUGIN_ID + '-countdowns') },
       { id:'calendar', label:this._t('layout.modules.calendar'), matches:(el) => el.classList.contains(PLUGIN_ID + '-cal-wrap') || el.classList.contains(PLUGIN_ID + '-cal-detail') || el.classList.contains(PLUGIN_ID + '-cal-split-resize') },
