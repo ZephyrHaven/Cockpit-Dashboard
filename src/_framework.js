@@ -2184,6 +2184,9 @@ class CockpitView extends obs.ItemView {
       window.visualViewport?.removeEventListener('resize', this._viewportSyncHandler);
       this._viewportSyncHandler = null;
     }
+    // ResizeObserver 持有所观察元素与回调的强引用，视图卸载时必须断开，否则会随宿主重建持续累积。
+    this._viewportResizeObserver?.disconnect();
+    this._viewportResizeObserver = null;
     this._closeTodoEditor();
     this._closeWelcomeCover();
     this._closeOnboardingCard();
