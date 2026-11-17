@@ -174,6 +174,61 @@ function computeBestStreak(logDates) {
   return best;
 }
 
+// 习惯失败归因（纯函数）：基于打卡日期集合，分析"最易断在周几 / 当前风险 / 最长连击"。
+// 返回：
+//   - brokenWeekdays: 7 长度数组（0=周日…6=周六），记录该星期几的"断签次数"
+//   - hitWeekdays: 同上，记录命中次数
+//   - worstWeekday: 断签最多的星期几（0-6），无足够历史时 null
+//   - bestWeekday: 打卡命中率最高的星期几，无历史时 null
+//   - currentRisk: 'streak'|'due'|'none'
+//   - longestStreak: 全量最长连击
+// 只依赖 YYYY-MM-DD 字符串数组与一个 moment-like today，不修改入参。
+function computeHabitInsights(logDates, today, options = {}) {
+  const keys = (Array.isArray(logDates) ? logDates : []).filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(String(key || ''))).slice().sort();
+  const set = new Set(keys);
+  const todayKey = today ? today.format('YYYY-MM-DD') : null;
+  const result = { brokenWeekdays:[0,0,0,0,0,0,0], hitWeekdays:[0,0,0,0,0,0,0], worstWeekday:null, bestWeekday:null, currentRisk:'none', longestStreak:0, sampleDays:0 };
+  if (!keys.length) return result;
+  let best = 0, run = 0, prev = null;
+  keys.forEach((key) => {
+    if (prev && window.moment(key).diff(window.moment(prev), 'days') === 1) run++;
+    else run = 1;
+    if (run > best) best = run;
+    prev = key;
+  });
+  result.longestStreak = best;
+  if (todayKey) result.currentRisk = set.has(todayKey) ? 'streak' : 'due';
+  const maxScanDays = Number.isFinite(options.maxScanDays) ? options.maxScanDays : 365;
+  const first = keys[0];
+  const endKey = todayKey || keys[keys.length - 1];
+  let cursor = window.moment(first);
+  const endMoment = window.moment(endKey);
+  let scanned = 0;
+  while (cursor.valueOf() <= endMoment.valueOf() && scanned < maxScanDays) {
+    const key = cursor.format('YYYY-MM-DD');
+    const dow = cursor.day();
+    if (set.has(key)) result.hitWeekdays[dow] += 1;
+    else result.brokenWeekdays[dow] += 1;
+    result.sampleDays += 1;
+    scanned += 1;
+    cursor = cursor.clone().add(1, 'day');
+  }
+  const pickMax = (arr) => { let idx = -1, val = -1; arr.forEach((v, i) => { if (v > val) { val = v; idx = i; } }); return val > 0 ? idx : null; };
+  const pickBestRate = () => {
+    let bestIdx = null, bestRate = -1;
+    for (let d = 0; d < 7; d++) {
+      const total = result.hitWeekdays[d] + result.brokenWeekdays[d];
+      if (total < 2) continue;
+      const rate = result.hitWeekdays[d] / total;
+      if (rate > bestRate) { bestRate = rate; bestIdx = d; }
+    }
+    return bestIdx;
+  };
+  result.worstWeekday = pickMax(result.brokenWeekdays);
+  result.bestWeekday = pickBestRate();
+  return result;
+}
+
 // 统计区间内 [start, end] 每天的完成情况，返回命中日期的 Set。
 function habitDaysInRange(logDates, start, end) {
   const set = new Set(Array.isArray(logDates) ? logDates : []);

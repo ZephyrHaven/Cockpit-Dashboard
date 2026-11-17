@@ -880,6 +880,8 @@ class CockpitView extends obs.ItemView {
   }
 
   async _renderDashboard(reloadState, crossfadeScene) {
+    if (typeof cockpitPerfMark === 'function') cockpitPerfMark('renderDashboard');
+    if (typeof cockpitPerfResetModuleBuilds === 'function') cockpitPerfResetModuleBuilds();
     this._moduleFocusCleanup?.();
     this._moduleFocusCleanup = null;
     cockpitDestroyCustomComponents(this);
@@ -945,6 +947,7 @@ class CockpitView extends obs.ItemView {
         if (liveRoot) this._showOnboarding(liveRoot);
       }, 80);
     }
+    if (typeof cockpitPerfEnd === 'function') cockpitPerfEnd('renderDashboard', 'renderDashboard');
     return root;
   }
 
@@ -983,6 +986,16 @@ class CockpitView extends obs.ItemView {
       if (!root || this._onboardingDone) return;
       this._showWelcomeCover(root);
     }, 80);
+  }
+
+  // 轻量性能埋点：记录单个模块构建耗时，失败绝不影响构建（perf-trace 缺失时直接原样调用）。
+  async _perfBuild(name, fn) {
+    if (typeof cockpitPerfRecordModule !== 'function' || typeof performance === 'undefined') {
+      return typeof fn === 'function' ? fn() : fn;
+    }
+    const start = performance.now();
+    try { return await (typeof fn === 'function' ? fn() : fn); }
+    finally { cockpitPerfRecordModule(name, performance.now() - start); }
   }
 
   async _buildAll(root) {
@@ -1228,14 +1241,14 @@ class CockpitView extends obs.ItemView {
 
     // ===== 2.5 闹钟（独立模块；调度由插件级 AlarmService 持续运行） =====
     try {
-      await buildAlarmModule(this, root);
+      await this._perfBuild('alarms', () => buildAlarmModule(this, root));
     } catch (e) {
       console.warn('Cockpit alarm module failed; dashboard basics remain available', e);
     }
 
     // ===== 2.6 倒计时（百分比/固定时长阈值 + 多渠道通知） =====
     try {
-      await buildCountdownModule(this, root);
+      await this._perfBuild('countdowns', () => buildCountdownModule(this, root));
     } catch (e) {
       console.warn('Cockpit countdown module failed; dashboard basics remain available', e);
     }
@@ -1752,7 +1765,7 @@ class CockpitView extends obs.ItemView {
     await renderTodos({ persist:false });
     makeCollapsible(todoTitleEl, todoWrap, 'todos');
 
-    try { await buildTeamTodosModule(this, root); }
+    try { await this._perfBuild('teamTodos', () => buildTeamTodosModule(this, root)); }
     catch (error) { console.warn('Cockpit team module failed; dashboard basics remain available', error); }
 
     // 统计卡片点击 → 切换待办筛选并滚动到列表（统计区块通过 ctx.todoHooks 调用）。
@@ -1772,7 +1785,7 @@ class CockpitView extends obs.ItemView {
 
     // ===== 5.3 习惯打卡（独立模块；数据在 _data/habits.md） =====
     try {
-      await buildHabitsModule(this, root);
+      await this._perfBuild('habits', () => buildHabitsModule(this, root));
     } catch (e) {
       console.warn('Cockpit habits module failed; dashboard basics remain available', e);
     }
@@ -1797,51 +1810,45 @@ class CockpitView extends obs.ItemView {
       console.warn('Cockpit projects module failed; dashboard basics remain available', e);
     }
 
-    // ===== 5.5 专注趋势 =====
-    // 图表是可选模块，绝不能阻断后面的模块布局、编辑模式或情景布局初始化。
-    try {
-      this._refreshFocusChartRef = buildFocusChart(this, root);
-    } catch (e) {
-      this._refreshFocusChartRef = null;
-      console.warn('Cockpit focus chart failed; dashboard layout remains available', e);
-    }
-
-    // ===== 5.6 定时任务（独立插件级调度器，配置不写 Markdown） =====
-    try {
-      this._refreshScheduledTasksRef = buildScheduledTasksModule(this, root);
-    } catch (e) {
-      this._refreshScheduledTasksRef = null;
-      console.warn('Cockpit scheduled tasks failed; dashboard layout remains available', e);
-    }
-
-    // ===== 5.7 自动化流程（多步骤流水线；出错绝不阻断其余模块布局） =====
-    try {
-      this._refreshWorkflowsRef = buildWorkflowsModule(this, root);
-    } catch (e) {
-      this._refreshWorkflowsRef = null;
-      console.warn('Cockpit workflows failed; dashboard layout remains available', e);
-    }
-
-    // ===== 5.8 周报与回顾（本地回顾与脚本周报共用模块） =====
-    try {
-      await buildWeeklyWorkspaceModule(this, root);
-    } catch (e) {
-      this._refreshWeeklyReportRef = null;
-      console.warn('Cockpit weekly report failed; dashboard layout remains available', e);
-    }
-
-    // ===== 6. 继续工作 / 6.5 收藏文件 / 6.8 闪念胶囊 =====
+    // ===== 6. 继续工作 / 6.5 收藏文件 / 6.8 闪念胶囊（首屏下方的轻量区块，仍同步） =====
     cockpitBuildRecentSection(this, root, sectionCtx);
     await cockpitBuildBookmarksSection(this, root, sectionCtx);
     cockpitBuildFlashSection(this, root, sectionCtx);
 
-    // ===== 6.9 旧笔记重现（往年今天 / 长期未动笔记；默认隐藏） =====
-    try {
-      this._refreshResurfaceRef = await buildResurfaceModule(this, root);
-    } catch (e) {
-      this._refreshResurfaceRef = null;
-      console.warn('Cockpit resurface module failed; dashboard basics remain available', e);
-    }
+    // ===== 5.5–5.8 / 6.9 长尾模块：首屏构建完成后用空闲时间延迟渲染 =====
+    // 目的：让 Hero / 待办 / 日历 / 统计等首屏内容先出现，把专注趋势、定时任务、
+    // 工作流、周报、旧笔记重现这些较重的模块推迟到浏览器空闲时再建，减少首屏阻塞。
+    // 顺序保持：延迟批次结束后重新应用模块布局并按当前顺序整理 DOM。
+    // 用渲染令牌防止切场景/重渲染后旧批次的模块插到新 DOM 里。
+    const lazyToken = (this._buildToken = (this._buildToken || 0) + 1);
+    const buildLazyTail = async () => {
+      if (lazyToken !== this._buildToken || !root.isConnected) return;
+      try { this._refreshFocusChartRef = await this._perfBuild('focusChart', () => buildFocusChart(this, root)); }
+      catch (e) { this._refreshFocusChartRef = null; console.warn('Cockpit focus chart failed; dashboard layout remains available', e); }
+      if (lazyToken !== this._buildToken || !root.isConnected) return;
+      try { this._refreshScheduledTasksRef = await this._perfBuild('scheduledTasks', () => buildScheduledTasksModule(this, root)); }
+      catch (e) { this._refreshScheduledTasksRef = null; console.warn('Cockpit scheduled tasks failed; dashboard layout remains available', e); }
+      if (lazyToken !== this._buildToken || !root.isConnected) return;
+      try { this._refreshWorkflowsRef = await this._perfBuild('workflows', () => buildWorkflowsModule(this, root)); }
+      catch (e) { this._refreshWorkflowsRef = null; console.warn('Cockpit workflows failed; dashboard layout remains available', e); }
+      if (lazyToken !== this._buildToken || !root.isConnected) return;
+      try { await this._perfBuild('weeklyWorkspace', () => buildWeeklyWorkspaceModule(this, root)); }
+      catch (e) { this._refreshWeeklyReportRef = null; console.warn('Cockpit weekly report failed; dashboard layout remains available', e); }
+      if (lazyToken !== this._buildToken || !root.isConnected) return;
+      try { this._refreshResurfaceRef = await this._perfBuild('resurface', () => buildResurfaceModule(this, root)); }
+      catch (e) { this._refreshResurfaceRef = null; console.warn('Cockpit resurface module failed; dashboard basics remain available', e); }
+      if (lazyToken !== this._buildToken || !root.isConnected) return;
+      try {
+        this._applyModuleLayout(root);
+        if (typeof cockpitRefreshModuleSummaries === 'function') cockpitRefreshModuleSummaries(this);
+      } catch (e) { console.warn('Cockpit lazy layout apply failed', e); }
+    };
+    const scheduleLazyTail = () => {
+      const runWhenIdle = () => buildLazyTail().catch((e) => console.warn('Cockpit lazy tail failed', e));
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(runWhenIdle, { timeout: 1500 });
+      else setTimeout(runWhenIdle, 0);
+    };
+    scheduleLazyTail();
 
     // ===== 底部：编辑热力图 =====
     cockpitBuildHeatmapSection(this, root, sectionCtx);
@@ -2450,6 +2457,7 @@ class CockpitPlugin extends obs.Plugin {
       this.rag.queueIndexUpdate(file.path);
     }));
     this.aiHistory = new CockpitAIHistoryService(this);
+    this.aiMemory = new CockpitAiMemoryService(this);
     this.ai = new CockpitAIService(this);
     // 组合注册表：核心工具 + 本地工具（系统通知/剪贴板/打开目标/用户允许列表命令）
     // + 工作区工具（用户配置的编码沙箱：list/read/write/edit/search/命令执行）。

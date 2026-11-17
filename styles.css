@@ -4093,6 +4093,19 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--c
 .cockpit-dashboard-ai-session-more { width:28px; height:28px; opacity:0; }
 .cockpit-dashboard-ai-session-row:hover .cockpit-dashboard-ai-session-more,.cockpit-dashboard-ai-session-row.is-active .cockpit-dashboard-ai-session-more { opacity:1; }
 .cockpit-dashboard-ai-session-privacy { padding:10px 9px 2px; border-top:1px solid var(--background-modifier-border); color:var(--text-faint); font-size:10px; line-height:1.5; }
+/* AI 长期记忆管理面板 */
+.cockpit-dashboard-ai-memory-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:4px 0 10px; }
+.cockpit-dashboard-ai-memory-toggle { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); }
+.cockpit-dashboard-ai-memory-add { display:flex; gap:8px; margin-bottom:12px; }
+.cockpit-dashboard-ai-memory-input { flex:1; min-width:0; }
+.cockpit-dashboard-ai-memory-list { display:flex; flex-direction:column; gap:8px; max-height:56vh; overflow:auto; }
+.cockpit-dashboard-ai-memory-row { display:flex; align-items:flex-start; gap:8px; padding:9px 11px; border:1px solid var(--background-modifier-border); border-radius:var(--ck-radius-sm, 8px); background:var(--ck-surface, var(--background-secondary)); }
+.cockpit-dashboard-ai-memory-main { flex:1; min-width:0; }
+.cockpit-dashboard-ai-memory-meta { font-size:10px; color:var(--text-faint); margin-bottom:2px; text-transform:uppercase; letter-spacing:.04em; }
+.cockpit-dashboard-ai-memory-text { font-size:13px; line-height:1.5; color:var(--text-normal); word-break:break-word; }
+.cockpit-dashboard-ai-memory-pin, .cockpit-dashboard-ai-memory-del { flex:0 0 auto; width:26px; height:26px; padding:0; border:none; background:transparent; color:var(--text-muted); cursor:pointer; border-radius:6px; }
+.cockpit-dashboard-ai-memory-pin:hover, .cockpit-dashboard-ai-memory-del:hover { background:var(--background-modifier-hover); color:var(--text-normal); }
+.cockpit-dashboard-ai-memory-empty { color:var(--text-faint); font-size:12px; padding:14px 4px; text-align:center; }
 .cockpit-dashboard-ai-session-empty { padding:28px 12px; color:var(--text-faint); font-size:10px; text-align:center; }
 .cockpit-dashboard-ai-session-name-input { width:100%; }
 .cockpit-dashboard-ai-session-modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
@@ -4385,6 +4398,7 @@ button.cockpit-dashboard-settings-tab:focus-visible { outline: 2px solid var(--c
 .cockpit-dashboard-habit-meta { display:flex; align-items:center; gap:7px; font-size:.74em; color:var(--text-muted); }
 .cockpit-dashboard-habit-streak { color:#f59e0b; font-weight:600; }
 .cockpit-dashboard-habit-streak.none { color:var(--text-faint); font-weight:400; }
+.cockpit-dashboard-habit-insight { color:var(--text-muted); font-weight:500; font-size:.94em; white-space:nowrap; }
 .cockpit-dashboard-habit-week { display:flex; gap:4px; flex:0 0 auto; }
 .cockpit-dashboard-habit-day {
   width:22px; height:26px; padding:0;

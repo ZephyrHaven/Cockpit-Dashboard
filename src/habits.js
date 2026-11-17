@@ -87,6 +87,20 @@ async function buildHabitsModule(view, root) {
       } else {
         meta.createSpan({ cls: PLUGIN_ID + '-habit-streak none', text: en ? 'Start a streak today' : '今天开始连击' });
       }
+      // 失败归因：最易断在周几（样本足够时才显示，避免噪点）。
+      try {
+        const insights = computeHabitInsights(habit.log || [], window.moment());
+        const DOW_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const DOW_ZH = ['周日','周一','周二','周三','周四','周五','周六'];
+        if (insights.worstWeekday != null && insights.sampleDays >= 14) {
+          const label = en ? ('Breaks most on ' + DOW_EN[insights.worstWeekday]) : ('最易断在' + DOW_ZH[insights.worstWeekday]);
+          const tip = en
+            ? ('Historically missed most often on ' + DOW_EN[insights.worstWeekday] + '. Longest run: ' + insights.longestStreak + 'd.')
+            : ('历史上在' + DOW_ZH[insights.worstWeekday] + '最容易断。最长连击：' + insights.longestStreak + ' 天。');
+          const risk = meta.createSpan({ cls: PLUGIN_ID + '-habit-insight', text: '⚠️ ' + label });
+          risk.title = tip;
+        }
+      } catch (e) { console.warn('Cockpit habit insights failed', e); }
 
       // 最近 7 天打卡格：点击即可打卡 / 取消（支持补卡）。
       const strip = row.createDiv({ cls: PLUGIN_ID + '-habit-week' });

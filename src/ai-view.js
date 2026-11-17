@@ -147,6 +147,7 @@ class CockpitAIView extends obs.ItemView {
       item.onclick = () => { this._closeHeaderMenu(); onClick(); };
     };
     headerAction('square-pen', en ? 'New conversation' : '新建对话', () => this._newSession());
+    headerAction('brain', en ? 'Long-term memory' : '长期记忆', () => this._openMemoryDrawer());
     headerAction('settings-2', en ? 'AI settings' : 'AI 设置', () => { this.app.setting.open(); this.app.setting.openTabById(PLUGIN_ID); });
     headerAction('x', en ? 'Close sidebar' : '关闭侧栏', () => this.plugin.closeAI(), PLUGIN_ID + '-ai-close');
     more.onclick = (event) => {
@@ -194,6 +195,53 @@ class CockpitAIView extends obs.ItemView {
     layer.hidden = !open;
     layer.classList.toggle('is-open', open);
     if (open) { this._renderSessionList(this._sessionDrawerEls.search.value); window.setTimeout(() => this._sessionDrawerEls.search.focus(), 0); }
+  }
+  // 打开「长期记忆」管理面板：查看/搜索/删除/手动添加记忆条目，并可一键开启或关闭记忆功能。
+  async _openMemoryDrawer() {
+    const en = this._language === 'en';
+    const modal = new CockpitDetailModal(this, en ? 'Long-term memory' : '长期记忆', async (body) => {
+      const config = await this.plugin.ai.getConfig();
+      const state = await this.plugin.aiMemory.load();
+      const toolbar = body.createDiv({ cls:PLUGIN_ID + '-ai-memory-toolbar' });
+      const toggleLabel = toolbar.createEl('label', { cls:PLUGIN_ID + '-ai-memory-toggle' });
+      const toggle = toggleLabel.createEl('input', { attr:{ type:'checkbox' } });
+      toggle.checked = config.memoryEnabled !== false;
+      toggleLabel.createSpan({ text:en ? 'Use memory in replies' : '回答时参考记忆' });
+      toggle.onchange = async () => {
+        await this.plugin.ai.saveConfig({ ...config, memoryEnabled:toggle.checked });
+        new obs.Notice(en ? (toggle.checked ? 'Memory enabled' : 'Memory disabled') : (toggle.checked ? '已开启记忆' : '已关闭记忆'));
+      };
+      const addRow = body.createDiv({ cls:PLUGIN_ID + '-ai-memory-add' });
+      const input = addRow.createEl('input', { cls:PLUGIN_ID + '-ai-memory-input', attr:{ type:'text', placeholder:en ? 'Add a memory the assistant should keep…' : '手动添加一条想让它记住的内容…' } });
+      const addBtn = addRow.createEl('button', { text:en ? 'Add' : '添加', attr:{ type:'button' } });
+      addBtn.onclick = async () => {
+        const text = String(input.value || '').trim();
+        if (!text) return;
+        await this.plugin.aiMemory.addManual(text, 'fact', []);
+        input.value = '';
+        new obs.Notice(en ? 'Memory added' : '已添加记忆');
+        renderList();
+      };
+      const listWrap = body.createDiv({ cls:PLUGIN_ID + '-ai-memory-list' });
+      const renderList = () => {
+        listWrap.empty();
+        const entries = state.entries || [];
+        if (!entries.length) { listWrap.createDiv({ cls:PLUGIN_ID + '-ai-memory-empty', text:en ? 'No memories yet. They build up as you chat.' : '还没有记忆。随着对话会自动积累。' }); return; }
+        entries.forEach((entry) => {
+          const row = listWrap.createDiv({ cls:PLUGIN_ID + '-ai-memory-row' });
+          const main = row.createDiv({ cls:PLUGIN_ID + '-ai-memory-main' });
+          const meta = main.createDiv({ cls:PLUGIN_ID + '-ai-memory-meta' });
+          meta.createSpan({ text:(en ? 'Kind: ' : '类型：') + entry.kind });
+          main.createDiv({ cls:PLUGIN_ID + '-ai-memory-text', text:entry.text });
+          const pin = row.createEl('button', { cls:PLUGIN_ID + '-ai-memory-pin', text:entry.pinned ? '★' : '☆', attr:{ type:'button', title:en ? 'Pin / unpin' : '置顶/取消置顶' } });
+          pin.onclick = async () => { await this.plugin.aiMemory.setPinned(entry.id, !entry.pinned); entry.pinned = !entry.pinned; renderList(); };
+          const del = row.createEl('button', { cls:PLUGIN_ID + '-ai-memory-del', text:'✕', attr:{ type:'button', title:en ? 'Delete' : '删除' } });
+          del.onclick = async () => { await this.plugin.aiMemory.remove(entry.id); state.entries = state.entries.filter((e) => e.id !== entry.id); renderList(); };
+        });
+      };
+      renderList();
+    });
+    modal.open();
   }
   _renderSessionList(query = '') {
     const list = this._sessionDrawerEls?.list;
@@ -1097,6 +1145,18 @@ class CockpitAIView extends obs.ItemView {
     try { return await operation; }
     catch (error) { console.warn('Cockpit: could not save AI conversation history'); return null; }
   }
+  // 回答完成后，从本会话最近几轮里提炼值得长期记住的结论/偏好/未决项，写入本地记忆库。
+  // fire-and-forget：任何失败都不影响对话本身。
+  _learnAiMemory() {
+    try {
+      const session = this._activeSession();
+      const turns = (session?.messages || []).slice(-6).map((m) => ({ role:m.role, content:m.content }));
+      if (!turns.length || !this.plugin?.aiMemory?.learnFromSession) return;
+      this.plugin.aiMemory.learnFromSession(turns, { sessionId:this._activeSessionId, now:Date.now() })
+        .then((added) => { if (added?.length) this._refreshMemoryBadge?.(); })
+        .catch((error) => console.warn('Cockpit: could not learn AI memory', error));
+    } catch (error) { console.warn('Cockpit: learn AI memory failed', error); }
+  }
   async _run(action, question) {
     if (this._busy) return;
     const en = this._language === 'en';
@@ -1300,6 +1360,7 @@ class CockpitAIView extends obs.ItemView {
       const completedAnswer = answer || (en ? 'The Agent finished without a written answer.' : 'Agent 已完成操作，但未生成文字回答。');
       if (!answer) streamMessage.answer.setText(completedAnswer);
       await this._safeHistory(this.plugin.aiHistory.appendMessage(this._activeSessionId, { role:'assistant', content:completedAnswer, language:this._language, activity:Array.from(completedTools.values()), changedFiles:Array.from(changedFiles.values()), plan:currentPlan }));
+      this._learnAiMemory();
       runSucceeded = true;
     } catch (error) {
       if (this._abortController?.signal.aborted || error?.name === 'AbortError') {

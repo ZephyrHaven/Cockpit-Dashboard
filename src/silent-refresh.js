@@ -106,6 +106,7 @@ async function cockpitRunSilentRefreshCycle(view, options = {}) {
   if (document.hidden || cockpitIsSilentRefreshBlocked(view, options.ignoreRecentActivity)) return;
   if (view._vaultRefreshInFlight) return view._vaultRefreshInFlight;
   view._vaultRefreshInFlight = (async () => {
+    let _perfFilesRead = 0;
     while (view._vaultRefreshScopes?.size && !view._vaultRefreshClosed && !document.hidden
       && !cockpitIsSilentRefreshBlocked(view, options.ignoreRecentActivity)) {
       const root = view.containerEl.children[1]?.querySelector('.' + PLUGIN_ID + '-root');
@@ -127,7 +128,7 @@ async function cockpitRunSilentRefreshCycle(view, options = {}) {
         if (full) await view._reloadDashboardState();
         else {
           if (scopes.has('todos')) {
-            const todos = await loadTodos(view.app.vault);
+            const todos = await loadTodos(view.app.vault); _perfFilesRead += 1;
             if (!current()) return;
             view._todos = todos || [];
             await view._plugin.alarms?.syncTodos(view._todos).catch((error) => console.warn('Cockpit todo alarm sync failed', error));
@@ -135,7 +136,7 @@ async function cockpitRunSilentRefreshCycle(view, options = {}) {
           }
           if (scopes.has('focus')) {
             const file = view.app.vault.getAbstractFileByPath(FOCUS_FILE);
-            const content = file ? await view.app.vault.read(file) : '';
+            const content = file ? await view.app.vault.read(file) : ''; _perfFilesRead += 1;
             if (!current()) return;
             view._focusHistory = view._parseFocusHistory(content);
             view._focusMinutes = view._focusHistory.get(window.moment().format('YYYY-MM-DD')) || 0;
@@ -143,7 +144,7 @@ async function cockpitRunSilentRefreshCycle(view, options = {}) {
         }
         if (!current()) return;
         if (full || scopes.has('notes')) {
-          view._allFiles = view.app.vault.getMarkdownFiles();
+          view._allFiles = view.app.vault.getMarkdownFiles(); _perfFilesRead += 1;
           await cockpitRefreshOptionalModule(view, '_refreshCategoriesRef');
           view._updateStatsRef?.();
           view._refreshRecentSection(root, view._allFiles);
@@ -166,6 +167,8 @@ async function cockpitRunSilentRefreshCycle(view, options = {}) {
         }
         if (!current()) return;
         view._refreshHeroSection();
+        if (typeof cockpitPerfRecordRefresh === 'function') cockpitPerfRecordRefresh(Array.from(scopes), _perfFilesRead);
+        _perfFilesRead = 0;
         if (typeof cockpitNotifyCustomComponents === 'function') cockpitNotifyCustomComponents(view, scopes);
       } catch (error) {
         if (!view._vaultRefreshClosed) scopes.forEach((scope) => view._vaultRefreshScopes.add(scope));
@@ -173,8 +176,12 @@ async function cockpitRunSilentRefreshCycle(view, options = {}) {
       }
     }
   })();
+  const perfStart = (typeof cockpitPerfNow === 'function') ? cockpitPerfNow() : null;
   try { await view._vaultRefreshInFlight; }
-  finally { view._vaultRefreshInFlight = null; view._vaultRefreshPending = !!view._vaultRefreshScopes?.size; }
+  finally {
+    if (perfStart != null && typeof cockpitPerfRecord === 'function') cockpitPerfRecord('silentRefresh', cockpitPerfNow() - perfStart);
+    view._vaultRefreshInFlight = null; view._vaultRefreshPending = !!view._vaultRefreshScopes?.size;
+  }
 }
 function cockpitRunVaultRefresh(view) {
   if (document.hidden) return;

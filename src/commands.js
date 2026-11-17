@@ -24,6 +24,7 @@ function registerCockpitCommands(plugin) {
     }
   });
   plugin.addCommand({id:'open-cockpit-ai',name:'打开 Cockpit AI 助手',callback:() => plugin.openAI()});
+  plugin.addCommand({id:'open-todo-patterns',name:'查看任务完成模式',callback:() => { const view = plugin.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view; if (view) openTodoPatterns(view); else plugin._open(); }});
   // 不预设快捷键（审核规范），用户可在宿主的快捷键设置里自行绑定。
   plugin.addCommand({id:'quick-capture',name:'快速记录待办（识别日期 / 时间 / 优先级）',callback:() => new CockpitQuickCaptureModal(plugin.app, plugin).open()});
   plugin.addCommand({

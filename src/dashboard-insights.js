@@ -112,15 +112,16 @@ function openCockpitLogs(view) {
       panel.className = '';
       buttons.forEach((button) => { const active = button.dataset.logTab === id; button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1; });
       const host = panel.createDiv();
-      refresh = id === 'runs' ? buildRunHistory(view, host) : buildSyncHealth(view, host);
+      refresh = id === 'runs' ? buildRunHistory(view, host) : id === 'perf' ? buildPerformancePanel(view, host) : buildSyncHealth(view, host);
     };
-    [['runs',en ? 'Run history' : '运行记录'],['sync',en ? 'Sync diagnostics' : '同步诊断']].forEach(([id,label]) => {
+    [['runs',en ? 'Run history' : '运行记录'],['sync',en ? 'Sync diagnostics' : '同步诊断'],['perf',en ? 'Performance' : '性能']].forEach(([id,label]) => {
       const button = tabs.createEl('button', { text:label, attr:{ type:'button', role:'tab', 'aria-selected':'false' } });
       button.dataset.logTab = id; button.onclick = () => select(id); buttons.push(button);
       button.onkeydown = (event) => {
         if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
         event.preventDefault();
-        const next = event.key === 'Home' ? 0 : event.key === 'End' ? 1 : 1 - buttons.indexOf(button);
+        const last = buttons.length - 1;
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? last : (event.key === 'ArrowRight' ? (buttons.indexOf(button) + 1) % buttons.length : (buttons.indexOf(button) - 1 + buttons.length) % buttons.length);
         select(buttons[next].dataset.logTab); buttons[next].focus();
       };
     });
@@ -131,6 +132,76 @@ function openCockpitLogs(view) {
     modal.registerCleanup(() => { closed = true; refresh = null; off.forEach((dispose) => dispose()); view._plugin.lanSync?.listeners?.delete(update); });
     [view._plugin.teamSync, view._plugin.scheduledTasks, view._plugin.workflows].forEach((service) => { const dispose = service?.subscribe?.(update); if (typeof dispose === 'function') off.push(dispose); });
     view._plugin.lanSync?.listeners?.add(update);
+  }).open();
+}
+
+
+function buildPerformancePanel(view, root) {
+  const en = view._lang() === 'en';
+  const render = () => {
+    root.empty();
+    const summary = typeof cockpitPerfSummary === 'function' ? cockpitPerfSummary() : null;
+    if (!summary || (!summary.firstPaintMs && !summary.slowestModules.length && !summary.slowestLabels.length)) {
+      root.createEl('p', { cls:'cockpit-detail-muted', text:en ? 'No performance samples yet. Interact with the cockpit and reopen this panel.' : '还没有性能样本。使用一下驾驶舱后再打开此面板。' });
+      return;
+    }
+    if (summary.firstPaintMs != null) {
+      root.createEl('p', { text:(en ? 'Last full render: ' : '最近整页渲染：') + Math.round(summary.firstPaintMs) + ' ms' });
+    }
+    if (summary.refresh) {
+      root.createEl('p', { text:(en ? 'Silent refresh: ' : '静默刷新：') + Math.round(summary.refresh.avg) + ' ms avg · ' + Math.round(summary.refresh.max) + ' ms max · x' + summary.refresh.count });
+    }
+    const heat = typeof cockpitPerfRefreshHeat === 'function' ? cockpitPerfRefreshHeat() : null;
+    if (heat && heat.eventCount) {
+      root.createEl('h3', { text:en ? 'Refresh heat' : '刷新热力' });
+      root.createEl('p', { text:(en ? 'Refresh cycles: ' : '刷新轮次：') + heat.eventCount + (en ? ' · avg files read ' : ' · 平均读文件 ') + heat.avgFiles.toFixed(1) });
+      heat.scopes.forEach((s) => {
+        root.createDiv({ cls:'cockpit-detail-row', text:(en ? 'scope ' : '范围 ') + s.scope + ' · x' + s.count });
+      });
+    }
+    if (summary.slowestModules.length) {
+      root.createEl('h3', { text:en ? 'Slowest modules (last render)' : '最慢模块（最近一次渲染）' });
+      summary.slowestModules.forEach((m) => {
+        root.createDiv({ cls:'cockpit-detail-row', text:m.module + ' · ' + Math.round(m.ms) + ' ms' });
+      });
+    }
+    if (summary.slowestLabels.length) {
+      root.createEl('h3', { text:en ? 'Slowest operations (avg)' : '最慢操作（平均）' });
+      summary.slowestLabels.forEach((l) => {
+        root.createDiv({ cls:'cockpit-detail-row', text:l.label + ' · avg ' + Math.round(l.avg) + ' ms · max ' + Math.round(l.max) + ' ms · x' + l.count });
+      });
+    }
+    root.createEl('p', { cls:'cockpit-detail-muted', text:en ? 'In-memory only; nothing is stored or uploaded.' : '仅驻留内存，不落盘、不上传。' });
+    cockpitDetailButton(root, en ? 'Reset samples' : '重置样本', () => { if (typeof cockpitPerfReset === 'function') cockpitPerfReset(); render(); });
+  };
+  render();
+  return render;
+}
+
+function openTodoPatterns(view) {
+  const en = view._lang() === 'en';
+  new CockpitDetailModal(view, en ? 'Task completion patterns' : '任务完成模式', (root) => {
+    const stats = computeTodoPatterns(view._todos || [], window.moment());
+    if (!stats.doneCount && !stats.openCount) {
+      root.createEl('p', { cls:'cockpit-detail-muted', text:en ? 'No tasks yet. Patterns appear once you complete a few tasks.' : '还没有待办。完成一些任务后，这里会出现你的完成模式。' });
+      return;
+    }
+    const fmtDays = (v) => v == null ? '—' : (v < 1 ? (Math.round(v * 24) + (en ? ' h' : ' 小时')) : (v.toFixed(1) + (en ? ' d' : ' 天')));
+    root.createEl('p', { text:(en ? 'Completed ' : '已完成 ') + stats.doneCount + (en ? ' · open ' : ' · 未完成 ') + stats.openCount });
+    const summary = [];
+    if (stats.avgDoneDays != null) summary.push((en ? 'Avg time to finish: ' : '平均完成耗时：') + fmtDays(stats.avgDoneDays) + (en ? ' (median ' : '（中位 ') + fmtDays(stats.medianDoneDays) + (en ? ')' : '）'));
+    if (stats.peakHour != null) summary.push((en ? 'Most completions around ' : '完成高峰约在 ') + String(stats.peakHour).padStart(2, '0') + ':00');
+    if (stats.mostBacklogged) summary.push((en ? 'Largest open pile: #' : '积压最多： #') + stats.mostBacklogged.tag + ' (' + stats.mostBacklogged.open + (en ? ' open)' : ' 项未完成)'));
+    if (stats.mostOverdue) summary.push((en ? 'Most overdue: #' : '最易逾期： #') + stats.mostOverdue.tag + ' (' + Math.round(stats.mostOverdue.overdueRate * 100) + '% ' + (en ? 'overdue)' : '逾期)'));
+    summary.forEach((line) => root.createEl('p', { text:'• ' + line }));
+    if (stats.tagRows.length) {
+      root.createEl('h3', { text:en ? 'By tag' : '按标签' });
+      stats.tagRows.slice(0, 15).forEach((row) => {
+        const line = root.createDiv({ cls:'cockpit-detail-row' });
+        line.createSpan({ text:'#' + row.tag + (en ? ' · done ' : ' · 完成 ') + row.done + (en ? ' / open ' : ' / 未完成 ') + row.open + (row.avgDoneDays != null ? (en ? ' · avg ' : ' · 均 ') + fmtDays(row.avgDoneDays) : '') });
+      });
+    }
+    root.createEl('p', { cls:'cockpit-detail-muted', text:en ? 'Read-only summary from local task history. Nothing is uploaded.' : '基于本地任务历史的只读统计，不上传任何内容。' });
   }).open();
 }
 

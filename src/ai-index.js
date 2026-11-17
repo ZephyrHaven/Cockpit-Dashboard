@@ -77,6 +77,66 @@ function nextAiIndexSlot() {
   return new Promise((resolve) => setTimeout(resolve, 16));
 }
 
+// A2 语义混合检索：在关键词倒排（IDF）之上，叠加一个「字符 n-gram 向量」相似度作为
+// 轻量语义信号——不依赖任何外部模型/联网，只用查询与文档词元的 n-gram 重叠估计语义相关度。
+function aiIndexCharGrams(value, n = 3) {
+  const text = String(value || '').normalize('NFKC').toLocaleLowerCase().replace(/\s+/g, ' ');
+  const grams = new Map();
+  if (!text) return grams;
+  const size = Math.max(1, Math.floor(Number(n) || 3));
+  for (let index = 0; index + size <= text.length; index++) {
+    const gram = text.slice(index, index + size);
+    if (!gram.trim()) continue;
+    grams.set(gram, (grams.get(gram) || 0) + 1);
+  }
+  return grams;
+}
+
+function aiIndexCosine(queryText, docText, n = 3) {
+  const q = aiIndexCharGrams(queryText, n);
+  const d = aiIndexCharGrams(docText, n);
+  if (!q.size || !d.size) return 0;
+  let dot = 0;
+  const small = q.size <= d.size ? q : d;
+  const large = q.size <= d.size ? d : q;
+  small.forEach((count, gram) => { const other = large.get(gram); if (other) dot += count * other; });
+  let qNorm = 0, dNorm = 0;
+  q.forEach((c) => { qNorm += c * c; });
+  d.forEach((c) => { dNorm += c * c; });
+  if (!qNorm || !dNorm) return 0;
+  return dot / (Math.sqrt(qNorm) * Math.sqrt(dNorm));
+}
+
+function rankAiIndexHybrid(docs, docTermsOf, lexicalScores, queryText, options = {}) {
+  const now = Number(options.now) || Date.now();
+  const semanticWeight = Number.isFinite(Number(options.semanticWeight)) ? Number(options.semanticWeight) : 8;
+  const recencyWeight = Number.isFinite(Number(options.recencyWeight)) ? Number(options.recencyWeight) : 2.5;
+  const normalizedQuery = String(queryText || '').trim().toLocaleLowerCase();
+  const queryGrams = aiIndexCharGrams(queryText, 3);
+  const rows = [];
+  for (const doc of (Array.isArray(docs) ? docs : [])) {
+    const lexical = (lexicalScores && lexicalScores.get && Number(lexicalScores.get(doc.id))) || 0;
+    const termSet = typeof docTermsOf === 'function' ? docTermsOf(doc.id) : null;
+    const docText = termSet && typeof termSet.forEach === 'function' ? Array.from(termSet).join('') : '';
+    const semantic = docText && queryGrams.size ? aiIndexCosine(queryText, docText, 3) : 0;
+    let total = lexical + semanticWeight * semantic;
+    const lowerPath = String(doc.path || '').toLocaleLowerCase();
+    if (normalizedQuery && lowerPath.includes(normalizedQuery)) total += 25;
+    const ageDays = Math.max(0, (now - (Number(doc.mtime) || 0)) / 86400000);
+    total += recencyWeight * Math.exp(-ageDays / 21);
+    if (lexical > 0 || semantic > 0.02) rows.push({ id:doc.id, score:total, lexical, semantic, mtime:Number(doc.mtime) || 0 });
+  }
+  // 排序优先级：关键词得分(近似相等视为并列) → 修改时间新 → 语义相似度。
+  // 语义只用来「召回」关键词未命中但语义相近的笔记，以及在完全并列时微调，
+  // 绝不推翻关键词命中与时效性，避免近期刚被更新的笔记被旧笔记挤下去。
+  rows.sort((a, b) => {
+    if (Math.abs(b.lexical - a.lexical) > 0.001) return b.lexical - a.lexical;
+    if (b.mtime !== a.mtime) return b.mtime - a.mtime;
+    return b.semantic - a.semantic;
+  });
+  return rows;
+}
+
 class CockpitAiSearchIndex {
   constructor(plugin) {
     this.plugin = plugin;
@@ -261,36 +321,51 @@ class CockpitAiSearchIndex {
     const limit = Math.max(1, Math.min(AI_INDEX_LIMITS.candidateLimit, Math.floor(Number(options.limit)) || AI_INDEX_LIMITS.candidateLimit));
     const now = Number(options.now) || Date.now();
     const terms = Array.from(collectAiIndexTerms(queryText).counts.keys()).slice(0, AI_INDEX_LIMITS.maxQueryTerms);
-    const scores = new Map();
+    const lexicalScores = new Map();
     terms.forEach((term) => {
       const set = this.postings.get(term);
       if (!set?.size) return;
       // 稀有词元区分度高，权重更高；长词元比双字组合更可信。
       const weight = (1 + Math.min(term.length, 8) / 8) / Math.log2(2 + set.size);
-      set.forEach((id) => scores.set(id, (scores.get(id) || 0) + weight));
+      set.forEach((id) => lexicalScores.set(id, (lexicalScores.get(id) || 0) + weight));
     });
-    const normalizedQuery = String(queryText || '').trim().toLocaleLowerCase();
-    const results = [];
-    scores.forEach((score, id) => {
-      const doc = this.docs.get(id);
-      if (!doc) return;
-      let total = score;
-      const lowerPath = doc.path.toLocaleLowerCase();
-      if (normalizedQuery && lowerPath.includes(normalizedQuery)) total += 25;
-      results.push({ path:doc.path, score:total + this._recencyBoost(doc, now), mtime:doc.mtime });
+    // 候选集：关键词命中文档 ∪ 最近修改的一批文档（让语义向量也能召回「不同词但语义相近」的笔记）。
+    // 候选数有界，语义相似度只在这批上计算，避免全库遍历。
+    const candidateIds = new Set(lexicalScores.keys());
+    const semanticPool = Math.max(limit * 4, 48);
+    Array.from(this.docs.values())
+      .sort((a, b) => (Number(b?.mtime) || 0) - (Number(a?.mtime) || 0))
+      .slice(0, semanticPool)
+      .forEach((doc) => { const id = this.pathToId.get(doc.path); if (id != null) candidateIds.add(id); });
+    const hybridEnabled = options.hybrid !== false;
+    if (!hybridEnabled || !candidateIds.size) {
+      const results = [];
+      lexicalScores.forEach((score, id) => {
+        const doc = this.docs.get(id);
+        if (!doc) return;
+        results.push({ path:doc.path, score:score + this._recencyBoost(doc, now), mtime:doc.mtime });
+      });
+      if (!results.length) {
+        return this.recentPaths(limit).map((path) => {
+          const doc = this.docs.get(this.pathToId.get(path));
+          return { path, score:this._recencyBoost(doc, now) };
+        });
+      }
+      return results.sort((a, b) => b.score - a.score || b.mtime - a.mtime).slice(0, limit).map(({ path, score }) => ({ path, score }));
+    }
+    const docs = [];
+    candidateIds.forEach((id) => { const doc = this.docs.get(id); if (doc) docs.push({ id, path:doc.path, mtime:doc.mtime }); });
+    const ranked = rankAiIndexHybrid(docs, (id) => this.docTerms.get(id), lexicalScores, queryText, {
+      now, semanticWeight:options.semanticWeight, recencyWeight:options.recencyWeight
     });
-    if (!results.length) {
-      // 没有任何词元命中时退化为“最近修改”候选，保证 RAG 仍有可用上下文。
+    if (!ranked.length) {
+      // 关键词与语义都没有命中：退化为“最近修改”候选，保证 RAG 仍有可用上下文。
       return this.recentPaths(limit).map((path) => {
         const doc = this.docs.get(this.pathToId.get(path));
         return { path, score:this._recencyBoost(doc, now) };
       });
     }
-    // 词元重叠相同时，最近修改的笔记优先（内容更新过的笔记更可能相关）。
-    return results
-      .sort((a, b) => b.score - a.score || b.mtime - a.mtime)
-      .slice(0, limit)
-      .map(({ path, score }) => ({ path, score }));
+    return ranked.slice(0, limit).map((row) => ({ path:this.docs.get(row.id).path, score:row.score }));
   }
   _recencyBoost(doc, now) {
     const ageDays = Math.max(0, (now - (Number(doc?.mtime) || 0)) / 86400000);
@@ -441,5 +516,5 @@ class CockpitAiSearchIndex {
 }
 
 if (typeof module !== 'undefined' && module.exports && typeof PLUGIN_ID === 'undefined') {
-  module.exports = { AI_INDEX_LIMITS, collectAiIndexTerms, rankAiIndexTerms, CockpitAiSearchIndex };
+  module.exports = { AI_INDEX_LIMITS, collectAiIndexTerms, rankAiIndexTerms, aiIndexCharGrams, aiIndexCosine, rankAiIndexHybrid, CockpitAiSearchIndex };
 }
