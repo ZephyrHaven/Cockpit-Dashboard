@@ -157,7 +157,7 @@ assert.equal(reconciled[0].snoozedUntil, null, 'Completing a todo cancels a pend
 reconciled = reconcileTodoAlarms([linked], []);
 assert.equal(reconciled[0].enabled, false, 'Deleting a todo disables its linked alarm.');
 
-const framework = fs.readFileSync(path.join(__dirname, '../src/_framework.js'), 'utf8');
+const framework = fs.readFileSync(path.join(__dirname, '../src/_framework.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '../src/todo-section.js'), 'utf8');
 // 日历功能由月/周网格与当日总览两个文件共同组成。
 const calendar = fs.readFileSync(path.join(__dirname, '../src/calendar.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '../src/calendar-day-flow.js'), 'utf8');
 const pomodoro = fs.readFileSync(path.join(__dirname, '../src/pomodoro.js'), 'utf8');
