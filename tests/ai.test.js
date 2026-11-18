@@ -221,8 +221,9 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
 
 (async () => {
   let stored = {
-    ai:{ baseUrl:'https://provider.example/v1', model:'test-model', apiKeySecret:'cockpit-key', maxContextChars:4000 }
+    ai:{ baseUrl:'https://provider.example/v1', model:'test-model', apiKey:'runtime-secret', maxContextChars:4000 }
   };
+  let secretStorageRead = false;
   let capturedRequest = null;
   global.obs = {
     requestUrl:async (requestOptions) => {
@@ -236,7 +237,7 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
     loadData:async () => stored,
     mutateData:async (mutator) => { await mutator(stored); },
     app:{
-      secretStorage:{ getSecret:(name) => name === 'cockpit-key' ? 'runtime-secret' : null },
+      secretStorage:{ getSecret:(name) => { secretStorageRead = true; return name === 'cockpit-key' ? 'runtime-secret' : null; } },
       workspace:{ getActiveFile:() => null, getLastOpenFiles:() => ['Fallback.md'] },
       vault:{
         getAbstractFileByPath:(filePath) => filePath === 'Fallback.md' ? { path:'Fallback.md', extension:'md' } : null,
@@ -254,6 +255,7 @@ assert.match(styles, /@container\s+cockpit-ai-view\s*\(max-width:\s*460px\)/, 'N
   assert.equal(await service.complete({ action:'summarize', note:{ path:'Current.md', content:'Body' }, language:'zh-CN' }), 'Service response');
   assert.equal(capturedRequest.headers.Authorization, 'Bearer runtime-secret');
   assert.doesNotMatch(capturedRequest.body, /runtime-secret/);
+  assert.equal(secretStorageRead, false, 'Compliance fix: API key read from data.json, secretStorage never accessed.');
 
   const originalFetch = global.fetch;
   let capturedStreamRequest = null;

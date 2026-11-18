@@ -148,7 +148,11 @@ class CockpitAIView extends obs.ItemView {
     };
     headerAction('square-pen', en ? 'New conversation' : '新建对话', () => this._newSession());
     headerAction('brain', en ? 'Long-term memory' : '长期记忆', () => this._openMemoryDrawer());
-    headerAction('settings-2', en ? 'AI settings' : 'AI 设置', () => { this.app.setting.open(); this.app.setting.openTabById(PLUGIN_ID); });
+    headerAction('settings-2', en ? 'AI settings' : 'AI 设置', () => {
+      const dashView = this.plugin.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view;
+      const host = dashView || { app:this.app, _plugin:this.plugin, _lang:() => this._language };
+      openCockpitPluginSettings(host, 'ai');
+    });
     headerAction('x', en ? 'Close sidebar' : '关闭侧栏', () => this.plugin.closeAI(), PLUGIN_ID + '-ai-close');
     more.onclick = (event) => {
       event.stopPropagation();

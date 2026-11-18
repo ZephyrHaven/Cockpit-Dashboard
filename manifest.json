@@ -1,8 +1,8 @@
 {
   "id": "cockpit-dashboard",
   "name": "Cockpit Dashboard",
-  "version": "2.4.1",
-  "minAppVersion": "0.15.0",
+  "version": "2.4.2",
+  "minAppVersion": "1.1.0",
   "description": "A customizable, local-first dashboard for tasks, calendar, RSS, focus, automation, and an optional multi-model AI assistant.",
   "author": "hang",
   "isDesktopOnly": true

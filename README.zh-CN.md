@@ -11,7 +11,7 @@
 [![Downloads](https://img.shields.io/github/downloads/ZephyrHaven/Cockpit-Dashboard/total?style=for-the-badge&color=2F9E44)](https://github.com/ZephyrHaven/Cockpit-Dashboard/releases)
 [![Stars](https://img.shields.io/github/stars/ZephyrHaven/Cockpit-Dashboard?style=for-the-badge&color=E8590C)](https://github.com/ZephyrHaven/Cockpit-Dashboard/stargazers)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
-[![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A50.15.0-7C3AED?style=for-the-badge&logo=obsidian&logoColor=white)](https://obsidian.md)
+[![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.1.0-7C3AED?style=for-the-badge&logo=obsidian&logoColor=white)](https://obsidian.md)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-4C6EF5?style=for-the-badge)](#安装)
 
 [![Sponsor](https://img.shields.io/badge/%F0%9F%92%96%20%E8%B5%9E%E5%8A%A9-Afdian-946CE6?style=for-the-badge)](https://afdian.com/a/zephyrhaven)

@@ -1629,8 +1629,7 @@ class CockpitView extends obs.ItemView {
       return;
     }
     if (a === 'notifications') {
-      this.app.setting.open();
-      this.app.setting.openTabById(PLUGIN_ID);
+      openCockpitPluginSettings(this, 'ai');
       return;
     }
     if (a === 'more') {
@@ -1659,19 +1658,14 @@ class CockpitView extends obs.ItemView {
     }
   }
   _ensureStylesheetLoaded() {
-    // 样式仅随插件目录的 styles.css 分发，由宿主自动加载（社区插件标准机制）；
-    // 此处只在探测到样式缺失时，从插件目录读取并注入一次作为兜底。
+    // 样式仅随插件目录的 styles.css 分发，由宿主自动加载（社区插件标准机制）。
+    // 依审查规则不得动态创建/注入 <style> 元素，故不再手动兜底注入；
+    // 仅在探测到样式缺失时打印一次警告，便于定位宿主未加载样式的情形。
     try {
       if (getComputedStyle(document.body).getPropertyValue('--cockpit-accent').trim()) return;
       if (this._stylesheetFallbackTried) return;
       this._stylesheetFallbackTried = true;
-      const cssPath = this._plugin.manifest.dir + '/styles.css';
-      this.app.vault.adapter.read(cssPath).then((cssText) => {
-        const styleEl = document.createElement('style');
-        styleEl.textContent = cssText;
-        document.head.appendChild(styleEl);
-        console.warn('Cockpit: host stylesheet auto-load missing, injected fallback from', cssPath);
-      }).catch((e) => console.warn('Cockpit: stylesheet fallback read failed', e));
+      console.warn('Cockpit: host stylesheet (styles.css) not detected; ensure the plugin ships styles.css.');
     } catch (e) { console.warn('Cockpit: stylesheet probe failed', e); }
   }
   async onClose() {

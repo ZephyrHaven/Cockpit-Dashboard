@@ -606,26 +606,19 @@ class CockpitAIService {
     await this._migrateLegacySecretKeys();
     return normalizeAiConfig(this._config);
   }
-  // 一次性迁移：旧版把 API key 存在宿主应用的私有 SecretStorage（非公开 API，审查不允许），
-  // 现改为明文保存在插件 data.json 中。首次加载时把旧值搬进 profile.apiKey 并清空旧字段。
+  // 历史兼容：旧版曾把 API key 存在宿主应用的私有 SecretStorage（非公开 API，审查不允许）。
+  // 现统一改为明文保存在插件 data.json 的 profile.apiKey 中。这里不再访问任何私有 API，
+  // 仅清理遗留的 apiKeySecret 字段名，避免其残留在配置中。
   async _migrateLegacySecretKeys() {
     const config = this._config;
     if (!Array.isArray(config?.profiles)) return;
-    let storage = null;
-    try { storage = this.plugin.app.secretStorage || null; } catch (e) { storage = null; }
-    const readable = !!(storage && typeof storage.getSecret === 'function');
     let changed = false;
     for (const profile of config.profiles) {
-      const secretName = String(profile.apiKeySecret || '').trim();
-      if (!secretName) continue;
-      let value = '';
-      if (readable) {
-        try { value = storage.getSecret(secretName) || ''; } catch (e) { value = ''; }
-        if (value && !String(profile.apiKey || '').trim()) profile.apiKey = value;
+      if (Object.prototype.hasOwnProperty.call(profile, 'apiKeySecret')) {
+        // 无法从已废弃的私有存储读取明文时，直接清空遗留字段；用户可在设置中重新填写密钥。
         profile.apiKeySecret = '';
         changed = true;
       }
-      // 宿主版本过旧读不到 SecretStorage 时保留原字段名，等升级后下次启动再迁移。
     }
     if (!changed) return;
     const normalized = normalizeAiConfig(config);
@@ -634,7 +627,7 @@ class CockpitAIService {
       if (typeof this.plugin.mutateData === 'function') {
         await this.plugin.mutateData((data) => { data.ai = normalized; });
       }
-    } catch (e) { console.warn('Cockpit AI: legacy secret key migration persist failed', e); }
+    } catch (e) { console.warn('Cockpit AI: legacy secret key cleanup persist failed', e); }
   }
   async saveConfig(next) {
     // 未显式携带 localCommands 的保存（如旧设置面板）不得清空用户登记的本地命令。
@@ -680,14 +673,8 @@ class CockpitAIService {
     } catch (error) { return Promise.resolve(); }
   }
   getProfileApiKey(profile) {
-    const direct = String((profile && profile.apiKey) || '').trim();
-    if (direct) return direct;
-    const secretName = String((profile && profile.apiKeySecret) || '').trim();
-    if (!secretName) return '';
-    try {
-      const storage = this.plugin.app.secretStorage;
-      return (storage && typeof storage.getSecret === 'function') ? (storage.getSecret(secretName) || '') : '';
-    } catch (e) { return ''; }
+    // 仅从插件 data.json 中的明文 apiKey 读取，不再访问任何私有存储。
+    return String((profile && profile.apiKey) || '').trim();
   }
   async listRecentNotes(selectedPath = '') {
     const data = await this.plugin.loadData() || {};
